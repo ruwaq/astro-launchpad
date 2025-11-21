@@ -141,10 +141,20 @@ pub fn collect_creation_fee(
     }
 
     // In test environment, skip actual XLM transfer
-    // In production, this transfers XLM from creator to treasury
+    // In production, this transfers XLM from creator to treasury using native XLM SAC
     #[cfg(not(test))]
     {
-        crate::token_deployment::transfer_xlm(env, from, &config.treasury, config.creation_fee)?;
+        use soroban_sdk::token;
+
+        // Get native XLM SAC address
+        let xlm_address = soroban_sdk::Address::from_string(&soroban_sdk::String::from_str(
+            env,
+            "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC" // Testnet XLM SAC
+        ));
+
+        // Transfer XLM from creator to treasury
+        let xlm_client = token::Client::new(env, &xlm_address);
+        xlm_client.transfer(from, &config.treasury, &config.creation_fee);
     }
 
     // Suppress unused variable warning in test mode
