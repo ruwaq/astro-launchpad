@@ -76,25 +76,14 @@ export function WalletProvider({ children }: { children: ReactNode }) {
             setAddress(walletAddress);
             setIsConnected(true);
             localStorage.setItem('stellar_wallet_address', walletAddress);
-
-            // Close modal explicitly
-            await kit.closeModal();
           } catch (error) {
             console.error('Error in wallet selection:', error);
-            await kit.closeModal();
             throw error;
           }
         }
       });
     } catch (err: any) {
       console.error('Failed to connect wallet:', err);
-
-      // Ensure modal is closed on error
-      try {
-        await kit.closeModal();
-      } catch (closeError) {
-        // Modal already closed or doesn't exist
-      }
 
       // Handle specific error cases
       let errorMessage = 'Failed to connect wallet';

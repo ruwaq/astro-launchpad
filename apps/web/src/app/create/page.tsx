@@ -6,7 +6,7 @@ import { Upload, Info, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useWallet } from '@/contexts/WalletContext';
 import { sacFactoryService } from '@/lib/stellar/services/sac-factory.service';
 import { stellarClient } from '@/lib/stellar/client';
-import { TransactionBuilder, Account } from '@stellar/stellar-sdk';
+import { TransactionBuilder, SorobanRpc } from '@stellar/stellar-sdk';
 import { getNetworkConfig } from '@/lib/config/network';
 import toast from 'react-hot-toast';
 
@@ -129,13 +129,10 @@ export default function CreatePage() {
       );
 
       // Create transaction
-      const transaction = new TransactionBuilder(
-        new Account(account.accountId(), account.sequence),
-        {
-          fee: '1000000', // 0.1 XLM fee
-          networkPassphrase: config.passphrase,
-        }
-      )
+      const transaction = new TransactionBuilder(account, {
+        fee: '1000000', // 0.1 XLM fee
+        networkPassphrase: config.passphrase,
+      })
         .addOperation(launchOperation as any)
         .setTimeout(30)
         .build();
@@ -150,10 +147,10 @@ export default function CreatePage() {
       }
 
       // Prepare transaction with simulation results
-      const preparedTx = TransactionBuilder.fromXDR(
-        simulated.transactionData?.build()?.toXDR() || transaction.toXDR(),
-        config.passphrase
-      ) as any;
+      const preparedTx = SorobanRpc.assembleTransaction(
+        transaction,
+        simulated
+      ).build();
 
       // Step 4: Sign transaction
       setFormState('signing');
