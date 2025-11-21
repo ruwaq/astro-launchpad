@@ -160,6 +160,9 @@ export default function SwapPage() {
       // Build transaction based on direction
       let operation: any;
 
+      // Calculate deadline: current time + 5 minutes (MEV protection)
+      const deadline = BigInt(Math.floor(Date.now() / 1000) + 300);
+
       if (direction === 'xlm-to-token') {
         // Buy tokens with XLM
         const xlmStroops = BigInt(xlmToStroops(inputAmount));
@@ -169,7 +172,8 @@ export default function SwapPage() {
           address,
           selectedToken,
           xlmStroops,
-          minTokens
+          minTokens,
+          deadline // NEW: MEV protection
         );
 
         toast.loading('Building buy transaction...');
@@ -182,7 +186,8 @@ export default function SwapPage() {
           address,
           selectedToken,
           tokenAmount,
-          minXlm
+          minXlm,
+          deadline // NEW: MEV protection
         );
 
         toast.loading('Building sell transaction...');

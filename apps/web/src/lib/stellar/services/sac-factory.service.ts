@@ -377,20 +377,27 @@ export class SacFactoryService extends BaseContractService {
    * @param tokenAddress - Token contract address
    * @param xlmAmount - Amount of XLM to spend (in stroops)
    * @param minTokens - Minimum tokens to receive (slippage protection)
+   * @param deadline - Transaction deadline timestamp (MEV protection)
    * @returns Transaction operation
+   *
+   * **BREAKING CHANGE (Sprint 1 Day 1):**
+   * Now requires `deadline` parameter for MEV protection.
+   * Example: `Date.now() + 300` (5 minutes from now)
    */
   buildBuyOperation(
     buyerAddress: string,
     tokenAddress: string,
     xlmAmount: bigint,
-    minTokens: bigint
+    minTokens: bigint,
+    deadline: bigint
   ): xdr.Operation {
     return this.buildOperation(
       'buy',
       addressToScVal(buyerAddress),
       addressToScVal(tokenAddress),
       toScVal(xlmAmount, xdr.ScValType.scvI128()),
-      toScVal(minTokens, xdr.ScValType.scvI128())
+      toScVal(minTokens, xdr.ScValType.scvI128()),
+      toScVal(deadline, xdr.ScValType.scvU64()) // NEW: deadline parameter
     );
   }
 
@@ -401,20 +408,27 @@ export class SacFactoryService extends BaseContractService {
    * @param tokenAddress - Token contract address
    * @param tokenAmount - Amount of tokens to sell
    * @param minXlm - Minimum XLM to receive (slippage protection)
+   * @param deadline - Transaction deadline timestamp (MEV protection)
    * @returns Transaction operation
+   *
+   * **BREAKING CHANGE (Sprint 1 Day 1):**
+   * Now requires `deadline` parameter for MEV protection.
+   * Example: `Date.now() + 300` (5 minutes from now)
    */
   buildSellOperation(
     sellerAddress: string,
     tokenAddress: string,
     tokenAmount: bigint,
-    minXlm: bigint
+    minXlm: bigint,
+    deadline: bigint
   ): xdr.Operation {
     return this.buildOperation(
       'sell',
       addressToScVal(sellerAddress),
       addressToScVal(tokenAddress),
       toScVal(tokenAmount, xdr.ScValType.scvI128()),
-      toScVal(minXlm, xdr.ScValType.scvI128())
+      toScVal(minXlm, xdr.ScValType.scvI128()),
+      toScVal(deadline, xdr.ScValType.scvU64()) // NEW: deadline parameter
     );
   }
 
