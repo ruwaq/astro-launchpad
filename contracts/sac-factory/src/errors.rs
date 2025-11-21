@@ -51,4 +51,8 @@ pub enum Error {
     DeploymentFailed = 90,
     TokenAlreadyExists = 91,
     InvalidWasmHash = 92,
+
+    // Transaction Protection
+    TransactionExpired = 100,
+    TransferFailed = 101,
 }

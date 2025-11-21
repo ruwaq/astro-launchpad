@@ -19,6 +19,11 @@ mod tests {
         (client, admin, treasury)
     }
 
+    /// Get a deadline far in the future (1 year from now)
+    fn get_test_deadline(env: &Env) -> u64 {
+        env.ledger().timestamp() + 31_536_000 // 1 year in seconds
+    }
+
     fn setup_initialized_factory(env: &Env) -> (SacFactoryClient, Address, Address) {
         let (client, admin, treasury) = create_factory_contract(env);
 
@@ -206,8 +211,9 @@ mod tests {
 
         let xlm_amount = 1000_0000000;
         let min_tokens = 0;
+        let deadline = get_test_deadline(&env);
 
-        let tokens_received = client.buy(&buyer, &token_addr, &xlm_amount, &min_tokens);
+        let tokens_received = client.buy(&buyer, &token_addr, &xlm_amount, &min_tokens, &deadline);
         assert!(tokens_received > 0);
     }
 
@@ -219,9 +225,10 @@ mod tests {
 
         let buyer = Address::generate(&env);
         let fake_token = Address::generate(&env);
+        let deadline = get_test_deadline(&env);
         env.mock_all_auths();
 
-        client.buy(&buyer, &fake_token, &1000_0000000, &0);
+        client.buy(&buyer, &fake_token, &1000_0000000, &0, &deadline);
     }
 
     #[test]
@@ -248,8 +255,9 @@ mod tests {
 
         let xlm_amount = 100_0000000;
         let min_tokens = 1_000_000_000_0000000;
+        let deadline = get_test_deadline(&env);
 
-        client.buy(&buyer, &token_addr, &xlm_amount, &min_tokens);
+        client.buy(&buyer, &token_addr, &xlm_amount, &min_tokens, &deadline);
     }
 
     #[test]
@@ -274,10 +282,11 @@ mod tests {
         );
 
         let xlm_amount = 1000_0000000;
-        let tokens_received = client.buy(&buyer, &token_addr, &xlm_amount, &0);
+        let deadline = get_test_deadline(&env);
+        let tokens_received = client.buy(&buyer, &token_addr, &xlm_amount, &0, &deadline);
 
         let tokens_to_sell = tokens_received / 2;
-        let xlm_received = client.sell(&buyer, &token_addr, &tokens_to_sell, &0);
+        let xlm_received = client.sell(&buyer, &token_addr, &tokens_to_sell, &0, &deadline);
 
         assert!(xlm_received > 0);
     }
@@ -307,11 +316,12 @@ mod tests {
         );
 
         let price_initial = client.get_price(&token_addr);
+        let deadline = get_test_deadline(&env);
 
-        client.buy(&buyer1, &token_addr, &1000_0000000, &0);
+        client.buy(&buyer1, &token_addr, &1000_0000000, &0, &deadline);
         let price_after_buy1 = client.get_price(&token_addr);
 
-        client.buy(&buyer2, &token_addr, &1000_0000000, &0);
+        client.buy(&buyer2, &token_addr, &1000_0000000, &0, &deadline);
         let price_after_buy2 = client.get_price(&token_addr);
 
         assert!(price_after_buy1 > price_initial);
@@ -385,7 +395,8 @@ mod tests {
         let progress_initial = client.get_graduation_progress(&token_addr);
         assert_eq!(progress_initial, 0);
 
-        client.buy(&buyer, &token_addr, &1000_0000000, &0);
+        let deadline = get_test_deadline(&env);
+        client.buy(&buyer, &token_addr, &1000_0000000, &0, &deadline);
 
         let progress_after = client.get_graduation_progress(&token_addr);
         assert!(progress_after > 0);
