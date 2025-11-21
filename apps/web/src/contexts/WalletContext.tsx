@@ -62,20 +62,47 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     setError(null);
 
     try {
-      // Open wallet selection modal
-      const { address: walletAddress } = await kit.getAddress();
+      // Open wallet selection modal and wait for selection
+      await kit.openModal({
+        onWalletSelected: async (option: ISupportedWallet) => {
+          try {
+            // Set the selected wallet
+            kit.setWallet(option.id);
 
-      setAddress(walletAddress);
-      setIsConnected(true);
-      localStorage.setItem('stellar_wallet_address', walletAddress);
+            // Get address from the selected wallet
+            const { address: walletAddress } = await kit.getAddress();
+
+            // Update state
+            setAddress(walletAddress);
+            setIsConnected(true);
+            localStorage.setItem('stellar_wallet_address', walletAddress);
+
+            // Close modal explicitly
+            await kit.closeModal();
+          } catch (error) {
+            console.error('Error in wallet selection:', error);
+            await kit.closeModal();
+            throw error;
+          }
+        }
+      });
     } catch (err: any) {
       console.error('Failed to connect wallet:', err);
+
+      // Ensure modal is closed on error
+      try {
+        await kit.closeModal();
+      } catch (closeError) {
+        // Modal already closed or doesn't exist
+      }
 
       // Handle specific error cases
       let errorMessage = 'Failed to connect wallet';
 
       if (err.code === -1) {
         errorMessage = 'Wallet connection rejected or wallet extension not installed.';
+      } else if (err.code === -3) {
+        errorMessage = 'Please select a wallet from the modal.';
       } else if (err.message) {
         errorMessage = err.message;
       }

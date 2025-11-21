@@ -81,6 +81,7 @@ impl AMMPair {
     /// * `amount_1_desired` - Desired amount of token1
     /// * `amount_0_min` - Minimum amount of token0 (slippage protection)
     /// * `amount_1_min` - Minimum amount of token1 (slippage protection)
+    /// * `deadline` - Unix timestamp after which transaction expires (MEV protection)
     ///
     /// # Returns
     /// Tuple of (amount0, amount1, liquidity_minted)
@@ -91,8 +92,14 @@ impl AMMPair {
         amount_1_desired: i128,
         amount_0_min: i128,
         amount_1_min: i128,
+        deadline: u64,
     ) -> (i128, i128, i128) {
         sender.require_auth();
+
+        // Check deadline (MEV protection)
+        if env.ledger().timestamp() > deadline {
+            panic!("transaction expired");
+        }
 
         let mut pair_info = storage::get_pair_info(&env);
 
@@ -187,6 +194,7 @@ impl AMMPair {
     /// * `liquidity` - Amount of LP tokens to burn
     /// * `amount_0_min` - Minimum amount of token0 to receive
     /// * `amount_1_min` - Minimum amount of token1 to receive
+    /// * `deadline` - Unix timestamp after which transaction expires (MEV protection)
     ///
     /// # Returns
     /// Tuple of (amount0, amount1)
@@ -196,8 +204,14 @@ impl AMMPair {
         liquidity: i128,
         amount_0_min: i128,
         amount_1_min: i128,
+        deadline: u64,
     ) -> (i128, i128) {
         sender.require_auth();
+
+        // Check deadline (MEV protection)
+        if env.ledger().timestamp() > deadline {
+            panic!("transaction expired");
+        }
 
         let mut pair_info = storage::get_pair_info(&env);
 
@@ -249,6 +263,7 @@ impl AMMPair {
     /// * `amount_in` - Exact amount of input token
     /// * `amount_out_min` - Minimum amount of output token (slippage protection)
     /// * `token_in` - Address of input token
+    /// * `deadline` - Unix timestamp after which transaction expires (MEV protection)
     ///
     /// # Returns
     /// Amount of output tokens received
@@ -258,8 +273,14 @@ impl AMMPair {
         amount_in: i128,
         amount_out_min: i128,
         token_in: Address,
+        deadline: u64,
     ) -> i128 {
         sender.require_auth();
+
+        // Check deadline (MEV protection)
+        if env.ledger().timestamp() > deadline {
+            panic!("transaction expired");
+        }
 
         if amount_in <= 0 {
             panic!("insufficient input amount");
@@ -275,6 +296,9 @@ impl AMMPair {
         } else {
             panic!("invalid token");
         };
+
+        // CRITICAL FIX: Calculate K BEFORE any state changes
+        let k_old = reserve_in * reserve_out;
 
         // Calculate output amount with fee
         let amount_out = math::get_amount_out(amount_in, reserve_in, reserve_out);
@@ -300,13 +324,12 @@ impl AMMPair {
             pair_info.reserve_0 -= amount_out;
         }
 
-        // Verify K invariant
+        // CRITICAL FIX: Verify K invariant - K should INCREASE due to fees
         let k_new = pair_info.reserve_0 * pair_info.reserve_1;
-        let k_old = (reserve_in + amount_in) * (reserve_out - amount_out);
 
-        // K should increase or stay the same (due to fees)
-        if k_new < k_old {
-            panic!("K invariant violated");
+        // K must be greater than or equal to k_old (fees ensure K increases)
+        if k_new <= k_old {
+            panic!("K invariant violated - new K must be > old K due to fees");
         }
 
         storage::set_pair_info(&env, &pair_info);

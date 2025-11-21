@@ -1,0 +1,224 @@
+// Prisma schema for AstroShibaPop - Optimized for Vercel Serverless + Accelerate
+// This schema is shared between api-gateway and indexer
+
+generator client {
+  provider = "prisma-client-js"
+  // Optimize for serverless: smaller bundle size
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  // Prisma Accelerate connection string (global connection pooling)
+  directUrl = env("DIRECT_DATABASE_URL")
+}
+
+// Model for tracking indexer state (NEW)
+model IndexerState {
+  id              String   @id @default("singleton")
+  contractName    String   @unique
+  lastLedger      String
+  lastEventId     String?
+  lastProcessedAt DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([contractName])
+}
+
+model Token {
+  id              String   @id @default(cuid())
+  address         String   @unique
+  creator         String
+  name            String
+  symbol          String
+  decimals        Int      @default(7)
+  totalSupply     String   // BigInt as string
+  metadataUri     String
+  imageUrl        String?
+  description     String?
+
+  // Bonding curve state
+  circulatingSupply String   @default("0")
+  xlmReserve       String   @default("0")
+  graduated        Boolean  @default(false)
+  xlmRaised        String   @default("0")
+
+  // Calculated fields
+  marketCap        String?
+  currentPrice     String?
+  priceChange24h   Float?
+  volume24h        String   @default("0")
+  volume7d         String   @default("0")
+  holders          Int      @default(0)
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  // Relations
+  poolsToken0      Pool[]   @relation("Token0")
+  poolsToken1      Pool[]   @relation("Token1")
+  transactions     Transaction[]
+
+  @@index([creator])
+  @@index([createdAt])
+  @@index([marketCap])
+  @@index([volume24h])
+  @@index([graduated])
+}
+
+model Pool {
+  id              String   @id @default(cuid())
+  address         String   @unique
+  token0Address   String
+  token1Address   String
+  reserve0        String
+  reserve1        String
+  totalSupply     String
+
+  // Calculated fields
+  tvl             String?
+  volume24h       String   @default("0")
+  volume7d        String   @default("0")
+  apr             Float?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  token0          Token    @relation("Token0", fields: [token0Address], references: [address])
+  token1          Token    @relation("Token1", fields: [token1Address], references: [address])
+  swaps           Swap[]
+  liquidityEvents LiquidityEvent[]
+
+  @@index([token0Address])
+  @@index([token1Address])
+  @@index([tvl])
+}
+
+model User {
+  id                      String         @id @default(cuid())
+  address                 String         @unique
+
+  // Gamification
+  points                  Int            @default(0)
+  level                   Int            @default(1)
+  referrals               Int            @default(0)
+
+  // Stats
+  tokensCreatedCount      Int            @default(0)
+  totalVolumeTraded       String         @default("0")
+  totalLiquidityProvided  String         @default("0")
+
+  createdAt               DateTime       @default(now())
+  updatedAt               DateTime       @updatedAt
+
+  // Relations
+  achievements            Achievement[]
+  transactions            Transaction[]
+
+  @@index([points])
+  @@index([level])
+  @@index([address])
+}
+
+model Achievement {
+  id           String   @id @default(cuid())
+  userId       String
+
+  achievementId String  // ID of the achievement type
+  name         String
+  description  String
+  imageUrl     String
+  progress     Int      @default(0)
+  maxProgress  Int
+  completed    Boolean  @default(false)
+
+  unlockedAt   DateTime?
+  createdAt    DateTime @default(now())
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, achievementId])
+  @@index([userId])
+}
+
+model Transaction {
+  id            String           @id @default(cuid())
+  hash          String           @unique
+  type          TransactionType
+  from          String
+  to            String?
+  tokenAddress  String?
+  amount        String?
+
+  status        TransactionStatus @default(PENDING)
+  timestamp     DateTime
+
+  userId        String?
+  user          User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  token         Token?           @relation(fields: [tokenAddress], references: [address], onDelete: SetNull)
+
+  @@index([from])
+  @@index([to])
+  @@index([timestamp])
+  @@index([type])
+  @@index([status])
+}
+
+model Swap {
+  id           String   @id @default(cuid())
+  hash         String   @unique
+  poolId       String
+  sender       String
+  tokenIn      String
+  tokenOut     String
+  amountIn     String
+  amountOut    String
+  timestamp    DateTime
+
+  pool         Pool     @relation(fields: [poolId], references: [id], onDelete: Cascade)
+
+  @@index([poolId])
+  @@index([sender])
+  @@index([timestamp])
+}
+
+model LiquidityEvent {
+  id           String   @id @default(cuid())
+  hash         String   @unique
+  poolId       String
+  provider     String
+  amount0      String
+  amount1      String
+  liquidity    String
+  type         LiquidityEventType
+  timestamp    DateTime
+
+  pool         Pool     @relation(fields: [poolId], references: [id], onDelete: Cascade)
+
+  @@index([poolId])
+  @@index([provider])
+  @@index([timestamp])
+}
+
+enum TransactionType {
+  TOKEN_CREATED
+  TOKEN_BOUGHT
+  TOKEN_SOLD
+  LIQUIDITY_ADDED
+  LIQUIDITY_REMOVED
+  SWAP
+}
+
+enum TransactionStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+enum LiquidityEventType {
+  ADD
+  REMOVE
+}

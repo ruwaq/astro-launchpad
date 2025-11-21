@@ -22,6 +22,7 @@ fi
 
 # Array of contracts to build
 CONTRACTS=(
+    "sac-factory"
     "token-factory"
     "amm-pair"
 )
