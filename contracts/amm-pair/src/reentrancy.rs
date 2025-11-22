@@ -58,42 +58,5 @@ impl<'a> Drop for ReentrancyGuard<'a> {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use soroban_sdk::Env;
-
-    #[test]
-    fn test_lock_acquire_release() {
-        let env = Env::default();
-
-        assert!(!is_locked(&env));
-
-        acquire_lock(&env);
-        assert!(is_locked(&env));
-
-        release_lock(&env);
-        assert!(!is_locked(&env));
-    }
-
-    #[test]
-    #[should_panic(expected = "reentrancy detected")]
-    fn test_double_lock_panics() {
-        let env = Env::default();
-
-        acquire_lock(&env);
-        acquire_lock(&env); // Should panic
-    }
-
-    #[test]
-    fn test_guard_auto_release() {
-        let env = Env::default();
-
-        {
-            let _guard = ReentrancyGuard::new(&env);
-            assert!(is_locked(&env));
-        } // Guard dropped here
-
-        assert!(!is_locked(&env));
-    }
-}
+// Reentrancy tests are in the main lib.rs integration tests
+// since temporary storage requires contract context

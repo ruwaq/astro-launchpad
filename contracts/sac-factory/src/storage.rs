@@ -15,6 +15,7 @@ pub enum InstanceKey {
     Admin,
     Treasury,
     TokenCount,
+    AmmWasmHash,  // WASM hash for AMM pair contract deployment
 }
 
 /// Storage keys for Persistent storage (unbounded, per-entity)
@@ -23,6 +24,7 @@ pub enum InstanceKey {
 pub enum PersistentKey {
     TokenInfo(Address),        // token_address -> TokenInfo
     CreatorTokens(Address),    // creator -> Vec<token_addresses>
+    AmmPairAddress(Address),   // token_address -> amm_pair_address (for graduated tokens)
 }
 
 /// Token status
