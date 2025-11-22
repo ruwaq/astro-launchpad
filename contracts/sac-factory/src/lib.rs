@@ -37,6 +37,9 @@ mod tests;
 #[cfg(test)]
 mod comprehensive_tests;
 
+#[cfg(test)]
+mod bonding_curve_tests;
+
 use bonding_curve::BondingCurve;
 use errors::Error;
 use storage::{TokenInfo, TokenStatus};
