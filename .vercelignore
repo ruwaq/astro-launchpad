@@ -1,0 +1,14 @@
+node_modules
+.next
+.turbo
+dist
+build
+*.log
+.DS_Store
+.env.local
+.env*.local
+backend
+contracts
+*.md
+.git
+.github
