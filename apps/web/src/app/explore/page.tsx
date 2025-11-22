@@ -55,7 +55,8 @@ export default function ExplorePage() {
     result.sort((a, b) => {
       switch (sortBy) {
         case 'new':
-          return b.created_at - a.created_at;
+          // Convert BigInt to Number for comparison
+          return Number(b.created_at - a.created_at);
         case 'marketCap':
           return Number(BigInt(b.market_cap) - BigInt(a.market_cap));
         case 'graduation':
@@ -63,7 +64,8 @@ export default function ExplorePage() {
           const progressB = (Number(b.xlm_raised) / 10000) * 100;
           return progressB - progressA;
         default:
-          return b.created_at - a.created_at;
+          // Convert BigInt to Number for comparison
+          return Number(b.created_at - a.created_at);
       }
     });
 
@@ -133,7 +135,7 @@ export default function ExplorePage() {
 
     return (
       <Link
-        href={`/tokens/${token.token_address}`}
+        href={`/t/${token.token_address}`}
         className="block bg-white rounded-xl p-6 border border-ui-border hover:border-brand-primary transition-all hover:shadow-md"
       >
         <div className="flex items-start gap-4">
