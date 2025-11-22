@@ -1,5 +1,8 @@
 'use client';
 
+// Force dynamic rendering to avoid build-time errors with contract service
+export const dynamic = 'force-dynamic';
+
 import { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Search, Filter, TrendingUp, Loader2, ExternalLink } from 'lucide-react';

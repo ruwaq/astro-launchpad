@@ -1,5 +1,8 @@
 'use client';
 
+// Force dynamic rendering to avoid build-time errors with contract service
+export const dynamic = 'force-dynamic';
+
 import { useState, useEffect, useCallback } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { useWallet } from '@/contexts/WalletContext';

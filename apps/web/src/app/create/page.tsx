@@ -14,6 +14,9 @@ import toast from 'react-hot-toast';
 import confetti from 'canvas-confetti';
 import { ImageUpload } from '@/components/ImageUpload';
 
+// Force dynamic rendering to avoid build-time errors with contract service
+export const dynamic = 'force-dynamic';
+
 // Form states
 type FormState = 'idle' | 'validating' | 'building' | 'signing' | 'submitting' | 'confirming' | 'success' | 'error';
 
