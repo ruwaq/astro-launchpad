@@ -12,7 +12,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useWallet } from '@/contexts/WalletContext';
 import { sacFactoryService, type TokenInfo } from '@/lib/stellar/services/sac-factory.service';
 import { stellarDEXService } from '@/lib/stellar/services/stellar-dex.service';
@@ -161,7 +161,7 @@ export function TradingWidget() {
     } else {
       setState(prev => ({ ...prev, outputAmount: '' }));
     }
-  }, [state.inputAmount, state.type, tokenInfo, state.selectedToken]);
+  }, [state.inputAmount, state.type, tokenInfo, state.selectedToken, calculateOutput]);
 
   const loadTokenInfo = async (tokenAddress: string) => {
     try {
@@ -192,7 +192,7 @@ export function TradingWidget() {
     return prices[tokenSymbol] || 10; // Default: 1 XLM = 10 tokens
   };
 
-  const calculateOutput = async () => {
+  const calculateOutput = useCallback(async () => {
     if (!state.inputAmount || parseFloat(state.inputAmount) <= 0) return;
 
     setState(prev => ({ ...prev, isCalculating: true }));
@@ -287,7 +287,7 @@ export function TradingWidget() {
       console.error('Error calculating output:', error);
       setState(prev => ({ ...prev, outputAmount: '0', isCalculating: false }));
     }
-  };
+  }, [state.inputAmount, state.type, state.selectedToken, tokenInfo]);
 
   const handleConnect = async () => {
     try {
@@ -582,7 +582,7 @@ export function TradingWidget() {
                   Token Not Available
                 </p>
                 <p className="text-sm text-orange-800">
-                  This token doesn't have sufficient liquidity or issuer information.
+                  This token doesn&apos;t have sufficient liquidity or issuer information.
                   Try tokens from the 🚀 Astro Shiba section instead.
                 </p>
               </div>
