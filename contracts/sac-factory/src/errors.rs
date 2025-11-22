@@ -60,4 +60,14 @@ pub enum Error {
     // AMM / Graduation
     AmmInitializationFailed = 110,
     InsufficientLiquidityForGraduation = 111,
+
+    // Price Oracle
+    OracleNotConfigured = 120,
+    OracleCallFailed = 121,
+    OraclePriceFeedNotFound = 122,
+    OraclePriceStale = 123,
+    MarketCapBelowMinimum = 124,
+
+    // Math Operations
+    MathOverflow = 130,
 }

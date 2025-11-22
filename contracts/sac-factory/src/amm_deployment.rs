@@ -3,10 +3,10 @@
 //! Handles automatic AMM pair creation when a token graduates from bonding curve.
 //! Sprint 2 - Complete Graduation Flow
 
-use soroban_sdk::{Address, Bytes, BytesN, Env, IntoVal, xdr::ToXdr};
+use soroban_sdk::{Address, Bytes, BytesN, Env, xdr::ToXdr};
 
 use crate::errors::Error;
-use crate::{storage, storage::InstanceKey};
+use crate::storage::InstanceKey;
 
 /// Deploy a new AMM pair contract
 ///
@@ -23,8 +23,8 @@ pub fn deploy_amm_pair(
     env: &Env,
     token_a: &Address,
     token_b: &Address,
-    factory: &Address,
-    fee_to: &Address,
+    _factory: &Address,
+    _fee_to: &Address,
 ) -> Result<Address, Error> {
     // Get AMM WASM hash from storage
     let wasm_hash: BytesN<32> = env
@@ -69,7 +69,7 @@ pub fn get_amm_pair_address(
     token_b: &Address,
 ) -> Result<Address, Error> {
     // Get AMM WASM hash from storage
-    let wasm_hash: BytesN<32> = env
+    let _wasm_hash: BytesN<32> = env
         .storage()
         .instance()
         .get(&InstanceKey::AmmWasmHash)

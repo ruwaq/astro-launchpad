@@ -15,7 +15,9 @@ pub enum InstanceKey {
     Admin,
     Treasury,
     TokenCount,
-    AmmWasmHash,  // WASM hash for AMM pair contract deployment
+    AmmWasmHash,       // WASM hash for AMM pair contract deployment
+    OracleAddress,     // DIA Oracle contract address for price feeds
+    MinMarketCapUsd,   // Minimum market cap in USD (18 decimals) for graduation
 }
 
 /// Storage keys for Persistent storage (unbounded, per-entity)
@@ -87,6 +89,27 @@ pub fn set_token_count(env: &Env, count: u32) {
 pub fn increment_token_count(env: &Env) {
     let count = get_token_count(env);
     set_token_count(env, count.saturating_add(1));
+}
+
+pub fn get_oracle_address(env: &Env) -> Option<Address> {
+    env.storage().instance().get(&InstanceKey::OracleAddress)
+}
+
+pub fn set_oracle_address(env: &Env, oracle: &Address) {
+    env.storage().instance().set(&InstanceKey::OracleAddress, oracle);
+}
+
+pub fn get_min_market_cap_usd(env: &Env) -> u128 {
+    env.storage()
+        .instance()
+        .get(&InstanceKey::MinMarketCapUsd)
+        .unwrap_or(0u128) // Default: no minimum
+}
+
+pub fn set_min_market_cap_usd(env: &Env, min_market_cap: u128) {
+    env.storage()
+        .instance()
+        .set(&InstanceKey::MinMarketCapUsd, &min_market_cap);
 }
 
 // ========== Persistent Storage (Unbounded, Per-Entity) ==========

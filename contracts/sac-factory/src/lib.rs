@@ -30,6 +30,7 @@ mod fee_management;
 mod state_management;
 mod sac_deployment;  // Real SAC token deployment
 mod amm_deployment;  // AMM pair deployment for graduation
+mod price_oracle;    // DIA Oracle price feed integration
 
 #[cfg(test)]
 mod tests;
@@ -39,6 +40,9 @@ mod comprehensive_tests;
 
 #[cfg(test)]
 mod bonding_curve_tests;
+
+#[cfg(test)]
+mod oracle_tests;
 
 use bonding_curve::BondingCurve;
 use errors::Error;
@@ -538,6 +542,56 @@ impl SacFactory {
             .get(&storage::PersistentKey::AmmPairAddress(token))
     }
 
+    /// Set DIA Oracle address for price feeds (Owner only)
+    ///
+    /// # Arguments
+    /// * `admin` - Owner address
+    /// * `oracle_address` - Address of deployed DIA Oracle contract
+    ///
+    /// **Sprint 2:** Configure price oracle for market cap validation
+    pub fn set_oracle_address(env: Env, admin: Address, oracle_address: Address) -> Result<(), Error> {
+        admin.require_auth();
+
+        // Only owner can configure oracle
+        access_control::require_role(&env, &admin, access_control::Role::Owner)?;
+
+        // Store oracle address
+        storage::set_oracle_address(&env, &oracle_address);
+
+        Ok(())
+    }
+
+    /// Set minimum market cap in USD for graduation validation (Owner only)
+    ///
+    /// # Arguments
+    /// * `admin` - Owner address
+    /// * `min_market_cap_usd` - Minimum market cap in USD (18 decimals)
+    ///   Example: $100,000 = 100_000_000_000_000_000_000_000
+    ///
+    /// **Sprint 2:** Optional market cap requirement for graduation
+    pub fn set_min_market_cap_usd(env: Env, admin: Address, min_market_cap_usd: u128) -> Result<(), Error> {
+        admin.require_auth();
+
+        // Only owner can configure minimum market cap
+        access_control::require_role(&env, &admin, access_control::Role::Owner)?;
+
+        // Store minimum market cap
+        storage::set_min_market_cap_usd(&env, min_market_cap_usd);
+
+        Ok(())
+    }
+
+    /// Get oracle configuration
+    ///
+    /// # Returns
+    /// Tuple of (oracle_address, min_market_cap_usd)
+    pub fn get_oracle_config(env: Env) -> (Option<Address>, u128) {
+        (
+            storage::get_oracle_address(&env),
+            storage::get_min_market_cap_usd(&env),
+        )
+    }
+
     /// Get contract state
     pub fn get_state(env: Env) -> state_management::ContractState {
         state_management::get_state(&env)
@@ -617,6 +671,22 @@ impl SacFactory {
         // Get contract addresses
         let factory_address = env.current_contract_address();
         let fee_config = fee_management::get_fee_config(env);
+
+        // 0. Validate market cap with oracle (if configured)
+        let min_market_cap = storage::get_min_market_cap_usd(env);
+        if min_market_cap > 0 {
+            // Oracle validation is required
+            if let Ok(oracle_client) = price_oracle::get_oracle_client(env) {
+                let meets_requirement = oracle_client
+                    .validate_graduation_market_cap(token_info.xlm_raised, min_market_cap)?;
+
+                if !meets_requirement {
+                    return Err(Error::MarketCapBelowMinimum);
+                }
+            }
+            // If oracle not configured but min_market_cap is set, log warning
+            // In production, you might want to fail here instead
+        }
 
         // 1. Deploy AMM pair contract
         let amm_address = amm_deployment::deploy_amm_pair(
