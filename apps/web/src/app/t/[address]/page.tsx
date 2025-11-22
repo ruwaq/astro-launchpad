@@ -115,14 +115,14 @@ export default function TokenTradingPage({ params }: PageProps) {
     description: token.description || '',
     creator: token.creator,
     imageUrl: token.image_url || null,
-    currentPrice: token.current_price || '0',
+    currentPrice: '0', // TODO: Calculate from bonding curve
     marketCap: token.market_cap || '0',
-    volume24h: token.volume_24h || '0',
+    volume24h: '0', // TODO: Get from indexer/database
     holders: token.holders_count,
-    circulatingSupply: token.circulating_supply,
+    circulatingSupply: token.bonding_curve?.token_reserve || '0',
     xlmRaised: token.xlm_raised,
-    xlmReserve: token.xlm_reserve,
-    graduated: token.graduated,
+    xlmReserve: token.bonding_curve?.xlm_reserve || '0',
+    graduated: token.status === 'Graduated',
     createdAt: token.created_at.toString(),
   };
 

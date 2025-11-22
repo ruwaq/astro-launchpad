@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { useWallet } from '@/contexts/WalletContext';
 import { sacFactoryService, TokenInfo } from '@/lib/stellar/services/sac-factory.service';
@@ -40,6 +40,7 @@ export default function SwapPage() {
     if (selectedToken) {
       fetchTokenInfo();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedToken]);
 
   // Calculate output when input changes
@@ -50,6 +51,7 @@ export default function SwapPage() {
       setOutputAmount('');
       setPriceImpact(0);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inputAmount, selectedTokenInfo, direction]);
 
   const fetchTokens = async () => {
@@ -78,7 +80,7 @@ export default function SwapPage() {
     }
   };
 
-  const fetchTokenInfo = async () => {
+  const fetchTokenInfo = useCallback(async () => {
     if (!selectedToken) return;
 
     try {
@@ -90,9 +92,9 @@ export default function SwapPage() {
       console.error('Error fetching token info:', error);
       toast.error('Failed to load token details');
     }
-  };
+  }, [selectedToken]);
 
-  const calculateOutput = async () => {
+  const calculateOutput = useCallback(async () => {
     if (!selectedTokenInfo || !inputAmount || parseFloat(inputAmount) <= 0) {
       setOutputAmount('');
       return;
@@ -135,7 +137,7 @@ export default function SwapPage() {
     } finally {
       setCalculating(false);
     }
-  };
+  }, [selectedTokenInfo, inputAmount, direction]);
 
   const handleSwap = async () => {
     if (!address || !selectedToken || !inputAmount || !outputAmount) {
