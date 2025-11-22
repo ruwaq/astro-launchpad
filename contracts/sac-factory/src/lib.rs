@@ -30,6 +30,7 @@ mod fee_management;
 mod state_management;
 mod sac_deployment;  // Real SAC token deployment
 mod amm_deployment;  // AMM pair deployment for graduation
+mod amm_client;      // AMM client for cross-contract calls
 mod price_oracle;    // DIA Oracle price feed integration
 
 #[cfg(test)]
@@ -708,34 +709,55 @@ impl SacFactory {
             return Err(Error::InsufficientLiquidityForGraduation);
         }
 
-        // 3. Transfer liquidity to AMM (in real deployment)
-        // Note: In tests, we skip actual transfers
+        // 3. Initialize AMM pair
+        let amm_client = amm_client::AmmPairClient::new(env, amm_address.clone());
+        amm_client.initialize(
+            &xlm_address,
+            &token_info.token_address,
+            &factory_address,
+            &fee_config.treasury,
+        )?;
+
+        // 4. Transfer liquidity to AMM
         #[cfg(not(test))]
         {
             // Transfer XLM from factory to AMM
-            let xlm_client = token::Client::new(env, &xlm_address);
-            xlm_client.transfer(&factory_address, &amm_address, &xlm_liquidity);
+            let xlm_token_client = token::Client::new(env, &xlm_address);
+            xlm_token_client.transfer(&factory_address, &amm_address, &xlm_liquidity);
 
             // Transfer tokens from factory to AMM
             let token_client = token::Client::new(env, &token_info.token_address);
             token_client.transfer(&factory_address, &amm_address, &token_liquidity);
 
-            // 4. Initialize and add liquidity to AMM
-            // Note: This would require calling the AMM's initialize() and add_liquidity() functions
-            // Cross-contract calls will be implemented in the next iteration
-            // For now, we just deploy the contract and store the reference
+            // 5. Add initial liquidity to AMM
+            // Factory is the sender, LP tokens will be minted to factory (permanent lock)
+            let deadline = env.ledger().timestamp() + 300; // 5 minutes from now
+
+            let (_amount_0, _amount_1, liquidity_minted) = amm_client.add_liquidity(
+                &factory_address,
+                xlm_liquidity,          // amount_0_desired (XLM)
+                token_liquidity,        // amount_1_desired (graduated token)
+                0,                      // amount_0_min (no slippage for initial)
+                0,                      // amount_1_min (no slippage for initial)
+                deadline,
+            )?;
+
+            // LP tokens are now minted to factory address and locked permanently
+            // Factory never moves these tokens = permanent liquidity lock
+            // Emit liquidity lock event for transparency
+            events::liquidity_locked(env, &amm_address, liquidity_minted);
         }
 
-        // 5. Store AMM pair address
+        // 6. Store AMM pair address
         env.storage().persistent().set(
             &storage::PersistentKey::AmmPairAddress(token_info.token_address.clone()),
             &amm_address,
         );
 
-        // 6. Mark as graduated
+        // 7. Mark as graduated
         token_info.status = TokenStatus::Graduated;
 
-        // 7. Emit graduation event
+        // 8. Emit graduation event
         events::token_graduated(env, &token_info.token_address, token_info.xlm_raised);
 
         Ok(())

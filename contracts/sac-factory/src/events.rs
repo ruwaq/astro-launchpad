@@ -43,6 +43,14 @@ pub struct TokenGraduated {
     pub xlm_raised: i128,
 }
 
+/// Liquidity locked in AMM (permanent)
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LiquidityLocked {
+    pub amm_pair: Address,
+    pub lp_tokens: i128,
+}
+
 pub fn token_launched(
     env: &Env,
     creator: &Address,
@@ -96,6 +104,17 @@ pub fn token_graduated(
     TokenGraduated {
         token: token.clone(),
         xlm_raised,
+    }.publish(env);
+}
+
+pub fn liquidity_locked(
+    env: &Env,
+    amm_pair: &Address,
+    lp_tokens: i128,
+) {
+    LiquidityLocked {
+        amm_pair: amm_pair.clone(),
+        lp_tokens,
     }.publish(env);
 }
 
