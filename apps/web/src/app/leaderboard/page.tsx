@@ -1,40 +1,135 @@
 'use client';
 
+import { useState } from 'react';
+import Link from 'next/link';
+import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { useLeaderboard } from '@/hooks/useApi';
 import { truncateAddress, formatCompactNumber } from '@/lib/stellar/utils';
 
+type LeaderboardType = 'TRADERS' | 'CREATORS' | 'LIQUIDITY_PROVIDERS' | 'VIRAL_TOKENS';
+type LeaderboardTimeframe = 'HOUR' | 'DAY' | 'WEEK' | 'MONTH' | 'ALL_TIME';
+
 export default function LeaderboardPage() {
-  const { data, loading, error } = useLeaderboard(100);
+  const [selectedType, setSelectedType] = useState<LeaderboardType>('TRADERS');
+  const [selectedTimeframe, setSelectedTimeframe] = useState<LeaderboardTimeframe>('DAY');
+
+  const { data, loading, error } = useLeaderboard({
+    type: selectedType,
+    limit: 100,
+    timeframe: selectedTimeframe,
+  });
 
   const leaderboard = data?.leaderboard || [];
 
   if (loading) {
     return (
-      <div className="container mx-auto px-4 py-8">
+      <DashboardLayout>
         <div className="animate-pulse space-y-4">
           <div className="h-8 bg-gray-200 rounded w-1/3"></div>
           <div className="h-96 bg-gray-200 rounded"></div>
         </div>
-      </div>
+      </DashboardLayout>
     );
   }
 
-  if (error) {
-    return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="text-red-800">Error loading leaderboard. Please try again later.</p>
-        </div>
-      </div>
-    );
-  }
+  const timeframeLabels: Record<LeaderboardTimeframe, string> = {
+    HOUR: '1H',
+    DAY: '24H',
+    WEEK: '7D',
+    MONTH: '30D',
+    ALL_TIME: 'All Time',
+  };
+
+  const typeLabels: Record<LeaderboardType, string> = {
+    TRADERS: 'Top Traders',
+    CREATORS: 'Top Creators',
+    LIQUIDITY_PROVIDERS: 'Top LPs',
+    VIRAL_TOKENS: 'Viral Tokens',
+  };
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <DashboardLayout>
       <div className="mb-8">
         <h1 className="text-3xl font-bold mb-2">Leaderboard</h1>
-        <p className="text-gray-600">Top traders by 24h volume</p>
+        <p className="text-gray-600">
+          {selectedType === 'TRADERS' && 'Top traders ranked by volume'}
+          {selectedType === 'CREATORS' && 'Top token creators ranked by tokens created'}
+          {selectedType === 'LIQUIDITY_PROVIDERS' && 'Top liquidity providers ranked by TVL'}
+          {selectedType === 'VIRAL_TOKENS' && 'Most viral tokens'}
+        </p>
       </div>
+
+      {/* Filter Controls */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
+        <div className="flex flex-wrap gap-4 items-center">
+          {/* Type Filter */}
+          <div>
+            <label className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2 block">
+              Leaderboard Type
+            </label>
+            <div className="flex gap-2">
+              {(Object.keys(typeLabels) as LeaderboardType[]).map((type) => (
+                <button
+                  key={type}
+                  onClick={() => setSelectedType(type)}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    selectedType === type
+                      ? 'bg-brand-primary text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  {typeLabels[type]}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Timeframe Filter */}
+          <div>
+            <label className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2 block">
+              Timeframe
+            </label>
+            <div className="flex gap-2">
+              {(Object.keys(timeframeLabels) as LeaderboardTimeframe[]).map((timeframe) => (
+                <button
+                  key={timeframe}
+                  onClick={() => setSelectedTimeframe(timeframe)}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    selectedTimeframe === timeframe
+                      ? 'bg-brand-primary text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  {timeframeLabels[timeframe]}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Empty State */}
+      {!loading && leaderboard.length === 0 && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-8 text-center">
+          <div className="max-w-md mx-auto">
+            <div className="text-6xl mb-4">🏆</div>
+            <h3 className="text-xl font-bold text-gray-900 mb-3">No Data Yet</h3>
+            <p className="text-gray-600 mb-6">
+              No {typeLabels[selectedType].toLowerCase()} found for this timeframe. Be the first!
+            </p>
+            <Link
+              href="/explore"
+              className="inline-flex items-center gap-2 bg-brand-primary text-white px-6 py-3 rounded-lg hover:bg-brand-primary-dark transition-colors font-medium"
+            >
+              Start Trading
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {/* Leaderboard Content */}
+      {!loading && leaderboard.length > 0 && (
+        <div>
 
       {/* Top 3 Podium */}
       {leaderboard.length >= 3 && (
@@ -112,81 +207,155 @@ export default function LeaderboardPage() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Address
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  24h Volume
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  24h Trades
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  24h P/L
-                </th>
+                {selectedType === 'TRADERS' && (
+                  <>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Volume
+                    </th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Trades
+                    </th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      P/L
+                    </th>
+                  </>
+                )}
+                {selectedType === 'CREATORS' && (
+                  <>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Tokens Created
+                    </th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Total Volume
+                    </th>
+                  </>
+                )}
+                {selectedType === 'LIQUIDITY_PROVIDERS' && (
+                  <>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Total Liquidity
+                    </th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Fees Earned
+                    </th>
+                  </>
+                )}
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {leaderboard.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
-                    No traders yet
-                  </td>
-                </tr>
-              ) : (
-                leaderboard.map((entry: any) => {
-                  const profitLoss = parseFloat(entry.profitLoss24h);
-                  const isProfit = profitLoss >= 0;
+              {leaderboard.map((entry: any) => {
+                const profitLoss = entry.profitLoss24h ? parseFloat(entry.profitLoss24h) : 0;
+                const isProfit = profitLoss >= 0;
 
-                  return (
-                    <tr key={entry.address} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
-                            entry.rank === 1
-                              ? 'bg-yellow-100 text-yellow-800'
-                              : entry.rank === 2
-                              ? 'bg-gray-100 text-gray-800'
-                              : entry.rank === 3
-                              ? 'bg-orange-100 text-orange-800'
-                              : 'bg-blue-50 text-blue-800'
-                          }`}>
-                            {entry.rank}
+                return (
+                  <tr key={entry.address} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
+                          entry.rank === 1
+                            ? 'bg-yellow-100 text-yellow-800'
+                            : entry.rank === 2
+                            ? 'bg-gray-100 text-gray-800'
+                            : entry.rank === 3
+                            ? 'bg-orange-100 text-orange-800'
+                            : 'bg-blue-50 text-blue-800'
+                        }`}>
+                          {entry.rank}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-gray-900">
+                        {truncateAddress(entry.address, 8)}
+                      </div>
+                      {entry.user && entry.user.level > 1 && (
+                        <div className="text-xs text-gray-500">
+                          Level {entry.user.level} • {entry.user.points} pts
+                        </div>
+                      )}
+                    </td>
+                    {selectedType === 'TRADERS' && (
+                      <>
+                        <td className="px-6 py-4 whitespace-nowrap text-right">
+                          <div className="text-sm font-medium text-gray-900">
+                            ${formatCompactNumber(parseFloat(entry.volume24h || '0'))}
                           </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">
-                          {truncateAddress(entry.address, 8)}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right">
-                        <div className="text-sm font-medium text-gray-900">
-                          ${formatCompactNumber(parseFloat(entry.volume24h))}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-500">
-                        {entry.trades24h}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right">
-                        <div className={`text-sm font-medium ${isProfit ? 'text-green-600' : 'text-red-600'}`}>
-                          {isProfit ? '+' : ''}${formatCompactNumber(Math.abs(profitLoss))}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-500">
+                          {entry.trades24h || 0}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right">
+                          <div className={`text-sm font-medium ${isProfit ? 'text-green-600' : 'text-red-600'}`}>
+                            {isProfit ? '+' : ''}${formatCompactNumber(Math.abs(profitLoss))}
+                          </div>
+                        </td>
+                      </>
+                    )}
+                    {selectedType === 'CREATORS' && (
+                      <>
+                        <td className="px-6 py-4 whitespace-nowrap text-right">
+                          <div className="text-sm font-medium text-gray-900">
+                            {entry.tokensCreated || 0}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right">
+                          <div className="text-sm font-medium text-gray-900">
+                            ${formatCompactNumber(parseFloat(entry.totalVolumeGenerated || '0'))}
+                          </div>
+                        </td>
+                      </>
+                    )}
+                    {selectedType === 'LIQUIDITY_PROVIDERS' && (
+                      <>
+                        <td className="px-6 py-4 whitespace-nowrap text-right">
+                          <div className="text-sm font-medium text-gray-900">
+                            ${formatCompactNumber(parseFloat(entry.totalLiquidity || '0'))}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right">
+                          <div className="text-sm font-medium text-green-600">
+                            ${formatCompactNumber(parseFloat(entry.feesEarned24h || '0'))}
+                          </div>
+                        </td>
+                      </>
+                    )}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
       </div>
+        </div>
+      )}
 
       {/* Info Card */}
       <div className="mt-8 bg-blue-50 rounded-lg p-6 border border-blue-200">
         <h3 className="font-semibold text-blue-900 mb-3">About the Leaderboard</h3>
         <p className="text-sm text-blue-800">
-          Rankings are based on 24-hour trading volume. Trade more to climb the ranks and showcase
-          your trading prowess!
+          {selectedType === 'TRADERS' && (
+            <>
+              Rankings are based on trading volume for the selected timeframe.
+              The P/L column shows profit/loss from token buys and sells.
+              Trade more to climb the ranks!
+            </>
+          )}
+          {selectedType === 'CREATORS' && (
+            <>
+              Rankings are based on the number of tokens created in the selected timeframe.
+              Total volume shows the combined trading volume of all your created tokens.
+              Create successful tokens to climb the ranks!
+            </>
+          )}
+          {selectedType === 'LIQUIDITY_PROVIDERS' && (
+            <>
+              Rankings are based on total liquidity provided across all pools.
+              Fees earned shows your share of trading fees.
+              Provide more liquidity to earn more fees!
+            </>
+          )}
         </p>
       </div>
-    </div>
+    </DashboardLayout>
   );
 }

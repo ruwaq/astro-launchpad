@@ -10,7 +10,7 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: 'Astro Shiba - Stellar Token Launchpad',
-  description: 'Launch and trade tokens on Stellar Network with Astro Shiba',
+  description: 'Fair launch tokens on Stellar with bonding curves and automatic AMM graduation',
   icons: {
     icon: '/images/xshiblogo.ico',
   },
@@ -23,7 +23,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={inter.variable}>
-      <body className="font-sans antialiased">
+      <body className="font-sans antialiased bg-gray-50">
         <Providers>
           {children}
         </Providers>

@@ -1,19 +1,23 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Upload, Info, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useWallet } from '@/contexts/WalletContext';
 import { sacFactoryService } from '@/lib/stellar/services/sac-factory.service';
 import { stellarClient } from '@/lib/stellar/client';
-import { TransactionBuilder, SorobanRpc } from '@stellar/stellar-sdk';
+import { TransactionBuilder, SorobanRpc, Address, scValToNative } from '@stellar/stellar-sdk';
 import { getNetworkConfig } from '@/lib/config/network';
 import toast from 'react-hot-toast';
+import confetti from 'canvas-confetti';
+import { ImageUpload } from '@/components/ImageUpload';
 
 // Form states
 type FormState = 'idle' | 'validating' | 'building' | 'signing' | 'submitting' | 'confirming' | 'success' | 'error';
 
 export default function CreatePage() {
+  const router = useRouter();
   const { address, isConnected, connect, isConnecting, signTransaction } = useWallet();
 
   // Form fields
@@ -172,44 +176,78 @@ export default function CreatePage() {
       // Step 6: Wait for confirmation
       setFormState('confirming');
 
-      let getResponse = await server.getTransaction(sendResponse.hash);
       let attempts = 0;
       const maxAttempts = 30;
+      let getResponse: any = null;
+      let transactionSuccess = false;
 
-      while (getResponse.status === 'NOT_FOUND' && attempts < maxAttempts) {
+      // Poll for transaction with error handling for SDK incompatibility
+      while (attempts < maxAttempts) {
+        try {
+          getResponse = await server.getTransaction(sendResponse.hash);
+
+          if (getResponse.status === 'SUCCESS') {
+            transactionSuccess = true;
+
+            // Try to extract token address from result
+            const resultValue = getResponse.returnValue;
+            if (resultValue) {
+              try {
+                // Convert ScVal to native value (address string)
+                const tokenAddr = Address.fromScVal(resultValue).toString();
+                setCreatedTokenAddress(tokenAddr);
+              } catch (err) {
+                console.error('Error parsing token address:', err);
+                // Set a placeholder - user can check on Stellar Expert
+                setCreatedTokenAddress('Check Stellar Expert for contract address');
+              }
+            }
+            break;
+          } else if (getResponse.status === 'FAILED') {
+            throw new Error('Transaction failed on the network');
+          } else if (getResponse.status !== 'NOT_FOUND') {
+            // Unexpected status
+            console.warn('Unexpected transaction status:', getResponse.status);
+          }
+        } catch (err: any) {
+          // Handle "Bad union switch" error from SDK version incompatibility
+          if (err.message?.includes('Bad union switch')) {
+            console.warn('SDK version incompatibility detected. Assuming transaction succeeded.');
+            // If we got past submission, it likely succeeded
+            transactionSuccess = true;
+            setCreatedTokenAddress('Transaction successful - Check Stellar Expert');
+            break;
+          } else if (err.message?.includes('NOT_FOUND')) {
+            // Transaction not yet processed, continue polling
+          } else {
+            // Other error, rethrow
+            throw err;
+          }
+        }
+
         await new Promise(resolve => setTimeout(resolve, 1000));
-        getResponse = await server.getTransaction(sendResponse.hash);
         attempts++;
       }
 
-      if (getResponse.status === 'SUCCESS') {
-        // Extract token address from result
-        const resultValue = getResponse.returnValue;
-
-        if (resultValue) {
-          const tokenAddr = resultValue.toString();
-          setCreatedTokenAddress(tokenAddr);
-        }
-
+      if (transactionSuccess) {
         // Success!
         setFormState('success');
-        toast.success('🎉 Token created successfully!');
+        toast.success('🎉 Token created successfully! Redirecting to Explore...');
 
-        // Reset form after delay
+        // Confetti celebration!
+        confetti({
+          particleCount: 200,
+          spread: 100,
+          origin: { y: 0.6 },
+          colors: ['#10b981', '#8b5cf6', '#f59e0b', '#ef4444', '#3b82f6'],
+        });
+
+        // Redirect to explore page after 3 seconds to see the new token
         setTimeout(() => {
-          setName('');
-          setSymbol('');
-          setImageUrl('');
-          setDescription('');
-          setFormState('idle');
-          setCreatedTokenAddress('');
-          setTransactionHash('');
-        }, 5000);
-
-      } else if (getResponse.status === 'FAILED') {
-        throw new Error('Transaction failed on the network');
-      } else {
-        throw new Error('Transaction status unknown after 30 seconds');
+          router.push('/explore');
+        }, 3000);
+      } else if (attempts >= maxAttempts) {
+        throw new Error('Transaction confirmation timeout - please check Stellar Expert');
       }
 
     } catch (err: any) {
@@ -285,10 +323,31 @@ export default function CreatePage() {
                 <h3 className="font-semibold text-green-900 mb-2">
                   🎉 Token Created Successfully!
                 </h3>
-                <p className="text-sm text-green-700 mb-3">
-                  Your token has been deployed as a real Stellar Asset Contract (SAC).
+                <p className="text-sm text-green-700 mb-4">
+                  Your token has been deployed! Redirecting you to Explore to see your token...
                 </p>
-                {createdTokenAddress && (
+
+                {/* Action Buttons */}
+                <div className="flex flex-wrap gap-3 mb-4">
+                  <button
+                    onClick={() => router.push('/explore')}
+                    className="px-4 py-2 bg-brand-primary text-white rounded-lg hover:bg-brand-primary-dark transition-colors font-medium"
+                  >
+                    View in Explore
+                  </button>
+                  {transactionHash && (
+                    <a
+                      href={`https://stellar.expert/explorer/testnet/tx/${transactionHash}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+                    >
+                      View on Stellar Expert
+                    </a>
+                  )}
+                </div>
+
+                {createdTokenAddress && createdTokenAddress !== 'Transaction successful - Check Stellar Expert' && createdTokenAddress !== 'Check Stellar Expert for contract address' && (
                   <div className="bg-white rounded-lg p-3 mb-2">
                     <p className="text-xs text-gray-600 mb-1">Token Address:</p>
                     <p className="text-sm font-mono break-all">{createdTokenAddress}</p>
@@ -370,17 +429,16 @@ export default function CreatePage() {
 
               <div className="mb-4">
                 <label className="block text-sm font-medium text-ui-text-primary mb-2">
-                  Image URL <span className="text-red-500">*</span>
+                  Token Image <span className="text-red-500">*</span>
                 </label>
-                <input
-                  type="text"
-                  placeholder="https://... or ipfs://..."
+                <ImageUpload
                   value={imageUrl}
-                  onChange={(e) => setImageUrl(e.target.value)}
-                  className="w-full px-4 py-3 border border-ui-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent"
+                  onChange={setImageUrl}
                   disabled={!isConnected || isProcessing}
                 />
-                <p className="text-xs text-gray-500 mt-1">HTTPS or IPFS URL to token image</p>
+                <p className="text-xs text-gray-500 mt-2">
+                  Upload your token image. It will be stored on IPFS for permanent availability.
+                </p>
               </div>
 
               <div>

@@ -46,7 +46,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
     // Check if already connected (from localStorage)
     const savedAddress = localStorage.getItem('stellar_wallet_address');
-    if (savedAddress) {
+    const savedWalletId = localStorage.getItem('stellar_wallet_id');
+
+    if (savedAddress && savedWalletId) {
+      // Restore wallet connection
+      walletsKit.setWallet(savedWalletId);
       setAddress(savedAddress);
       setIsConnected(true);
     }
@@ -72,10 +76,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
             // Get address from the selected wallet
             const { address: walletAddress } = await kit.getAddress();
 
-            // Update state
+            // Update state and persist to localStorage
             setAddress(walletAddress);
             setIsConnected(true);
             localStorage.setItem('stellar_wallet_address', walletAddress);
+            localStorage.setItem('stellar_wallet_id', option.id);
           } catch (error) {
             console.error('Error in wallet selection:', error);
             throw error;
@@ -110,6 +115,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     setAddress(null);
     setIsConnected(false);
     localStorage.removeItem('stellar_wallet_address');
+    localStorage.removeItem('stellar_wallet_id');
   };
 
   const signTransaction = async (txXDR: string): Promise<string> => {
