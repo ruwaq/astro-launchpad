@@ -440,9 +440,9 @@ export class SacFactoryService extends BaseContractService {
       'buy',
       addressToScVal(buyerAddress),
       addressToScVal(tokenAddress),
-      toScVal(xlmAmount, xdr.ScValType.scvI128()),
-      toScVal(minTokens, xdr.ScValType.scvI128()),
-      toScVal(deadline, xdr.ScValType.scvU64()) // NEW: deadline parameter
+      toScVal(xlmAmount.toString(), xdr.ScValType.scvI128()),
+      toScVal(minTokens.toString(), xdr.ScValType.scvI128()),
+      toScVal(deadline.toString(), xdr.ScValType.scvU64()) // NEW: deadline parameter
     );
   }
 
@@ -471,9 +471,9 @@ export class SacFactoryService extends BaseContractService {
       'sell',
       addressToScVal(sellerAddress),
       addressToScVal(tokenAddress),
-      toScVal(tokenAmount, xdr.ScValType.scvI128()),
-      toScVal(minXlm, xdr.ScValType.scvI128()),
-      toScVal(deadline, xdr.ScValType.scvU64()) // NEW: deadline parameter
+      toScVal(tokenAmount.toString(), xdr.ScValType.scvI128()),
+      toScVal(minXlm.toString(), xdr.ScValType.scvI128()),
+      toScVal(deadline.toString(), xdr.ScValType.scvU64()) // NEW: deadline parameter
     );
   }
 

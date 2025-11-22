@@ -5,7 +5,7 @@
 
 'use client';
 
-import { useQuery, useLazyQuery } from '@apollo/client';
+import { useQuery, useLazyQuery, useMutation } from '@apollo/client';
 import type { QueryHookOptions } from '@apollo/client';
 import {
   TOKENS_QUERY,
@@ -23,6 +23,7 @@ import {
   TOP_GAINERS_QUERY,
   TOP_POOLS_QUERY,
   HEALTH_QUERY,
+  SYNC_TOKEN_MUTATION,
   type TokensQueryResponse,
   type TokenQueryResponse,
   type PoolsQueryResponse,
@@ -32,6 +33,8 @@ import {
   type LeaderboardQueryResponse,
   type SearchQueryResponse,
   type HealthQueryResponse,
+  type SyncTokenMutationResponse,
+  type SyncTokenVariables,
   type OrderByInput,
   type TokenWhereInput,
   type PoolWhereInput,
@@ -88,9 +91,9 @@ export function useToken(address: string, options?: QueryHookOptions<TokenQueryR
   });
 }
 
-export function useTrendingTokens(first = 10, options?: QueryHookOptions<TokensQueryResponse>) {
+export function useTrendingTokens(limit = 10, options?: QueryHookOptions<TokensQueryResponse>) {
   return useQuery<TokensQueryResponse>(TRENDING_TOKENS_QUERY, {
-    variables: { first },
+    variables: { limit },
     pollInterval: POLLING_INTERVAL,
     ...options,
   });
@@ -275,4 +278,22 @@ export function usePagination<T>(
     loadMore,
     cursor: initialData?.pageInfo?.endCursor,
   };
+}
+
+// ============================================================================
+// Mutations
+// ============================================================================
+
+/**
+ * Hook to sync a token from blockchain to database
+ * Use this after creating a new token to ensure it appears in the UI
+ */
+export function useSyncToken() {
+  return useMutation<SyncTokenMutationResponse, SyncTokenVariables>(SYNC_TOKEN_MUTATION, {
+    // Refetch trending tokens after sync to update the UI
+    refetchQueries: [
+      { query: TRENDING_TOKENS_QUERY, variables: { limit: 10 } },
+      { query: TOKENS_QUERY, variables: { first: 20, orderBy: { field: 'CREATED_AT', direction: 'DESC' } } },
+    ],
+  });
 }

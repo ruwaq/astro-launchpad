@@ -9,5 +9,8 @@ export * from './types';
 // Queries
 export * from './queries';
 
+// Mutations
+export * from './mutations';
+
 // Client
 export * from './client';

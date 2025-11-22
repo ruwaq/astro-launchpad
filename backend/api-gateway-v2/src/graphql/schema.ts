@@ -48,6 +48,11 @@ export const schema = `#graphql
     globalStats: GlobalStats!
   }
 
+  type Mutation {
+    # Sync a token from blockchain to database
+    syncToken(tokenAddress: String!): Token!
+  }
+
   type HealthCheck {
     status: String!
     timestamp: DateTime!
