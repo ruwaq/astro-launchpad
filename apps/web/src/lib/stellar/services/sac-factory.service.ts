@@ -5,8 +5,9 @@
  * Provides methods for launching real SAC tokens, buying, selling,
  * and querying token information.
  *
- * Contract ID: CC5CNOA5KDC5AC6JQ3W57ISFXGHLV5HLVGXY4IX7XTEYS3UJTUIHZ6U6
+ * Contract ID (Sprint 1): CDBBG4SY232EJ254PB3O3I42WOXRICFHBDJEY4R46JY42GZSESWKHO3F
  * Network: Stellar Testnet
+ * Updated: November 21, 2024 (Sprint 1 Days 1-5)
  */
 
 import { xdr, Address } from '@stellar/stellar-sdk';
