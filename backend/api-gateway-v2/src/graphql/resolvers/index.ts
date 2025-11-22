@@ -202,52 +202,142 @@ const queryResolvers = {
 
   leaderboard: async (
     _parent: any,
-    args: { type: string; limit?: number },
+    args: { type: string; limit?: number; timeframe?: string },
     context: GraphQLContext
   ) => {
     const limit = args.limit || 100
-    const type = args.type
+    const type = args.type || 'TRADERS'
+    const timeframe = args.timeframe || 'DAY'
 
-    // Use Redis cache for leaderboard (expensive query)
+    // Use Redis cache for leaderboard (expensive aggregation query)
     return cacheLeaderboard(type, limit, async () => {
-      let orderBy: any
-      let valueField: string
+      // Calculate timeframe filter
+      const now = new Date()
+      let startTime: Date
 
-      switch (type) {
-        case 'CREATORS':
-          orderBy = { tokensCreatedCount: 'desc' }
-          valueField = 'tokensCreatedCount'
+      switch (timeframe) {
+        case 'HOUR':
+          startTime = new Date(now.getTime() - 60 * 60 * 1000)
           break
-        case 'TRADERS':
-          orderBy = { totalVolumeTraded: 'desc' }
-          valueField = 'totalVolumeTraded'
+        case 'DAY':
+          startTime = new Date(now.getTime() - 24 * 60 * 60 * 1000)
           break
-        case 'LIQUIDITY_PROVIDERS':
-          orderBy = { totalLiquidityProvided: 'desc' }
-          valueField = 'totalLiquidityProvided'
+        case 'WEEK':
+          startTime = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
           break
-        case 'VIRAL_TOKENS':
-          orderBy = { points: 'desc' }
-          valueField = 'points'
+        case 'MONTH':
+          startTime = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+          break
+        case 'ALL_TIME':
+          startTime = new Date(0)
           break
         default:
-          orderBy = { points: 'desc' }
-          valueField = 'points'
+          startTime = new Date(now.getTime() - 24 * 60 * 60 * 1000)
       }
 
-      const users = await context.prisma.user.findMany({
-        orderBy,
-        take: limit,
-        cacheStrategy: CACHE_STRATEGIES.MEDIUM_TTL,
-      })
+      if (type === 'TRADERS') {
+        // Optimized SQL aggregation for traders
+        // GROUP BY user address, calculate volume, trades, and P/L
+        const results: any[] = await context.prisma.$queryRaw`
+          SELECT
+            t."from" as address,
+            COUNT(*) as trades_count,
+            SUM(CAST(t.amount AS DECIMAL)) as total_volume,
+            SUM(
+              CASE
+                WHEN t.type = 'TOKEN_BOUGHT' THEN -CAST(t.amount AS DECIMAL)
+                WHEN t.type = 'TOKEN_SOLD' THEN CAST(t.amount AS DECIMAL)
+                ELSE 0
+              END
+            ) as profit_loss
+          FROM "Transaction" t
+          WHERE
+            t.type IN ('TOKEN_BOUGHT', 'TOKEN_SOLD')
+            AND t.status = 'SUCCESS'
+            AND t.timestamp >= ${startTime}
+          GROUP BY t."from"
+          HAVING SUM(CAST(t.amount AS DECIMAL)) > 0
+          ORDER BY total_volume DESC
+          LIMIT ${limit}
+        `
 
-      return users.map((user, index) => ({
-        rank: index + 1,
-        address: user.address,
-        user,
-        value: String((user as any)[valueField]),
-        change24h: 0, // TODO: Calculate from history
-      }))
+        // Get user data for each address
+        const addresses = results.map((r: any) => r.address)
+        const users = await context.prisma.user.findMany({
+          where: { address: { in: addresses } },
+          cacheStrategy: CACHE_STRATEGIES.SHORT_TTL,
+        })
+
+        const userMap = new Map(users.map(u => [u.address, u]))
+
+        return results.map((result: any, index: number) => ({
+          rank: index + 1,
+          address: result.address,
+          user: userMap.get(result.address) || {
+            id: result.address,
+            address: result.address,
+            points: 0,
+            level: 1,
+            referrals: 0,
+            tokensCreatedCount: 0,
+            totalVolumeTraded: '0',
+            totalLiquidityProvided: '0',
+            createdAt: now,
+          },
+          volume24h: result.total_volume.toString(),
+          trades24h: parseInt(result.trades_count),
+          profitLoss24h: result.profit_loss.toString(),
+          volumeChange24h: 0,
+          rankChange24h: 0,
+        }))
+      } else if (type === 'CREATORS') {
+        // Optimized for creators
+        const results: any[] = await context.prisma.$queryRaw`
+          SELECT
+            t.creator as address,
+            COUNT(*) as tokens_created,
+            SUM(CAST(t."volume24h" AS DECIMAL)) as total_volume_generated
+          FROM "Token" t
+          WHERE t."createdAt" >= ${startTime}
+          GROUP BY t.creator
+          ORDER BY tokens_created DESC, total_volume_generated DESC
+          LIMIT ${limit}
+        `
+
+        const addresses = results.map((r: any) => r.address)
+        const users = await context.prisma.user.findMany({
+          where: { address: { in: addresses } },
+          cacheStrategy: CACHE_STRATEGIES.SHORT_TTL,
+        })
+
+        const userMap = new Map(users.map(u => [u.address, u]))
+
+        return results.map((result: any, index: number) => ({
+          rank: index + 1,
+          address: result.address,
+          user: userMap.get(result.address) || {
+            id: result.address,
+            address: result.address,
+            points: 0,
+            level: 1,
+            referrals: 0,
+            tokensCreatedCount: parseInt(result.tokens_created),
+            totalVolumeTraded: '0',
+            totalLiquidityProvided: '0',
+            createdAt: now,
+          },
+          volume24h: '0',
+          trades24h: 0,
+          profitLoss24h: '0',
+          tokensCreated: parseInt(result.tokens_created),
+          totalVolumeGenerated: result.total_volume_generated.toString(),
+          volumeChange24h: 0,
+          rankChange24h: 0,
+        }))
+      } else {
+        // Fallback para otros tipos
+        return []
+      }
     })
   },
 

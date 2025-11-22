@@ -3,6 +3,11 @@
  * Starts the Fastify server for local development
  */
 
+// Load .env from api-gateway-v2 directory BEFORE importing anything
+import { config } from 'dotenv'
+import { resolve } from 'path'
+config({ path: resolve(process.cwd(), '.env'), override: true })
+
 import closeWithGrace from 'close-with-grace'
 import { createApp } from './app.js'
 import { env } from '@astroshibapop/shared/config'

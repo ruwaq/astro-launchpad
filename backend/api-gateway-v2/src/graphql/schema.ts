@@ -27,7 +27,13 @@ export const schema = `#graphql
 
     # Users
     user(address: String!): User
-    leaderboard(type: LeaderboardType!, limit: Int = 100): [LeaderboardEntry!]!
+
+    # Leaderboard (optimized with cache)
+    leaderboard(
+      type: LeaderboardType = TRADERS
+      limit: Int = 100
+      timeframe: LeaderboardTimeframe = DAY
+    ): [LeaderboardEntry!]!
 
     # Transactions
     transactions(
@@ -166,8 +172,23 @@ export const schema = `#graphql
     rank: Int!
     address: String!
     user: User!
-    value: String!
-    change24h: Float
+
+    # Metrics (depende del tipo de leaderboard)
+    volume24h: String!
+    trades24h: Int!
+    profitLoss24h: String!
+
+    # Para CREATORS
+    tokensCreated: Int
+    totalVolumeGenerated: String
+
+    # Para LIQUIDITY_PROVIDERS
+    totalLiquidity: String
+    feesEarned24h: String
+
+    # Cambios
+    volumeChange24h: Float
+    rankChange24h: Int
   }
 
   type GlobalStats {
@@ -214,6 +235,14 @@ export const schema = `#graphql
     TRADERS
     LIQUIDITY_PROVIDERS
     VIRAL_TOKENS
+  }
+
+  enum LeaderboardTimeframe {
+    HOUR
+    DAY
+    WEEK
+    MONTH
+    ALL_TIME
   }
 
   enum TransactionType {

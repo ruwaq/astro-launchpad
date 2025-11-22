@@ -42,6 +42,7 @@ function buildQueryCacheKey(namespace: string, args: Record<string, any>): strin
 /**
  * Cache wrapper for leaderboard queries
  * Leaderboards change infrequently and are expensive to compute
+ * TTL: 1 minute (60s) for near real-time rankings
  */
 export async function cacheLeaderboard<T>(
   type: string,
@@ -53,7 +54,8 @@ export async function cacheLeaderboard<T>(
     `${type}:${limit}`
   )
 
-  return cacheGetOrSet(key, fetchFn, CACHE_TTL.MEDIUM)
+  // Use SHORT TTL (1 minute) for leaderboard to balance freshness and performance
+  return cacheGetOrSet(key, fetchFn, CACHE_TTL.SHORT)
 }
 
 /**
