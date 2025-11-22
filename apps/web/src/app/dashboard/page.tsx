@@ -1,5 +1,8 @@
 'use client';
 
+// Force dynamic rendering (TradingWidget uses contract service)
+export const dynamic = 'force-dynamic';
+
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { TrendingUp, Rocket, Users, Lock } from 'lucide-react';
 import { useGlobalStats } from '@/hooks/useApi';
