@@ -352,8 +352,12 @@ export const GLOBAL_STATS_QUERY = gql`
 
 export const LEADERBOARD_QUERY = gql`
   ${LEADERBOARD_ENTRY_FRAGMENT}
-  query Leaderboard($limit: Int = 100) {
-    leaderboard(limit: $limit) {
+  query Leaderboard(
+    $type: LeaderboardType = TRADERS
+    $limit: Int = 100
+    $timeframe: LeaderboardTimeframe = DAY
+  ) {
+    leaderboard(type: $type, limit: $limit, timeframe: $timeframe) {
       ...LeaderboardEntryFragment
     }
   }
@@ -380,6 +384,36 @@ export const SEARCH_QUERY = gql`
         token1 {
           address
           symbol
+        }
+      }
+    }
+  }
+`;
+
+// ============================================================================
+// Token Details (for trading page)
+// ============================================================================
+
+export const GET_TOKEN_DETAILS = gql`
+  ${TOKEN_FULL_FRAGMENT}
+  ${TRANSACTION_BASIC_FRAGMENT}
+  ${PAGE_INFO_FRAGMENT}
+  query GetTokenDetails($address: String!) {
+    token(address: $address) {
+      ...TokenFullFragment
+      circulatingSupply
+      xlmReserve
+      xlmRaised
+      graduated
+      transactions(first: 20, orderBy: { field: CREATED_AT, direction: DESC }) {
+        edges {
+          cursor
+          node {
+            ...TransactionBasicFragment
+          }
+        }
+        pageInfo {
+          ...PageInfoFragment
         }
       }
     }

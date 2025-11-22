@@ -214,14 +214,23 @@ export function useGlobalStats(options?: QueryHookOptions<GlobalStatsQueryRespon
 // Leaderboard
 // ============================================================================
 
+export interface UseLeaderboardOptions {
+  type?: 'TRADERS' | 'CREATORS' | 'LIQUIDITY_PROVIDERS' | 'VIRAL_TOKENS';
+  limit?: number;
+  timeframe?: 'HOUR' | 'DAY' | 'WEEK' | 'MONTH' | 'ALL_TIME';
+  pollInterval?: number;
+}
+
 export function useLeaderboard(
-  limit = 100,
-  options?: QueryHookOptions<LeaderboardQueryResponse>
+  options?: UseLeaderboardOptions
 ) {
   return useQuery<LeaderboardQueryResponse>(LEADERBOARD_QUERY, {
-    variables: { limit },
-    pollInterval: POLLING_INTERVAL * 2,
-    ...options,
+    variables: {
+      type: options?.type || 'TRADERS',
+      limit: options?.limit || 100,
+      timeframe: options?.timeframe || 'DAY',
+    },
+    pollInterval: options?.pollInterval || POLLING_INTERVAL * 2,
   });
 }
 

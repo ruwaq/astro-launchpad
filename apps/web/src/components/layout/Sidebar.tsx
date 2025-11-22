@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, PlusCircle, Compass, Wallet, Settings, X, Menu } from 'lucide-react';
+import { Home, PlusCircle, Compass, Wallet, Settings, Trophy, X, Menu } from 'lucide-react';
 import { useState } from 'react';
 import Image from 'next/image';
 
@@ -10,6 +10,7 @@ const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: Home },
   { name: 'Create Token', href: '/create', icon: PlusCircle },
   { name: 'Explore', href: '/explore', icon: Compass },
+  { name: 'Leaderboard', href: '/leaderboard', icon: Trophy },
   { name: 'Portfolio', href: '/portfolio', icon: Wallet },
   { name: 'Settings', href: '/settings', icon: Settings },
 ];

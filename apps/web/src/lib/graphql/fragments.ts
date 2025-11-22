@@ -146,10 +146,27 @@ export const GLOBAL_STATS_FRAGMENT = gql`
 
 export const LEADERBOARD_ENTRY_FRAGMENT = gql`
   fragment LeaderboardEntryFragment on LeaderboardEntry {
+    rank
     address
+    user {
+      id
+      address
+      points
+      level
+      referrals
+      tokensCreatedCount
+      totalVolumeTraded
+      totalLiquidityProvided
+      createdAt
+    }
     volume24h
     trades24h
     profitLoss24h
-    rank
+    tokensCreated
+    totalVolumeGenerated
+    totalLiquidity
+    feesEarned24h
+    volumeChange24h
+    rankChange24h
   }
 `;
