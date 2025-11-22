@@ -4,9 +4,10 @@
  */
 
 import { PrismaClient } from '@prisma/client'
-import { Server, Horizon } from '@stellar/stellar-sdk'
+import * as StellarSdk from '@stellar/stellar-sdk'
+import { SorobanRpc } from '@stellar/stellar-sdk'
 import { logger } from '../lib/logger.js'
-import { CircuitBreaker, DEFAULT_CIRCUIT_BREAKER_CONFIG, CircuitState } from '../lib/circuit-breaker.js'
+import { CircuitBreaker, createCircuitBreaker, CircuitState } from '../lib/circuit-breaker.js'
 import { StateManager } from '../lib/state-manager.js'
 import { BatchProcessor, BatchEvent, DEFAULT_BATCH_CONFIG } from '../lib/batch-processor.js'
 import { TokenEventHandler } from './handlers/token-events.js'
@@ -25,10 +26,10 @@ import {
 } from '../lib/metrics.js'
 
 export class OptimizedEventIndexer {
-  private server: Server
+  private sorobanRpc: SorobanRpc.Server
   private tokenFactory: string
   private ammFactory: string | null
-  private eventStreams: any[] = []
+  private pollingIntervals: NodeJS.Timeout[] = []
   private circuitBreaker: CircuitBreaker
   private reconnectTimers: NodeJS.Timeout[] = []
   private isShuttingDown: boolean = false
@@ -41,7 +42,7 @@ export class OptimizedEventIndexer {
 
   constructor(private prisma: PrismaClient) {
     const rpcUrl = process.env.STELLAR_RPC_URL!
-    this.server = new Server(rpcUrl)
+    this.sorobanRpc = new SorobanRpc.Server(rpcUrl)
     this.tokenFactory = process.env.TOKEN_FACTORY_CONTRACT_ID!
     this.ammFactory = process.env.AMM_FACTORY_CONTRACT_ID || null
 
@@ -61,11 +62,10 @@ export class OptimizedEventIndexer {
     this.tokenHandler = new TokenEventHandler(prisma)
     this.poolHandler = new PoolEventHandler(prisma)
 
-    // Initialize circuit breaker
-    this.circuitBreaker = new CircuitBreaker({
-      ...DEFAULT_CIRCUIT_BREAKER_CONFIG,
-      maxRetries: 10,
+    // Initialize circuit breaker with extended config
+    this.circuitBreaker = createCircuitBreaker({
       maxDelay: 600000, // Max 10 minutes backoff
+      failureThreshold: 5,
     })
 
     // Start memory metrics collection
@@ -99,13 +99,11 @@ export class OptimizedEventIndexer {
     }
     this.reconnectTimers = []
 
-    // Stop all streams
-    for (const stream of this.eventStreams) {
-      if (stream && typeof stream === 'function') {
-        stream()
-      }
+    // Stop all polling intervals
+    for (const interval of this.pollingIntervals) {
+      clearInterval(interval)
     }
-    this.eventStreams = []
+    this.pollingIntervals = []
 
     // Update stream status
     setStreamStatus('token_factory', false)
@@ -126,7 +124,7 @@ export class OptimizedEventIndexer {
 
     return {
       isRunning: !this.isShuttingDown,
-      activeStreams: this.eventStreams.length,
+      activePollers: this.pollingIntervals.length,
       circuitBreaker: cbStats,
       batchProcessor: batchStats,
       stateCache,
@@ -143,95 +141,166 @@ export class OptimizedEventIndexer {
 
   private async indexTokenFactory() {
     if (this.isShuttingDown) {
-      logger.info('Shutdown in progress, not starting Token Factory stream')
+      logger.info('Shutdown in progress, not starting Token Factory poller')
       return
     }
 
+    // Initial poll
+    await this.pollTokenFactoryEvents()
+
+    // Setup polling interval (every 30 seconds)
+    const interval = setInterval(async () => {
+      if (!this.isShuttingDown) {
+        await this.pollTokenFactoryEvents()
+      }
+    }, 30000) // 30 seconds
+
+    this.pollingIntervals.push(interval)
+    setStreamStatus('token_factory', true)
+    logger.info('Token Factory event poller started (30s interval)')
+  }
+
+  private async pollTokenFactoryEvents() {
     try {
-      await this.circuitBreaker.execute(async () => {
-        // Get last indexed ledger from state manager
-        const lastLedger = await this.stateManager.getLastLedger('token_factory')
-        const cursor = lastLedger || 'now'
+      // Get last indexed ledger from state manager
+      const lastLedgerStr = await this.stateManager.getLastLedger('token_factory')
+      let startLedger: number | undefined = lastLedgerStr ? parseInt(lastLedgerStr) + 1 : undefined
 
-        logger.info(`Starting Token Factory stream from cursor: ${cursor}`)
+      // If no previous state, get the latest ledger or use configured start ledger
+      if (!startLedger) {
+        const configuredStart = process.env.INDEXER_START_LEDGER || 'latest'
 
-        const stream = this.server
-          .events()
-          .forContract(this.tokenFactory)
-          .cursor(cursor)
-          .stream({
-            onmessage: async (event: Horizon.ServerApi.EventRecord) => {
-              try {
-                await this.handleTokenFactoryEvent(event)
-              } catch (error) {
-                logger.error('Error handling Token Factory event:', error)
-                recordEventFailed('token_factory', 'unknown', 'handler_error')
-              }
-            },
-            onerror: (error: any) => {
-              logger.error('Token Factory stream error:', error)
-              recordStreamError('token_factory', 'connection_error')
-              setStreamStatus('token_factory', false)
-              this.handleStreamError('token_factory', () => this.indexTokenFactory())
-            },
-          })
+        if (configuredStart === 'latest') {
+          // Get latest ledger from network
+          const latestLedger = await this.sorobanRpc.getLatestLedger()
+          startLedger = latestLedger.sequence
+          logger.info(`First run: Starting from latest ledger: ${startLedger}`)
+        } else {
+          startLedger = parseInt(configuredStart, 10)
+          logger.info(`First run: Starting from configured ledger: ${startLedger}`)
+        }
+      }
 
-        this.eventStreams.push(stream)
-        setStreamStatus('token_factory', true)
-        logger.info('Token Factory stream started successfully')
-      })
+      logger.info(`Polling Token Factory events from ledger: ${startLedger}`)
+
+      // Query events using Soroban RPC
+      const requestParams: any = {
+        filters: [
+          {
+            type: 'contract',
+            contractIds: [this.tokenFactory],
+          },
+        ],
+        startLedger,
+      }
+
+      const response = await this.sorobanRpc.getEvents(requestParams)
+
+      if (response.events && response.events.length > 0) {
+        logger.info(`Found ${response.events.length} Token Factory events`)
+
+        for (const event of response.events) {
+          try {
+            await this.handleTokenFactoryEvent(event as any)
+          } catch (error) {
+            logger.error('Error handling Token Factory event:', error)
+            recordEventFailed('token_factory', 'unknown', 'handler_error')
+          }
+        }
+      }
+
+      // Always update last indexed ledger (even if no events found)
+      // This ensures we continue from where we left off on next poll
+      await this.stateManager.updateLastLedger(
+        'token_factory',
+        response.latestLedger.toString(),
+        `ledger_${response.latestLedger}`
+      )
     } catch (error) {
-      logger.error('Failed to start Token Factory stream:', error)
-      recordStreamError('token_factory', 'initialization_error')
-      setStreamStatus('token_factory', false)
-      this.handleStreamError('token_factory', () => this.indexTokenFactory())
+      logger.error('Error polling Token Factory events:')
+      console.error(error)
+      recordStreamError('token_factory', 'polling_error')
     }
   }
 
   private async indexAMMFactory() {
     if (!this.ammFactory) return
     if (this.isShuttingDown) {
-      logger.info('Shutdown in progress, not starting AMM Factory stream')
+      logger.info('Shutdown in progress, not starting AMM Factory poller')
       return
     }
 
+    // Initial poll
+    await this.pollAMMEvents()
+
+    // Setup polling interval (every 30 seconds)
+    const interval = setInterval(async () => {
+      if (!this.isShuttingDown) {
+        await this.pollAMMEvents()
+      }
+    }, 30000)
+
+    this.pollingIntervals.push(interval)
+    setStreamStatus('amm_factory', true)
+    logger.info('AMM Factory event poller started (30s interval)')
+  }
+
+  private async pollAMMEvents() {
     try {
-      await this.circuitBreaker.execute(async () => {
-        const lastLedger = await this.stateManager.getLastLedger('amm_factory')
-        const cursor = lastLedger || 'now'
+      const lastLedgerStr = await this.stateManager.getLastLedger('amm_factory')
+      let startLedger: number | undefined = lastLedgerStr ? parseInt(lastLedgerStr) + 1 : undefined
 
-        logger.info(`Starting AMM Factory stream from cursor: ${cursor}`)
+      // If no previous state, get the latest ledger or use configured start ledger
+      if (!startLedger) {
+        const configuredStart = process.env.INDEXER_START_LEDGER || 'latest'
 
-        const stream = this.server
-          .events()
-          .forContract(this.ammFactory!)
-          .cursor(cursor)
-          .stream({
-            onmessage: async (event: Horizon.ServerApi.EventRecord) => {
-              try {
-                await this.handleAMMEvent(event)
-              } catch (error) {
-                logger.error('Error handling AMM event:', error)
-                recordEventFailed('amm_factory', 'unknown', 'handler_error')
-              }
-            },
-            onerror: (error: any) => {
-              logger.error('AMM stream error:', error)
-              recordStreamError('amm_factory', 'connection_error')
-              setStreamStatus('amm_factory', false)
-              this.handleStreamError('amm_factory', () => this.indexAMMFactory())
-            },
-          })
+        if (configuredStart === 'latest') {
+          const latestLedger = await this.sorobanRpc.getLatestLedger()
+          startLedger = latestLedger.sequence
+          logger.info(`First run: Starting AMM indexing from latest ledger: ${startLedger}`)
+        } else {
+          startLedger = parseInt(configuredStart, 10)
+          logger.info(`First run: Starting AMM indexing from configured ledger: ${startLedger}`)
+        }
+      }
 
-        this.eventStreams.push(stream)
-        setStreamStatus('amm_factory', true)
-        logger.info('AMM Factory stream started successfully')
-      })
+      logger.info(`Polling AMM Factory events from ledger: ${startLedger}`)
+
+      const requestParams: any = {
+        filters: [
+          {
+            type: 'contract',
+            contractIds: [this.ammFactory!],
+          },
+        ],
+        startLedger,
+      }
+
+      const response = await this.sorobanRpc.getEvents(requestParams)
+
+      if (response.events && response.events.length > 0) {
+        logger.info(`Found ${response.events.length} AMM Factory events`)
+
+        for (const event of response.events) {
+          try {
+            await this.handleAMMEvent(event as any)
+          } catch (error) {
+            logger.error('Error handling AMM event:', error)
+            recordEventFailed('amm_factory', 'unknown', 'handler_error')
+          }
+        }
+      }
+
+      // Always update last indexed ledger (even if no events found)
+      await this.stateManager.updateLastLedger(
+        'amm_factory',
+        response.latestLedger.toString(),
+        `ledger_${response.latestLedger}`
+      )
     } catch (error) {
-      logger.error('Failed to start AMM stream:', error)
-      recordStreamError('amm_factory', 'initialization_error')
-      setStreamStatus('amm_factory', false)
-      this.handleStreamError('amm_factory', () => this.indexAMMFactory())
+      logger.error('Error polling AMM events:')
+      console.error(error)
+      recordStreamError('amm_factory', 'polling_error')
     }
   }
 

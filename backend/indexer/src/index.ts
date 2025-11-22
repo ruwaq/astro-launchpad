@@ -1,6 +1,11 @@
-import 'dotenv/config';
-import { PrismaClient } from '@prisma/client';
+import { config } from 'dotenv';
+import { resolve } from 'path';
 import http from 'http';
+
+// Load .env from backend/indexer directory with override
+config({ path: resolve(process.cwd(), '.env'), override: true });
+
+import { PrismaClient } from '@prisma/client';
 import { logger } from './lib/logger.js';
 import { OptimizedEventIndexer } from './services/optimized-event-indexer.js';
 import { MetricsCalculator } from './services/metrics-calculator.js';
