@@ -34,6 +34,9 @@ mod amm_deployment;  // AMM pair deployment for graduation
 #[cfg(test)]
 mod tests;
 
+#[cfg(test)]
+mod comprehensive_tests;
+
 use bonding_curve::BondingCurve;
 use errors::Error;
 use storage::{TokenInfo, TokenStatus};
