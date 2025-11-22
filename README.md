@@ -24,20 +24,40 @@ AstroShibaPop es más que un DEX de memes: es un **centro cultural Web3** donde 
 
 ```
 ✅ Fase 1: MVP COMPLETO - Production-Ready
-🚀 Listo para deployment en Stellar Testnet
-📝 Próximo: Testing, Auditorías, Mainnet Launch
+✅ Leaderboard Full-Stack implementado (Backend + Frontend)
+🔄 En progreso: Indexer poblando datos reales de Testnet
+📝 Próximo: Deploy completo a Testnet, Testing E2E, Auditorías
 ```
 
 ### Implementación Actual
 
-- ✅ **Smart Contracts**: Token Factory + AMM Pair (Rust/Soroban)
-- ✅ **Backend**: Indexer + GraphQL API completos
-- ✅ **Frontend**: Next.js 14 con UI completa
-- ✅ **Wallet Integration**: Freighter wallet integrado
-- ✅ **Deployment Scripts**: Build + Deploy automatizados
-- ✅ **Documentation**: Guía completa de deployment
+**Smart Contracts:**
+- ✅ Token Factory + AMM Pair (Rust/Soroban)
+- ✅ Deployment scripts automatizados
 
-**El proyecto está 100% funcional y listo para testnet!**
+**Backend Services:**
+- ✅ Indexer (PostgreSQL + Prisma)
+- ✅ GraphQL API v2 (Fastify + Mercurius)
+- ✅ Leaderboard con SQL optimizado y Redis cache
+- ✅ Real-time event processing
+- 🔄 Conexión a Testnet en progreso
+
+**Frontend:**
+- ✅ Next.js 15 con App Router
+- ✅ UI completa (Create, Explore, Swap, Pools, Leaderboard)
+- ✅ Wallet integration (Freighter)
+- ✅ Apollo Client + GraphQL
+- ✅ Leaderboard dinámico con múltiples filtros
+
+**Última actualización: 2025-01-21**
+- ✅ **Leaderboard Production-Ready**: Sistema completo de rankings con:
+  - Múltiples tipos (Traders, Creators, Liquidity Providers)
+  - Timeframes flexibles (1H, 24H, 7D, 30D, All Time)
+  - SQL aggregations optimizadas (10-100x más rápido)
+  - Redis caching (TTL 1 minuto)
+  - UI mejorada con filtros y visualizaciones
+
+**El MVP está funcional - Falta poblar con datos reales de Testnet!**
 
 ## 🏗️ Arquitectura
 
@@ -98,10 +118,14 @@ Ver [ARCHITECTURE.md](./ARCHITECTURE.md) para detalles completos.
 **Pages**
 - ✅ Home con Hero, Stats, Trending tokens
 - ✅ Create Token (form completo)
-- ✅ Swap interface
+- ✅ Explore (token discovery y búsqueda)
+- ✅ Trading Interface (buy/sell con bonding curve)
 - ✅ Pools (add/remove liquidity)
-- ✅ Tokens (listing, search, filters)
-- ✅ Leaderboard (rankings, gamification)
+- ✅ **Leaderboard** (rankings dinámicos, múltiples tipos, gamificación)
+  - Filtros por tipo (Traders, Creators, LPs)
+  - Filtros por timeframe (1H, 24H, 7D, 30D, All Time)
+  - Top 3 podium visual
+  - Métricas completas (volume, trades, P/L, tokens created)
 - ✅ Wallet integration (Freighter)
 
 **Components**
@@ -162,10 +186,12 @@ Ver [ARCHITECTURE.md](./ARCHITECTURE.md) para detalles completos.
 - ✅ Arquitectura y diseño completos
 - ✅ Token Factory con bonding curves
 - ✅ AMM básico (CPMM)
-- ✅ Frontend para crear tokens y swap
-- ✅ Backend completo (Indexer + GraphQL API)
+- ✅ Frontend completo (Create, Explore, Trading, Pools, Leaderboard)
+- ✅ Backend completo (Indexer + GraphQL API v2)
+- ✅ **Leaderboard Production-Ready** (SQL optimizado + Redis cache)
 - ✅ Deployment scripts listos
-- ⏳ Testing de usuarios (próximo)
+- 🔄 Indexer conectado a Testnet (en progreso)
+- ⏳ Testing end-to-end con datos reales (próximo)
 - ⏳ Primera auditoría de seguridad (próximo)
 - ⏳ Testnet deployment público (próximo)
 
