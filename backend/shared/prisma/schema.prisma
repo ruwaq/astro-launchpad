@@ -1,29 +1,12 @@
-// Prisma schema for AstroShibaPop - Optimized for Vercel Serverless + Accelerate
-// This schema is shared between api-gateway and indexer
+// Prisma schema for AstroShibaPop indexer
 
 generator client {
   provider = "prisma-client-js"
-  // Optimize for serverless: smaller bundle size
-  binaryTargets = ["native", "debian-openssl-3.0.x"]
 }
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-  // Prisma Accelerate connection string (global connection pooling)
-  directUrl = env("DIRECT_DATABASE_URL")
-}
-
-// Model for tracking indexer state (NEW)
-model IndexerState {
-  id              String   @id @default("singleton")
-  contractName    String   @unique
-  lastLedger      String
-  lastEventId     String?
-  lastProcessedAt DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  @@index([contractName])
 }
 
 model Token {
@@ -60,11 +43,14 @@ model Token {
   poolsToken1      Pool[]   @relation("Token1")
   transactions     Transaction[]
 
+  // Índices simples
   @@index([creator])
   @@index([createdAt])
   @@index([marketCap])
   @@index([volume24h])
-  @@index([graduated])
+
+  // Índices compuestos para leaderboard CREATORS
+  @@index([creator, createdAt, volume24h])
 }
 
 model Pool {
@@ -119,7 +105,6 @@ model User {
 
   @@index([points])
   @@index([level])
-  @@index([address])
 }
 
 model Achievement {
@@ -137,7 +122,7 @@ model Achievement {
   unlockedAt   DateTime?
   createdAt    DateTime @default(now())
 
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User     @relation(fields: [userId], references: [id])
 
   @@unique([userId, achievementId])
   @@index([userId])
@@ -156,15 +141,21 @@ model Transaction {
   timestamp     DateTime
 
   userId        String?
-  user          User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
+  user          User?            @relation(fields: [userId], references: [id])
 
-  token         Token?           @relation(fields: [tokenAddress], references: [address], onDelete: SetNull)
+  token         Token?           @relation(fields: [tokenAddress], references: [address])
 
+  // Índices simples
   @@index([from])
   @@index([to])
   @@index([timestamp])
   @@index([type])
-  @@index([status])
+
+  // Índices compuestos para leaderboard (PERFORMANCE CRÍTICO)
+  // Para agregar por usuario + tipo + tiempo
+  @@index([from, type, timestamp, status])
+  // Para filtrar por tipo + tiempo + status
+  @@index([type, status, timestamp])
 }
 
 model Swap {
@@ -178,7 +169,7 @@ model Swap {
   amountOut    String
   timestamp    DateTime
 
-  pool         Pool     @relation(fields: [poolId], references: [id], onDelete: Cascade)
+  pool         Pool     @relation(fields: [poolId], references: [id])
 
   @@index([poolId])
   @@index([sender])
@@ -196,7 +187,7 @@ model LiquidityEvent {
   type         LiquidityEventType
   timestamp    DateTime
 
-  pool         Pool     @relation(fields: [poolId], references: [id], onDelete: Cascade)
+  pool         Pool     @relation(fields: [poolId], references: [id])
 
   @@index([poolId])
   @@index([provider])
@@ -221,4 +212,19 @@ enum TransactionStatus {
 enum LiquidityEventType {
   ADD
   REMOVE
+}
+
+// Indexer state management for resumption
+model IndexerState {
+  id               String   @id @default(cuid())
+  contractName     String   @unique  // e.g., "token_factory", "amm_factory"
+  lastLedger       String               // Last indexed ledger number as string
+  lastEventId      String?              // Last processed event ID (for cursor)
+  lastProcessedAt  DateTime @default(now())
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([contractName])
+  @@index([lastProcessedAt])
 }
