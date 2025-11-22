@@ -1,11 +1,11 @@
 import { PrismaClient } from '@prisma/client';
-import { Horizon } from '@stellar/stellar-sdk';
+import * as StellarSdk from '@stellar/stellar-sdk';
 import { logger } from '../../lib/logger.js';
 
 export class PoolEventHandler {
   constructor(private prisma: PrismaClient) {}
 
-  async handleLiquidityAdded(event: Horizon.ServerApi.EventRecord) {
+  async handleLiquidityAdded(event: StellarSdk.Horizon.ServerApi.EventRecord) {
     try {
       const data = this.parseEventData(event);
       const { provider, amount0, amount1, liquidity, poolAddress } = data;
@@ -62,7 +62,7 @@ export class PoolEventHandler {
     }
   }
 
-  async handleLiquidityRemoved(event: Horizon.ServerApi.EventRecord) {
+  async handleLiquidityRemoved(event: StellarSdk.Horizon.ServerApi.EventRecord) {
     try {
       const data = this.parseEventData(event);
       const { provider, amount0, amount1, liquidity, poolAddress } = data;
@@ -97,7 +97,7 @@ export class PoolEventHandler {
     }
   }
 
-  async handleSwap(event: Horizon.ServerApi.EventRecord) {
+  async handleSwap(event: StellarSdk.Horizon.ServerApi.EventRecord) {
     try {
       const data = this.parseEventData(event);
       const { sender, tokenIn, tokenOut, amountIn, amountOut, poolAddress } = data;
@@ -144,7 +144,7 @@ export class PoolEventHandler {
     }
   }
 
-  private parseEventData(event: Horizon.ServerApi.EventRecord): any {
+  private parseEventData(event: StellarSdk.Horizon.ServerApi.EventRecord): any {
     try {
       const value = event.value;
       // For MVP, assume value is already decoded

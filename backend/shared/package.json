@@ -1,0 +1,32 @@
+{
+  "name": "@astroshibapop/shared",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./prisma": "./prisma/client.ts",
+    "./types": "./types/index.ts",
+    "./config": "./config/env.ts",
+    "./utils": "./utils/index.ts"
+  },
+  "scripts": {
+    "db:generate": "prisma generate --schema=./prisma/schema.prisma",
+    "db:push": "prisma db push --schema=./prisma/schema.prisma",
+    "db:migrate": "prisma migrate dev --schema=./prisma/schema.prisma",
+    "db:migrate:deploy": "prisma migrate deploy --schema=./prisma/schema.prisma",
+    "db:studio": "prisma studio --schema=./prisma/schema.prisma",
+    "db:seed": "tsx prisma/seed.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.22.0",
+    "@prisma/extension-accelerate": "^1.2.1",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "prisma": "^5.22.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3"
+  }
+}

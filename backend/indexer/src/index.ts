@@ -1,13 +1,19 @@
-import 'dotenv/config';
+import { config } from 'dotenv';
+import { resolve } from 'path';
+import http from 'http';
+
+// Load .env from backend/indexer directory with override
+config({ path: resolve(process.cwd(), '.env'), override: true });
+
 import { PrismaClient } from '@prisma/client';
 import { logger } from './lib/logger.js';
-import { EventIndexer } from './services/event-indexer.js';
+import { OptimizedEventIndexer } from './services/optimized-event-indexer.js';
 import { MetricsCalculator } from './services/metrics-calculator.js';
 
 const prisma = new PrismaClient();
 
 async function main() {
-  logger.info('🚀 Starting AstroShibaPop Indexer...');
+  logger.info('🚀 Starting AstroShibaPop Optimized Indexer...');
 
   // Check environment variables
   const requiredEnvVars = [
@@ -28,8 +34,8 @@ async function main() {
     await prisma.$connect();
     logger.info('✓ Database connected');
 
-    // Start event indexer
-    const eventIndexer = new EventIndexer(prisma);
+    // Start optimized event indexer
+    const eventIndexer = new OptimizedEventIndexer(prisma);
     await eventIndexer.start();
 
     // Start metrics calculator (runs every 60 seconds)
@@ -40,11 +46,49 @@ async function main() {
       });
     }, 60000);
 
-    logger.info('✓ Indexer running');
+    // Start HTTP server for metrics endpoint
+    const metricsPort = parseInt(process.env.METRICS_PORT || '9090', 10);
+    const server = http.createServer(async (req, res) => {
+      if (req.url === '/metrics' && req.method === 'GET') {
+        try {
+          const metrics = await eventIndexer.getMetrics();
+          res.writeHead(200, { 'Content-Type': 'text/plain; version=0.0.4' });
+          res.end(metrics);
+        } catch (error) {
+          logger.error('Failed to get metrics:', error);
+          res.writeHead(500, { 'Content-Type': 'text/plain' });
+          res.end('Internal Server Error');
+        }
+      } else if (req.url === '/health' && req.method === 'GET') {
+        const status = eventIndexer.getStatus();
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(status, null, 2));
+      } else if (req.url === '/' && req.method === 'GET') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          name: 'AstroShibaPop Optimized Indexer',
+          version: '0.2.0',
+          metrics: '/metrics',
+          health: '/health',
+        }, null, 2));
+      } else {
+        res.writeHead(404, { 'Content-Type': 'text/plain' });
+        res.end('Not Found');
+      }
+    });
+
+    server.listen(metricsPort, () => {
+      logger.info(`✓ Metrics server listening on port ${metricsPort}`);
+      logger.info(`📊 Metrics: http://localhost:${metricsPort}/metrics`);
+      logger.info(`🏥 Health: http://localhost:${metricsPort}/health`);
+    });
+
+    logger.info('✓ Optimized indexer running');
 
     // Graceful shutdown
     const shutdown = async () => {
       logger.info('Shutting down...');
+      server.close();
       await eventIndexer.stop();
       await prisma.$disconnect();
       process.exit(0);

@@ -1,11 +1,11 @@
 import { PrismaClient } from '@prisma/client';
-import { Horizon } from '@stellar/stellar-sdk';
+import * as StellarSdk from '@stellar/stellar-sdk';
 import { logger } from '../../lib/logger.js';
 
 export class TokenEventHandler {
   constructor(private prisma: PrismaClient) {}
 
-  async handleTokenCreated(event: Horizon.ServerApi.EventRecord) {
+  async handleTokenCreated(event: StellarSdk.StellarSdk.Horizon.ServerApi.EventRecord) {
     try {
       const data = this.parseEventData(event);
       const { creator, tokenAddress, name, symbol } = data;
@@ -56,7 +56,7 @@ export class TokenEventHandler {
     }
   }
 
-  async handleTokenBuy(event: Horizon.ServerApi.EventRecord) {
+  async handleTokenBuy(event: StellarSdk.Horizon.ServerApi.EventRecord) {
     try {
       const data = this.parseEventData(event);
       const { buyer, token, xlmAmount, tokensReceived } = data;
@@ -103,7 +103,7 @@ export class TokenEventHandler {
     }
   }
 
-  async handleTokenSell(event: Horizon.ServerApi.EventRecord) {
+  async handleTokenSell(event: StellarSdk.Horizon.ServerApi.EventRecord) {
     try {
       const data = this.parseEventData(event);
       const { seller, token, tokensSold, xlmReceived } = data;
@@ -149,7 +149,7 @@ export class TokenEventHandler {
     }
   }
 
-  async handleTokenGraduated(event: Horizon.ServerApi.EventRecord) {
+  async handleTokenGraduated(event: StellarSdk.Horizon.ServerApi.EventRecord) {
     try {
       const data = this.parseEventData(event);
       const { token, xlmRaised } = data;
@@ -168,7 +168,7 @@ export class TokenEventHandler {
     }
   }
 
-  private parseEventData(event: Horizon.ServerApi.EventRecord): any {
+  private parseEventData(event: StellarSdk.Horizon.ServerApi.EventRecord): any {
     // Parse Soroban event data
     // This is a simplified version - in production, properly decode XDR
     try {

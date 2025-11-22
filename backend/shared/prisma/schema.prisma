@@ -1,0 +1,230 @@
+// Prisma schema for AstroShibaPop indexer
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Token {
+  id              String   @id @default(cuid())
+  address         String   @unique
+  creator         String
+  name            String
+  symbol          String
+  decimals        Int      @default(7)
+  totalSupply     String   // BigInt as string
+  metadataUri     String
+  imageUrl        String?
+  description     String?
+
+  // Bonding curve state
+  circulatingSupply String   @default("0")
+  xlmReserve       String   @default("0")
+  graduated        Boolean  @default(false)
+  xlmRaised        String   @default("0")
+
+  // Calculated fields
+  marketCap        String?
+  currentPrice     String?
+  priceChange24h   Float?
+  volume24h        String   @default("0")
+  volume7d         String   @default("0")
+  holders          Int      @default(0)
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  // Relations
+  poolsToken0      Pool[]   @relation("Token0")
+  poolsToken1      Pool[]   @relation("Token1")
+  transactions     Transaction[]
+
+  // Índices simples
+  @@index([creator])
+  @@index([createdAt])
+  @@index([marketCap])
+  @@index([volume24h])
+
+  // Índices compuestos para leaderboard CREATORS
+  @@index([creator, createdAt, volume24h])
+}
+
+model Pool {
+  id              String   @id @default(cuid())
+  address         String   @unique
+  token0Address   String
+  token1Address   String
+  reserve0        String
+  reserve1        String
+  totalSupply     String
+
+  // Calculated fields
+  tvl             String?
+  volume24h       String   @default("0")
+  volume7d        String   @default("0")
+  apr             Float?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  token0          Token    @relation("Token0", fields: [token0Address], references: [address])
+  token1          Token    @relation("Token1", fields: [token1Address], references: [address])
+  swaps           Swap[]
+  liquidityEvents LiquidityEvent[]
+
+  @@index([token0Address])
+  @@index([token1Address])
+  @@index([tvl])
+}
+
+model User {
+  id                      String         @id @default(cuid())
+  address                 String         @unique
+
+  // Gamification
+  points                  Int            @default(0)
+  level                   Int            @default(1)
+  referrals               Int            @default(0)
+
+  // Stats
+  tokensCreatedCount      Int            @default(0)
+  totalVolumeTraded       String         @default("0")
+  totalLiquidityProvided  String         @default("0")
+
+  createdAt               DateTime       @default(now())
+  updatedAt               DateTime       @updatedAt
+
+  // Relations
+  achievements            Achievement[]
+  transactions            Transaction[]
+
+  @@index([points])
+  @@index([level])
+}
+
+model Achievement {
+  id           String   @id @default(cuid())
+  userId       String
+
+  achievementId String  // ID of the achievement type
+  name         String
+  description  String
+  imageUrl     String
+  progress     Int      @default(0)
+  maxProgress  Int
+  completed    Boolean  @default(false)
+
+  unlockedAt   DateTime?
+  createdAt    DateTime @default(now())
+
+  user         User     @relation(fields: [userId], references: [id])
+
+  @@unique([userId, achievementId])
+  @@index([userId])
+}
+
+model Transaction {
+  id            String           @id @default(cuid())
+  hash          String           @unique
+  type          TransactionType
+  from          String
+  to            String?
+  tokenAddress  String?
+  amount        String?
+
+  status        TransactionStatus @default(PENDING)
+  timestamp     DateTime
+
+  userId        String?
+  user          User?            @relation(fields: [userId], references: [id])
+
+  token         Token?           @relation(fields: [tokenAddress], references: [address])
+
+  // Índices simples
+  @@index([from])
+  @@index([to])
+  @@index([timestamp])
+  @@index([type])
+
+  // Índices compuestos para leaderboard (PERFORMANCE CRÍTICO)
+  // Para agregar por usuario + tipo + tiempo
+  @@index([from, type, timestamp, status])
+  // Para filtrar por tipo + tiempo + status
+  @@index([type, status, timestamp])
+}
+
+model Swap {
+  id           String   @id @default(cuid())
+  hash         String   @unique
+  poolId       String
+  sender       String
+  tokenIn      String
+  tokenOut     String
+  amountIn     String
+  amountOut    String
+  timestamp    DateTime
+
+  pool         Pool     @relation(fields: [poolId], references: [id])
+
+  @@index([poolId])
+  @@index([sender])
+  @@index([timestamp])
+}
+
+model LiquidityEvent {
+  id           String   @id @default(cuid())
+  hash         String   @unique
+  poolId       String
+  provider     String
+  amount0      String
+  amount1      String
+  liquidity    String
+  type         LiquidityEventType
+  timestamp    DateTime
+
+  pool         Pool     @relation(fields: [poolId], references: [id])
+
+  @@index([poolId])
+  @@index([provider])
+  @@index([timestamp])
+}
+
+enum TransactionType {
+  TOKEN_CREATED
+  TOKEN_BOUGHT
+  TOKEN_SOLD
+  LIQUIDITY_ADDED
+  LIQUIDITY_REMOVED
+  SWAP
+}
+
+enum TransactionStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+enum LiquidityEventType {
+  ADD
+  REMOVE
+}
+
+// Indexer state management for resumption
+model IndexerState {
+  id               String   @id @default(cuid())
+  contractName     String   @unique  // e.g., "token_factory", "amm_factory"
+  lastLedger       String               // Last indexed ledger number as string
+  lastEventId      String?              // Last processed event ID (for cursor)
+  lastProcessedAt  DateTime @default(now())
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([contractName])
+  @@index([lastProcessedAt])
+}

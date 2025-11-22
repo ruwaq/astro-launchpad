@@ -1,47 +1,22 @@
 {
-  "name": "astroshibapop",
-  "version": "0.1.0",
+  "name": "astro-shiba-monorepo",
+  "version": "0.0.0",
   "private": true,
-  "description": "AstroShibaPop - DeFi Hybrid Platform on Stellar",
-  "keywords": ["stellar", "soroban", "defi", "meme-tokens", "amm"],
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/nunalabs/Astro-Shiba-Pop.git"
-  },
-  "engines": {
-    "node": ">=20.0.0",
-    "pnpm": ">=8.0.0"
-  },
-  "packageManager": "pnpm@8.15.0",
-  "workspaces": [
-    "backend/*",
-    "frontend",
-    "packages/*"
-  ],
+  "description": "Astro Shiba - Enterprise Token Launchpad on Stellar",
   "scripts": {
-    "dev": "pnpm run --parallel dev",
-    "dev:frontend": "pnpm --filter frontend dev",
-    "dev:indexer": "pnpm --filter indexer dev",
-    "dev:api": "pnpm --filter api-gateway dev",
-    "build": "pnpm run --recursive build",
-    "build:contracts": "./scripts/build-contracts.sh",
-    "deploy:contracts": "./scripts/deploy-contracts.sh",
-    "test": "pnpm run --recursive test",
-    "test:contracts": "./scripts/test-contracts.sh",
-    "lint": "pnpm run --recursive lint",
-    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
-    "typecheck": "pnpm run --recursive typecheck",
-    "clean": "pnpm run --recursive clean && rm -rf node_modules",
-    "db:migrate": "pnpm --filter indexer db:migrate",
-    "db:studio": "pnpm --filter indexer db:studio",
-    "docker:up": "docker-compose up -d",
-    "docker:down": "docker-compose down",
-    "docker:logs": "docker-compose logs -f"
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "type-check": "turbo run type-check",
+    "clean": "turbo run clean && rm -rf node_modules .turbo"
   },
   "devDependencies": {
-    "@types/node": "^20.11.0",
-    "prettier": "^3.2.4",
-    "typescript": "^5.3.3",
-    "turbo": "^1.12.0"
+    "turbo": "^2.0.12",
+    "@turbo/gen": "^2.0.12"
+  },
+  "packageManager": "pnpm@9.7.1",
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=9.0.0"
   }
 }
