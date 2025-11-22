@@ -66,7 +66,7 @@ export function usePrice(tokenAddress: string | null | undefined, options: UsePr
     if (tokenAddress && autoStart) {
       fetchPrice();
     }
-  }, [tokenAddress, autoStart]);
+  }, [tokenAddress, autoStart, fetchPrice]);
 
   // Polling
   useEffect(() => {

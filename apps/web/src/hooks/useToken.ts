@@ -50,7 +50,7 @@ export function useToken(tokenAddress: string | null | undefined, options: UseTo
     if (tokenAddress && fetchOnMount && !token && !isLoading) {
       fetchTokenInfo(tokenAddress);
     }
-  }, [tokenAddress, fetchOnMount]);
+  }, [tokenAddress, fetchOnMount, token, isLoading, fetchTokenInfo]);
 
   // Auto-refresh
   useEffect(() => {
@@ -63,7 +63,7 @@ export function useToken(tokenAddress: string | null | undefined, options: UseTo
     }, refreshInterval);
 
     return () => clearInterval(interval);
-  }, [tokenAddress, refreshInterval]);
+  }, [tokenAddress, refreshInterval, refreshToken]);
 
   // Manual refresh
   const refresh = async () => {
@@ -98,7 +98,7 @@ export function useTokenCount() {
     };
 
     fetch();
-  }, []);
+  }, [fetchTokenCount]);
 
   return {
     tokenCount,
@@ -126,17 +126,19 @@ export function useTokens(addresses: string[], options: UseTokenOptions = {}) {
   useEffect(() => {
     if (!fetchOnMount) return;
 
+    const addressesKey = addresses.join(',');
     addresses.forEach((address) => {
       if (!tokens.has(address) && !isLoadingToken(address)) {
         fetchTokenInfo(address);
       }
     });
-  }, [addresses.join(','), fetchOnMount]);
+  }, [addresses, fetchOnMount, tokens, isLoadingToken, fetchTokenInfo]);
 
   // Auto-refresh all
   useEffect(() => {
     if (refreshInterval === 0) return;
 
+    const addressesKey = addresses.join(',');
     const interval = setInterval(async () => {
       setIsRefreshing(true);
       await Promise.all(addresses.map((addr) => refreshToken(addr)));
@@ -144,7 +146,7 @@ export function useTokens(addresses: string[], options: UseTokenOptions = {}) {
     }, refreshInterval);
 
     return () => clearInterval(interval);
-  }, [addresses.join(','), refreshInterval]);
+  }, [addresses, refreshInterval, refreshToken]);
 
   // Get token data
   const tokensData = addresses
