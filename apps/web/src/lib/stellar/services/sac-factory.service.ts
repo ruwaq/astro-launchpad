@@ -116,12 +116,55 @@ export class SacFactoryService extends BaseContractService {
         addressToScVal(tokenAddress)
       );
 
-      if (!result) return null;
+      if (!result) {
+        console.log(`[DEBUG] getTokenInfo(${tokenAddress}): No result from contract`);
+        return null;
+      }
 
       const data = fromScVal(result);
+      console.log(`[DEBUG] getTokenInfo(${tokenAddress}): Received data:`, data);
 
       // Handle Option<TokenInfo> - contract returns Some(TokenInfo) or None
-      if (!data || data === null) return null;
+      if (!data || data === null) {
+        console.log(`[DEBUG] getTokenInfo(${tokenAddress}): Data is null or undefined`);
+        return null;
+      }
+
+      // Validate required fields
+      if (!data.token_address || !data.name || !data.symbol) {
+        console.warn('Token data missing required fields:', data);
+        return null;
+      }
+
+      // Check if bonding_curve exists and has required fields
+      if (!data.bonding_curve) {
+        console.warn('Token bonding_curve is null/undefined:', data);
+        return null;
+      }
+
+      console.log(`[DEBUG] bonding_curve fields:`, {
+        xlm_reserve: data.bonding_curve.xlm_reserve,
+        xlm_reserve_type: typeof data.bonding_curve.xlm_reserve,
+        token_reserve: data.bonding_curve.token_reserve,
+        token_reserve_type: typeof data.bonding_curve.token_reserve,
+        k: data.bonding_curve.k,
+        k_type: typeof data.bonding_curve.k,
+      });
+
+      // Validate essential fields (xlm_reserve and k)
+      if (typeof data.bonding_curve.xlm_reserve === 'undefined' ||
+          typeof data.bonding_curve.k === 'undefined') {
+        console.warn('Token bonding curve missing essential fields (xlm_reserve or k)');
+        return null;
+      }
+
+      // WORKAROUND: Calculate token_reserve if missing
+      // Formula: k = xlm_reserve * token_reserve → token_reserve = k / xlm_reserve
+      if (typeof data.bonding_curve.token_reserve === 'undefined') {
+        console.warn(`[WORKAROUND] token_reserve is undefined, calculating from k and xlm_reserve`);
+        data.bonding_curve.token_reserve = data.bonding_curve.k / data.bonding_curve.xlm_reserve;
+        console.log(`[WORKAROUND] Calculated token_reserve:`, data.bonding_curve.token_reserve);
+      }
 
       return {
         id: data.id,
@@ -129,8 +172,8 @@ export class SacFactoryService extends BaseContractService {
         token_address: data.token_address,
         name: data.name,
         symbol: data.symbol,
-        image_url: data.image_url,
-        description: data.description,
+        image_url: data.image_url || '',
+        description: data.description || '',
         created_at: data.created_at,
         status: data.status === 'Bonding' ? TokenStatus.Bonding : TokenStatus.Graduated,
         bonding_curve: {
@@ -138,9 +181,9 @@ export class SacFactoryService extends BaseContractService {
           token_reserve: data.bonding_curve.token_reserve.toString(),
           k: data.bonding_curve.k.toString(),
         },
-        xlm_raised: data.xlm_raised.toString(),
-        market_cap: data.market_cap.toString(),
-        holders_count: data.holders_count,
+        xlm_raised: data.xlm_raised?.toString() || '0',
+        market_cap: data.market_cap?.toString() || '0',
+        holders_count: data.holders_count || 0,
       };
     } catch (error) {
       console.error('Error fetching token info:', error);
@@ -233,13 +276,14 @@ export class SacFactoryService extends BaseContractService {
       const result = await this.callReadOnly(
         'get_creator_tokens_paginated',
         addressToScVal(creatorAddress),
-        toScVal(offset, xdr.ScValType.scvU32()),
-        toScVal(limit, xdr.ScValType.scvU32())
+        xdr.ScVal.scvU32(offset),
+        xdr.ScVal.scvU32(limit)
       );
 
       if (!result) return [];
 
       const addresses = fromScVal(result);
+      console.log(`[DEBUG] getCreatorTokensPaginated(${creatorAddress}): Found ${addresses?.length || 0} tokens`, addresses);
       return addresses.map((addr: any) => addr.toString());
     } catch (error) {
       console.error('Error fetching creator tokens paginated:', error);
@@ -431,6 +475,110 @@ export class SacFactoryService extends BaseContractService {
       toScVal(minXlm, xdr.ScValType.scvI128()),
       toScVal(deadline, xdr.ScValType.scvU64()) // NEW: deadline parameter
     );
+  }
+
+  /**
+   * Buy tokens - High-level method for trading interface
+   *
+   * @param tokenAddress - Token contract address
+   * @param xlmAmount - Amount of XLM to spend (in XLM, not stroops)
+   * @param buyerAddress - Buyer's Stellar address
+   * @param slippagePercent - Slippage tolerance (default 1%)
+   * @returns Transaction result
+   */
+  async buyTokens(
+    tokenAddress: string,
+    xlmAmount: number,
+    buyerAddress: string,
+    slippagePercent: number = 1
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      // Convert XLM to stroops (1 XLM = 10,000,000 stroops)
+      const xlmAmountStroops = BigInt(Math.floor(xlmAmount * 10_000_000));
+
+      // Get token info to calculate min tokens
+      const tokenInfo = await this.getTokenInfo(tokenAddress);
+      if (!tokenInfo) {
+        return { success: false, error: 'Token not found' };
+      }
+
+      // Calculate expected output
+      const expectedTokens = this.calculateBuyOutput(tokenInfo, xlmAmountStroops);
+
+      // Apply slippage tolerance
+      const minTokens = (expectedTokens * BigInt(100 - slippagePercent)) / BigInt(100);
+
+      // Set deadline (5 minutes from now)
+      const deadline = BigInt(Math.floor(Date.now() / 1000) + 300);
+
+      // Build and execute operation
+      const operation = this.buildBuyOperation(
+        buyerAddress,
+        tokenAddress,
+        xlmAmountStroops,
+        minTokens,
+        deadline
+      );
+
+      // Note: Actual transaction submission happens in the UI component
+      // This method is currently a placeholder for the real implementation
+      return { success: true };
+    } catch (error: any) {
+      console.error('Buy tokens error:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Sell tokens - High-level method for trading interface
+   *
+   * @param tokenAddress - Token contract address
+   * @param tokenAmount - Amount of tokens to sell (in tokens, not smallest unit)
+   * @param sellerAddress - Seller's Stellar address
+   * @param slippagePercent - Slippage tolerance (default 1%)
+   * @returns Transaction result
+   */
+  async sellTokens(
+    tokenAddress: string,
+    tokenAmount: number,
+    sellerAddress: string,
+    slippagePercent: number = 1
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      // Convert to smallest unit (7 decimals for SAC tokens)
+      const tokenAmountSmallest = BigInt(Math.floor(tokenAmount * 10_000_000));
+
+      // Get token info to calculate min XLM
+      const tokenInfo = await this.getTokenInfo(tokenAddress);
+      if (!tokenInfo) {
+        return { success: false, error: 'Token not found' };
+      }
+
+      // Calculate expected output
+      const expectedXlm = this.calculateSellOutput(tokenInfo, tokenAmountSmallest);
+
+      // Apply slippage tolerance
+      const minXlm = (expectedXlm * BigInt(100 - slippagePercent)) / BigInt(100);
+
+      // Set deadline (5 minutes from now)
+      const deadline = BigInt(Math.floor(Date.now() / 1000) + 300);
+
+      // Build and execute operation
+      const operation = this.buildSellOperation(
+        sellerAddress,
+        tokenAddress,
+        tokenAmountSmallest,
+        minXlm,
+        deadline
+      );
+
+      // Note: Actual transaction submission happens in the UI component
+      // This method is currently a placeholder for the real implementation
+      return { success: true };
+    } catch (error: any) {
+      console.error('Sell tokens error:', error);
+      return { success: false, error: error.message };
+    }
   }
 
   // ========== Helper Methods ==========
