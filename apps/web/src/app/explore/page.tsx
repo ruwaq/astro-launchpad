@@ -8,6 +8,7 @@ import { sacFactoryService, TokenInfo } from '@/lib/stellar/services/sac-factory
 import { formatCompactNumber, stroopsToXlm } from '@/lib/stellar/utils';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
+import { useQuery, gql } from '@apollo/client';
 
 type SortOption = 'trending' | 'new' | 'marketCap' | 'volume' | 'graduation';
 type StatusFilter = 'all' | 'bonding' | 'graduated';
@@ -15,20 +16,53 @@ type StatusFilter = 'all' | 'bonding' | 'graduated';
 export default function ExplorePage() {
   const { address, isConnected, connect, isConnecting } = useWallet();
 
+  // Fetch ALL tokens from GraphQL API (not filtered by user)
+  const { data: tokensData, loading: tokensLoading } = useQuery(gql`
+    query GetAllTokens($limit: Int!, $orderBy: TokenOrderBy!) {
+      tokens(limit: $limit, orderBy: $orderBy) {
+        edges {
+          address
+          name
+          symbol
+          imageUrl
+          currentPrice
+          priceChange24h
+          volume24h
+          marketCap
+          circulatingSupply
+          xlmRaised
+          xlmReserve
+          graduated
+          createdAt
+        }
+        pageInfo {
+          total
+          hasNextPage
+        }
+      }
+    }
+  `, {
+    variables: {
+      limit: 100,
+      orderBy: 'CREATED_AT_DESC'
+    },
+    pollInterval: 30000,
+  });
+
   // State
-  const [tokens, setTokens] = useState<TokenInfo[]>([]);
-  const [filteredTokens, setFilteredTokens] = useState<TokenInfo[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [tokens, setTokens] = useState<any[]>([]);
+  const [filteredTokens, setFilteredTokens] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [sortBy, setSortBy] = useState<SortOption>('new');
 
-  // Fetch tokens from SAC Factory contract
+  // Extract tokens from GraphQL response
   useEffect(() => {
-    if (isConnected && address) {
-      fetchTokens();
+    if (tokensData?.tokens?.edges) {
+      // edges is already an array of Token objects (not {node: Token})
+      setTokens(tokensData.tokens.edges);
     }
-  }, [isConnected, address]);
+  }, [tokensData]);
 
   // Apply filters and search
   useEffect(() => {
@@ -37,16 +71,16 @@ export default function ExplorePage() {
     // Apply search
     if (searchQuery) {
       result = result.filter(token =>
-        token.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        token.symbol.toLowerCase().includes(searchQuery.toLowerCase())
+        token.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        token.symbol?.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
 
     // Apply status filter
     if (statusFilter !== 'all') {
       result = result.filter(token => {
-        if (statusFilter === 'bonding') return token.status === 'Bonding';
-        if (statusFilter === 'graduated') return token.status === 'Graduated';
+        if (statusFilter === 'bonding') return !token.graduated;
+        if (statusFilter === 'graduated') return token.graduated;
         return true;
       });
     }
@@ -55,67 +89,22 @@ export default function ExplorePage() {
     result.sort((a, b) => {
       switch (sortBy) {
         case 'new':
-          // Convert BigInt to Number for comparison
-          return Number(b.created_at - a.created_at);
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
         case 'marketCap':
-          return Number(BigInt(b.market_cap) - BigInt(a.market_cap));
+          return parseFloat(b.marketCap || '0') - parseFloat(a.marketCap || '0');
+        case 'volume':
+          return parseFloat(b.volume24h || '0') - parseFloat(a.volume24h || '0');
         case 'graduation':
-          const progressA = (Number(a.xlm_raised) / 10000) * 100;
-          const progressB = (Number(b.xlm_raised) / 10000) * 100;
+          const progressA = (parseFloat(a.xlmRaised || '0') / 10000) * 100;
+          const progressB = (parseFloat(b.xlmRaised || '0') / 10000) * 100;
           return progressB - progressA;
         default:
-          // Convert BigInt to Number for comparison
-          return Number(b.created_at - a.created_at);
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
       }
     });
 
     setFilteredTokens(result);
   }, [tokens, searchQuery, statusFilter, sortBy]);
-
-  const fetchTokens = async () => {
-    setLoading(true);
-    try {
-      // Get token count first
-      const count = await sacFactoryService.getTokenCount();
-
-      if (count === 0) {
-        setTokens([]);
-        setLoading(false);
-        return;
-      }
-
-      // Fetch token info for each token
-      // In production, this should be paginated and batched
-      const tokenPromises: Promise<TokenInfo | null>[] = [];
-
-      // For now, fetch last 20 tokens (or all if less than 20)
-      const tokensToFetch = Math.min(count, 20);
-
-      // Get creator's tokens (they should know their own tokens)
-      if (address) {
-        const creatorTokenAddresses = await sacFactoryService.getCreatorTokensPaginated(
-          address,
-          0,
-          20
-        );
-
-        // Fetch info for creator's tokens
-        for (const tokenAddress of creatorTokenAddresses) {
-          tokenPromises.push(sacFactoryService.getTokenInfo(tokenAddress));
-        }
-      }
-
-      const tokenInfos = await Promise.all(tokenPromises);
-      const validTokens = tokenInfos.filter((t): t is TokenInfo => t !== null);
-
-      setTokens(validTokens);
-    } catch (error: any) {
-      console.error('Error fetching tokens:', error);
-      toast.error('Failed to load tokens');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleConnect = async () => {
     try {
@@ -127,22 +116,34 @@ export default function ExplorePage() {
   };
 
   // Token Card Component
-  const TokenCard = ({ token }: { token: TokenInfo }) => {
+  const TokenCard = ({ token }: { token: any }) => {
     const graduationProgress = Math.min(
-      (Number(token.xlm_raised) / 10000) * 100,
+      (parseFloat(token.xlmRaised || '0') / 10000) * 100,
       100
     );
 
     return (
       <Link
-        href={`/t/${token.token_address}`}
+        href={`/t/${token.address}`}
         className="block bg-white rounded-xl p-6 border border-ui-border hover:border-brand-primary transition-all hover:shadow-md"
       >
         <div className="flex items-start gap-4">
-          {/* Token Image Placeholder */}
-          <div className="w-12 h-12 bg-gradient-to-br from-brand-primary to-brand-blue rounded-lg flex items-center justify-center text-white font-bold text-xl flex-shrink-0">
-            {token.symbol.charAt(0)}
-          </div>
+          {/* Token Image */}
+          {token.imageUrl ? (
+            <img
+              src={token.imageUrl}
+              alt={token.symbol}
+              className="w-12 h-12 rounded-lg flex-shrink-0"
+              onError={(e) => {
+                // Fallback to gradient if image fails to load
+                (e.target as HTMLImageElement).style.display = 'none';
+              }}
+            />
+          ) : (
+            <div className="w-12 h-12 bg-gradient-to-br from-brand-primary to-brand-blue rounded-lg flex items-center justify-center text-white font-bold text-xl flex-shrink-0">
+              {token.symbol?.charAt(0) || '?'}
+            </div>
+          )}
 
           {/* Token Info */}
           <div className="flex-1 min-w-0">
@@ -155,17 +156,17 @@ export default function ExplorePage() {
               </div>
               <span
                 className={`px-2 py-1 text-xs font-medium rounded ${
-                  token.status === 'Bonding'
+                  !token.graduated
                     ? 'bg-brand-blue-50 text-brand-blue'
                     : 'bg-brand-green-50 text-brand-green'
                 }`}
               >
-                {token.status}
+                {token.graduated ? 'Graduated' : 'Bonding'}
               </span>
             </div>
 
             {/* Graduation Progress */}
-            {token.status === 'Bonding' && (
+            {!token.graduated && (
               <div className="mt-4">
                 <div className="flex items-center justify-between text-xs text-ui-text-secondary mb-2">
                   <span>Graduation Progress</span>
@@ -185,13 +186,13 @@ export default function ExplorePage() {
               <div>
                 <p className="text-xs text-ui-text-secondary">XLM Raised</p>
                 <p className="text-sm font-semibold text-ui-text-primary">
-                  {formatCompactNumber(parseFloat(stroopsToXlm(token.xlm_raised)))} XLM
+                  {formatCompactNumber(parseFloat(token.xlmRaised || '0') / 10_000_000)} XLM
                 </p>
               </div>
               <div>
                 <p className="text-xs text-ui-text-secondary">Market Cap</p>
                 <p className="text-sm font-semibold text-ui-text-primary">
-                  ${formatCompactNumber(parseFloat(token.market_cap) / 10000000)}
+                  ${formatCompactNumber(parseFloat(token.marketCap || '0') / 10_000_000)}
                 </p>
               </div>
             </div>
@@ -225,8 +226,7 @@ export default function ExplorePage() {
         </div>
 
         {/* Search and Filters */}
-        {isConnected && (
-          <div className="bg-white rounded-xl p-4 border border-ui-border">
+        <div className="bg-white rounded-xl p-4 border border-ui-border">
             <div className="flex flex-col lg:flex-row gap-4">
               {/* Search */}
               <div className="flex-1 relative">
@@ -291,36 +291,13 @@ export default function ExplorePage() {
               </div>
             </div>
           </div>
-        )}
 
         {/* Content */}
-        {!isConnected ? (
-          // Not connected state
-          <div className="bg-white rounded-xl border border-ui-border p-12 text-center">
-            <div className="max-w-md mx-auto">
-              <div className="w-20 h-20 bg-brand-primary-50 rounded-full flex items-center justify-center mx-auto mb-6">
-                <TrendingUp className="h-10 w-10 text-brand-primary" />
-              </div>
-              <h3 className="text-xl font-bold text-ui-text-primary mb-2">
-                Connect Your Wallet
-              </h3>
-              <p className="text-ui-text-secondary mb-6">
-                Connect your Stellar wallet to explore real SAC tokens on testnet
-              </p>
-              <button
-                onClick={handleConnect}
-                disabled={isConnecting}
-                className="px-6 py-3 bg-brand-primary text-white rounded-lg hover:bg-brand-primary-600 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isConnecting ? 'Connecting...' : 'Connect Wallet'}
-              </button>
-            </div>
-          </div>
-        ) : loading ? (
+        {tokensLoading ? (
           // Loading state
           <div className="bg-white rounded-xl border border-ui-border p-12 text-center">
             <Loader2 className="h-12 w-12 text-brand-primary animate-spin mx-auto mb-4" />
-            <p className="text-ui-text-secondary">Loading tokens from SAC Factory...</p>
+            <p className="text-ui-text-secondary">Loading tokens from platform...</p>
           </div>
         ) : filteredTokens.length === 0 ? (
           // Empty state (no tokens found)

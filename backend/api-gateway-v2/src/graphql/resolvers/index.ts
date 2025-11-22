@@ -431,6 +431,37 @@ const queryResolvers = {
 }
 
 /**
+ * Mutation resolvers
+ */
+const mutationResolvers = {
+  // Sync a token from blockchain to database
+  syncToken: async (_parent: any, args: { tokenAddress: string }, context: GraphQLContext) => {
+    const { tokenAddress } = args
+
+    try {
+      // Import and call processToken from sync script
+      const { processToken } = await import('../../../shared/scripts/sync-tokens.js')
+      await processToken(tokenAddress)
+
+      // Return synced token from database
+      const token = await context.prisma.token.findUnique({
+        where: { address: tokenAddress },
+        cacheStrategy: CACHE_STRATEGIES.SHORT_TTL,
+      })
+
+      if (!token) {
+        throw new Error(`Token ${tokenAddress} not found after sync`)
+      }
+
+      return token
+    } catch (error: any) {
+      console.error(`Failed to sync token ${tokenAddress}:`, error)
+      throw new Error(`Failed to sync token: ${error.message}`)
+    }
+  },
+}
+
+/**
  * Field resolvers
  * These resolve nested fields in types
  * Optimized with DataLoaders to prevent N+1 queries
@@ -501,5 +532,6 @@ const fieldResolvers = {
 export const resolvers: IResolvers = {
   ...scalarResolvers,
   Query: queryResolvers,
+  Mutation: mutationResolvers,
   ...fieldResolvers,
 } as any // Type assertion needed due to custom context type

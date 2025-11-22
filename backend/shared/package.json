@@ -16,11 +16,14 @@
     "db:migrate:deploy": "prisma migrate deploy --schema=./prisma/schema.prisma",
     "db:studio": "prisma studio --schema=./prisma/schema.prisma",
     "db:seed": "tsx prisma/seed.ts",
+    "db:seed-contract": "tsx scripts/seed-from-contract.ts",
+    "sync-tokens": "tsx scripts/sync-tokens.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
     "@prisma/extension-accelerate": "^1.2.1",
+    "@stellar/stellar-sdk": "^11.2.2",
     "zod": "^3.23.8"
   },
   "devDependencies": {

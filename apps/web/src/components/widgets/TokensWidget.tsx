@@ -5,9 +5,11 @@ import { formatCompactNumber, truncateAddress } from '@/lib/stellar/utils';
 import Link from 'next/link';
 
 export function TokensWidget() {
-  const { data, loading } = useTrendingTokens(5);
+  // Fetch trending tokens (ALL tokens from platform, not filtered by user)
+  const { data, loading } = useTrendingTokens(10);
 
-  const tokens = data?.tokens.edges.map((edge: any) => edge.node) || [];
+  // edges is already an array of Token objects (not {node: Token})
+  const tokens = data?.tokens?.edges || [];
 
   if (loading) {
     return (
@@ -52,9 +54,9 @@ export function TokensWidget() {
                     {index + 1}
                   </div>
 
-                  {token.logoUrl && (
+                  {token.imageUrl && (
                     <img
-                      src={token.logoUrl}
+                      src={token.imageUrl}
                       alt={token.symbol}
                       className="w-10 h-10 rounded-full"
                     />

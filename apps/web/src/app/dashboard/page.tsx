@@ -6,6 +6,7 @@ import { useGlobalStats } from '@/hooks/useApi';
 import { MetricCard } from '@/components/widgets/MetricCard';
 import { TokensWidget } from '@/components/widgets/TokensWidget';
 import { ActivityWidget } from '@/components/widgets/ActivityWidget';
+import { TradingWidget } from '@/components/widgets/TradingWidget';
 import { formatCompactNumber } from '@/lib/stellar/utils';
 import { useWallet } from '@/contexts/WalletContext';
 import toast from 'react-hot-toast';
@@ -126,9 +127,21 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Trending Tokens & Activity - REAL DATA */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <TokensWidget />
+        {/* Trading + Trending Tokens */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Trading Widget - Full professional swap */}
+          <div className="lg:col-span-1">
+            <TradingWidget />
+          </div>
+
+          {/* Trending Tokens */}
+          <div className="lg:col-span-2">
+            <TokensWidget />
+          </div>
+        </div>
+
+        {/* Activity Feed */}
+        <div>
           <ActivityWidget />
         </div>
 

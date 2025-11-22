@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Upload, Info, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useWallet } from '@/contexts/WalletContext';
+import { useSyncToken } from '@/hooks/useApi';
 import { sacFactoryService } from '@/lib/stellar/services/sac-factory.service';
 import { stellarClient } from '@/lib/stellar/client';
 import { TransactionBuilder, SorobanRpc, Address, scValToNative } from '@stellar/stellar-sdk';
@@ -19,6 +20,9 @@ type FormState = 'idle' | 'validating' | 'building' | 'signing' | 'submitting' |
 export default function CreatePage() {
   const router = useRouter();
   const { address, isConnected, connect, isConnecting, signTransaction } = useWallet();
+
+  // GraphQL mutation for automatic token sync
+  const [syncToken] = useSyncToken();
 
   // Form fields
   const [name, setName] = useState('');
@@ -232,7 +236,7 @@ export default function CreatePage() {
       if (transactionSuccess) {
         // Success!
         setFormState('success');
-        toast.success('🎉 Token created successfully! Redirecting to Explore...');
+        toast.success('🎉 Token created successfully! Syncing to database...');
 
         // Confetti celebration!
         confetti({
@@ -241,6 +245,22 @@ export default function CreatePage() {
           origin: { y: 0.6 },
           colors: ['#10b981', '#8b5cf6', '#f59e0b', '#ef4444', '#3b82f6'],
         });
+
+        // AUTOMATICALLY SYNC TOKEN TO DATABASE
+        if (createdTokenAddress && createdTokenAddress !== 'Check Stellar Expert for contract address') {
+          try {
+            console.log('🔄 Syncing token to database:', createdTokenAddress);
+            await syncToken({
+              variables: { tokenAddress: createdTokenAddress }
+            });
+            console.log('✅ Token synced successfully!');
+            toast.success('Token synced to database!');
+          } catch (syncError) {
+            console.error('❌ Failed to sync token:', syncError);
+            // Don't fail the whole operation, just log it
+            toast.error('Token created but sync failed. It will appear after next sync.');
+          }
+        }
 
         // Redirect to explore page after 3 seconds to see the new token
         setTimeout(() => {

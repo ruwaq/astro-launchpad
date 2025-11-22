@@ -108,23 +108,30 @@ export const TOKEN_QUERY = gql`
 `;
 
 export const TRENDING_TOKENS_QUERY = gql`
-  ${TOKEN_BASIC_FRAGMENT}
-  ${PAGE_INFO_FRAGMENT}
-  query TrendingTokens($first: Int = 10) {
+  query TrendingTokens($limit: Int = 10) {
     tokens(
-      first: $first
-      orderBy: { field: VOLUME_24H, direction: DESC }
+      limit: $limit
+      orderBy: VOLUME_DESC
     ) {
       edges {
-        cursor
-        node {
-          ...TokenBasicFragment
-        }
+        address
+        name
+        symbol
+        imageUrl
+        currentPrice
+        priceChange24h
+        volume24h
+        marketCap
+        circulatingSupply
+        xlmRaised
+        xlmReserve
+        graduated
+        createdAt
       }
       pageInfo {
-        ...PageInfoFragment
+        total
+        hasNextPage
       }
-      totalCount
     }
   }
 `;
