@@ -19,6 +19,7 @@ use soroban_sdk::{
 mod math;
 mod storage;
 mod events;
+mod reentrancy;
 
 use storage::{DataKey, PairInfo};
 
@@ -95,6 +96,9 @@ impl AMMPair {
         deadline: u64,
     ) -> (i128, i128, i128) {
         sender.require_auth();
+
+        // REENTRANCY PROTECTION: Acquire lock for entire function
+        let _guard = reentrancy::ReentrancyGuard::new(&env);
 
         // Check deadline (MEV protection)
         if env.ledger().timestamp() > deadline {
@@ -208,6 +212,9 @@ impl AMMPair {
     ) -> (i128, i128) {
         sender.require_auth();
 
+        // REENTRANCY PROTECTION: Acquire lock for entire function
+        let _guard = reentrancy::ReentrancyGuard::new(&env);
+
         // Check deadline (MEV protection)
         if env.ledger().timestamp() > deadline {
             panic!("transaction expired");
@@ -276,6 +283,9 @@ impl AMMPair {
         deadline: u64,
     ) -> i128 {
         sender.require_auth();
+
+        // REENTRANCY PROTECTION: Acquire lock for entire function
+        let _guard = reentrancy::ReentrancyGuard::new(&env);
 
         // Check deadline (MEV protection)
         if env.ledger().timestamp() > deadline {
