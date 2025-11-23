@@ -7,7 +7,7 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "postinstall": "prisma generate --schema=./prisma/schema.prisma",
-    "vercel-build": "prisma generate --schema=./prisma/schema.prisma && tsc && node scripts/copy-prisma-binaries.cjs",
+    "vercel-build": "rm -rf dist && prisma generate --schema=./prisma/schema.prisma && tsc && node scripts/copy-prisma-binaries.cjs",
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",

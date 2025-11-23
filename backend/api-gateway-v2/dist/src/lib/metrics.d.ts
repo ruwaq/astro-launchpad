@@ -34,8 +34,8 @@ export declare const cacheSize: Gauge<"namespace">;
 /**
  * Database Metrics
  */
-export declare const databaseQueriesTotal: Counter<"status" | "model" | "operation">;
-export declare const databaseQueryDuration: Histogram<"model" | "operation">;
+export declare const databaseQueriesTotal: Counter<"status" | "operation" | "model">;
+export declare const databaseQueryDuration: Histogram<"operation" | "model">;
 export declare const dataLoaderBatchSize: Histogram<"loader">;
 export declare const dataLoaderCacheHits: Counter<"loader">;
 /**
