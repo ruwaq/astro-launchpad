@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
         credentialPublicKey: Buffer.from(
           verification.registrationInfo?.credential?.publicKey || []
         ).toString('base64url'),
-        counter: verification.registrationInfo?.counter,
+        counter: verification.registrationInfo?.credential?.counter,
         credentialDeviceType: verification.registrationInfo?.credentialDeviceType,
         credentialBackedUp: verification.registrationInfo?.credentialBackedUp,
       },
