@@ -1,67 +1,18 @@
 {
   "version": 2,
-  "builds": [
-    {
-      "src": "api/graphql.ts",
-      "use": "@vercel/node",
-      "config": {
-        "maxDuration": 30,
-        "memory": 3008,
-        "includeFiles": "src/**"
-      }
+  "functions": {
+    "api/index.js": {
+      "maxDuration": 10,
+      "memory": 1024
     }
-  ],
+  },
   "rewrites": [
-    {
-      "source": "/health",
-      "destination": "/api/graphql"
-    },
-    {
-      "source": "/metrics",
-      "destination": "/api/graphql"
-    },
-    {
-      "source": "/graphql",
-      "destination": "/api/graphql"
-    },
-    {
-      "source": "/",
-      "destination": "/api/graphql"
-    }
+    { "source": "/health", "destination": "/api" },
+    { "source": "/metrics", "destination": "/api" },
+    { "source": "/graphql", "destination": "/api" },
+    { "source": "/", "destination": "/api" }
   ],
   "env": {
     "NODE_ENV": "production"
-  },
-  "headers": [
-    {
-      "source": "/(.*)",
-      "headers": [
-        {
-          "key": "X-DNS-Prefetch-Control",
-          "value": "off"
-        },
-        {
-          "key": "Strict-Transport-Security",
-          "value": "max-age=31536000; includeSubDomains; preload"
-        },
-        {
-          "key": "X-Frame-Options",
-          "value": "DENY"
-        },
-        {
-          "key": "X-Content-Type-Options",
-          "value": "nosniff"
-        },
-        {
-          "key": "Referrer-Policy",
-          "value": "strict-origin-when-cross-origin"
-        },
-        {
-          "key": "Cache-Control",
-          "value": "public, max-age=0, must-revalidate"
-        }
-      ]
-    }
-  ],
-  "regions": ["iad1"]
+  }
 }
