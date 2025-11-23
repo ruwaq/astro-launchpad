@@ -30,7 +30,7 @@ echo ""
 
 # Step 3: Generate Prisma Client
 echo -e "${YELLOW}🔨 Generating Prisma Client...${NC}"
-npx prisma generate --schema=./prisma/schema.prisma
+./node_modules/.bin/prisma generate --schema=./prisma/schema.prisma
 echo -e "${GREEN}✅ Prisma Client generated${NC}"
 echo ""
 
