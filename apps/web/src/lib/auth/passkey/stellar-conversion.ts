@@ -17,7 +17,6 @@
  */
 
 import { Keypair, StrKey } from '@stellar/stellar-sdk';
-import { sha256 } from '@noble/hashes/sha256';
 
 /**
  * Extract public key from WebAuthn credential response
@@ -148,7 +147,7 @@ export function publicKeyToStellarAddress(publicKey: Uint8Array): string {
   const rawKey = publicKey.slice(1, 33); // Use only X coordinate (32 bytes)
 
   // Encode as Stellar address
-  const stellarAddress = StrKey.encodeEd25519PublicKey(rawKey);
+  const stellarAddress = StrKey.encodeEd25519PublicKey(rawKey as any);
 
   return stellarAddress;
 }
@@ -250,6 +249,7 @@ export function derSignatureToRaw(derSignature: Uint8Array): Uint8Array {
 /**
  * Hash message for Stellar transaction signing
  */
-export function hashMessageForSigning(message: Uint8Array): Uint8Array {
-  return sha256(message);
+export async function hashMessageForSigning(message: Uint8Array): Promise<Uint8Array> {
+  const hashBuffer = await crypto.subtle.digest('SHA-256', message as any);
+  return new Uint8Array(hashBuffer);
 }

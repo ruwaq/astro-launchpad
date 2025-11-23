@@ -125,7 +125,7 @@ export class PasskeyClient {
       }
 
       // 2. Start WebAuthn registration
-      const attResp: RegistrationResponseJSON = await startRegistration(registrationOptions);
+      const attResp: RegistrationResponseJSON = await startRegistration({ optionsJSON: registrationOptions });
 
       // 3. Verify registration with server
       const verifyResponse = await fetch(`${this.apiBaseUrl}/register/verify`, {
@@ -217,7 +217,7 @@ export class PasskeyClient {
         await optionsResponse.json();
 
       // 2. Start WebAuthn authentication
-      const authResp: AuthenticationResponseJSON = await startAuthentication(authOptions);
+      const authResp: AuthenticationResponseJSON = await startAuthentication({ optionsJSON: authOptions });
 
       // 3. Verify authentication with server
       const verifyResponse = await fetch(`${this.apiBaseUrl}/authenticate/verify`, {
@@ -280,7 +280,7 @@ export class PasskeyClient {
     }
 
     // Create assertion (signature) using WebAuthn
-    const challenge = hashMessageForSigning(transactionHash);
+    const challenge = await hashMessageForSigning(transactionHash);
 
     const authOptions: PublicKeyCredentialRequestOptionsJSON = {
       challenge: uint8ArrayToBase64Url(challenge),
@@ -295,7 +295,7 @@ export class PasskeyClient {
       timeout: 60000,
     };
 
-    const authResp = await startAuthentication(authOptions);
+    const authResp = await startAuthentication({ optionsJSON: authOptions });
 
     // Extract signature from response
     const signatureBuffer = base64UrlToUint8Array(authResp.response.signature);
