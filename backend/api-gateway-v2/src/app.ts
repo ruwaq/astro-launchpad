@@ -12,7 +12,7 @@ import sensible from '@fastify/sensible'
 import { schema } from './graphql/schema.js'
 import { resolvers } from './graphql/resolvers/index.js'
 import { createContext } from './graphql/context.js'
-import { env, isDevelopment } from '@astroshibapop/shared/config'
+import { env, isDevelopment } from './config/env.js'
 import {
   recordHttpRequest,
   recordGraphQLOperation,

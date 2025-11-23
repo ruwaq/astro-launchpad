@@ -1,21 +1,13 @@
 {
   "version": 2,
-  "builds": [
-    {
-      "src": "api/index.js",
-      "use": "@vercel/node",
-      "config": {
-        "includeFiles": [
-          "dist/**",
-          "../shared/prisma/**",
-          "../shared/config/**",
-          "../shared/node_modules/.prisma/**",
-          "node_modules/@prisma/**",
-          "node_modules/.prisma/**"
-        ]
-      }
+  "buildCommand": "npm install --legacy-peer-deps --ignore-scripts && npm run prisma:generate && npm run build",
+  "installCommand": "npm install --legacy-peer-deps --ignore-scripts",
+  "functions": {
+    "api/index.js": {
+      "memory": 1024,
+      "maxDuration": 10
     }
-  ],
+  },
   "routes": [
     {
       "src": "/health",
@@ -33,5 +25,8 @@
       "src": "/(.*)",
       "dest": "/api/index.js"
     }
-  ]
+  ],
+  "env": {
+    "NODE_ENV": "production"
+  }
 }

@@ -4,7 +4,7 @@
  */
 
 import pino from 'pino'
-import { env, isDevelopment } from '@astroshibapop/shared/config'
+import { env, isDevelopment } from '../config/env.js'
 
 /**
  * Create logger instance

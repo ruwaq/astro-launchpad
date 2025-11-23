@@ -5,8 +5,8 @@
  * NOTE: TypeScript errors on `cacheStrategy` are expected.
  * This property is added at runtime by Prisma Accelerate extension.
  */
-import { CACHE_STRATEGIES } from '@astroshibapop/shared/prisma';
-import { checkDatabaseHealth } from '@astroshibapop/shared/prisma';
+import { CACHE_STRATEGIES } from '../../lib/prisma.js';
+import { checkDatabaseHealth } from '../../lib/prisma.js';
 import { cacheLeaderboard, cacheGlobalStats, cacheTrendingTokens, } from '../cache-helpers.js';
 import { getCacheStats } from '../../lib/cache.js';
 /**

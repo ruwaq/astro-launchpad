@@ -5,8 +5,8 @@
 
 import type { FastifyRequest, FastifyReply } from 'fastify'
 import type { MercuriusContext } from 'mercurius'
-import { prisma } from '@astroshibapop/shared/prisma'
-import type { PrismaClientWithAccelerate } from '@astroshibapop/shared/prisma'
+import { prisma } from '../lib/prisma.js'
+import type { PrismaClientWithAccelerate } from '../lib/prisma.js'
 import { createLoaders, type DataLoaders } from './loaders.js'
 
 /**

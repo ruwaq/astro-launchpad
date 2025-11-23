@@ -11,7 +11,7 @@
  */
 import { kv } from '@vercel/kv';
 import { Redis as IORedis } from 'ioredis';
-import { env } from '@astroshibapop/shared/config';
+import { env } from '../config/env.js';
 import { logger } from './logger.js';
 import { recordCacheOperation } from './metrics.js';
 /**

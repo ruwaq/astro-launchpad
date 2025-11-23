@@ -8,7 +8,7 @@ import { resolve } from 'path';
 config({ path: resolve(process.cwd(), '.env'), override: true });
 import closeWithGrace from 'close-with-grace';
 import { createApp } from './app.js';
-import { env } from '@astroshibapop/shared/config';
+import { env } from './config/env.js';
 /**
  * Start the server
  */

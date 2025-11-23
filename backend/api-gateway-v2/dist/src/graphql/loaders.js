@@ -17,7 +17,7 @@
  * - Result: 1 query for tokens + 1 batched query for users = 2 queries
  */
 import DataLoader from 'dataloader';
-import { CACHE_STRATEGIES } from '@astroshibapop/shared/prisma';
+import { CACHE_STRATEGIES } from '../lib/prisma.js';
 /**
  * Token Loader
  * Batches token lookups by address

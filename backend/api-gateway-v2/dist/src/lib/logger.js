@@ -3,7 +3,7 @@
  * Optimized for development and production
  */
 import pino from 'pino';
-import { env } from '@astroshibapop/shared/config';
+import { env } from '../config/env.js';
 /**
  * Create logger instance
  */

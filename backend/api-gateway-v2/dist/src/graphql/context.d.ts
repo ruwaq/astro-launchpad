@@ -4,7 +4,7 @@
  */
 import type { FastifyRequest, FastifyReply } from 'fastify';
 import type { MercuriusContext } from 'mercurius';
-import type { PrismaClientWithAccelerate } from '@astroshibapop/shared/prisma';
+import type { PrismaClientWithAccelerate } from '../lib/prisma.js';
 import { type DataLoaders } from './loaders.js';
 /**
  * GraphQL Context interface

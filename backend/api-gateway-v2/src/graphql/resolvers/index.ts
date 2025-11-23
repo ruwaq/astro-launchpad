@@ -8,8 +8,8 @@
 
 import type { GraphQLContext } from '../context.js'
 import type { IResolvers } from 'mercurius'
-import { CACHE_STRATEGIES } from '@astroshibapop/shared/prisma'
-import { checkDatabaseHealth } from '@astroshibapop/shared/prisma'
+import { CACHE_STRATEGIES } from '../../lib/prisma.js'
+import { checkDatabaseHealth } from '../../lib/prisma.js'
 import {
   cacheLeaderboard,
   cacheGlobalStats,
@@ -439,18 +439,18 @@ const mutationResolvers = {
     const { tokenAddress } = args
 
     try {
-      // Import and call processToken from sync script
-      const { processToken } = await import('../../../shared/scripts/sync-tokens.js')
-      await processToken(tokenAddress)
+      // TODO: Re-enable after fixing shared/scripts import path
+      // const { processToken } = await import('../../../shared/scripts/sync-tokens.js')
+      // await processToken(tokenAddress)
 
-      // Return synced token from database
+      // Return token from database (if exists)
       const token = await context.prisma.token.findUnique({
         where: { address: tokenAddress },
         cacheStrategy: CACHE_STRATEGIES.SHORT_TTL,
       })
 
       if (!token) {
-        throw new Error(`Token ${tokenAddress} not found after sync`)
+        throw new Error(`Token ${tokenAddress} not found in database. Manual sync required.`)
       }
 
       return token

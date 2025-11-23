@@ -18,8 +18,8 @@
  */
 
 import DataLoader from 'dataloader'
-import type { PrismaClientWithAccelerate } from '@astroshibapop/shared/prisma'
-import { CACHE_STRATEGIES } from '@astroshibapop/shared/prisma'
+import type { PrismaClientWithAccelerate } from '../lib/prisma.js'
+import { CACHE_STRATEGIES } from '../lib/prisma.js'
 import type { Token, User, Pool, Achievement } from '@prisma/client'
 
 // Type-only imports for compatibility

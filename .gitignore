@@ -67,4 +67,4 @@ temp/
 # Documentation
 /*.md
 !/README.md
-!/docs/
+/docs/

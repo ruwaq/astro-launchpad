@@ -2,7 +2,7 @@
  * GraphQL Context
  * Created for each request, contains Prisma client and DataLoaders
  */
-import { prisma } from '@astroshibapop/shared/prisma';
+import { prisma } from '../lib/prisma.js';
 import { createLoaders } from './loaders.js';
 /**
  * Create GraphQL context for each request

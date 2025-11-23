@@ -43,10 +43,14 @@ model Token {
   poolsToken1      Pool[]   @relation("Token1")
   transactions     Transaction[]
 
+  // Índices simples
   @@index([creator])
   @@index([createdAt])
   @@index([marketCap])
   @@index([volume24h])
+
+  // Índices compuestos para leaderboard CREATORS
+  @@index([creator, createdAt, volume24h])
 }
 
 model Pool {
@@ -141,10 +145,17 @@ model Transaction {
 
   token         Token?           @relation(fields: [tokenAddress], references: [address])
 
+  // Índices simples
   @@index([from])
   @@index([to])
   @@index([timestamp])
   @@index([type])
+
+  // Índices compuestos para leaderboard (PERFORMANCE CRÍTICO)
+  // Para agregar por usuario + tipo + tiempo
+  @@index([from, type, timestamp, status])
+  // Para filtrar por tipo + tiempo + status
+  @@index([type, status, timestamp])
 }
 
 model Swap {
@@ -201,4 +212,19 @@ enum TransactionStatus {
 enum LiquidityEventType {
   ADD
   REMOVE
+}
+
+// Indexer state management for resumption
+model IndexerState {
+  id               String   @id @default(cuid())
+  contractName     String   @unique  // e.g., "token_factory", "amm_factory"
+  lastLedger       String               // Last indexed ledger number as string
+  lastEventId      String?              // Last processed event ID (for cursor)
+  lastProcessedAt  DateTime @default(now())
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([contractName])
+  @@index([lastProcessedAt])
 }

@@ -1,6 +1,45 @@
-# Ignore turbo.json from root to prevent Turbo auto-detection
-../../turbo.json
-../../pnpm-workspace.yaml
-../../apps
-../../packages
-../../contracts
+# Development files
+.env.local
+.env.*.local
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Testing
+tests/
+*.test.ts
+*.test.js
+*.spec.ts
+*.spec.js
+coverage/
+.vitest/
+
+# Build artifacts (keep dist for deployment)
+.turbo
+node_modules/.cache
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Documentation
+*.md
+!README.md
+docs/
+
+# Scripts
+scripts/
+build.sh
+deploy.sh
+
+# Git
+.git/
+.gitignore
+
+# Misc
+.DS_Store
+Thumbs.db
