@@ -1,7 +1,10 @@
 {
   "version": 2,
+  "buildCommand": "npm run vercel-build",
+  "installCommand": "npm install --legacy-peer-deps",
   "functions": {
     "api/**/*.js": {
+      "runtime": "@vercel/node@3.0.21",
       "memory": 1024,
       "maxDuration": 10
     }
@@ -23,5 +26,8 @@
       "source": "/(.*)",
       "destination": "/api/index.js"
     }
-  ]
+  ],
+  "env": {
+    "NODE_ENV": "production"
+  }
 }
