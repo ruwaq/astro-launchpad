@@ -10,7 +10,7 @@
 import { useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { TrendingUp, Rocket, Shield, Activity } from 'lucide-react';
+import { TrendingUp, Rocket, Shield, Activity, FileCode, ExternalLink } from 'lucide-react';
 import { useTokenCount } from '@/hooks/useToken';
 import { useWallet } from '@/contexts/WalletContext';
 import { LandingNavbar } from '@/components/layout/LandingNavbar';
@@ -164,6 +164,59 @@ export default function Home() {
                 3-5 second finality on Stellar network.
               </p>
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Smart Contracts Section */}
+      <section className="py-12 bg-white border-y border-gray-200">
+        <div className="container mx-auto px-4">
+          <div className="text-center mb-8">
+            <div className="inline-flex items-center gap-2 text-brand-primary mb-2">
+              <FileCode className="h-5 w-5" />
+              <span className="text-sm font-semibold uppercase tracking-wider">Deployed Contracts</span>
+            </div>
+            <h3 className="text-2xl font-bold text-gray-900">Live on Stellar Testnet</h3>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-4 max-w-4xl mx-auto">
+            {/* SAC Factory Contract */}
+            <a
+              href="https://stellar.expert/explorer/testnet/contract/CBTFVJEYLMDHDFTKLO4PR7MHPFVNISOYYBJQSCNCQXWX2WMXXXJAZWT2"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group p-6 rounded-xl bg-gradient-to-br from-blue-50 to-white border border-blue-200 hover:shadow-lg hover:scale-102 transition-all duration-200"
+            >
+              <div className="flex items-start justify-between mb-3">
+                <div>
+                  <h4 className="text-lg font-bold text-gray-900 mb-1">SAC Factory</h4>
+                  <p className="text-sm text-gray-600">Token Launch & Bonding Curve</p>
+                </div>
+                <ExternalLink className="h-5 w-5 text-brand-primary group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
+              </div>
+              <div className="font-mono text-xs text-gray-500 break-all bg-gray-50 p-2 rounded">
+                CBTFVJEYLMDHDFTKLO4PR7MHPFVNISOYYBJQSCNCQXWX2WMXXXJAZWT2
+              </div>
+            </a>
+
+            {/* AMM Pair Contract */}
+            <a
+              href="https://stellar.expert/explorer/testnet/contract/CBTFVJEYLMDHDFTKLO4PR7MHPFVNISOYYBJQSCNCQXWX2WMXXXJAZWT2"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group p-6 rounded-xl bg-gradient-to-br from-green-50 to-white border border-green-200 hover:shadow-lg hover:scale-102 transition-all duration-200"
+            >
+              <div className="flex items-start justify-between mb-3">
+                <div>
+                  <h4 className="text-lg font-bold text-gray-900 mb-1">AMM Pair</h4>
+                  <p className="text-sm text-gray-600">Automated Market Maker</p>
+                </div>
+                <ExternalLink className="h-5 w-5 text-brand-primary group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
+              </div>
+              <div className="font-mono text-xs text-gray-500 break-all bg-gray-50 p-2 rounded">
+                View on Stellar Expert →
+              </div>
+            </a>
           </div>
         </div>
       </section>
