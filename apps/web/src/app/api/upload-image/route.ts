@@ -4,6 +4,8 @@ import { PinataSDK } from 'pinata';
 export const runtime = 'nodejs';
 export const maxDuration = 60; // 60 seconds max for Vercel
 
+// Updated: 2024-11-23 - Fixed Pinata JWT authentication
+
 export async function POST(request: NextRequest) {
   try {
     // Validate environment variables
