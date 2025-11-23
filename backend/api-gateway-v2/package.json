@@ -6,14 +6,15 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
-    "vercel-build": "npm run prisma:generate && npm run build",
+    "postinstall": "prisma generate --schema=./prisma/schema.prisma",
+    "vercel-build": "prisma generate --schema=./prisma/schema.prisma && tsc && node scripts/copy-prisma-binaries.cjs",
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest run --coverage",
-    "clean": "rm -rf dist .turbo",
+    "clean": "rm -rf dist .turbo node_modules/.prisma",
     "prisma:generate": "prisma generate --schema=./prisma/schema.prisma",
     "prisma:push": "prisma db push --schema=./prisma/schema.prisma",
     "prisma:migrate": "prisma migrate deploy --schema=./prisma/schema.prisma",
@@ -46,6 +47,7 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@prisma/nextjs-monorepo-workaround-plugin": "7.0.0",
     "@types/node": "^20.11.0",
     "@types/supertest": "^6.0.3",
     "@vercel/node": "^3.0.21",

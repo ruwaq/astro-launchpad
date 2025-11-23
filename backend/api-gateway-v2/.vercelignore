@@ -1,45 +1,60 @@
 # Development files
-.env.local
-.env.*.local
+*.md
 *.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
+.env.example
+.env.local
+.env.development
+.DS_Store
 
-# Testing
+# Source files (we only need compiled output)
+src/
 tests/
 *.test.ts
 *.test.js
 *.spec.ts
 *.spec.js
+
+# Build artifacts that aren't needed
+.turbo/
+.cache/
 coverage/
-.vitest/
+*.tsbuildinfo
 
-# Build artifacts (keep dist for deployment)
-.turbo
-node_modules/.cache
-
-# IDE
+# Development dependencies
 .vscode/
 .idea/
-*.swp
-*.swo
-*~
+.git/
+
+# Scripts not needed in production
+scripts/pre-deploy-check.sh
+scripts/verify-deployment.sh
+deploy-vercel.sh
+deploy.sh
+build.sh
 
 # Documentation
-*.md
-!README.md
-docs/
+DEPLOY.md
+DEPLOYMENT_GUIDE.md
+DEPLOY_NOW.md
+QUICK_START.md
+README_DEPLOY.md
 
-# Scripts
-scripts/
-build.sh
-deploy.sh
+# Config files not needed in deployment
+.eslintrc*
+.prettierrc*
+tsconfig.json
+vitest.config.ts
 
-# Git
-.git/
-.gitignore
+# Node modules will be reinstalled by Vercel
+# Don't ignore node_modules entirely as Vercel needs package.json
 
-# Misc
-.DS_Store
-Thumbs.db
+# Keep these for deployment:
+# - api/
+# - dist/
+# - prisma/
+# - node_modules/@prisma/
+# - node_modules/.prisma/
+# - package.json
+# - package-lock.json
+# - vercel.json
+# - .npmrc

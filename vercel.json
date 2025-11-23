@@ -1,0 +1,42 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "backend/api-gateway-v2/api/index.js",
+      "use": "@vercel/node",
+      "config": {
+        "includeFiles": [
+          "backend/api-gateway-v2/dist/**",
+          "backend/api-gateway-v2/node_modules/@prisma/client/**",
+          "backend/api-gateway-v2/node_modules/.prisma/**",
+          "backend/api-gateway-v2/prisma/schema.prisma"
+        ]
+      }
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/backend/api-gateway-v2/api/index.js"
+    },
+    {
+      "source": "/health",
+      "destination": "/backend/api-gateway-v2/api/index.js"
+    },
+    {
+      "source": "/metrics",
+      "destination": "/backend/api-gateway-v2/api/index.js"
+    },
+    {
+      "source": "/graphql",
+      "destination": "/backend/api-gateway-v2/api/index.js"
+    }
+  ],
+  "functions": {
+    "backend/api-gateway-v2/api/index.js": {
+      "memory": 1024,
+      "maxDuration": 10
+    }
+  },
+  "buildCommand": "cd backend/api-gateway-v2 && npm install --legacy-peer-deps && npm run vercel-build"
+}
