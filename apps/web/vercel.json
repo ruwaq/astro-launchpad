@@ -1,5 +1,5 @@
 {
-  "buildCommand": "pnpm turbo build --filter=web && rm -rf .next && mv apps/web/.next .",
+  "buildCommand": "pnpm turbo build --filter=web",
   "outputDirectory": ".next",
   "installCommand": "pnpm install --no-frozen-lockfile",
   "framework": "nextjs"
