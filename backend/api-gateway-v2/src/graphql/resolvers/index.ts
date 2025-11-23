@@ -123,12 +123,18 @@ const queryResolvers = {
     ])
 
     return {
-      edges,
+      edges: edges.map((node, index) => ({
+        cursor: Buffer.from(`${offset + index}`).toString('base64'),
+        node,
+      })),
       pageInfo: {
         hasNextPage: offset + limit < total,
         hasPreviousPage: offset > 0,
+        startCursor: edges.length > 0 ? Buffer.from(`${offset}`).toString('base64') : null,
+        endCursor: edges.length > 0 ? Buffer.from(`${offset + edges.length - 1}`).toString('base64') : null,
         total,
       },
+      totalCount: total,
     }
   },
 
@@ -183,12 +189,18 @@ const queryResolvers = {
     ])
 
     return {
-      edges,
+      edges: edges.map((node, index) => ({
+        cursor: Buffer.from(`${offset + index}`).toString('base64'),
+        node,
+      })),
       pageInfo: {
         hasNextPage: offset + limit < total,
         hasPreviousPage: offset > 0,
+        startCursor: edges.length > 0 ? Buffer.from(`${offset}`).toString('base64') : null,
+        endCursor: edges.length > 0 ? Buffer.from(`${offset + edges.length - 1}`).toString('base64') : null,
         total,
       },
+      totalCount: total,
     }
   },
 
@@ -385,12 +397,18 @@ const queryResolvers = {
     ])
 
     return {
-      edges,
+      edges: edges.map((node, index) => ({
+        cursor: Buffer.from(`${offset + index}`).toString('base64'),
+        node,
+      })),
       pageInfo: {
         hasNextPage: offset + limit < total,
         hasPreviousPage: offset > 0,
+        startCursor: edges.length > 0 ? Buffer.from(`${offset}`).toString('base64') : null,
+        endCursor: edges.length > 0 ? Buffer.from(`${offset + edges.length - 1}`).toString('base64') : null,
         total,
       },
+      totalCount: total,
     }
   },
 
@@ -468,6 +486,17 @@ const mutationResolvers = {
  */
 const fieldResolvers = {
   Token: {
+    // Alias fields for frontend compatibility
+    logoUrl: (parent: any) => parent.imageUrl,
+    bondingCurve: (parent: any) => parent.address,
+    initialPrice: (parent: any) => parent.currentPrice || '0',
+    holders24h: (parent: any) => parent.holders || 0,
+    holdersChange24h: (parent: any) => 0, // TODO: Calculate from historical data
+    website: (parent: any) => parent.website || null,
+    twitter: (parent: any) => parent.twitter || null,
+    telegram: (parent: any) => parent.telegram || null,
+    discord: (parent: any) => parent.discord || null,
+
     // Creator user relationship
     creatorUser: async (parent: any, _args: any, context: GraphQLContext) => {
       // Use DataLoader to batch user lookups
@@ -482,6 +511,12 @@ const fieldResolvers = {
   },
 
   Pool: {
+    // Alias fields for frontend compatibility
+    liquidity: (parent: any) => parent.totalSupply || parent.tvl || '0',
+    volumeChange24h: (parent: any) => 0, // TODO: Calculate from historical data
+    apy: (parent: any) => parent.apr || 0,
+    fee: (parent: any) => '0.3', // Default 0.3% fee
+
     // Token0 relationship
     token0: async (parent: any, _args: any, context: GraphQLContext) => {
       // Use DataLoader to batch token lookups
