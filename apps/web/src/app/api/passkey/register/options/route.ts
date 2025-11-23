@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
     const options: GenerateRegistrationOptionsOpts = {
       rpName: RP_NAME,
       rpID: RP_ID,
-      userID: new TextEncoder().encode(userId),
+      userID: new TextEncoder().encode(userId) as any,
       userName: username,
       userDisplayName: username,
       // Stellar uses secp256r1 (ES256, alg -7)
