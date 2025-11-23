@@ -71,9 +71,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       verified: true,
       registrationInfo: {
-        credentialID: verification.registrationInfo?.credentialID,
+        credentialID: verification.registrationInfo?.credential?.credentialID,
         credentialPublicKey: Buffer.from(
-          verification.registrationInfo?.credentialPublicKey || []
+          verification.registrationInfo?.credential?.credentialPublicKey || []
         ).toString('base64url'),
         counter: verification.registrationInfo?.counter,
         credentialDeviceType: verification.registrationInfo?.credentialDeviceType,
