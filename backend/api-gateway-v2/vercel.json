@@ -11,38 +11,22 @@
       }
     }
   ],
-  "routes": [
+  "rewrites": [
     {
-      "src": "/health",
-      "dest": "/api/graphql",
-      "methods": ["GET"],
-      "headers": {
-        "Cache-Control": "public, max-age=0, must-revalidate"
-      }
+      "source": "/health",
+      "destination": "/api/graphql"
     },
     {
-      "src": "/metrics",
-      "dest": "/api/graphql",
-      "methods": ["GET"],
-      "headers": {
-        "Cache-Control": "public, max-age=0, must-revalidate"
-      }
+      "source": "/metrics",
+      "destination": "/api/graphql"
     },
     {
-      "src": "/graphql",
-      "dest": "/api/graphql",
-      "methods": ["GET", "POST", "OPTIONS"],
-      "headers": {
-        "Cache-Control": "public, max-age=0, must-revalidate"
-      }
+      "source": "/graphql",
+      "destination": "/api/graphql"
     },
     {
-      "src": "/",
-      "dest": "/api/graphql",
-      "methods": ["GET"],
-      "headers": {
-        "Cache-Control": "public, max-age=3600"
-      }
+      "source": "/",
+      "destination": "/api/graphql"
     }
   ],
   "env": {
@@ -71,6 +55,10 @@
         {
           "key": "Referrer-Policy",
           "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
         }
       ]
     }
