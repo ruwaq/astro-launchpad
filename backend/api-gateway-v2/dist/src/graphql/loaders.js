@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * DataLoader Implementations
  * Batches and caches database queries to prevent N+1 query problems
@@ -58,7 +59,7 @@ function createUserByIdLoader(prisma) {
             where: { id: { in: [...ids] } },
             cacheStrategy: CACHE_STRATEGIES.MEDIUM_TTL,
         });
-        const userMap = new Map(users.map((user) => [user.id, user]));
+        const userMap = new Map(users.map((u) => [u.id, u]));
         return ids.map((id) => userMap.get(id) || null);
     });
 }

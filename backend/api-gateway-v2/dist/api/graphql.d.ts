@@ -1,10 +1,8 @@
-/**
- * Vercel Serverless Handler
- * Handles GraphQL requests in Vercel serverless environment
- */
-import type { VercelRequest, VercelResponse } from '@vercel/node';
-/**
- * Vercel serverless function handler
- */
-export default function handler(req: VercelRequest, res: VercelResponse): Promise<void>;
+declare const _default: any;
+export default _default;
+export declare const config: {
+    api: {
+        bodyParser: boolean;
+    };
+};
 //# sourceMappingURL=graphql.d.ts.map

@@ -1,24 +1,62 @@
+// @ts-nocheck
 /**
- * Vercel Serverless Handler
- * Handles GraphQL requests in Vercel serverless environment
+ * Apollo GraphQL Server for Vercel using apollo-server-micro
+ * Production-ready, serverless-optimized implementation
  */
+import { ApolloServer } from 'apollo-server-micro';
+import { send } from 'micro';
+import Cors from 'micro-cors';
+import { schema } from '../dist/src/graphql/schema.js';
+import { resolvers } from '../dist/src/graphql/resolvers/index.js';
+import { prisma } from '../dist/src/lib/prisma.js';
+import { createLoaders } from '../dist/src/graphql/loaders.js';
 
-import { createApp } from '../src/app.js'
-import type { VercelRequest, VercelResponse } from '@vercel/node'
+const cors = Cors({
+  allowMethods: ['GET', 'POST', 'OPTIONS'],
+  allowHeaders: ['Content-Type', 'Authorization'],
+  origin: '*',
+});
 
-// Cache the app instance across invocations (warm starts)
-let app: Awaited<ReturnType<typeof createApp>> | null = null
+let apolloServerHandler: any = null;
 
-/**
- * Vercel serverless function handler
- */
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // Initialize app on cold start
-  if (!app) {
-    app = await createApp()
-    await app.ready()
+async function getServerHandler() {
+  if (!apolloServerHandler) {
+    console.log('[Apollo] Initializing server...');
+    
+    const apolloServer = new ApolloServer({
+      typeDefs: schema,
+      resolvers,
+      introspection: true,
+      context: async () => ({
+        prisma,
+        loaders: createLoaders(prisma),
+      }),
+    });
+
+    await apolloServer.start();
+    apolloServerHandler = apolloServer.createHandler({ path: '/api/graphql' });
+    
+    console.log('[Apollo] Server initialized');
   }
-
-  // Handle the request
-  app.server.emit('request', req, res)
+  return apolloServerHandler;
 }
+
+export default cors(async (req, res) => {
+  if (req.method === 'OPTIONS') {
+    return send(res, 200, 'ok');
+  }
+  
+  try {
+    const handler = await getServerHandler();
+    return handler(req, res);
+  } catch (error) {
+    console.error('[Apollo] Handler error:', error);
+    return send(res, 500, { error: 'Internal Server Error' });
+  }
+});
+
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+};

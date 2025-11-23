@@ -75,13 +75,16 @@ export const schema = `#graphql
     totalSupply: String!
     metadataUri: String!
     imageUrl: String
+    logoUrl: String # Alias for imageUrl (frontend compatibility)
     description: String
 
     # Bonding curve
+    bondingCurve: String! # Alias for address (frontend compatibility)
     circulatingSupply: String!
     xlmReserve: String!
     graduated: Boolean!
     xlmRaised: String!
+    initialPrice: String # Initial bonding curve price
 
     # Metrics
     marketCap: String
@@ -90,6 +93,14 @@ export const schema = `#graphql
     volume24h: String!
     volume7d: String!
     holders: Int!
+    holders24h: Int # Holders in last 24h
+    holdersChange24h: Float # Percentage change in holders
+
+    # Social links (optional)
+    website: String
+    twitter: String
+    telegram: String
+    discord: String
 
     # Timestamps
     createdAt: DateTime!
@@ -108,12 +119,16 @@ export const schema = `#graphql
     reserve0: String!
     reserve1: String!
     totalSupply: String!
+    liquidity: String! # Alias for totalSupply (frontend compatibility)
 
     # Metrics
     tvl: String
     volume24h: String!
     volume7d: String!
+    volumeChange24h: Float # Volume change percentage
     apr: Float
+    apy: Float # Alias for apr (frontend compatibility)
+    fee: String # Pool fee percentage
 
     createdAt: DateTime!
     updatedAt: DateTime!
@@ -205,23 +220,43 @@ export const schema = `#graphql
 
   # Pagination types
   type TokenConnection {
-    edges: [Token!]!
+    edges: [TokenEdge!]!
     pageInfo: PageInfo!
+    totalCount: Int!
+  }
+
+  type TokenEdge {
+    cursor: String!
+    node: Token!
   }
 
   type PoolConnection {
-    edges: [Pool!]!
+    edges: [PoolEdge!]!
     pageInfo: PageInfo!
+    totalCount: Int!
+  }
+
+  type PoolEdge {
+    cursor: String!
+    node: Pool!
   }
 
   type TransactionConnection {
-    edges: [Transaction!]!
+    edges: [TransactionEdge!]!
     pageInfo: PageInfo!
+    totalCount: Int!
+  }
+
+  type TransactionEdge {
+    cursor: String!
+    node: Transaction!
   }
 
   type PageInfo {
     hasNextPage: Boolean!
     hasPreviousPage: Boolean!
+    startCursor: String
+    endCursor: String
     total: Int!
   }
 

@@ -1,6 +1,6 @@
 /**
- * GraphQL Context
- * Created for each request, contains Prisma client and DataLoaders
+ * GraphQL Context for Apollo Server
+ * Optimized for Vercel Serverless with proper typing
  */
 import { prisma } from '../lib/prisma.js';
 import { createLoaders } from './loaders.js';
@@ -8,45 +8,76 @@ import { createLoaders } from './loaders.js';
  * Create GraphQL context for each request
  * This runs once per GraphQL request
  *
- * @param request - Fastify request object
- * @param reply - Fastify reply object
+ * @param request - Next.js request object
  * @returns Context object passed to all resolvers
  */
-export async function createContext(request, reply) {
+export async function createContext(request) {
+    // Extract authentication if present
+    const user = extractUser(request);
     // Create context with Prisma client and DataLoaders
     // DataLoaders are created fresh for each request to ensure proper batching
     return {
         prisma,
         request,
-        reply,
-        app: request.server,
         loaders: createLoaders(prisma),
+        user,
     };
 }
 /**
- * Extract IP address from request
+ * Extract user information from request
+ * Currently returns undefined - implement authentication as needed
+ */
+function extractUser(request) {
+    // TODO: Implement authentication
+    // Example:
+    // const authHeader = request.headers.get('authorization');
+    // if (authHeader?.startsWith('Bearer ')) {
+    //   const token = authHeader.substring(7);
+    //   const decoded = verifyToken(token);
+    //   return { address: decoded.address, authenticated: true };
+    // }
+    return undefined;
+}
+/**
+ * Extract client IP address from request
  * Handles proxies and forwarded headers
  */
 export function getClientIP(request) {
-    const forwarded = request.headers['x-forwarded-for'];
+    const forwarded = request.headers.get('x-forwarded-for');
     if (forwarded) {
-        return Array.isArray(forwarded) ? forwarded[0] : forwarded.split(',')[0];
+        return forwarded.split(',')[0].trim();
     }
-    return request.ip;
+    const realIP = request.headers.get('x-real-ip');
+    if (realIP) {
+        return realIP;
+    }
+    return request.ip || 'unknown';
 }
 /**
  * Extract user agent from request
  */
 export function getUserAgent(request) {
-    return request.headers['user-agent'];
+    return request.headers.get('user-agent') || undefined;
 }
 /**
  * Check if request is authenticated
- * (Authentication will be implemented later if needed)
  */
 export function isAuthenticated(context) {
-    // TODO: Implement authentication check
-    // For now, all requests are allowed
-    return true;
+    return context.user?.authenticated ?? false;
+}
+/**
+ * Require authentication - throws error if not authenticated
+ */
+export function requireAuth(context) {
+    if (!isAuthenticated(context)) {
+        throw new Error('Authentication required');
+    }
+}
+/**
+ * Get user address from context - throws if not authenticated
+ */
+export function getUserAddress(context) {
+    requireAuth(context);
+    return context.user.address;
 }
 //# sourceMappingURL=context.js.map

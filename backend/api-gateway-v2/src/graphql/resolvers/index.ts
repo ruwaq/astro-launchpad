@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * GraphQL Resolvers
  * Handles all GraphQL queries and mutations

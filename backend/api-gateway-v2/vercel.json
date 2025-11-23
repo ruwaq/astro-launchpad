@@ -1,33 +1,87 @@
 {
   "version": 2,
-  "buildCommand": "npm run vercel-build",
+  "framework": null,
+  "buildCommand": "npm run build",
+  "devCommand": "npm run dev",
   "installCommand": "npm install --legacy-peer-deps",
+  "outputDirectory": "dist",
+  "cleanUrls": true,
+  "trailingSlash": false,
+  "regions": ["iad1"],
   "functions": {
+    "api/**/*.ts": {
+      "memory": 1024,
+      "maxDuration": 10
+    },
     "api/**/*.js": {
-      "runtime": "@vercel/node@3.0.21",
       "memory": 1024,
       "maxDuration": 10
     }
   },
   "rewrites": [
     {
+      "source": "/graphql",
+      "destination": "/api/graphql"
+    },
+    {
       "source": "/health",
-      "destination": "/api/index.js"
+      "destination": "/api/health"
     },
     {
       "source": "/metrics",
-      "destination": "/api/index.js"
-    },
+      "destination": "/api/metrics"
+    }
+  ],
+  "headers": [
     {
-      "source": "/graphql",
-      "destination": "/api/index.js"
-    },
-    {
-      "source": "/(.*)",
-      "destination": "/api/index.js"
+      "source": "/api/(.*)",
+      "headers": [
+        {
+          "key": "Access-Control-Allow-Credentials",
+          "value": "true"
+        },
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+        },
+        {
+          "key": "Access-Control-Allow-Methods",
+          "value": "GET, POST, OPTIONS, PUT, DELETE"
+        },
+        {
+          "key": "Access-Control-Allow-Headers",
+          "value": "X-Requested-With, Content-Type, Authorization, Accept, Origin"
+        },
+        {
+          "key": "Access-Control-Max-Age",
+          "value": "86400"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "X-XSS-Protection",
+          "value": "1; mode=block"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        }
+      ]
     }
   ],
   "env": {
     "NODE_ENV": "production"
-  }
+  },
+  "build": {
+    "env": {
+      "SKIP_ENV_VALIDATION": "1"
+    }
+  },
+  "crons": []
 }

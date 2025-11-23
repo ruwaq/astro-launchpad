@@ -17,7 +17,7 @@
  * - Result: 1 query for tokens + 1 batched query for users = 2 queries
  */
 import DataLoader from 'dataloader';
-import type { PrismaClientWithAccelerate } from '../lib/prisma.js';
+import type { PrismaClientWithAdapter } from '../lib/prisma.js';
 import type { Token, User, Pool, Achievement } from '@prisma/client';
 /**
  * DataLoaders interface
@@ -39,7 +39,7 @@ export interface DataLoaders {
  * @param prisma - Prisma client instance
  * @returns Object containing all DataLoaders
  */
-export declare function createLoaders(prisma: PrismaClientWithAccelerate): DataLoaders;
+export declare function createLoaders(prisma: PrismaClientWithAdapter): DataLoaders;
 /**
  * Example usage in resolvers:
  *

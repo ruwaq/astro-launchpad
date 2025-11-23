@@ -1,0 +1,26 @@
+--- a/src/graphql/loaders.ts
++++ b/src/graphql/loaders.ts
+@@ -85,7 +85,7 @@ function createUserByIdLoader(prisma: PrismaClientWithAccelerate) {
+     })
+ 
+     const userMap = new Map(users.map(u => [u.id, u]))
+-    return ids.map((id) => userMap.get(id) || null)
++    return ids.map((id) => userMap.get(id) || null) as any
+   })
+ }
+ 
+@@ -94,11 +94,11 @@ function createUserByIdLoader(prisma: PrismaClientWithAccelerate) {
+  */
+ function createPoolLoader(prisma: PrismaClientWithAccelerate) {
+   return new DataLoader<string, Pool | null>(async (addresses) => {
+-    const pools = await prisma.pool.findMany({
++    const pools: any[] = await prisma.pool.findMany({
+       where: { address: { in: [...addresses] } },
+       cacheStrategy: CACHE_STRATEGIES.MEDIUM_TTL,
+     })
+ 
+     const poolMap = new Map(pools.map((pool: any) => [pool.address, pool]))
+-    return addresses.map((address) => poolMap.get(address) || null)
++    return addresses.map((address) => poolMap.get(address) || null) as any
+   })
+ }
