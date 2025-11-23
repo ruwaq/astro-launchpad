@@ -113,7 +113,7 @@ export function PasskeyAuth({ onSuccess, onError }: PasskeyAuthProps) {
               Passkeys Not Supported
             </h3>
             <p className="text-sm text-red-700">
-              Your browser doesn't support WebAuthn/Passkeys. Please use a modern browser
+              Your browser doesn&apos;t support WebAuthn/Passkeys. Please use a modern browser
               like Chrome, Safari, or Edge with biometric authentication enabled.
             </p>
           </div>
@@ -242,7 +242,7 @@ export function PasskeyAuth({ onSuccess, onError }: PasskeyAuthProps) {
 
           <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
             <p className="text-sm text-blue-900">
-              <strong>What happens next:</strong> You'll be asked to use your device's
+              <strong>What happens next:</strong> You&apos;ll be asked to use your device&apos;s
               biometric authentication (FaceID, TouchID, or Windows Hello) to create
               a secure passkey. This will generate a new Stellar account.
             </p>
@@ -260,7 +260,7 @@ export function PasskeyAuth({ onSuccess, onError }: PasskeyAuthProps) {
             </p>
             <ul className="space-y-1 list-disc list-inside">
               <li>No seed phrases to remember or lose</li>
-              <li>Phishing resistant (can't be stolen)</li>
+              <li>Phishing resistant (can&apos;t be stolen)</li>
               <li>Backed up automatically by your device</li>
               <li>Works across all your devices</li>
             </ul>
