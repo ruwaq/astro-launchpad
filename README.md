@@ -25,6 +25,7 @@ AstroShibaPop es más que un DEX de memes: es un **centro cultural Web3** donde 
 ```
 ✅ Fase 1: MVP COMPLETO - Production-Ready
 ✅ Leaderboard Full-Stack implementado (Backend + Frontend)
+✅ Autenticación Biométrica (Passkeys) implementada y compatible con Vercel
 🔄 En progreso: Indexer poblando datos reales de Testnet
 📝 Próximo: Deploy completo a Testnet, Testing E2E, Auditorías
 ```
@@ -46,16 +47,14 @@ AstroShibaPop es más que un DEX de memes: es un **centro cultural Web3** donde 
 - ✅ Next.js 15 con App Router
 - ✅ UI completa (Create, Explore, Swap, Pools, Leaderboard)
 - ✅ Wallet integration (Freighter)
+- ✅ **Passkey Authentication**: Login biométrico seguro (FaceID/TouchID)
 - ✅ Apollo Client + GraphQL
 - ✅ Leaderboard dinámico con múltiples filtros
 
-**Última actualización: 2025-01-21**
-- ✅ **Leaderboard Production-Ready**: Sistema completo de rankings con:
-  - Múltiples tipos (Traders, Creators, Liquidity Providers)
-  - Timeframes flexibles (1H, 24H, 7D, 30D, All Time)
-  - SQL aggregations optimizadas (10-100x más rápido)
-  - Redis caching (TTL 1 minuto)
-  - UI mejorada con filtros y visualizaciones
+**Última actualización: 22 Noviembre 2025**
+- ✅ **Fix Vercel Build**: Corrección de tipos en Passkey API y configuración de `TextEncoder`.
+- ✅ **Cleanup de Repositorio**: Documentación centralizada en carpeta `docs/` para mantener la raíz limpia.
+- ✅ **Leaderboard Production-Ready**: Sistema completo de rankings optimizado.
 
 **El MVP está funcional - Falta poblar con datos reales de Testnet!**
 
@@ -77,7 +76,7 @@ Frontend (Next.js) → Backend Services (Node.js/Rust) → Smart Contracts (Soro
 4. **Governance**: DAO completa para decisiones del protocolo
 5. **Gamification Engine**: Puntos, rankings y achievements
 
-Ver [ARCHITECTURE.md](./ARCHITECTURE.md) para detalles completos.
+Ver [ARCHITECTURE.md](./docs/ARCHITECTURE.md) para detalles completos.
 
 ## 🎯 Implementación Completa
 
@@ -134,51 +133,29 @@ Ver [ARCHITECTURE.md](./ARCHITECTURE.md) para detalles completos.
 - ✅ Dark mode ready
 - ✅ Toast notifications
 
-Ver [ARCHITECTURE.md](./ARCHITECTURE.md) para detalles completos.
+Ver [ARCHITECTURE.md](./docs/ARCHITECTURE.md) para detalles completos.
 
 ## 📚 Documentación
 
+> Toda la documentación técnica detallada se encuentra en la carpeta [`docs/`](./docs/).
+
 ### 🚀 Deployment (Empezar Aquí)
 
-- **[VERCEL_SETUP_GUIDE.md](./VERCEL_SETUP_GUIDE.md)** - **⭐ DEPLOY FRONTEND AHORA**
-  - Guía paso a paso con imágenes textuales
-  - Solución al error de pnpm version
-  - 3 métodos de deployment diferentes
-  - Troubleshooting completo
-  - **Úsala si quieres deployar a Vercel YA**
+- **[VERCEL_SETUP_GUIDE.md](./docs/VERCEL_SETUP_GUIDE.md)** (Si existe) - **⭐ DEPLOY FRONTEND AHORA**
+  - Guía paso a paso para deployar a Vercel.
 
-- **[DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md)** - Guía completa de deployment
+- **[DEPLOYMENT_GUIDE.md](./docs/DEPLOYMENT_GUIDE.md)** - Guía completa de deployment
   - Setup paso a paso completo
   - Deployment de contratos a testnet
   - Configuración de backend y frontend
   - Testing end-to-end
-  - **Úsala para deployment full-stack**
 
 ### Documentos de Investigación y Diseño
 
-- **[ARCHITECTURE.md](./ARCHITECTURE.md)** - Arquitectura completa del sistema (60+ páginas)
-  - Diseño de contratos inteligentes
-  - Stack tecnológico completo
-  - Modelo de negocio y tokenomics
-  - Roadmap detallado por fases
-
-- **[TECH_IMPLEMENTATION_PLAN.md](./TECH_IMPLEMENTATION_PLAN.md)** - Plan técnico de implementación
-  - Estructura del proyecto completa
-  - Código de producción de contratos Soroban
-  - Setup de desarrollo paso a paso
-  - Ejemplos de frontend y backend
-
-- **[RESEARCH_SUMMARY.md](./RESEARCH_SUMMARY.md)** - Resumen de investigación
-  - Análisis de casos de éxito (pump.fun: $317M revenue)
-  - Mejores prácticas de seguridad (datos de $1.42B en pérdidas 2024)
-  - Patrones de diseño AMM (Uniswap, etc.)
-  - Estrategias de gamificación efectivas
-
-- **[COMPETITIVE_ANALYSIS.md](./COMPETITIVE_ANALYSIS.md)** - Análisis competitivo
-  - Comparación con 6+ competidores principales
-  - Ventajas competitivas de AstroShibaPop
-  - Posicionamiento en el mercado
-  - Amenazas y estrategias de mitigación
+- **[ARCHITECTURE.md](./docs/ARCHITECTURE.md)** - Arquitectura completa del sistema (60+ páginas)
+- **[TECH_IMPLEMENTATION_PLAN.md](./docs/TECH_IMPLEMENTATION_PLAN.md)** - Plan técnico de implementación
+- **[RESEARCH_SUMMARY.md](./docs/RESEARCH_SUMMARY.md)** - Resumen de investigación
+- **[COMPETITIVE_ANALYSIS.md](./docs/COMPETITIVE_ANALYSIS.md)** (Si existe) - Análisis competitivo
 
 ## 📈 Roadmap
 
@@ -256,21 +233,7 @@ pnpm db:migrate
 pnpm dev  # En root (inicia todo)
 ```
 
-**Ver [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md) para instrucciones detalladas paso a paso.**
-
-## 📊 Comparación con Competidores
-
-| Feature | AstroShibaPop | Pump.fun | Uniswap | Soroswap |
-|---------|---------------|----------|---------|----------|
-| Blockchain | Stellar | Solana | Ethereum | Stellar |
-| Tx Fee | ~$0.00001 | ~$0.0001 | $5-50 | ~$0.00001 |
-| Finality | 3-5s | 2-3s | 12-15s | 3-5s |
-| Token Creation | ✅ Ultra-simple | ✅ Simple | ❌ Complex | ❌ No |
-| AMM | ✅ Full-featured | ⚠️ Basic | ✅ Advanced | ✅ Basic |
-| Liquidity Mining | ✅ Yes | ❌ No | ✅ Yes | ⚠️ Limited |
-| Governance | ✅ DAO | ❌ No | ✅ DAO | ❌ No |
-| Gamification | ✅ Deep | ⚠️ Basic | ❌ No | ❌ No |
-| Security Audits | ✅ Multiple | ⚠️ 1 | ✅ Multiple | ✅ Yes |
+**Ver [DEPLOYMENT_GUIDE.md](./docs/DEPLOYMENT_GUIDE.md) para instrucciones detalladas paso a paso.**
 
 ## 🔒 Seguridad
 
@@ -279,26 +242,9 @@ La seguridad es nuestra máxima prioridad:
 - ✅ **Rust End-to-End**: Contratos en Rust con verificación formal
 - ✅ **Múltiples Auditorías**: Mínimo 2 auditorías externas pre-mainnet
 - ✅ **Bug Bounty**: Hasta $100k por vulnerabilidades críticas
-- ✅ **Fuzz Testing**: 1M+ inputs aleatorios testeados
 - ✅ **Reentrancy Guards**: Protección automática en todos los contratos
 - ✅ **Time-locks**: Delays obligatorios para cambios críticos
 - ✅ **Emergency Pause**: Circuit breaker para situaciones de emergencia
-
-## 🎯 Ventajas Competitivas
-
-1. **Tecnología Superior**: Stellar ofrece el mejor balance de velocidad (65k TPS), costo ($0.00001/tx) y seguridad
-2. **Producto Completo**: Único que combina token creation simple + DeFi full-stack
-3. **Early Mover**: Soroban tiene solo 10 meses, oportunidad de ser líder en Stellar
-4. **Gamificación Profunda**: Sistema único de recompensas superior a todos los competidores
-5. **Sostenibilidad**: No solo especulación, sino utilidad DeFi real
-
-## 🤝 Contribuir
-
-¡Contribuciones serán bienvenidas cuando abramos el código! Por ahora:
-
-1. Revisa la documentación de arquitectura
-2. Únete a nuestra comunidad (links coming soon)
-3. Comparte feedback y sugerencias
 
 ## 📄 Licencia
 
@@ -315,13 +261,6 @@ AstroShibaPop MVP está completo pero **NO ha sido auditado todavía**.
 - ❌ **NO usar en producción hasta auditorías completas**
 
 La plataforma es para propósitos educativos y de entretenimiento. Los meme tokens son altamente especulativos y riesgosos. Solo invertir lo que puedas permitirte perder.
-
-## 🙏 Agradecimientos
-
-- [Stellar Development Foundation](https://stellar.org) - Por Soroban y ecosystem support
-- [Pump.fun](https://pump.fun) - Inspiración para UX de token creation
-- [Uniswap](https://uniswap.org) - Referencia de arquitectura AMM
-- [Soroswap](https://soroswap.finance) - Pioneros en AMM de Stellar
 
 ---
 

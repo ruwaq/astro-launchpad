@@ -63,3 +63,8 @@ temp/
 # Turbo
 .turbo
 .vercel
+
+# Documentation
+/*.md
+!/README.md
+!/docs/
