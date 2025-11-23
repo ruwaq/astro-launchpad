@@ -24,13 +24,13 @@ echo ""
 
 # Step 2: Install dependencies
 echo -e "${YELLOW}📦 Installing dependencies...${NC}"
-npm install --legacy-peer-deps --ignore-scripts
+npm install --legacy-peer-deps
 echo -e "${GREEN}✅ Dependencies installed${NC}"
 echo ""
 
 # Step 3: Generate Prisma Client
 echo -e "${YELLOW}🔨 Generating Prisma Client...${NC}"
-npm run prisma:generate
+npx prisma generate --schema=./prisma/schema.prisma
 echo -e "${GREEN}✅ Prisma Client generated${NC}"
 echo ""
 

@@ -54,6 +54,21 @@ const envSchema = z.object({
   // Metrics
   METRICS_ENABLED: z.coerce.boolean().default(true),
   METRICS_PORT: z.coerce.number().int().positive().default(9090),
+
+  // External APIs
+  // Pinata (IPFS/File Storage)
+  PINATA_API_KEY: z.string().optional(),
+  PINATA_API_SECRET: z.string().optional(),
+  PINATA_JWT: z.string().optional(),
+
+  // Nuna Labs (AI/ML Services)
+  NUNA_API_KEY: z.string().optional(),
+  NUNA_API_URL: z.string().url().optional(),
+
+  // GitHub (Source Control)
+  GITHUB_TOKEN: z.string().optional(),
+  GITHUB_OWNER: z.string().optional(),
+  GITHUB_REPO: z.string().optional(),
 })
 
 /**
@@ -177,5 +192,37 @@ export function getLogConfig() {
   return {
     level: env.LOG_LEVEL,
     pretty: env.LOG_PRETTY && isDevelopment,
+  }
+}
+
+/**
+ * Get Pinata configuration
+ */
+export function getPinataConfig() {
+  return {
+    apiKey: env.PINATA_API_KEY,
+    apiSecret: env.PINATA_API_SECRET,
+    jwt: env.PINATA_JWT,
+  }
+}
+
+/**
+ * Get Nuna Labs configuration
+ */
+export function getNunaConfig() {
+  return {
+    apiKey: env.NUNA_API_KEY,
+    apiUrl: env.NUNA_API_URL,
+  }
+}
+
+/**
+ * Get GitHub configuration
+ */
+export function getGitHubConfig() {
+  return {
+    token: env.GITHUB_TOKEN,
+    owner: env.GITHUB_OWNER,
+    repo: env.GITHUB_REPO,
   }
 }
