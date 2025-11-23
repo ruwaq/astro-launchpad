@@ -1,15 +1,27 @@
 {
   "version": 2,
-  "functions": {
-    "api/index.js": {
-      "maxDuration": 10,
-      "memory": 1024
+  "builds": [
+    {
+      "src": "api/index.js",
+      "use": "@vercel/node"
     }
-  },
-  "rewrites": [
-    { "source": "/health", "destination": "/api" },
-    { "source": "/metrics", "destination": "/api" },
-    { "source": "/graphql", "destination": "/api" },
-    { "source": "/", "destination": "/api" }
+  ],
+  "routes": [
+    {
+      "src": "/health",
+      "dest": "/api/index.js"
+    },
+    {
+      "src": "/metrics",
+      "dest": "/api/index.js"
+    },
+    {
+      "src": "/graphql",
+      "dest": "/api/index.js"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/api/index.js"
+    }
   ]
 }

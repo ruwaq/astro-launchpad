@@ -1,0 +1,6 @@
+# Ignore turbo.json from root to prevent Turbo auto-detection
+../../turbo.json
+../../pnpm-workspace.yaml
+../../apps
+../../packages
+../../contracts
