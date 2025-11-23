@@ -89,12 +89,12 @@ export interface LaunchTokenParams {
  */
 export class SacFactoryService extends BaseContractService {
   constructor() {
-    const contractId = CONTRACT_IDS.tokenFactory;
+    // Use environment variable or fallback to Sprint 1 Contract ID
+    const contractId = CONTRACT_IDS.tokenFactory || 'CDBBG4SY232EJ254PB3O3I42WOXRICFHBDJEY4R46JY42GZSESWKHO3F';
 
-    if (!contractId) {
-      throw new Error(
-        'SAC Factory contract ID not configured. ' +
-        'Please set NEXT_PUBLIC_TESTNET_CONTRACT_ID in your .env.local file'
+    if (!CONTRACT_IDS.tokenFactory) {
+      console.warn(
+        'SAC Factory contract ID not configured in env vars. Using fallback: CDBBG4SY232EJ254PB3O3I42WOXRICFHBDJEY4R46JY42GZSESWKHO3F'
       );
     }
 
