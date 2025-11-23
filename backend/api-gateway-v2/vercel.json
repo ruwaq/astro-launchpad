@@ -1,10 +1,7 @@
 {
   "version": 2,
   "framework": null,
-  "buildCommand": "npm run build",
-  "devCommand": "npm run dev",
-  "installCommand": "npm install --legacy-peer-deps",
-  "outputDirectory": "dist",
+  "installCommand": "npm install --legacy-peer-deps && npx prisma generate --schema=./prisma/schema.prisma",
   "cleanUrls": true,
   "trailingSlash": false,
   "regions": ["iad1"],
@@ -77,11 +74,5 @@
   ],
   "env": {
     "NODE_ENV": "production"
-  },
-  "build": {
-    "env": {
-      "SKIP_ENV_VALIDATION": "1"
-    }
-  },
-  "crons": []
+  }
 }

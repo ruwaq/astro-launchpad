@@ -1,8 +1,8 @@
 /**
  * GraphQL Context for Apollo Server
- * Optimized for Vercel Serverless with proper typing
+ * Generic HTTP types - no framework dependencies
  */
-import type { NextRequest } from 'next/server';
+import { IncomingMessage } from 'http';
 import type { PrismaClientWithAdapter } from '../lib/prisma.js';
 import { type DataLoaders } from './loaders.js';
 /**
@@ -11,7 +11,7 @@ import { type DataLoaders } from './loaders.js';
  */
 export interface GraphQLContext {
     prisma: PrismaClientWithAdapter;
-    request: NextRequest;
+    request: IncomingMessage;
     loaders: DataLoaders;
     user?: {
         address: string;
@@ -22,19 +22,19 @@ export interface GraphQLContext {
  * Create GraphQL context for each request
  * This runs once per GraphQL request
  *
- * @param request - Next.js request object
+ * @param request - HTTP request object
  * @returns Context object passed to all resolvers
  */
-export declare function createContext(request: NextRequest): Promise<GraphQLContext>;
+export declare function createContext(request?: IncomingMessage): Promise<GraphQLContext>;
 /**
  * Extract client IP address from request
  * Handles proxies and forwarded headers
  */
-export declare function getClientIP(request: NextRequest): string;
+export declare function getClientIP(request: IncomingMessage): string;
 /**
  * Extract user agent from request
  */
-export declare function getUserAgent(request: NextRequest): string | undefined;
+export declare function getUserAgent(request: IncomingMessage): string | undefined;
 /**
  * Check if request is authenticated
  */

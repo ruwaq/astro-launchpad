@@ -1,6 +1,6 @@
 /**
  * GraphQL Context for Apollo Server
- * Optimized for Vercel Serverless with proper typing
+ * Generic HTTP types - no framework dependencies
  */
 import { prisma } from '../lib/prisma.js';
 import { createLoaders } from './loaders.js';
@@ -8,17 +8,17 @@ import { createLoaders } from './loaders.js';
  * Create GraphQL context for each request
  * This runs once per GraphQL request
  *
- * @param request - Next.js request object
+ * @param request - HTTP request object
  * @returns Context object passed to all resolvers
  */
 export async function createContext(request) {
     // Extract authentication if present
-    const user = extractUser(request);
+    const user = request ? extractUser(request) : undefined;
     // Create context with Prisma client and DataLoaders
     // DataLoaders are created fresh for each request to ensure proper batching
     return {
         prisma,
-        request,
+        request: request || {},
         loaders: createLoaders(prisma),
         user,
     };
@@ -30,7 +30,7 @@ export async function createContext(request) {
 function extractUser(request) {
     // TODO: Implement authentication
     // Example:
-    // const authHeader = request.headers.get('authorization');
+    // const authHeader = request.headers['authorization'];
     // if (authHeader?.startsWith('Bearer ')) {
     //   const token = authHeader.substring(7);
     //   const decoded = verifyToken(token);
@@ -43,21 +43,23 @@ function extractUser(request) {
  * Handles proxies and forwarded headers
  */
 export function getClientIP(request) {
-    const forwarded = request.headers.get('x-forwarded-for');
+    const forwarded = request.headers['x-forwarded-for'];
     if (forwarded) {
-        return forwarded.split(',')[0].trim();
+        const forwardedStr = Array.isArray(forwarded) ? forwarded[0] : forwarded;
+        return forwardedStr.split(',')[0].trim();
     }
-    const realIP = request.headers.get('x-real-ip');
+    const realIP = request.headers['x-real-ip'];
     if (realIP) {
-        return realIP;
+        return Array.isArray(realIP) ? realIP[0] : realIP;
     }
-    return request.ip || 'unknown';
+    return request.socket.remoteAddress || 'unknown';
 }
 /**
  * Extract user agent from request
  */
 export function getUserAgent(request) {
-    return request.headers.get('user-agent') || undefined;
+    const ua = request.headers['user-agent'];
+    return Array.isArray(ua) ? ua[0] : ua;
 }
 /**
  * Check if request is authenticated

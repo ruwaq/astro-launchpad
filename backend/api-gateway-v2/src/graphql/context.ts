@@ -1,9 +1,9 @@
 /**
  * GraphQL Context for Apollo Server
- * Optimized for Vercel Serverless with proper typing
+ * Generic HTTP types - no framework dependencies
  */
 
-import type { NextRequest } from 'next/server';
+import { IncomingMessage } from 'http';
 import { prisma } from '../lib/prisma.js';
 import type { PrismaClientWithAdapter } from '../lib/prisma.js';
 import { createLoaders, type DataLoaders } from './loaders.js';
@@ -14,7 +14,7 @@ import { createLoaders, type DataLoaders } from './loaders.js';
  */
 export interface GraphQLContext {
   prisma: PrismaClientWithAdapter;
-  request: NextRequest;
+  request: IncomingMessage;
   loaders: DataLoaders;
   user?: {
     address: string;
@@ -26,20 +26,20 @@ export interface GraphQLContext {
  * Create GraphQL context for each request
  * This runs once per GraphQL request
  *
- * @param request - Next.js request object
+ * @param request - HTTP request object
  * @returns Context object passed to all resolvers
  */
 export async function createContext(
-  request: NextRequest
+  request?: IncomingMessage
 ): Promise<GraphQLContext> {
   // Extract authentication if present
-  const user = extractUser(request);
+  const user = request ? extractUser(request) : undefined;
 
   // Create context with Prisma client and DataLoaders
   // DataLoaders are created fresh for each request to ensure proper batching
   return {
     prisma,
-    request,
+    request: request || ({} as IncomingMessage),
     loaders: createLoaders(prisma),
     user,
   };
@@ -49,10 +49,10 @@ export async function createContext(
  * Extract user information from request
  * Currently returns undefined - implement authentication as needed
  */
-function extractUser(request: NextRequest): { address: string; authenticated: boolean } | undefined {
+function extractUser(request: IncomingMessage): { address: string; authenticated: boolean } | undefined {
   // TODO: Implement authentication
   // Example:
-  // const authHeader = request.headers.get('authorization');
+  // const authHeader = request.headers['authorization'];
   // if (authHeader?.startsWith('Bearer ')) {
   //   const token = authHeader.substring(7);
   //   const decoded = verifyToken(token);
@@ -66,25 +66,27 @@ function extractUser(request: NextRequest): { address: string; authenticated: bo
  * Extract client IP address from request
  * Handles proxies and forwarded headers
  */
-export function getClientIP(request: NextRequest): string {
-  const forwarded = request.headers.get('x-forwarded-for');
+export function getClientIP(request: IncomingMessage): string {
+  const forwarded = request.headers['x-forwarded-for'];
   if (forwarded) {
-    return forwarded.split(',')[0].trim();
+    const forwardedStr = Array.isArray(forwarded) ? forwarded[0] : forwarded;
+    return forwardedStr.split(',')[0].trim();
   }
   
-  const realIP = request.headers.get('x-real-ip');
+  const realIP = request.headers['x-real-ip'];
   if (realIP) {
-    return realIP;
+    return Array.isArray(realIP) ? realIP[0] : realIP;
   }
   
-  return request.ip || 'unknown';
+  return request.socket.remoteAddress || 'unknown';
 }
 
 /**
  * Extract user agent from request
  */
-export function getUserAgent(request: NextRequest): string | undefined {
-  return request.headers.get('user-agent') || undefined;
+export function getUserAgent(request: IncomingMessage): string | undefined {
+  const ua = request.headers['user-agent'];
+  return Array.isArray(ua) ? ua[0] : ua;
 }
 
 /**
