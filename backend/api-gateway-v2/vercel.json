@@ -1,15 +1,11 @@
 {
   "version": 2,
-  "framework": null,
   "installCommand": "npm install --legacy-peer-deps && npx prisma generate --schema=./prisma/schema.prisma",
+  "buildCommand": "echo 'Using pre-compiled JS files'",
   "cleanUrls": true,
   "trailingSlash": false,
   "regions": ["iad1"],
   "functions": {
-    "api/**/*.ts": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
     "api/**/*.js": {
       "memory": 1024,
       "maxDuration": 10
@@ -21,58 +17,8 @@
       "destination": "/api/graphql"
     },
     {
-      "source": "/health",
-      "destination": "/api/health"
-    },
-    {
-      "source": "/metrics",
-      "destination": "/api/metrics"
+      "source": "/(.*)",
+      "destination": "/api/graphql"
     }
-  ],
-  "headers": [
-    {
-      "source": "/api/(.*)",
-      "headers": [
-        {
-          "key": "Access-Control-Allow-Credentials",
-          "value": "true"
-        },
-        {
-          "key": "Access-Control-Allow-Origin",
-          "value": "*"
-        },
-        {
-          "key": "Access-Control-Allow-Methods",
-          "value": "GET, POST, OPTIONS, PUT, DELETE"
-        },
-        {
-          "key": "Access-Control-Allow-Headers",
-          "value": "X-Requested-With, Content-Type, Authorization, Accept, Origin"
-        },
-        {
-          "key": "Access-Control-Max-Age",
-          "value": "86400"
-        },
-        {
-          "key": "X-Content-Type-Options",
-          "value": "nosniff"
-        },
-        {
-          "key": "X-Frame-Options",
-          "value": "DENY"
-        },
-        {
-          "key": "X-XSS-Protection",
-          "value": "1; mode=block"
-        },
-        {
-          "key": "Referrer-Policy",
-          "value": "strict-origin-when-cross-origin"
-        }
-      ]
-    }
-  ],
-  "env": {
-    "NODE_ENV": "production"
-  }
+  ]
 }
