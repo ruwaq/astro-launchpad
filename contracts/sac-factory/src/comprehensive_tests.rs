@@ -245,13 +245,18 @@ mod comprehensive_tests {
 
         // Update fees
         let new_creation_fee = 200_000i128;
-        let new_trading_fee = 200i128;
-        client.update_fees(&admin, &new_creation_fee, &new_trading_fee);
+        let new_protocol_fee = 10i128; // 0.1%
+        let new_lp_fee = 30i128; // 0.3%
+        
+        client.set_creation_fee(&admin, &new_creation_fee);
+        client.set_protocol_fee(&admin, &new_protocol_fee);
+        client.set_lp_fee(&admin, &new_lp_fee);
 
         // Verify
         let fee_config = client.get_fee_config();
         assert_eq!(fee_config.creation_fee, new_creation_fee);
-        assert_eq!(fee_config.trading_fee_bps, new_trading_fee);
+        assert_eq!(fee_config.protocol_fee_bps, new_protocol_fee);
+        assert_eq!(fee_config.lp_fee_bps, new_lp_fee);
     }
 
     #[test]

@@ -1,0 +1,492 @@
+# Fee Management GraphQL Schema
+# 
+# Comprehensive schema for fee tracking, statistics, and revenue analytics.
+# Supports real-time fee monitoring, historical data, and performance metrics.
+
+# ============================================================
+# TYPE DEFINITIONS
+# ============================================================
+
+"""
+Fee configuration from the smart contract
+"""
+type FeeConfig {
+  """Protocol fee in basis points (5 = 0.05%)"""
+  protocolFeeBps: Int!
+  
+  """LP fee in basis points (25 = 0.25%)"""
+  lpFeeBps: Int!
+  
+  """Creation fee in stroops (100000000 = 10 XLM)"""
+  creationFee: String!
+  
+  """Multi-sig treasury address"""
+  treasuryAddress: String!
+  
+  """When this configuration became effective"""
+  effectiveFrom: DateTime!
+  
+  """Who updated this configuration"""
+  updatedBy: String
+  
+  """Last update timestamp"""
+  updatedAt: DateTime!
+}
+
+"""
+Comprehensive fee statistics
+"""
+type FeeStats {
+  """Token address (null for global stats)"""
+  tokenAddress: String
+  
+  # Protocol Fees (Revenue)
+  """Total protocol fees collected (all time)"""
+  totalProtocolFees: String!
+  
+  """Protocol fees in last 24 hours"""
+  protocolFees24h: String!
+  
+  """Protocol fees in last 7 days"""
+  protocolFees7d: String!
+  
+  """Protocol fees in last 30 days"""
+  protocolFees30d: String!
+  
+  # LP Fees (Liquidity)
+  """Total LP fees collected (all time)"""
+  totalLpFees: String!
+  
+  """LP fees in last 24 hours"""
+  lpFees24h: String!
+  
+  """LP fees in last 7 days"""
+  lpFees7d: String!
+  
+  """LP fees in last 30 days"""
+  lpFees30d: String!
+  
+  # Creation Fees
+  """Total creation fees collected (all time)"""
+  totalCreationFees: String!
+  
+  """Creation fees in last 24 hours"""
+  creationFees24h: String!
+  
+  """Creation fees in last 7 days"""
+  creationFees7d: String!
+  
+  """Creation fees in last 30 days"""
+  creationFees30d: String!
+  
+  # Totals
+  """Total fees (protocol + LP + creation)"""
+  totalFees: String!
+  
+  """Total fees in last 24 hours"""
+  totalFees24h: String!
+  
+  """Total fees in last 7 days"""
+  totalFees7d: String!
+  
+  """Total fees in last 30 days"""
+  totalFees30d: String!
+  
+  # Transaction Counts
+  """Total number of fee-generating transactions"""
+  totalTransactions: Int!
+  
+  """Transactions in last 24 hours"""
+  transactions24h: Int!
+  
+  """Last update timestamp"""
+  updatedAt: DateTime!
+}
+
+"""
+Individual fee collection record
+"""
+type FeeCollection {
+  """Unique identifier"""
+  id: ID!
+  
+  """Transaction hash"""
+  hash: String!
+  
+  """Fee type"""
+  type: FeeType!
+  
+  """Token address"""
+  tokenAddress: String!
+  
+  """Token details (resolved)"""
+  token: Token
+  
+  """Fee amount in stroops"""
+  amount: String!
+  
+  """Treasury address (for protocol fees)"""
+  treasuryAddress: String
+  
+  """User who triggered the fee"""
+  userAddress: String!
+  
+  """Transaction type (BUY/SELL/CREATE)"""
+  transactionType: String!
+  
+  # Breakdown
+  """Amount before fees"""
+  grossAmount: String!
+  
+  """Protocol fee amount"""
+  protocolFee: String
+  
+  """LP fee amount"""
+  lpFee: String
+  
+  """Amount after fees"""
+  netAmount: String!
+  
+  """Block timestamp"""
+  timestamp: DateTime!
+  
+  """Block number"""
+  blockNumber: String!
+  
+  """Created at"""
+  createdAt: DateTime!
+}
+
+"""
+Fee collection history with pagination
+"""
+type FeeCollectionHistory {
+  """List of fee collections"""
+  items: [FeeCollection!]!
+  
+  """Total count"""
+  total: Int!
+  
+  """Has more items"""
+  hasMore: Boolean!
+  
+  """Pagination info"""
+  pageInfo: PageInfo!
+}
+
+"""
+Revenue breakdown by category
+"""
+type RevenueCategory {
+  """Total revenue (all time)"""
+  total: String!
+  
+  """Revenue in last 24 hours"""
+  day: String!
+  
+  """Revenue in last 7 days"""
+  week: String!
+  
+  """Revenue in last 30 days"""
+  month: String!
+}
+
+"""
+Transaction count breakdown
+"""
+type TransactionCount {
+  """Total transactions"""
+  total: Int!
+  
+  """Transactions in last 24 hours"""
+  day: Int!
+  
+  """Transactions in last 7 days"""
+  week: Int!
+  
+  """Transactions in last 30 days"""
+  month: Int!
+}
+
+"""
+Comprehensive revenue breakdown
+"""
+type RevenueBreakdown {
+  """Protocol fees (team revenue)"""
+  protocolFees: RevenueCategory!
+  
+  """LP fees (liquidity provision)"""
+  lpFees: RevenueCategory!
+  
+  """Creation fees (anti-spam + revenue)"""
+  creationFees: RevenueCategory!
+  
+  """Total revenue (all categories)"""
+  totalRevenue: RevenueCategory!
+  
+  """Transaction counts"""
+  transactionCount: TransactionCount!
+}
+
+"""
+Token fee performance metrics
+"""
+type TokenFeePerformance {
+  """Token address"""
+  tokenAddress: String!
+  
+  """Token details"""
+  token: Token
+  
+  """Protocol fees generated"""
+  protocolFees: String!
+  
+  """LP fees generated"""
+  lpFees: String!
+  
+  """Total fees generated"""
+  totalFees: String!
+  
+  """Number of transactions"""
+  transactionCount: Int!
+  
+  """Average fee per transaction"""
+  avgFeePerTransaction: String!
+  
+  """Rank in leaderboard"""
+  rank: Int!
+}
+
+"""
+Recent growth metrics
+"""
+type RecentGrowth {
+  """Protocol fees today"""
+  protocolFees: String!
+  
+  """LP fees today"""
+  lpFees: String!
+  
+  """Total fees today"""
+  totalFees: String!
+  
+  """Percentage change vs 7-day average"""
+  percentageChange: Float!
+}
+
+"""
+Fee dashboard summary
+"""
+type FeeDashboard {
+  """Revenue breakdown"""
+  revenue: RevenueBreakdown!
+  
+  """Top 5 tokens by fees"""
+  topTokens: [TokenFeePerformance!]!
+  
+  """Recent growth metrics"""
+  recentGrowth: RecentGrowth!
+  
+  """Timestamp of data"""
+  timestamp: DateTime!
+}
+
+"""
+Average fee per transaction
+"""
+type AverageFee {
+  """Average protocol fee"""
+  protocolFee: String!
+  
+  """Average LP fee"""
+  lpFee: String!
+  
+  """Average total fee"""
+  totalFee: String!
+}
+
+"""
+Generic mutation response
+"""
+type MutationResponse {
+  """Success flag"""
+  success: Boolean!
+  
+  """Response message"""
+  message: String!
+  
+  """Number of items updated (optional)"""
+  updated: Int
+}
+
+# ============================================================
+# ENUMS
+# ============================================================
+
+"""
+Fee type enumeration
+"""
+enum FeeType {
+  PROTOCOL_FEE
+  LP_FEE
+  CREATION_FEE
+  PROTOCOL_FEE_BUY
+  PROTOCOL_FEE_SELL
+  LP_FEE_BUY
+  LP_FEE_SELL
+}
+
+"""
+Time window for statistics
+"""
+enum TimeWindow {
+  DAY
+  WEEK
+  MONTH
+  ALL
+}
+
+# ============================================================
+# INPUT TYPES
+# ============================================================
+
+"""
+Input for token-specific fee stats
+"""
+input FeeStatsInput {
+  """Token address (required)"""
+  tokenAddress: String!
+}
+
+"""
+Input for top tokens query
+"""
+input TopTokensByFeesInput {
+  """Number of tokens to return (max 100)"""
+  limit: Int = 10
+  
+  """Time window for ranking"""
+  timeWindow: TimeWindow = ALL
+}
+
+"""
+Input for fee collection history
+"""
+input FeeHistoryInput {
+  """Filter by token address"""
+  tokenAddress: String
+  
+  """Filter by fee type"""
+  type: FeeType
+  
+  """Number of items per page (max 100)"""
+  limit: Int = 50
+  
+  """Offset for pagination"""
+  offset: Int = 0
+  
+  """Start date filter (ISO 8601)"""
+  startDate: DateTime
+  
+  """End date filter (ISO 8601)"""
+  endDate: DateTime
+}
+
+"""
+Input for recalculating fee stats
+"""
+input RecalculateFeeStatsInput {
+  """Include token-specific stats"""
+  includeTokenStats: Boolean = true
+  
+  """Include global stats"""
+  includeGlobalStats: Boolean = true
+}
+
+# ============================================================
+# QUERIES
+# ============================================================
+
+extend type Query {
+  """
+  Get global fee statistics (all tokens combined)
+  Cache TTL: 30 seconds
+  """
+  globalFeeStats: FeeStats!
+  
+  """
+  Get fee statistics for a specific token
+  Cache TTL: 30 seconds
+  """
+  tokenFeeStats(input: FeeStatsInput!): FeeStats
+  
+  """
+  Get comprehensive revenue breakdown
+  Cache TTL: 60 seconds
+  """
+  revenueBreakdown: RevenueBreakdown!
+  
+  """
+  Get top tokens ranked by fee generation
+  Cache TTL: 120 seconds
+  """
+  topTokensByFees(input: TopTokensByFeesInput): [TokenFeePerformance!]!
+  
+  """
+  Get fee collection history with pagination
+  Cache TTL: 300 seconds
+  """
+  feeCollectionHistory(input: FeeHistoryInput): FeeCollectionHistory!
+  
+  """
+  Get fee dashboard summary (revenue, top tokens, growth)
+  Cache TTL: 30 seconds
+  """
+  feeDashboard: FeeDashboard!
+  
+  """
+  Get average fee per transaction
+  Cache TTL: 60 seconds
+  """
+  averageFeePerTransaction(input: FeeStatsInput): AverageFee!
+  
+  """
+  Get current fee configuration from contract
+  Cache TTL: 300 seconds
+  """
+  feeConfig: FeeConfig!
+}
+
+# ============================================================
+# MUTATIONS
+# ============================================================
+
+extend type Mutation {
+  """
+  Recalculate fee statistics from source data
+  Admin only - requires authentication
+  """
+  recalculateFeeStats(input: RecalculateFeeStatsInput): MutationResponse!
+  
+  """
+  Reset expired time windows (daily maintenance)
+  Admin only - requires authentication
+  """
+  resetExpiredTimeWindows: MutationResponse!
+}
+
+# ============================================================
+# SUBSCRIPTIONS (Future)
+# ============================================================
+
+# extend type Subscription {
+#   """
+#   Real-time fee collection updates
+#   """
+#   onFeeCollected(tokenAddress: String): FeeCollection!
+#   
+#   """
+#   Real-time fee stats updates
+#   """
+#   onFeeStatsUpdated(tokenAddress: String): FeeStats!
+# }

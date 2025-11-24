@@ -18,6 +18,7 @@ import {
   cacheTransactions,
 } from '../cache-helpers.js'
 import { getCacheStats } from '../../lib/cache.js'
+import { feeResolvers } from './fee-resolvers.js'
 
 /**
  * Custom scalar resolvers
@@ -567,7 +568,14 @@ const fieldResolvers = {
  */
 export const resolvers: IResolvers = {
   ...scalarResolvers,
-  Query: queryResolvers,
-  Mutation: mutationResolvers,
+  Query: {
+    ...queryResolvers,
+    ...feeResolvers.Query,
+  },
+  Mutation: {
+    ...mutationResolvers,
+    ...feeResolvers.Mutation,
+  },
   ...fieldResolvers,
+  ...feeResolvers,
 } as any // Type assertion needed due to custom context type

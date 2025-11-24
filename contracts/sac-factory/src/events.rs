@@ -210,10 +210,64 @@ pub struct FeeConfigUpdated {
 
 #[contractevent]
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProtocolFeeUpdated {
+    pub old_fee_bps: i128,
+    pub new_fee_bps: i128,
+    pub updated_by: Address,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LpFeeUpdated {
+    pub old_fee_bps: i128,
+    pub new_fee_bps: i128,
+    pub updated_by: Address,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CreationFeeUpdated {
+    pub old_fee: i128,
+    pub new_fee: i128,
+    pub updated_by: Address,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TreasuryUpdated {
     pub old_treasury: Address,
     pub new_treasury: Address,
     pub updated_by: Address,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProtocolFeeCollected {
+    pub token: Address,
+    pub amount: i128,
+    pub treasury: Address,
+    pub timestamp: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LpFeeCollected {
+    pub token: Address,
+    pub amount: i128,
+    pub timestamp: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FeeBreakdownEvent {
+    pub transaction_type: String,
+    pub token: Address,
+    pub user: Address,
+    pub gross_amount: i128,
+    pub protocol_fee: i128,
+    pub lp_fee: i128,
+    pub net_amount: i128,
+    pub timestamp: u64,
 }
 
 // ========== Event Publishers ==========
@@ -309,10 +363,73 @@ pub fn fee_config_updated(env: &Env, creation_fee: i128, trading_fee_bps: i128, 
     }.publish(env);
 }
 
+pub fn protocol_fee_updated(env: &Env, old_fee_bps: i128, new_fee_bps: i128, updated_by: &Address) {
+    ProtocolFeeUpdated {
+        old_fee_bps,
+        new_fee_bps,
+        updated_by: updated_by.clone(),
+    }.publish(env);
+}
+
+pub fn lp_fee_updated(env: &Env, old_fee_bps: i128, new_fee_bps: i128, updated_by: &Address) {
+    LpFeeUpdated {
+        old_fee_bps,
+        new_fee_bps,
+        updated_by: updated_by.clone(),
+    }.publish(env);
+}
+
+pub fn creation_fee_updated(env: &Env, old_fee: i128, new_fee: i128, updated_by: &Address) {
+    CreationFeeUpdated {
+        old_fee,
+        new_fee,
+        updated_by: updated_by.clone(),
+    }.publish(env);
+}
+
 pub fn treasury_updated(env: &Env, old_treasury: &Address, new_treasury: &Address, updated_by: &Address) {
     TreasuryUpdated {
         old_treasury: old_treasury.clone(),
         new_treasury: new_treasury.clone(),
         updated_by: updated_by.clone(),
+    }.publish(env);
+}
+
+pub fn protocol_fee_collected(env: &Env, token: &Address, amount: i128, treasury: &Address) {
+    ProtocolFeeCollected {
+        token: token.clone(),
+        amount,
+        treasury: treasury.clone(),
+        timestamp: env.ledger().timestamp(),
+    }.publish(env);
+}
+
+pub fn lp_fee_collected(env: &Env, token: &Address, amount: i128) {
+    LpFeeCollected {
+        token: token.clone(),
+        amount,
+        timestamp: env.ledger().timestamp(),
+    }.publish(env);
+}
+
+pub fn fee_breakdown_event(
+    env: &Env,
+    transaction_type: &str,
+    token: &Address,
+    user: &Address,
+    gross_amount: i128,
+    protocol_fee: i128,
+    lp_fee: i128,
+    net_amount: i128,
+) {
+    FeeBreakdownEvent {
+        transaction_type: String::from_str(env, transaction_type),
+        token: token.clone(),
+        user: user.clone(),
+        gross_amount,
+        protocol_fee,
+        lp_fee,
+        net_amount,
+        timestamp: env.ledger().timestamp(),
     }.publish(env);
 }

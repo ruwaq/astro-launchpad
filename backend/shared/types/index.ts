@@ -278,6 +278,128 @@ export interface IndexerState {
 }
 
 /**
+ * Fee configuration from contract
+ */
+export interface FeeConfig {
+  protocolFeeBps: number // Protocol fee in basis points (5 = 0.05%)
+  lpFeeBps: number // LP fee in basis points (25 = 0.25%)
+  creationFee: string // Creation fee in stroops (100000000 = 10 XLM)
+  treasuryAddress: string // Multi-sig treasury address
+}
+
+/**
+ * Fee breakdown for a transaction
+ */
+export interface FeeBreakdown {
+  grossAmount: string // Amount before fees
+  protocolFee: string // Protocol fee amount
+  lpFee: string // LP fee amount
+  totalFees: string // Total fees (protocol + LP)
+  netAmount: string // Amount after fees
+}
+
+/**
+ * Fee collection event from blockchain
+ */
+export interface FeeCollectionEvent {
+  type: 'PROTOCOL_FEE' | 'LP_FEE' | 'CREATION_FEE'
+  tokenAddress: string
+  amount: string
+  treasuryAddress?: string
+  userAddress: string
+  transactionType: 'BUY' | 'SELL' | 'CREATE'
+  timestamp: Date
+  txHash: string
+  blockNumber: string
+}
+
+/**
+ * Fee statistics (aggregated)
+ */
+export interface FeeStats {
+  tokenAddress?: string // null for global stats
+  totalProtocolFees: string
+  protocolFees24h: string
+  protocolFees7d: string
+  protocolFees30d: string
+  totalLpFees: string
+  lpFees24h: string
+  lpFees7d: string
+  lpFees30d: string
+  totalCreationFees: string
+  creationFees24h: string
+  creationFees7d: string
+  creationFees30d: string
+  totalFees: string
+  totalFees24h: string
+  totalFees7d: string
+  totalFees30d: string
+  totalTransactions: number
+  transactions24h: number
+  updatedAt: Date
+}
+
+/**
+ * Fee breakdown event from contract
+ */
+export interface FeeBreakdownEvent {
+  transactionType: string // "BUY" or "SELL"
+  token: string
+  user: string
+  grossAmount: string
+  protocolFee: string
+  lpFee: string
+  netAmount: string
+  timestamp: number
+}
+
+/**
+ * Protocol fee collected event
+ */
+export interface ProtocolFeeCollectedEvent {
+  token: string
+  amount: string
+  treasury: string
+  timestamp: number
+}
+
+/**
+ * LP fee collected event
+ */
+export interface LpFeeCollectedEvent {
+  token: string
+  amount: string
+  timestamp: number
+}
+
+/**
+ * Fee config updated events
+ */
+export interface ProtocolFeeUpdatedEvent {
+  oldFeeBps: number
+  newFeeBps: number
+  updatedBy: string
+}
+
+export interface LpFeeUpdatedEvent {
+  oldFeeBps: number
+  newFeeBps: number
+  updatedBy: string
+}
+
+export interface CreationFeeUpdatedEvent {
+  oldFee: string
+  newFee: string
+  updatedBy: string
+}
+
+export interface TreasuryUpdatedEvent {
+  oldTreasury: string
+  newTreasury: string
+  updatedBy: string
+}
+
+/**
  * Utility type: Make all properties optional
  */
 export type PartialBy<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>>

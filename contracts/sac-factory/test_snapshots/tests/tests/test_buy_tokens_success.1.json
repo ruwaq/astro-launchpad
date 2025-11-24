@@ -111,6 +111,45 @@
             "key": {
               "vec": [
                 {
+                  "symbol": "AccumulatedProtocolFees"
+                }
+              ]
+            },
+            "durability": "persistent"
+          }
+        },
+        [
+          {
+            "last_modified_ledger_seq": 0,
+            "data": {
+              "contract_data": {
+                "ext": "v0",
+                "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
+                "key": {
+                  "vec": [
+                    {
+                      "symbol": "AccumulatedProtocolFees"
+                    }
+                  ]
+                },
+                "durability": "persistent",
+                "val": {
+                  "i128": "100000000"
+                }
+              }
+            },
+            "ext": "v0"
+          },
+          4095
+        ]
+      ],
+      [
+        {
+          "contract_data": {
+            "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
+            "key": {
+              "vec": [
+                {
                   "symbol": "Config"
                 }
               ]
@@ -140,15 +179,23 @@
                         "symbol": "creation_fee"
                       },
                       "val": {
-                        "i128": "100000"
+                        "i128": "100000000"
                       }
                     },
                     {
                       "key": {
-                        "symbol": "trading_fee_bps"
+                        "symbol": "lp_fee_bps"
                       },
                       "val": {
-                        "i128": "100"
+                        "i128": "25"
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "protocol_fee_bps"
+                      },
+                      "val": {
+                        "i128": "5"
                       }
                     },
                     {
@@ -815,6 +862,51 @@
           "v0": {
             "topics": [
               {
+                "symbol": "lp_fee_collected"
+              }
+            ],
+            "data": {
+              "map": [
+                {
+                  "key": {
+                    "symbol": "amount"
+                  },
+                  "val": {
+                    "i128": "10000000000000"
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "timestamp"
+                  },
+                  "val": {
+                    "u64": "0"
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "token"
+                  },
+                  "val": {
+                    "address": "CAAJCMPUTCE2EBT6I5HYM535MONTXBCMRJUFS6CN444YFAV7EO45O3YT"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      "failed_call": false
+    },
+    {
+      "event": {
+        "ext": "v0",
+        "contract_id": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
+        "type_": "contract",
+        "body": {
+          "v0": {
+            "topics": [
+              {
                 "symbol": "tokens_bought"
               }
             ],
@@ -841,7 +933,7 @@
                     "symbol": "tokens_received"
                   },
                   "val": {
-                    "i128": "3960000000000000"
+                    "i128": "3988000000000000"
                   }
                 },
                 {
@@ -886,7 +978,7 @@
                     "symbol": "fee_amount"
                   },
                   "val": {
-                    "i128": "40000000000000"
+                    "i128": "12000000000000"
                   }
                 },
                 {
@@ -942,7 +1034,7 @@
                     "symbol": "tokens_net"
                   },
                   "val": {
-                    "i128": "3960000000000000"
+                    "i128": "3988000000000000"
                   }
                 },
                 {
@@ -951,6 +1043,91 @@
                   },
                   "val": {
                     "i128": "10000000000"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      "failed_call": false
+    },
+    {
+      "event": {
+        "ext": "v0",
+        "contract_id": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
+        "type_": "contract",
+        "body": {
+          "v0": {
+            "topics": [
+              {
+                "symbol": "fee_breakdown_event"
+              }
+            ],
+            "data": {
+              "map": [
+                {
+                  "key": {
+                    "symbol": "gross_amount"
+                  },
+                  "val": {
+                    "i128": "4000000000000000"
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "lp_fee"
+                  },
+                  "val": {
+                    "i128": "10000000000000"
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "net_amount"
+                  },
+                  "val": {
+                    "i128": "3988000000000000"
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "protocol_fee"
+                  },
+                  "val": {
+                    "i128": "2000000000000"
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "timestamp"
+                  },
+                  "val": {
+                    "u64": "0"
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "token"
+                  },
+                  "val": {
+                    "address": "CAAJCMPUTCE2EBT6I5HYM535MONTXBCMRJUFS6CN444YFAV7EO45O3YT"
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "transaction_type"
+                  },
+                  "val": {
+                    "string": "BUY"
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "user"
+                  },
+                  "val": {
+                    "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAK3IM"
                   }
                 }
               ]

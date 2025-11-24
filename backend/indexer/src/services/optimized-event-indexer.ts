@@ -12,6 +12,7 @@ import { StateManager } from '../lib/state-manager.js'
 import { BatchProcessor, BatchEvent, DEFAULT_BATCH_CONFIG } from '../lib/batch-processor.js'
 import { TokenEventHandler } from './handlers/token-events.js'
 import { PoolEventHandler } from './handlers/pool-events.js'
+import { FeeEventHandler } from './handlers/fee-events.js'
 import {
   recordEventReceived,
   recordEventFailed,
@@ -39,6 +40,7 @@ export class OptimizedEventIndexer {
   private batchProcessor: BatchProcessor
   private tokenHandler: TokenEventHandler
   private poolHandler: PoolEventHandler
+  private feeHandler: FeeEventHandler
 
   constructor(private prisma: PrismaClient) {
     const rpcUrl = process.env.STELLAR_RPC_URL!
@@ -61,6 +63,7 @@ export class OptimizedEventIndexer {
     // Initialize event handlers
     this.tokenHandler = new TokenEventHandler(prisma)
     this.poolHandler = new PoolEventHandler(prisma)
+    this.feeHandler = new FeeEventHandler(prisma, this.tokenFactory)
 
     // Initialize circuit breaker with extended config
     this.circuitBreaker = createCircuitBreaker({
@@ -393,6 +396,16 @@ export class OptimizedEventIndexer {
           break
         case 'graduate':
           await this.tokenHandler.handleTokenGraduated(event)
+          break
+        // Fee-related events
+        case 'FeeBreakdownEvent':
+        case 'ProtocolFeeCollected':
+        case 'LpFeeCollected':
+        case 'ProtocolFeeUpdated':
+        case 'LpFeeUpdated':
+        case 'CreationFeeUpdated':
+        case 'TreasuryUpdated':
+          await this.feeHandler.handleEvent(event)
           break
         default:
           logger.warn(`Unknown Token Factory event type: ${eventType}`)

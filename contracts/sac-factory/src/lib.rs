@@ -92,13 +92,8 @@ impl SacFactory {
         access_control::initialize_access_control(&env, &admin);
         state_management::initialize_state(&env);
 
-        // Initialize fee config
-        let fee_config = fee_management::FeeConfig::new(
-            CREATION_FEE,
-            100, // 1% trading fee
-            treasury,
-        )?;
-        env.storage().persistent().set(&fee_management::FeeKey::Config, &fee_config);
+        // Initialize fee config with dual-fee system
+        fee_management::initialize_fee_config(&env, treasury)?;
 
         Ok(())
     }
@@ -265,22 +260,36 @@ impl SacFactory {
         // 7. Calculate tokens to receive from bonding curve
         let tokens_gross = token_info.bonding_curve.calculate_buy(xlm_amount)?;
 
-        // 8. Apply trading fee
-        let (tokens_net, fee_amount) = fee_management::apply_trading_fee(&env, tokens_gross)?;
+        // 8. Apply dual-fee system (protocol + LP fees)
+        let fee_breakdown = fee_management::apply_trading_fees(&env, tokens_gross)?;
 
-        // 9. Check slippage
-        if tokens_net < min_tokens {
+        // 9. Check slippage (using net amount after fees)
+        if fee_breakdown.net_amount < min_tokens {
             return Err(Error::SlippageExceeded);
         }
 
-        // 10. CRITICAL FIX: Transfer tokens from contract to buyer
+        // 10. CRITICAL FIX: Transfer tokens from contract to buyer (net amount after fees)
         // TODO: In tests, we need to mint tokens to the contract first
         // For now, we skip token transfers in test mode
         #[cfg(not(test))]
         {
             let contract_address = env.current_contract_address();
             let token_client = token::Client::new(&env, &token);
-            token_client.transfer(&contract_address, &buyer, &tokens_net);
+            token_client.transfer(&contract_address, &buyer, &fee_breakdown.net_amount);
+        }
+
+        // 10b. Transfer protocol fee to treasury
+        #[cfg(not(test))]
+        {
+            if fee_breakdown.protocol_fee > 0 {
+                fee_management::transfer_protocol_fee(&env, &token, fee_breakdown.protocol_fee)?;
+                events::protocol_fee_collected(&env, &token, fee_breakdown.protocol_fee, &fee_management::get_fee_config(&env).treasury);
+            }
+        }
+
+        // 10c. LP fee stays in bonding curve (already included in reserves)
+        if fee_breakdown.lp_fee > 0 {
+            events::lp_fee_collected(&env, &token, fee_breakdown.lp_fee);
         }
 
         // 11. Update bonding curve state (with gross amount)
@@ -307,21 +316,33 @@ impl SacFactory {
         storage::set_token_info(&env, &token, &token_info);
 
         // 18. Emit events (both basic and detailed)
-        events::tokens_bought(&env, &buyer, &token, xlm_amount, tokens_net);
+        events::tokens_bought(&env, &buyer, &token, xlm_amount, fee_breakdown.net_amount);
         events::tokens_bought_detailed(
             &env,
             &buyer,
             &token,
             xlm_amount,
             tokens_gross,
-            fee_amount,
-            tokens_net,
+            fee_breakdown.total_fees,
+            fee_breakdown.net_amount,
             price_before,
             price_after,
             slippage_bps,
         );
 
-        Ok(tokens_net)
+        // 18b. Emit fee breakdown event for transparency
+        events::fee_breakdown_event(
+            &env,
+            "BUY",
+            &token,
+            &buyer,
+            fee_breakdown.gross_amount,
+            fee_breakdown.protocol_fee,
+            fee_breakdown.lp_fee,
+            fee_breakdown.net_amount,
+        );
+
+        Ok(fee_breakdown.net_amount)
     }
 
     /// Sell tokens back to bonding curve
@@ -378,29 +399,50 @@ impl SacFactory {
         // 5. Calculate XLM to receive from bonding curve
         let xlm_gross = token_info.bonding_curve.calculate_sell(token_amount)?;
 
-        // 6. Apply trading fee
-        let (xlm_net, _fee_amount) = fee_management::apply_trading_fee(&env, xlm_gross)?;
+        // 6. Apply dual-fee system (protocol + LP fees)
+        let fee_breakdown = fee_management::apply_trading_fees(&env, xlm_gross)?;
 
-        // 7. Check slippage
-        if xlm_net < min_xlm {
+        // 7. Check slippage (using net amount after fees)
+        if fee_breakdown.net_amount < min_xlm {
             return Err(Error::SlippageExceeded);
         }
 
         // 8. CRITICAL FIX: Transfer tokens from seller to contract FIRST
-        // 9. CRITICAL FIX: Transfer XLM from contract to seller
-        // TODO: In tests, we need to mock both token and XLM transfers
-        // For now, we skip transfers in test mode
         #[cfg(not(test))]
         {
             let token_client = token::Client::new(&env, &token);
             let contract_address = env.current_contract_address();
-
             token_client.transfer(&seller, &contract_address, &token_amount);
+        }
 
+        // 9. CRITICAL FIX: Transfer XLM from contract to seller (net amount after fees)
+        #[cfg(not(test))]
+        {
             let xlm_token_address = Self::get_xlm_token_address(&env);
             let xlm_client = token::Client::new(&env, &xlm_token_address);
+            let contract_address = env.current_contract_address();
 
-            xlm_client.transfer(&contract_address, &seller, &xlm_net);
+            xlm_client.transfer(&contract_address, &seller, &fee_breakdown.net_amount);
+        }
+
+        // 9b. Transfer protocol fee to treasury (in XLM)
+        #[cfg(not(test))]
+        {
+            if fee_breakdown.protocol_fee > 0 {
+                let xlm_token_address = Self::get_xlm_token_address(&env);
+                let xlm_client = token::Client::new(&env, &xlm_token_address);
+                let contract_address = env.current_contract_address();
+                let treasury = fee_management::get_fee_config(&env).treasury;
+
+                xlm_client.transfer(&contract_address, &treasury, &fee_breakdown.protocol_fee);
+                events::protocol_fee_collected(&env, &xlm_token_address, fee_breakdown.protocol_fee, &treasury);
+            }
+        }
+
+        // 9c. LP fee stays in bonding curve (already in XLM reserves)
+        if fee_breakdown.lp_fee > 0 {
+            let xlm_token_address = Self::get_xlm_token_address(&env);
+            events::lp_fee_collected(&env, &xlm_token_address, fee_breakdown.lp_fee);
         }
 
         // 10. Update bonding curve state (using gross amount for reserves)
@@ -415,10 +457,22 @@ impl SacFactory {
         // 13. Save state
         storage::set_token_info(&env, &token, &token_info);
 
-        // 14. Emit event (with net amount)
-        events::tokens_sold(&env, &seller, &token, token_amount, xlm_net);
+        // 14. Emit events (with net amount)
+        events::tokens_sold(&env, &seller, &token, token_amount, fee_breakdown.net_amount);
 
-        Ok(xlm_net)
+        // 14b. Emit fee breakdown event for transparency
+        events::fee_breakdown_event(
+            &env,
+            "SELL",
+            &token,
+            &seller,
+            fee_breakdown.gross_amount,
+            fee_breakdown.protocol_fee,
+            fee_breakdown.lp_fee,
+            fee_breakdown.net_amount,
+        );
+
+        Ok(fee_breakdown.net_amount)
     }
 
     /// Get token information
@@ -501,14 +555,34 @@ impl SacFactory {
         access_control::transfer_ownership(&env, &current_owner, &new_owner)
     }
 
-    /// Update fee configuration (FeeAdmin or Owner)
-    pub fn update_fees(env: Env, admin: Address, creation_fee: i128, trading_fee_bps: i128) -> Result<(), Error> {
-        fee_management::set_fee_config(&env, &admin, creation_fee, trading_fee_bps)
+    /// Update protocol fee (FeeAdmin or Owner)
+    pub fn set_protocol_fee(env: Env, admin: Address, new_protocol_fee_bps: i128) -> Result<(), Error> {
+        fee_management::set_protocol_fee(&env, &admin, new_protocol_fee_bps)
+    }
+
+    /// Update LP fee (FeeAdmin or Owner)
+    pub fn set_lp_fee(env: Env, admin: Address, new_lp_fee_bps: i128) -> Result<(), Error> {
+        fee_management::set_lp_fee(&env, &admin, new_lp_fee_bps)
+    }
+
+    /// Update creation fee (FeeAdmin or Owner)
+    pub fn set_creation_fee(env: Env, admin: Address, new_creation_fee: i128) -> Result<(), Error> {
+        fee_management::set_creation_fee(&env, &admin, new_creation_fee)
     }
 
     /// Update treasury address (TreasuryAdmin or Owner)
     pub fn update_treasury(env: Env, admin: Address, new_treasury: Address) -> Result<(), Error> {
         fee_management::set_treasury(&env, &admin, &new_treasury)
+    }
+
+    /// Get current fee configuration
+    pub fn get_fee_config(env: Env) -> fee_management::FeeConfig {
+        fee_management::get_fee_config(&env)
+    }
+
+    /// Get accumulated protocol fees (for transparency)
+    pub fn get_accumulated_protocol_fees(env: Env) -> i128 {
+        fee_management::get_accumulated_protocol_fees(&env)
     }
 
     /// Set AMM pair WASM hash for graduation (Owner only)
@@ -598,10 +672,7 @@ impl SacFactory {
         state_management::get_state(&env)
     }
 
-    /// Get fee configuration
-    pub fn get_fee_config(env: Env) -> fee_management::FeeConfig {
-        fee_management::get_fee_config(&env)
-    }
+
 
     /// Check if address has a specific role
     pub fn has_role(env: Env, account: Address, role: access_control::Role) -> bool {

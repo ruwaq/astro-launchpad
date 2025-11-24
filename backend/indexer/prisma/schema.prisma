@@ -202,3 +202,116 @@ enum LiquidityEventType {
   ADD
   REMOVE
 }
+
+// Fee System Models
+model FeeCollection {
+  id              String   @id @default(cuid())
+  
+  // Event identification
+  eventType       FeeEventType
+  transactionHash String
+  ledger          Int
+  timestamp       DateTime
+  
+  // Token context
+  tokenAddress    String
+  tokenSymbol     String?
+  
+  // Fee amounts (stored as strings for BigInt precision)
+  protocolFee     String   @default("0")
+  lpFee           String   @default("0")
+  totalFee        String   @default("0")
+  
+  // Trade context
+  grossAmount     String   @default("0")
+  netAmount       String   @default("0")
+  
+  // Treasury info
+  treasuryAddress String?
+  
+  createdAt       DateTime @default(now())
+  
+  @@index([tokenAddress])
+  @@index([eventType])
+  @@index([timestamp])
+  @@index([transactionHash])
+}
+
+model FeeStats {
+  id              String   @id @default(cuid())
+  
+  // Scope
+  scope           FeeStatsScope // GLOBAL or TOKEN
+  tokenAddress    String?       // null for GLOBAL, token address for TOKEN
+  
+  // Time window
+  period          FeeStatsPeriod
+  periodStart     DateTime
+  periodEnd       DateTime
+  
+  // Aggregated fee totals (strings for BigInt)
+  totalProtocolFees String   @default("0")
+  totalLpFees       String   @default("0")
+  totalFees         String   @default("0")
+  
+  // Trading volume
+  totalVolume       String   @default("0")
+  tradeCount        Int      @default(0)
+  
+  // Average fees
+  avgProtocolFee    String   @default("0")
+  avgLpFee          String   @default("0")
+  avgTradeSize      String   @default("0")
+  
+  // Metadata
+  lastUpdated       DateTime @updatedAt
+  createdAt         DateTime @default(now())
+  
+  @@unique([scope, tokenAddress, period, periodStart])
+  @@index([scope, period])
+  @@index([tokenAddress])
+  @@index([periodStart])
+}
+
+model FeeConfig {
+  id              String   @id @default(cuid())
+  
+  // Config values
+  creationFee     String   // in stroops
+  protocolFeeBps  Int      // basis points (0.05% = 5)
+  lpFeeBps        Int      // basis points (0.25% = 25)
+  
+  // Treasury
+  treasuryAddress String
+  
+  // Validity period
+  effectiveFrom   DateTime
+  effectiveUntil  DateTime?
+  
+  // Audit trail
+  updatedBy       String?  // Address of admin who made the change
+  
+  createdAt       DateTime @default(now())
+  
+  @@index([effectiveFrom])
+}
+
+enum FeeEventType {
+  FEE_BREAKDOWN
+  PROTOCOL_FEE_COLLECTED
+  LP_FEE_COLLECTED
+  CREATION_FEE_COLLECTED
+}
+
+enum FeeStatsScope {
+  GLOBAL
+  TOKEN
+}
+
+enum FeeStatsPeriod {
+  HOUR
+  DAY
+  WEEK
+  MONTH
+  ALL_TIME
+}
