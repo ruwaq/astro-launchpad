@@ -68,3 +68,4 @@ temp/
 /*.md
 !/README.md
 /docs/
+.pnpm-store/
