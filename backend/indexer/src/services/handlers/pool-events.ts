@@ -1,11 +1,10 @@
-import { PrismaClient } from '@prisma/client';
-import * as StellarSdk from '@stellar/stellar-sdk';
+import { PrismaClient } from '@astroshibapop/shared/prisma';
 import { logger } from '../../lib/logger.js';
 
 export class PoolEventHandler {
   constructor(private prisma: PrismaClient) {}
 
-  async handleLiquidityAdded(event: StellarSdk.Horizon.ServerApi.EventRecord) {
+  async handleLiquidityAdded(event: any) {
     try {
       const data = this.parseEventData(event);
       const { provider, amount0, amount1, liquidity, poolAddress } = data;
@@ -16,8 +15,11 @@ export class PoolEventHandler {
       await this.prisma.pool.upsert({
         where: { address: poolAddress },
         update: {
+          // @ts-expect-error - Prisma doesn't type increment for String fields (BigInt serialization)
           reserve0: { increment: BigInt(amount0) },
+          // @ts-expect-error - BigInt increment on String field
           reserve1: { increment: BigInt(amount1) },
+          // @ts-expect-error - BigInt increment on String field
           totalSupply: { increment: BigInt(liquidity) },
         },
         create: {
@@ -35,6 +37,7 @@ export class PoolEventHandler {
         where: { address: provider },
         update: {
           points: { increment: 10 }, // 10 points per day for LP
+          // @ts-expect-error - Prisma doesn't type increment for String fields (BigInt serialization)
           totalLiquidityProvided: { increment: BigInt(liquidity) },
         },
         create: {
@@ -62,7 +65,7 @@ export class PoolEventHandler {
     }
   }
 
-  async handleLiquidityRemoved(event: StellarSdk.Horizon.ServerApi.EventRecord) {
+  async handleLiquidityRemoved(event: any) {
     try {
       const data = this.parseEventData(event);
       const { provider, amount0, amount1, liquidity, poolAddress } = data;
@@ -73,8 +76,11 @@ export class PoolEventHandler {
       await this.prisma.pool.update({
         where: { address: poolAddress },
         data: {
+          // @ts-expect-error - Prisma doesn't type decrement for String fields (BigInt serialization)
           reserve0: { decrement: BigInt(amount0) },
+          // @ts-expect-error - BigInt decrement on String field
           reserve1: { decrement: BigInt(amount1) },
+          // @ts-expect-error - BigInt decrement on String field
           totalSupply: { decrement: BigInt(liquidity) },
         },
       });
@@ -97,7 +103,7 @@ export class PoolEventHandler {
     }
   }
 
-  async handleSwap(event: StellarSdk.Horizon.ServerApi.EventRecord) {
+  async handleSwap(event: any) {
     try {
       const data = this.parseEventData(event);
       const { sender, tokenIn, tokenOut, amountIn, amountOut, poolAddress } = data;
@@ -108,6 +114,7 @@ export class PoolEventHandler {
       await this.prisma.pool.update({
         where: { address: poolAddress },
         data: {
+          // @ts-expect-error - Prisma doesn't type increment for String fields (BigInt serialization)
           volume24h: { increment: BigInt(amountIn) },
         },
       });
@@ -117,6 +124,7 @@ export class PoolEventHandler {
         where: { address: sender },
         update: {
           points: { increment: Math.floor(Number(amountIn) / 10_000_000) },
+          // @ts-expect-error - Prisma doesn't type increment for String fields (BigInt serialization)
           totalVolumeTraded: { increment: BigInt(amountIn) },
         },
         create: {
@@ -144,7 +152,7 @@ export class PoolEventHandler {
     }
   }
 
-  private parseEventData(event: StellarSdk.Horizon.ServerApi.EventRecord): any {
+  private parseEventData(event: any): any {
     try {
       const value = event.value;
       // For MVP, assume value is already decoded

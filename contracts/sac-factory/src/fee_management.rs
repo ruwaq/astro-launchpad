@@ -348,37 +348,37 @@ pub fn collect_creation_fee(
     env: &Env,
     from: &Address,
 ) -> Result<i128, Error> {
+    use soroban_sdk::token;
+
     let config = get_fee_config(env);
 
     if config.creation_fee == 0 {
         return Ok(0);
     }
 
-    // TEMPORARY: Disable XLM transfer for creation fee
-    // The fee is tracked in accumulated_protocol_fees but not actually transferred
-    // This allows us to test the trading fee system first
-    // 
-    // TODO: Implement proper native XLM transfer using:
-    // 1. Get native XLM SAC address deterministically
-    // 2. Call transfer() on the native XLM token contract
-    // 3. Require the creator to have sufficient XLM balance
-    //
-    // For now, creation is free but the fee amount is still logged
+    // Transfer creation fee from creator to treasury using native XLM SAC
     #[cfg(not(test))]
     {
-        // XLM transfer disabled - see TODO above
+        // Get XLM token address from storage (set during initialization)
+        let xlm_token_address = crate::storage::get_xlm_token_address(env)
+            .expect("XLM token address not configured - contract not initialized");
+
+        let xlm_client = token::Client::new(env, &xlm_token_address);
+
+        // Transfer creation fee from creator to treasury
+        xlm_client.transfer(from, &config.treasury, &config.creation_fee);
     }
 
-    // Track accumulated fees
+    // Track accumulated fees for transparency
     let accumulated: i128 = env.storage()
         .persistent()
         .get(&FeeKey::AccumulatedProtocolFees)
         .unwrap_or(0);
-    
+
     let new_accumulated = accumulated
         .checked_add(config.creation_fee)
         .ok_or(Error::Overflow)?;
-    
+
     env.storage()
         .persistent()
         .set(&FeeKey::AccumulatedProtocolFees, &new_accumulated);
@@ -407,12 +407,14 @@ pub fn transfer_protocol_fee(
     #[cfg(not(test))]
     {
         use soroban_sdk::token;
-        
-        let token_client = token::Client::new(env, token);
-        let contract_address = env.current_contract_address();
-        
-        // Transfer protocol fee to treasury
-        token_client.transfer(&contract_address, &config.treasury, &amount);
+
+        // Use StellarAssetClient to MINT protocol fee directly to treasury
+        // We can't use transfer because the factory doesn't hold tokens
+        // (bonding curve mints tokens on buy, doesn't transfer from reserves)
+        let token_client = token::StellarAssetClient::new(env, token);
+
+        // Mint protocol fee to treasury (factory must be token admin)
+        token_client.mint(&config.treasury, &amount);
     }
 
     #[cfg(test)]

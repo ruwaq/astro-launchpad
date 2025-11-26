@@ -26,9 +26,8 @@ use storage::{DataKey, PairInfo};
 /// Minimum liquidity to lock permanently (prevents division by zero attacks)
 const MINIMUM_LIQUIDITY: i128 = 1000;
 
-/// Fee in basis points (30 = 0.3%)
-const FEE_BPS: i128 = 30;
-const FEE_DENOMINATOR: i128 = 10000;
+// Note: Fee constants (FEE_BPS, FEE_DENOMINATOR) are defined in math.rs
+// to avoid duplication and unused variable warnings
 
 #[contract]
 pub struct AMMPair;

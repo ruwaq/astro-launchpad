@@ -5,15 +5,14 @@ import http from 'http';
 // Load .env from backend/indexer directory with override
 config({ path: resolve(process.cwd(), '.env'), override: true });
 
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@astroshibapop/shared/prisma';
 import { logger } from './lib/logger.js';
 import { OptimizedEventIndexer } from './services/optimized-event-indexer.js';
 import { MetricsCalculator } from './services/metrics-calculator.js';
-
-const prisma = new PrismaClient();
+import { createBootstrapService } from './services/bootstrap-service.js';
 
 async function main() {
-  logger.info('🚀 Starting AstroShibaPop Optimized Indexer...');
+  logger.info('🚀 Starting AstroShibaPop Indexer v2.0...');
 
   // Check environment variables
   const requiredEnvVars = [
@@ -34,7 +33,22 @@ async function main() {
     await prisma.$connect();
     logger.info('✓ Database connected');
 
-    // Start optimized event indexer
+    // BOOTSTRAP: Sync all existing tokens from blockchain
+    logger.info('📦 Running bootstrap sync...');
+    const bootstrapService = createBootstrapService(prisma, {
+      batchSize: 5,      // Process 5 tokens at a time
+      concurrency: 2,    // 2 concurrent requests
+      skipExisting: false, // Update existing tokens too
+    });
+    const bootstrapResult = await bootstrapService.bootstrap();
+
+    if (bootstrapResult.success) {
+      logger.info(`✓ Bootstrap complete: ${bootstrapResult.tokensCreated} created, ${bootstrapResult.tokensUpdated} updated`);
+    } else {
+      logger.warn('⚠ Bootstrap completed with errors');
+    }
+
+    // Start optimized event indexer for real-time updates
     const eventIndexer = new OptimizedEventIndexer(prisma);
     await eventIndexer.start();
 

@@ -17,16 +17,15 @@ const TOKEN_PRICE_HISTORY = gql`
     token(address: $address) {
       address
       currentPrice
-      transactions(first: 100, orderBy: { field: CREATED_AT, direction: ASC }) {
-        edges {
-          node {
-            id
-            type
-            amount0
-            amount1
-            timestamp
-            createdAt
-          }
+    }
+    transactions(tokenAddress: $address, limit: 100) {
+      edges {
+        cursor
+        node {
+          id
+          type
+          amount
+          timestamp
         }
       }
     }
@@ -46,25 +45,24 @@ export function BondingCurveChart({ tokenAddress }: BondingCurveChartProps) {
 
   // Transform transaction data into price points
   const priceData = useMemo(() => {
-    if (!data?.token?.transactions?.edges) return [];
+    if (!data?.transactions?.edges) return [];
 
-    const transactions = data.token.transactions.edges;
+    const transactions = data.transactions.edges;
     let runningPrice = 0;
 
     return transactions
       .filter((edge: any) =>
-        edge.node.type === 'TOKEN_BOUGHT' || edge.node.type === 'TOKEN_SOLD'
+        edge.node.type === 'BUY' || edge.node.type === 'SELL'
       )
       .map((edge: any) => {
         const tx = edge.node;
-        const xlmAmount = parseFloat(tx.amount0 || '0');
-        const tokenAmount = parseFloat(tx.amount1 || '0');
+        const amount = parseFloat(tx.amount || '0');
 
-        // Calculate price: XLM / Tokens
-        const price = tokenAmount > 0 ? xlmAmount / tokenAmount : runningPrice;
+        // Use amount as a proxy for price movement
+        const price = amount > 0 ? amount : runningPrice;
         runningPrice = price;
 
-        const date = new Date(tx.timestamp || tx.createdAt);
+        const date = new Date(tx.timestamp);
         const timestamp = date.toLocaleTimeString('en-US', {
           hour: '2-digit',
           minute: '2-digit',

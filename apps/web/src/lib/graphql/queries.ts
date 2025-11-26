@@ -40,16 +40,16 @@ export const TOKENS_QUERY = gql`
   ${TOKEN_BASIC_FRAGMENT}
   ${PAGE_INFO_FRAGMENT}
   query Tokens(
-    $first: Int
-    $after: String
-    $orderBy: TokenOrderByInput
-    $where: TokenWhereInput
+    $limit: Int = 20
+    $offset: Int = 0
+    $orderBy: TokenOrderBy = CREATED_AT_DESC
+    $search: String
   ) {
     tokens(
-      first: $first
-      after: $after
+      limit: $limit
+      offset: $offset
       orderBy: $orderBy
-      where: $where
+      search: $search
     ) {
       edges {
         cursor
@@ -68,39 +68,18 @@ export const TOKENS_QUERY = gql`
 export const TOKEN_QUERY = gql`
   ${TOKEN_FULL_FRAGMENT}
   ${POOL_BASIC_FRAGMENT}
-  ${TRANSACTION_BASIC_FRAGMENT}
-  ${PAGE_INFO_FRAGMENT}
   query Token($address: String!) {
     token(address: $address) {
       ...TokenFullFragment
-      pools(first: 10, orderBy: { field: LIQUIDITY, direction: DESC }) {
-        edges {
-          cursor
-          node {
-            ...PoolBasicFragment
-            token0 {
-              address
-              symbol
-            }
-            token1 {
-              address
-              symbol
-            }
-          }
+      pools {
+        ...PoolBasicFragment
+        token0 {
+          address
+          symbol
         }
-        pageInfo {
-          ...PageInfoFragment
-        }
-      }
-      transactions(first: 20, orderBy: { field: CREATED_AT, direction: DESC }) {
-        edges {
-          cursor
-          node {
-            ...TransactionBasicFragment
-          }
-        }
-        pageInfo {
-          ...PageInfoFragment
+        token1 {
+          address
+          symbol
         }
       }
     }
@@ -109,29 +88,21 @@ export const TOKEN_QUERY = gql`
 
 export const TRENDING_TOKENS_QUERY = gql`
   query TrendingTokens($limit: Int = 10) {
-    tokens(
-      limit: $limit
-      orderBy: VOLUME_DESC
-    ) {
-      edges {
-        address
-        name
-        symbol
-        imageUrl
-        currentPrice
-        priceChange24h
-        volume24h
-        marketCap
-        circulatingSupply
-        xlmRaised
-        xlmReserve
-        graduated
-        createdAt
-      }
-      pageInfo {
-        total
-        hasNextPage
-      }
+    trendingTokens(limit: $limit) {
+      address
+      name
+      symbol
+      imageUrl
+      logoUrl
+      currentPrice
+      priceChange24h
+      volume24h
+      marketCap
+      circulatingSupply
+      xlmRaised
+      xlmReserve
+      graduated
+      createdAt
     }
   }
 `;
@@ -139,10 +110,10 @@ export const TRENDING_TOKENS_QUERY = gql`
 export const NEW_TOKENS_QUERY = gql`
   ${TOKEN_BASIC_FRAGMENT}
   ${PAGE_INFO_FRAGMENT}
-  query NewTokens($first: Int = 10) {
+  query NewTokens($limit: Int = 10) {
     tokens(
-      first: $first
-      orderBy: { field: CREATED_AT, direction: DESC }
+      limit: $limit
+      orderBy: CREATED_AT_DESC
     ) {
       edges {
         cursor
@@ -161,10 +132,10 @@ export const NEW_TOKENS_QUERY = gql`
 export const TOP_GAINERS_QUERY = gql`
   ${TOKEN_BASIC_FRAGMENT}
   ${PAGE_INFO_FRAGMENT}
-  query TopGainers($first: Int = 10) {
+  query TopGainers($limit: Int = 10) {
     tokens(
-      first: $first
-      orderBy: { field: VOLUME_24H, direction: DESC }
+      limit: $limit
+      orderBy: VOLUME_DESC
     ) {
       edges {
         cursor
@@ -188,16 +159,12 @@ export const POOLS_QUERY = gql`
   ${POOL_FULL_FRAGMENT}
   ${PAGE_INFO_FRAGMENT}
   query Pools(
-    $first: Int
-    $after: String
-    $orderBy: PoolOrderByInput
-    $where: PoolWhereInput
+    $limit: Int = 20
+    $offset: Int = 0
   ) {
     pools(
-      first: $first
-      after: $after
-      orderBy: $orderBy
-      where: $where
+      limit: $limit
+      offset: $offset
     ) {
       edges {
         cursor
@@ -215,22 +182,9 @@ export const POOLS_QUERY = gql`
 
 export const POOL_QUERY = gql`
   ${POOL_FULL_FRAGMENT}
-  ${TRANSACTION_FULL_FRAGMENT}
-  ${PAGE_INFO_FRAGMENT}
   query Pool($address: String!) {
     pool(address: $address) {
       ...PoolFullFragment
-      transactions(first: 50, orderBy: { field: CREATED_AT, direction: DESC }) {
-        edges {
-          cursor
-          node {
-            ...TransactionFullFragment
-          }
-        }
-        pageInfo {
-          ...PageInfoFragment
-        }
-      }
     }
   }
 `;
@@ -238,10 +192,9 @@ export const POOL_QUERY = gql`
 export const TOP_POOLS_QUERY = gql`
   ${POOL_FULL_FRAGMENT}
   ${PAGE_INFO_FRAGMENT}
-  query TopPools($first: Int = 10) {
+  query TopPools($limit: Int = 10) {
     pools(
-      first: $first
-      orderBy: { field: LIQUIDITY, direction: DESC }
+      limit: $limit
     ) {
       edges {
         cursor
@@ -265,16 +218,18 @@ export const TRANSACTIONS_QUERY = gql`
   ${TRANSACTION_FULL_FRAGMENT}
   ${PAGE_INFO_FRAGMENT}
   query Transactions(
-    $first: Int
-    $after: String
-    $orderBy: TransactionOrderByInput
-    $where: TransactionWhereInput
+    $address: String
+    $tokenAddress: String
+    $type: TransactionType
+    $limit: Int = 20
+    $offset: Int = 0
   ) {
     transactions(
-      first: $first
-      after: $after
-      orderBy: $orderBy
-      where: $where
+      address: $address
+      tokenAddress: $tokenAddress
+      type: $type
+      limit: $limit
+      offset: $offset
     ) {
       edges {
         cursor
@@ -293,10 +248,9 @@ export const TRANSACTIONS_QUERY = gql`
 export const RECENT_TRANSACTIONS_QUERY = gql`
   ${TRANSACTION_BASIC_FRAGMENT}
   ${PAGE_INFO_FRAGMENT}
-  query RecentTransactions($first: Int = 20) {
+  query RecentTransactions($limit: Int = 20) {
     transactions(
-      first: $first
-      orderBy: { field: CREATED_AT, direction: DESC }
+      limit: $limit
     ) {
       edges {
         cursor
@@ -320,11 +274,10 @@ export const RECENT_TRANSACTIONS_QUERY = gql`
 export const USER_TRANSACTIONS_QUERY = gql`
   ${TRANSACTION_FULL_FRAGMENT}
   ${PAGE_INFO_FRAGMENT}
-  query UserTransactions($user: String!, $first: Int = 50) {
+  query UserTransactions($address: String!, $limit: Int = 50) {
     transactions(
-      where: { user: $user }
-      first: $first
-      orderBy: { field: CREATED_AT, direction: DESC }
+      address: $address
+      limit: $limit
     ) {
       edges {
         cursor
@@ -376,23 +329,19 @@ export const LEADERBOARD_QUERY = gql`
 
 export const SEARCH_QUERY = gql`
   ${TOKEN_BASIC_FRAGMENT}
-  ${POOL_BASIC_FRAGMENT}
+  ${PAGE_INFO_FRAGMENT}
   query Search($query: String!, $limit: Int = 10) {
-    search(query: $query, limit: $limit) {
-      tokens {
-        ...TokenBasicFragment
-      }
-      pools {
-        ...PoolBasicFragment
-        token0 {
-          address
-          symbol
-        }
-        token1 {
-          address
-          symbol
+    tokens(search: $query, limit: $limit) {
+      edges {
+        cursor
+        node {
+          ...TokenBasicFragment
         }
       }
+      pageInfo {
+        ...PageInfoFragment
+      }
+      totalCount
     }
   }
 `;
@@ -403,8 +352,6 @@ export const SEARCH_QUERY = gql`
 
 export const GET_TOKEN_DETAILS = gql`
   ${TOKEN_FULL_FRAGMENT}
-  ${TRANSACTION_BASIC_FRAGMENT}
-  ${PAGE_INFO_FRAGMENT}
   query GetTokenDetails($address: String!) {
     token(address: $address) {
       ...TokenFullFragment
@@ -412,17 +359,6 @@ export const GET_TOKEN_DETAILS = gql`
       xlmReserve
       xlmRaised
       graduated
-      transactions(first: 20, orderBy: { field: CREATED_AT, direction: DESC }) {
-        edges {
-          cursor
-          node {
-            ...TransactionBasicFragment
-          }
-        }
-        pageInfo {
-          ...PageInfoFragment
-        }
-      }
     }
   }
 `;

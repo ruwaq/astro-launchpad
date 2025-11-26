@@ -1,6 +1,12 @@
-version: '3.8'
+# Docker Compose for Astro-Shiba
+# Ports mapped to avoid conflicts with local services:
+# - PostgreSQL: 5433 (host) -> 5432 (container)
+# - Redis: 6380 (host) -> 6379 (container)
 
 services:
+  # ===================
+  # Infrastructure
+  # ===================
   postgres:
     image: postgres:15-alpine
     container_name: astroshibapop-postgres
@@ -10,21 +16,23 @@ services:
       POSTGRES_USER: astro
       POSTGRES_PASSWORD: shibapop_dev_password
     ports:
-      - '5432:5432'
+      - '5433:5432'  # Use 5433 on host to avoid conflict
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U astro']
+      test: ['CMD-SHELL', 'pg_isready -U astro -d astroshibapop']
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - astro-network
 
   redis:
     image: redis:7-alpine
     container_name: astroshibapop-redis
     restart: unless-stopped
     ports:
-      - '6379:6379'
+      - '6380:6379'  # Use 6380 on host to avoid conflict
     volumes:
       - redis_data:/data
     healthcheck:
@@ -32,6 +40,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - astro-network
 
   adminer:
     image: adminer:latest
@@ -41,7 +51,98 @@ services:
       - '8080:8080'
     depends_on:
       - postgres
+    networks:
+      - astro-network
+
+  # ===================
+  # Backend API
+  # ===================
+  api:
+    build:
+      context: .
+      dockerfile: backend/api-gateway-v2/Dockerfile
+    container_name: astroshibapop-api
+    restart: unless-stopped
+    ports:
+      - '4000:4000'
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      HOST: 0.0.0.0
+      DATABASE_URL: postgresql://astro:shibapop_dev_password@postgres:5432/astroshibapop
+      REDIS_URL: redis://redis:6379
+      STELLAR_NETWORK: testnet
+      STELLAR_RPC_URL: https://soroban-testnet.stellar.org
+      STELLAR_NETWORK_PASSPHRASE: "Test SDF Network ; September 2015"
+      STELLAR_HORIZON_URL: https://horizon-testnet.stellar.org
+      JWT_SECRET: docker-dev-jwt-secret-change-in-production
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'wget', '-q', '-O-', '--post-data={"query":"{ __typename }"}', '--header=Content-Type:application/json', 'http://localhost:4000/']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - astro-network
+
+  # ===================
+  # Frontend Web
+  # ===================
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    container_name: astroshibapop-web
+    restart: unless-stopped
+    ports:
+      - '3000:3000'
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: http://api:4000/graphql
+      NEXT_PUBLIC_NETWORK: testnet
+      STELLAR_NETWORK: testnet
+      STELLAR_RPC_URL: https://soroban-testnet.stellar.org
+      STELLAR_NETWORK_PASSPHRASE: "Test SDF Network ; September 2015"
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - astro-network
+
+  # ===================
+  # Development Services (optional)
+  # ===================
+  # Uncomment for development mode with hot-reload
+  # web-dev:
+  #   build:
+  #     context: .
+  #     dockerfile: apps/web/Dockerfile
+  #     target: deps
+  #   container_name: astroshibapop-web-dev
+  #   command: pnpm --filter web dev
+  #   volumes:
+  #     - ./apps/web:/app/apps/web
+  #     - /app/apps/web/node_modules
+  #     - /app/apps/web/.next
+  #   ports:
+  #     - '3000:3000'
+  #   environment:
+  #     NODE_ENV: development
+  #     NEXT_PUBLIC_API_URL: http://api:4000/graphql
+  #   depends_on:
+  #     - api
+  #   networks:
+  #     - astro-network
 
 volumes:
   postgres_data:
   redis_data:
+
+networks:
+  astro-network:
+    driver: bridge

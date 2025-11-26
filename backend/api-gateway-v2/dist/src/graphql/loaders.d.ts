@@ -18,7 +18,7 @@
  */
 import DataLoader from 'dataloader';
 import type { PrismaClientWithAdapter } from '../lib/prisma.js';
-import type { Token, User, Pool, Achievement } from '@prisma/client';
+import type { Token, User, Pool, Achievement } from '@astroshibapop/shared/prisma';
 /**
  * DataLoaders interface
  * All loaders available in GraphQL context

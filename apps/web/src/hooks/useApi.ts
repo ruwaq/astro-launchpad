@@ -74,10 +74,10 @@ export interface UseTokensOptions {
 export function useTokens(options?: UseTokensOptions) {
   return useQuery<TokensQueryResponse>(TOKENS_QUERY, {
     variables: {
-      first: options?.first || 20,
-      after: options?.after,
-      orderBy: options?.orderBy || { field: 'CREATED_AT', direction: 'DESC' },
-      where: options?.where,
+      limit: options?.first || 20,
+      offset: 0,
+      orderBy: 'CREATED_AT_DESC',
+      search: options?.where?.search,
     },
     pollInterval: options?.pollInterval,
   });
@@ -91,25 +91,25 @@ export function useToken(address: string, options?: QueryHookOptions<TokenQueryR
   });
 }
 
-export function useTrendingTokens(limit = 10, options?: QueryHookOptions<TokensQueryResponse>) {
-  return useQuery<TokensQueryResponse>(TRENDING_TOKENS_QUERY, {
+export function useTrendingTokens(limit = 10, options?: QueryHookOptions) {
+  return useQuery(TRENDING_TOKENS_QUERY, {
     variables: { limit },
     pollInterval: POLLING_INTERVAL,
     ...options,
   });
 }
 
-export function useNewTokens(first = 10, options?: QueryHookOptions<TokensQueryResponse>) {
+export function useNewTokens(limit = 10, options?: QueryHookOptions<TokensQueryResponse>) {
   return useQuery<TokensQueryResponse>(NEW_TOKENS_QUERY, {
-    variables: { first },
+    variables: { limit },
     pollInterval: POLLING_INTERVAL / 2,
     ...options,
   });
 }
 
-export function useTopGainers(first = 10, options?: QueryHookOptions<TokensQueryResponse>) {
+export function useTopGainers(limit = 10, options?: QueryHookOptions<TokensQueryResponse>) {
   return useQuery<TokensQueryResponse>(TOP_GAINERS_QUERY, {
-    variables: { first },
+    variables: { limit },
     pollInterval: POLLING_INTERVAL,
     ...options,
   });
@@ -130,10 +130,8 @@ export interface UsePoolsOptions {
 export function usePools(options?: UsePoolsOptions) {
   return useQuery<PoolsQueryResponse>(POOLS_QUERY, {
     variables: {
-      first: options?.first || 20,
-      after: options?.after,
-      orderBy: options?.orderBy || { field: 'LIQUIDITY', direction: 'DESC' },
-      where: options?.where,
+      limit: options?.first || 20,
+      offset: 0,
     },
     pollInterval: options?.pollInterval,
   });
@@ -147,9 +145,9 @@ export function usePool(address: string, options?: QueryHookOptions<PoolQueryRes
   });
 }
 
-export function useTopPools(first = 10, options?: QueryHookOptions<PoolsQueryResponse>) {
+export function useTopPools(limit = 10, options?: QueryHookOptions<PoolsQueryResponse>) {
   return useQuery<PoolsQueryResponse>(TOP_POOLS_QUERY, {
-    variables: { first },
+    variables: { limit },
     pollInterval: POLLING_INTERVAL,
     ...options,
   });
@@ -170,34 +168,35 @@ export interface UseTransactionsOptions {
 export function useTransactions(options?: UseTransactionsOptions) {
   return useQuery<TransactionsQueryResponse>(TRANSACTIONS_QUERY, {
     variables: {
-      first: options?.first || 20,
-      after: options?.after,
-      orderBy: options?.orderBy || { field: 'CREATED_AT', direction: 'DESC' },
-      where: options?.where,
+      limit: options?.first || 20,
+      offset: 0,
+      address: options?.where?.user,
+      tokenAddress: options?.where?.token,
+      type: options?.where?.type,
     },
     pollInterval: options?.pollInterval,
   });
 }
 
 export function useRecentTransactions(
-  first = 20,
+  limit = 20,
   options?: QueryHookOptions<TransactionsQueryResponse>
 ) {
   return useQuery<TransactionsQueryResponse>(RECENT_TRANSACTIONS_QUERY, {
-    variables: { first },
+    variables: { limit },
     pollInterval: POLLING_INTERVAL / 2,
     ...options,
   });
 }
 
 export function useUserTransactions(
-  user: string,
-  first = 50,
+  address: string,
+  limit = 50,
   options?: QueryHookOptions<TransactionsQueryResponse>
 ) {
   return useQuery<TransactionsQueryResponse>(USER_TRANSACTIONS_QUERY, {
-    variables: { user, first },
-    skip: !user,
+    variables: { address, limit },
+    skip: !address,
     ...options,
   });
 }
@@ -264,7 +263,7 @@ export function useSearch() {
 // ============================================================================
 
 export function usePagination<T>(
-  initialData: { edges: any[]; pageInfo: any },
+  initialData: { edges: T[]; pageInfo: { hasNextPage: boolean; endCursor?: string | null } } | undefined | null,
   fetchMore: (cursor: string) => void
 ) {
   const loadMore = () => {
@@ -293,7 +292,7 @@ export function useSyncToken() {
     // Refetch trending tokens after sync to update the UI
     refetchQueries: [
       { query: TRENDING_TOKENS_QUERY, variables: { limit: 10 } },
-      { query: TOKENS_QUERY, variables: { first: 20, orderBy: { field: 'CREATED_AT', direction: 'DESC' } } },
+      { query: TOKENS_QUERY, variables: { limit: 20, offset: 0, orderBy: 'CREATED_AT_DESC' } },
     ],
   });
 }

@@ -1,13 +1,13 @@
 /**
  * GraphQL Resolvers
  * Handles all GraphQL queries and mutations
- *
- * NOTE: TypeScript errors on `cacheStrategy` are expected.
- * This property is added at runtime by Prisma Accelerate extension.
  */
 import type { IResolvers } from 'mercurius';
 /**
  * Combine all resolvers
+ * IMPORTANT: Order matters - fieldResolvers and feeTypeResolvers contain
+ * type-specific resolvers (Token, Pool, User, FeeCollection, etc.)
+ * Query and Mutation must be explicitly combined, not spread from feeResolvers
  */
 export declare const resolvers: IResolvers;
 //# sourceMappingURL=index.d.ts.map

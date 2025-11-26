@@ -70,4 +70,18 @@ pub enum Error {
 
     // Math Operations
     MathOverflow = 130,
+
+    // Anti-Whale Protection
+    AntiWhaleMaxBuyExceeded = 140,
+    AntiWhaleMaxHoldingsExceeded = 141,
+    AntiWhaleCooldownActive = 142,
+
+    // Emergency Recovery
+    TokenNotFailedGraduation = 150,
+    RecoveryNotAllowed = 151,
+
+    // DEX Bridge Integration
+    BridgeNotConfigured = 160,
+    BridgeGraduationFailed = 161,
+    BridgeCallFailed = 162,
 }

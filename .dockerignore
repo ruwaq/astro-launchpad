@@ -1,0 +1,56 @@
+# Dependencies
+node_modules
+**/node_modules
+
+# Build outputs
+.next
+**/.next
+dist
+**/dist
+.turbo
+**/.turbo
+
+# Git
+.git
+.gitignore
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment files (use docker env vars instead)
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Test coverage
+coverage
+**/.coverage
+
+# Development files
+*.md
+!README.md
+LICENSE
+
+# Docker files (avoid recursion)
+Dockerfile
+docker-compose*.yml
+
+# Contracts (Rust/WASM) - not needed for Node.js builds
+contracts
+**/target
+
+# Misc
+.claude
+.github

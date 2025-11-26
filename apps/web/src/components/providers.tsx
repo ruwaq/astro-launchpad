@@ -6,6 +6,7 @@ import { ReactNode, useState } from 'react';
 import { WalletProvider } from '@/contexts/WalletContext';
 import { Toaster } from 'react-hot-toast';
 import { apolloClient } from '@/lib/graphql';
+import { InstallPrompt, MobileWalletBanner } from '@/components/pwa/InstallPrompt';
 
 export function Providers({ children }: { children: ReactNode }) {
   const [queryClient] = useState(
@@ -26,6 +27,8 @@ export function Providers({ children }: { children: ReactNode }) {
       <QueryClientProvider client={queryClient}>
         <WalletProvider>
           {children}
+          <InstallPrompt />
+          <MobileWalletBanner />
           <Toaster
             position="top-right"
             toastOptions={{

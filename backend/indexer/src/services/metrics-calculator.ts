@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '@astroshibapop/shared/prisma';
 import { logger } from '../lib/logger.js';
 
 /**
@@ -94,13 +94,13 @@ export class MetricsCalculator {
     }
   }
 
-  private async getTokenPrice(tokenAddress: string): Promise<number> {
+  private async getTokenPrice(_tokenAddress: string): Promise<number> {
     // Get price from bonding curve or pool
     // For MVP, return dummy value
     return 1000; // 0.0001 XLM
   }
 
-  private async calculatePriceChange(tokenAddress: string): Promise<number> {
+  private async calculatePriceChange(_tokenAddress: string): Promise<number> {
     // Calculate 24h price change percentage
     // For MVP, return 0
     return 0;
@@ -131,7 +131,7 @@ export class MetricsCalculator {
     return BigInt(pool.reserve0) + BigInt(pool.reserve1);
   }
 
-  private async calculatePoolAPR(poolAddress: string): Promise<number> {
+  private async calculatePoolAPR(_poolAddress: string): Promise<number> {
     // Calculate APR based on fees earned
     // APR = (fees_24h * 365 / tvl) * 100
     // For MVP, return estimated APR

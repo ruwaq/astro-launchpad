@@ -24,20 +24,37 @@ export const PAGE_INFO_FRAGMENT = gql`
 
 export const TOKEN_BASIC_FRAGMENT = gql`
   fragment TokenBasicFragment on Token {
+    id
     address
+    creator
     name
     symbol
     decimals
     totalSupply
-    creator
-    bondingCurve
-    currentPrice
-    marketCap
-    volume24h
-    priceChange24h
-    holders
+    metadataUri
+    imageUrl
     logoUrl
+    description
+    bondingCurve
+    circulatingSupply
+    xlmReserve
+    graduated
+    xlmRaised
+    initialPrice
+    marketCap
+    currentPrice
+    priceChange24h
+    volume24h
+    volume7d
+    holders
+    holders24h
+    holdersChange24h
+    website
+    twitter
+    telegram
+    discord
     createdAt
+    updatedAt
   }
 `;
 
@@ -45,15 +62,17 @@ export const TOKEN_FULL_FRAGMENT = gql`
   ${TOKEN_BASIC_FRAGMENT}
   fragment TokenFullFragment on Token {
     ...TokenBasicFragment
-    initialPrice
-    description
-    website
-    twitter
-    telegram
-    discord
-    updatedAt
-    holders24h
-    holdersChange24h
+    creatorUser {
+      id
+      address
+      points
+      level
+    }
+    pools {
+      address
+      token0Address
+      token1Address
+    }
   }
 `;
 
@@ -63,30 +82,46 @@ export const TOKEN_FULL_FRAGMENT = gql`
 
 export const POOL_BASIC_FRAGMENT = gql`
   fragment PoolBasicFragment on Pool {
+    id
     address
+    token0Address
+    token1Address
     reserve0
     reserve1
+    totalSupply
     liquidity
+    tvl
     volume24h
+    volume7d
     volumeChange24h
+    apr
     apy
     fee
     createdAt
+    updatedAt
   }
 `;
 
 export const POOL_FULL_FRAGMENT = gql`
   ${POOL_BASIC_FRAGMENT}
-  ${TOKEN_BASIC_FRAGMENT}
   fragment PoolFullFragment on Pool {
     ...PoolBasicFragment
     token0 {
-      ...TokenBasicFragment
+      id
+      address
+      name
+      symbol
+      logoUrl
+      currentPrice
     }
     token1 {
-      ...TokenBasicFragment
+      id
+      address
+      name
+      symbol
+      logoUrl
+      currentPrice
     }
-    updatedAt
   }
 `;
 
@@ -97,28 +132,34 @@ export const POOL_FULL_FRAGMENT = gql`
 export const TRANSACTION_BASIC_FRAGMENT = gql`
   fragment TransactionBasicFragment on Transaction {
     id
+    hash
     type
-    user
-    amount0
-    amount1
-    amountUSD
-    txHash
+    from
+    to
+    tokenAddress
+    amount
+    status
     timestamp
-    createdAt
   }
 `;
 
 export const TRANSACTION_FULL_FRAGMENT = gql`
   ${TRANSACTION_BASIC_FRAGMENT}
-  ${TOKEN_BASIC_FRAGMENT}
-  ${POOL_BASIC_FRAGMENT}
   fragment TransactionFullFragment on Transaction {
     ...TransactionBasicFragment
     token {
-      ...TokenBasicFragment
+      id
+      address
+      name
+      symbol
+      logoUrl
+      currentPrice
     }
-    pool {
-      ...PoolBasicFragment
+    user {
+      id
+      address
+      points
+      level
     }
   }
 `;
@@ -131,12 +172,9 @@ export const GLOBAL_STATS_FRAGMENT = gql`
   fragment GlobalStatsFragment on GlobalStats {
     totalTokens
     totalPools
-    totalVolume24h
-    totalVolumeChange24h
-    totalLiquidity
-    totalLiquidityChange24h
-    totalTransactions
     totalUsers
+    totalVolume24h
+    totalTVL
   }
 `;
 
@@ -165,8 +203,5 @@ export const LEADERBOARD_ENTRY_FRAGMENT = gql`
     tokensCreated
     totalVolumeGenerated
     totalLiquidity
-    feesEarned24h
-    volumeChange24h
-    rankChange24h
   }
 `;

@@ -3,15 +3,29 @@
 // Force dynamic rendering to avoid build-time errors with contract service
 export const dynamic = 'force-dynamic';
 
-import { useState, useEffect } from 'react';
-import { DashboardLayout } from '@/components/layout/DashboardLayout';
-import { Search, Filter, TrendingUp, Loader2, ExternalLink } from 'lucide-react';
-import { useWallet } from '@/contexts/WalletContext';
-import { sacFactoryService, TokenInfo } from '@/lib/stellar/services/sac-factory.service';
-import { formatCompactNumber, stroopsToXlm } from '@/lib/stellar/utils';
+import { useState, useEffect, memo } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
+import { DashboardLayout } from '@/components/layout/DashboardLayout';
+import { Search, TrendingUp, Loader2 } from 'lucide-react';
+import { useWallet } from '@/contexts/WalletContext';
+import { formatCompactNumber } from '@/lib/stellar/utils';
 import toast from 'react-hot-toast';
 import { useQuery, gql } from '@apollo/client';
+
+// Helper to convert ipfs:// URLs to HTTP gateway URLs
+const getImageUrl = (url: string | undefined | null): string | null => {
+  if (!url) return null;
+  if (url.startsWith('ipfs://')) {
+    const cid = url.replace('ipfs://', '');
+    // Use Pinata gateway or fallback to public gateway
+    const gateway = process.env.NEXT_PUBLIC_PINATA_GATEWAY;
+    return gateway
+      ? `https://${gateway}/ipfs/${cid}`
+      : `https://gateway.pinata.cloud/ipfs/${cid}`;
+  }
+  return url;
+};
 
 type SortOption = 'trending' | 'new' | 'marketCap' | 'volume' | 'graduation';
 type StatusFilter = 'all' | 'bonding' | 'graduated';
@@ -24,24 +38,29 @@ export default function ExplorePage() {
     query GetAllTokens($limit: Int!, $orderBy: TokenOrderBy!) {
       tokens(limit: $limit, orderBy: $orderBy) {
         edges {
-          address
-          name
-          symbol
-          imageUrl
-          currentPrice
-          priceChange24h
-          volume24h
-          marketCap
-          circulatingSupply
-          xlmRaised
-          xlmReserve
-          graduated
-          createdAt
+          cursor
+          node {
+            address
+            name
+            symbol
+            imageUrl
+            logoUrl
+            currentPrice
+            priceChange24h
+            volume24h
+            marketCap
+            circulatingSupply
+            xlmRaised
+            xlmReserve
+            graduated
+            createdAt
+          }
         }
         pageInfo {
           total
           hasNextPage
         }
+        totalCount
       }
     }
   `, {
@@ -62,8 +81,9 @@ export default function ExplorePage() {
   // Extract tokens from GraphQL response
   useEffect(() => {
     if (tokensData?.tokens?.edges) {
-      // edges is already an array of Token objects (not {node: Token})
-      setTokens(tokensData.tokens.edges);
+      // Extract token data from edges[].node structure
+      const tokensList = tokensData.tokens.edges.map((edge: any) => edge.node);
+      setTokens(tokensList);
     }
   }, [tokensData]);
 
@@ -118,12 +138,13 @@ export default function ExplorePage() {
     }
   };
 
-  // Token Card Component
-  const TokenCard = ({ token }: { token: any }) => {
+  // Token Card Component - Memoized for performance
+  const TokenCard = memo(function TokenCard({ token }: { token: { address: string; symbol?: string; name?: string; imageUrl?: string; graduated?: boolean; xlmRaised?: string; marketCap?: string } }) {
     const graduationProgress = Math.min(
       (parseFloat(token.xlmRaised || '0') / 10000) * 100,
       100
     );
+    const imageUrl = getImageUrl(token.imageUrl);
 
     return (
       <Link
@@ -132,15 +153,14 @@ export default function ExplorePage() {
       >
         <div className="flex items-start gap-4">
           {/* Token Image */}
-          {token.imageUrl ? (
-            <img
-              src={token.imageUrl}
-              alt={token.symbol}
-              className="w-12 h-12 rounded-lg flex-shrink-0"
-              onError={(e) => {
-                // Fallback to gradient if image fails to load
-                (e.target as HTMLImageElement).style.display = 'none';
-              }}
+          {imageUrl ? (
+            <Image
+              src={imageUrl}
+              alt={token.symbol || 'Token'}
+              width={48}
+              height={48}
+              className="rounded-lg flex-shrink-0 object-cover"
+              unoptimized
             />
           ) : (
             <div className="w-12 h-12 bg-gradient-to-br from-brand-primary to-brand-blue rounded-lg flex items-center justify-center text-white font-bold text-xl flex-shrink-0">
@@ -213,7 +233,7 @@ export default function ExplorePage() {
         </div>
       </Link>
     );
-  };
+  });
 
   return (
     <DashboardLayout>
@@ -330,8 +350,8 @@ export default function ExplorePage() {
         ) : (
           // Tokens grid
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredTokens.map((token) => (
-              <TokenCard key={token.token_address} token={token} />
+            {filteredTokens.map((token, index) => (
+              <TokenCard key={token.address || token.token_address || `token-${index}`} token={token} />
             ))}
           </div>
         )}

@@ -433,3 +433,408 @@ pub fn fee_breakdown_event(
         timestamp: env.ledger().timestamp(),
     }.publish(env);
 }
+
+// ========== Admin Configuration Events ==========
+
+/// XLM token address updated event
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct XlmAddressUpdated {
+    pub old_address: Option<Address>,
+    pub new_address: Address,
+    pub updated_by: Address,
+    pub timestamp: u64,
+}
+
+/// Graduation threshold updated event
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct GraduationThresholdUpdated {
+    pub old_threshold: i128,
+    pub new_threshold: i128,
+    pub updated_by: Address,
+    pub timestamp: u64,
+}
+
+/// AMM WASM hash updated event
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AmmWasmHashUpdated {
+    pub updated_by: Address,
+    pub timestamp: u64,
+}
+
+/// Oracle address updated event
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct OracleAddressUpdated {
+    pub old_address: Option<Address>,
+    pub new_address: Address,
+    pub updated_by: Address,
+    pub timestamp: u64,
+}
+
+/// Minimum market cap updated event
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MinMarketCapUpdated {
+    pub old_min_market_cap: u128,
+    pub new_min_market_cap: u128,
+    pub updated_by: Address,
+    pub timestamp: u64,
+}
+
+/// Oracle price max age updated event
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct OraclePriceMaxAgeUpdated {
+    pub old_max_age: u64,
+    pub new_max_age: u64,
+    pub updated_by: Address,
+    pub timestamp: u64,
+}
+
+/// Fee withdrawal event
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FeesWithdrawn {
+    pub token: Address,
+    pub amount: i128,
+    pub recipient: Address,
+    pub withdrawn_by: Address,
+    pub timestamp: u64,
+}
+
+/// Anti-whale config updated event
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AntiWhaleConfigUpdated {
+    pub updated_by: Address,
+    pub timestamp: u64,
+}
+
+pub fn xlm_address_updated(
+    env: &Env,
+    old_address: Option<&Address>,
+    new_address: &Address,
+    updated_by: &Address,
+) {
+    XlmAddressUpdated {
+        old_address: old_address.cloned(),
+        new_address: new_address.clone(),
+        updated_by: updated_by.clone(),
+        timestamp: env.ledger().timestamp(),
+    }.publish(env);
+}
+
+pub fn graduation_threshold_updated(
+    env: &Env,
+    old_threshold: i128,
+    new_threshold: i128,
+    updated_by: &Address,
+) {
+    GraduationThresholdUpdated {
+        old_threshold,
+        new_threshold,
+        updated_by: updated_by.clone(),
+        timestamp: env.ledger().timestamp(),
+    }.publish(env);
+}
+
+pub fn amm_wasm_hash_updated(env: &Env, updated_by: &Address) {
+    AmmWasmHashUpdated {
+        updated_by: updated_by.clone(),
+        timestamp: env.ledger().timestamp(),
+    }.publish(env);
+}
+
+pub fn oracle_address_updated(
+    env: &Env,
+    old_address: Option<&Address>,
+    new_address: &Address,
+    updated_by: &Address,
+) {
+    OracleAddressUpdated {
+        old_address: old_address.cloned(),
+        new_address: new_address.clone(),
+        updated_by: updated_by.clone(),
+        timestamp: env.ledger().timestamp(),
+    }.publish(env);
+}
+
+pub fn min_market_cap_updated(
+    env: &Env,
+    old_min_market_cap: u128,
+    new_min_market_cap: u128,
+    updated_by: &Address,
+) {
+    MinMarketCapUpdated {
+        old_min_market_cap,
+        new_min_market_cap,
+        updated_by: updated_by.clone(),
+        timestamp: env.ledger().timestamp(),
+    }.publish(env);
+}
+
+pub fn oracle_price_max_age_updated(
+    env: &Env,
+    old_max_age: u64,
+    new_max_age: u64,
+    updated_by: &Address,
+) {
+    OraclePriceMaxAgeUpdated {
+        old_max_age,
+        new_max_age,
+        updated_by: updated_by.clone(),
+        timestamp: env.ledger().timestamp(),
+    }.publish(env);
+}
+
+pub fn fees_withdrawn(
+    env: &Env,
+    token: &Address,
+    amount: i128,
+    recipient: &Address,
+    withdrawn_by: &Address,
+) {
+    FeesWithdrawn {
+        token: token.clone(),
+        amount,
+        recipient: recipient.clone(),
+        withdrawn_by: withdrawn_by.clone(),
+        timestamp: env.ledger().timestamp(),
+    }.publish(env);
+}
+
+pub fn anti_whale_config_updated(env: &Env, updated_by: &Address) {
+    AntiWhaleConfigUpdated {
+        updated_by: updated_by.clone(),
+        timestamp: env.ledger().timestamp(),
+    }.publish(env);
+}
+
+// ========== Emergency Recovery Events ==========
+
+/// Graduation failed event
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct GraduationFailed {
+    pub token: Address,
+    pub xlm_raised: i128,
+    pub reason: String,
+    pub timestamp: u64,
+}
+
+/// Token recovery event (reset to bonding)
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TokenRecovered {
+    pub token: Address,
+    pub recovered_by: Address,
+    pub recovery_type: String,
+    pub timestamp: u64,
+}
+
+/// Graduation retry event
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct GraduationRetried {
+    pub token: Address,
+    pub retried_by: Address,
+    pub timestamp: u64,
+}
+
+pub fn graduation_failed(env: &Env, token: &Address, xlm_raised: i128, reason: &str) {
+    GraduationFailed {
+        token: token.clone(),
+        xlm_raised,
+        reason: String::from_str(env, reason),
+        timestamp: env.ledger().timestamp(),
+    }.publish(env);
+}
+
+pub fn token_recovered(env: &Env, token: &Address, recovered_by: &Address, recovery_type: &str) {
+    TokenRecovered {
+        token: token.clone(),
+        recovered_by: recovered_by.clone(),
+        recovery_type: String::from_str(env, recovery_type),
+        timestamp: env.ledger().timestamp(),
+    }.publish(env);
+}
+
+pub fn graduation_retried(env: &Env, token: &Address, retried_by: &Address) {
+    GraduationRetried {
+        token: token.clone(),
+        retried_by: retried_by.clone(),
+        timestamp: env.ledger().timestamp(),
+    }.publish(env);
+}
+
+// ========== ASTRO Token Integration Events ==========
+
+/// ASTRO configuration updated event
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AstroConfigUpdated {
+    pub token_address: Address,
+    pub amm_address: Address,
+    pub liquidity_bps: i128,
+    pub buyback_bps: i128,
+    pub updated_by: Address,
+    pub timestamp: u64,
+}
+
+/// ASTRO buyback executed event
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AstroBuybackExecuted {
+    pub graduated_token: Address,
+    pub xlm_used: i128,
+    pub astro_burned: i128,
+    pub timestamp: u64,
+}
+
+/// ASTRO liquidity added event (ASTRO/TOKEN pair)
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AstroLiquidityAdded {
+    pub graduated_token: Address,
+    pub astro_amount: i128,
+    pub token_amount: i128,
+    pub amm_pair: Address,
+    pub timestamp: u64,
+}
+
+/// Graduation detailed with ASTRO integration
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct GraduationWithAstro {
+    pub token: Address,
+    pub xlm_raised: i128,
+    pub xlm_main_pool: i128,
+    pub xlm_astro_liquidity: i128,
+    pub xlm_buyback: i128,
+    pub astro_burned: i128,
+    pub timestamp: u64,
+}
+
+pub fn astro_config_updated(
+    env: &Env,
+    token_address: &Address,
+    amm_address: &Address,
+    liquidity_bps: i128,
+    buyback_bps: i128,
+    updated_by: &Address,
+) {
+    AstroConfigUpdated {
+        token_address: token_address.clone(),
+        amm_address: amm_address.clone(),
+        liquidity_bps,
+        buyback_bps,
+        updated_by: updated_by.clone(),
+        timestamp: env.ledger().timestamp(),
+    }.publish(env);
+}
+
+pub fn astro_buyback_executed(
+    env: &Env,
+    graduated_token: &Address,
+    xlm_used: i128,
+    astro_burned: i128,
+) {
+    AstroBuybackExecuted {
+        graduated_token: graduated_token.clone(),
+        xlm_used,
+        astro_burned,
+        timestamp: env.ledger().timestamp(),
+    }.publish(env);
+}
+
+pub fn astro_liquidity_added(
+    env: &Env,
+    graduated_token: &Address,
+    astro_amount: i128,
+    token_amount: i128,
+    amm_pair: &Address,
+) {
+    AstroLiquidityAdded {
+        graduated_token: graduated_token.clone(),
+        astro_amount,
+        token_amount,
+        amm_pair: amm_pair.clone(),
+        timestamp: env.ledger().timestamp(),
+    }.publish(env);
+}
+
+pub fn graduation_with_astro(
+    env: &Env,
+    token: &Address,
+    xlm_raised: i128,
+    xlm_main_pool: i128,
+    xlm_astro_liquidity: i128,
+    xlm_buyback: i128,
+    astro_burned: i128,
+) {
+    GraduationWithAstro {
+        token: token.clone(),
+        xlm_raised,
+        xlm_main_pool,
+        xlm_astro_liquidity,
+        xlm_buyback,
+        astro_burned,
+        timestamp: env.ledger().timestamp(),
+    }.publish(env);
+}
+
+// ========== DEX Bridge Integration Events ==========
+
+/// Token graduated via DEX Bridge
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BridgeGraduation {
+    pub token: Address,
+    pub pair_address: Address,
+    pub xlm_raised: i128,
+    pub timestamp: u64,
+}
+
+/// Bridge configuration updated
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BridgeConfigUpdated {
+    pub old_bridge: Option<Address>,
+    pub new_bridge: Address,
+    pub enabled: bool,
+    pub updated_by: Address,
+    pub timestamp: u64,
+}
+
+pub fn bridge_graduation(
+    env: &Env,
+    token: &Address,
+    pair_address: &Address,
+    xlm_raised: i128,
+) {
+    BridgeGraduation {
+        token: token.clone(),
+        pair_address: pair_address.clone(),
+        xlm_raised,
+        timestamp: env.ledger().timestamp(),
+    }.publish(env);
+}
+
+pub fn bridge_config_updated(
+    env: &Env,
+    old_bridge: Option<&Address>,
+    new_bridge: &Address,
+    enabled: bool,
+    updated_by: &Address,
+) {
+    BridgeConfigUpdated {
+        old_bridge: old_bridge.cloned(),
+        new_bridge: new_bridge.clone(),
+        enabled,
+        updated_by: updated_by.clone(),
+        timestamp: env.ledger().timestamp(),
+    }.publish(env);
+}

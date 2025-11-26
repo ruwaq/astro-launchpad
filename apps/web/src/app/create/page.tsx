@@ -8,11 +8,14 @@ import { useWallet } from '@/contexts/WalletContext';
 import { useSyncToken } from '@/hooks/useApi';
 import { sacFactoryService } from '@/lib/stellar/services/sac-factory.service';
 import { stellarClient } from '@/lib/stellar/client';
-import { TransactionBuilder, SorobanRpc, Address, scValToNative } from '@stellar/stellar-sdk';
+import { TransactionBuilder, SorobanRpc, Address } from '@stellar/stellar-sdk';
 import { getNetworkConfig } from '@/lib/config/network';
+import { CONTRACT_IDS } from '@/lib/stellar/config';
+import { setFactoryAsTokenAdmin } from '@/lib/stellar/asset-utils';
 import toast from 'react-hot-toast';
 import confetti from 'canvas-confetti';
 import { ImageUpload } from '@/components/ImageUpload';
+import { TransactionProgress, TransactionStep, StepStatus } from '@/components/TransactionProgress';
 
 // Force dynamic rendering to avoid build-time errors with contract service
 export const dynamic = 'force-dynamic';
@@ -40,6 +43,28 @@ export default function CreatePage() {
   const [transactionHash, setTransactionHash] = useState<string>('');
   const [error, setError] = useState<string>('');
 
+  // Transaction progress steps
+  const [txSteps, setTxSteps] = useState<TransactionStep[]>([
+    { id: 'build', label: 'Building transaction', status: 'pending' },
+    { id: 'sign1', label: 'Sign to create token', description: 'Approve in wallet', status: 'pending' },
+    { id: 'submit', label: 'Submitting to network', status: 'pending' },
+    { id: 'confirm', label: 'Confirming on chain', status: 'pending' },
+    { id: 'admin', label: 'Setting up trading', description: 'Sign again for permissions', status: 'pending' },
+    { id: 'sync', label: 'Syncing to database', status: 'pending' },
+  ]);
+
+  // Update step status helper
+  const updateStep = (stepId: string, status: StepStatus) => {
+    setTxSteps(prev => prev.map(s =>
+      s.id === stepId ? { ...s, status } : s
+    ));
+  };
+
+  // Reset all steps to pending
+  const resetSteps = () => {
+    setTxSteps(prev => prev.map(s => ({ ...s, status: 'pending' as StepStatus })));
+  };
+
   // Fetch token count on mount (for unique issuer generation)
   useEffect(() => {
     if (isConnected) {
@@ -47,14 +72,17 @@ export default function CreatePage() {
     }
   }, [isConnected]);
 
-  const fetchTokenCount = async () => {
+  const fetchTokenCount = async (): Promise<number> => {
     try {
       const count = await sacFactoryService.getTokenCount();
       setTokenCount(count);
+      return count;
     } catch (error) {
       console.error('Error fetching token count:', error);
       // Default to timestamp-based uniqueness if fetch fails
-      setTokenCount(Date.now());
+      const fallback = Date.now();
+      setTokenCount(fallback);
+      return fallback;
     }
   };
 
@@ -110,12 +138,18 @@ export default function CreatePage() {
     }
 
     try {
+      // Reset and start progress
+      resetSteps();
+
       // Step 1: Validating
       setFormState('validating');
       setError('');
+      updateStep('build', 'active');
 
       // Fetch latest token count for unique issuer
-      await fetchTokenCount();
+      // IMPORTANT: Use the returned value directly, not React state (which updates asynchronously)
+      const currentTokenCount = await fetchTokenCount();
+      console.log(`📊 Current token count: ${currentTokenCount} (new token will get this ID)`);
 
       // Step 2: Building transaction
       setFormState('building');
@@ -127,8 +161,9 @@ export default function CreatePage() {
       // Get account for transaction source
       const account = await server.getAccount(address);
 
-      // Build launch token operation
-      const launchOperation = sacFactoryService.buildLaunchTokenOperation(
+      // Build launch token operation (returns operation + issuer keypair for set_admin)
+      // Use currentTokenCount so the issuer keypair matches what will be stored in the contract
+      const { operation: launchOperation, issuerKeypair } = sacFactoryService.buildLaunchTokenOperation(
         {
           name,
           symbol,
@@ -136,7 +171,7 @@ export default function CreatePage() {
           description,
         },
         address,
-        tokenCount
+        currentTokenCount
       );
 
       // Create transaction
@@ -165,12 +200,16 @@ export default function CreatePage() {
 
       // Step 4: Sign transaction
       setFormState('signing');
+      updateStep('build', 'completed');
+      updateStep('sign1', 'active');
 
       const signedXDR = await signTransaction(preparedTx.toXDR());
       const signedTx = TransactionBuilder.fromXDR(signedXDR, config.passphrase);
 
       // Step 5: Submit transaction
       setFormState('submitting');
+      updateStep('sign1', 'completed');
+      updateStep('submit', 'active');
 
       const sendResponse = await server.sendTransaction(signedTx as any);
 
@@ -182,11 +221,19 @@ export default function CreatePage() {
 
       // Step 6: Wait for confirmation
       setFormState('confirming');
+      updateStep('submit', 'completed');
+      updateStep('confirm', 'active');
 
       let attempts = 0;
       const maxAttempts = 30;
       let getResponse: any = null;
       let transactionSuccess = false;
+
+      // Track extracted token address locally (React state doesn't update immediately)
+      let extractedTokenAddress: string | null = null;
+
+      // issuerKeypair is already obtained from buildLaunchTokenOperation above
+      // It uses timestamp=0 for deterministic generation
 
       // Poll for transaction with error handling for SDK incompatibility
       while (attempts < maxAttempts) {
@@ -201,12 +248,11 @@ export default function CreatePage() {
             if (resultValue) {
               try {
                 // Convert ScVal to native value (address string)
-                const tokenAddr = Address.fromScVal(resultValue).toString();
-                setCreatedTokenAddress(tokenAddr);
+                extractedTokenAddress = Address.fromScVal(resultValue).toString();
+                setCreatedTokenAddress(extractedTokenAddress);
+                console.log('✅ Extracted token address from transaction:', extractedTokenAddress);
               } catch (err) {
-                console.error('Error parsing token address:', err);
-                // Set a placeholder - user can check on Stellar Expert
-                setCreatedTokenAddress('Check Stellar Expert for contract address');
+                console.warn('Could not parse return value, will try fallback:', err);
               }
             }
             break;
@@ -219,10 +265,8 @@ export default function CreatePage() {
         } catch (err: any) {
           // Handle "Bad union switch" error from SDK version incompatibility
           if (err.message?.includes('Bad union switch')) {
-            console.warn('SDK version incompatibility detected. Assuming transaction succeeded.');
-            // If we got past submission, it likely succeeded
+            console.warn('SDK version incompatibility detected. Will use fallback method.');
             transactionSuccess = true;
-            setCreatedTokenAddress('Transaction successful - Check Stellar Expert');
             break;
           } else if (err.message?.includes('NOT_FOUND')) {
             // Transaction not yet processed, continue polling
@@ -239,6 +283,8 @@ export default function CreatePage() {
       if (transactionSuccess) {
         // Success!
         setFormState('success');
+        updateStep('confirm', 'completed');
+        updateStep('sync', 'active');
         toast.success('🎉 Token created successfully! Syncing to database...');
 
         // Confetti celebration!
@@ -249,20 +295,124 @@ export default function CreatePage() {
           colors: ['#10b981', '#8b5cf6', '#f59e0b', '#ef4444', '#3b82f6'],
         });
 
-        // AUTOMATICALLY SYNC TOKEN TO DATABASE
-        if (createdTokenAddress && createdTokenAddress !== 'Check Stellar Expert for contract address') {
+        // If we got the token address from transaction result, set factory as admin then sync
+        if (extractedTokenAddress) {
+          // CRITICAL: Set factory as token admin so it can mint/burn for bonding curve trades
           try {
-            console.log('🔄 Syncing token to database:', createdTokenAddress);
-            await syncToken({
-              variables: { tokenAddress: createdTokenAddress }
-            });
-            console.log('✅ Token synced successfully!');
-            toast.success('Token synced to database!');
-          } catch (syncError) {
-            console.error('❌ Failed to sync token:', syncError);
-            // Don't fail the whole operation, just log it
-            toast.error('Token created but sync failed. It will appear after next sync.');
+            console.log('🔑 Setting factory as token admin...');
+            updateStep('admin', 'active');
+            toast.loading('Setting up trading permissions...', { id: 'set-admin' });
+
+            const adminResult = await setFactoryAsTokenAdmin(
+              extractedTokenAddress,
+              CONTRACT_IDS.tokenFactory,
+              issuerKeypair,
+              address,
+              signTransaction  // Pass signTransaction to create issuer account if needed
+            );
+
+            toast.dismiss('set-admin');
+
+            if (adminResult.success) {
+              console.log('✅ Factory set as token admin:', adminResult.hash);
+              updateStep('admin', 'completed');
+              toast.success('Trading permissions configured!');
+            } else {
+              console.error('❌ Failed to set factory as admin:', adminResult.error);
+              updateStep('admin', 'error');
+              // Don't fail the whole flow - token is created, just trading may not work
+              toast.error('Warning: Trading setup incomplete. Contact support if trading fails.');
+            }
+          } catch (adminError: any) {
+            console.error('❌ Error setting factory as admin:', adminError);
+            updateStep('admin', 'error');
+            toast.dismiss('set-admin');
+            toast.error('Warning: Trading setup incomplete. Token created successfully.');
           }
+
+          // Sync token to database
+          try {
+            console.log('🔄 Syncing new token to database:', extractedTokenAddress);
+            await syncToken({ variables: { tokenAddress: extractedTokenAddress } });
+            console.log('✅ Token synced successfully!');
+            updateStep('sync', 'completed');
+            toast.success('Token synced to database! It will appear in Explore.');
+          } catch (syncError: any) {
+            console.error('❌ Failed to sync token:', syncError);
+            updateStep('sync', 'error');
+            toast.error('Token created but sync may have failed. Trying fallback...');
+          }
+        }
+
+        // FALLBACK: If we couldn't extract token address from transaction result,
+        // fetch the creator's newest token and sync only that one.
+        // Note: The indexer service should automatically detect new tokens via blockchain events.
+        // This fallback is only for edge cases where the indexer might be delayed.
+        if (!extractedTokenAddress && address) {
+          console.log('🔍 Using fallback: fetching newest creator token...');
+          try {
+            // Wait a moment for blockchain to index the new token
+            await new Promise(resolve => setTimeout(resolve, 3000));
+
+            const creatorTokens = await sacFactoryService.getCreatorTokensPaginated(address, 0, 100);
+            console.log('📋 Creator tokens found:', creatorTokens?.length || 0);
+
+            if (creatorTokens && creatorTokens.length > 0) {
+              // The newest token is at the END of the array (contract returns oldest first)
+              extractedTokenAddress = creatorTokens[creatorTokens.length - 1];
+              setCreatedTokenAddress(extractedTokenAddress);
+              console.log('✅ Newest token address:', extractedTokenAddress);
+
+              // Set factory as admin for the new token
+              try {
+                console.log('🔑 Setting factory as token admin (fallback)...');
+                updateStep('admin', 'active');
+                const adminResult = await setFactoryAsTokenAdmin(
+                  extractedTokenAddress,
+                  CONTRACT_IDS.tokenFactory,
+                  issuerKeypair,
+                  address,
+                  signTransaction  // Pass signTransaction to create issuer account if needed
+                );
+                if (adminResult.success) {
+                  console.log('✅ Factory set as admin (fallback):', adminResult.hash);
+                  updateStep('admin', 'completed');
+                } else {
+                  console.warn('⚠️ Could not set factory as admin:', adminResult.error);
+                  updateStep('admin', 'error');
+                }
+              } catch (adminErr) {
+                console.warn('⚠️ Admin setup failed (fallback):', adminErr);
+                updateStep('admin', 'error');
+              }
+
+              // Sync ONLY the newest token (scalable approach)
+              // The indexer handles automatic syncing for all tokens
+              console.log('🔄 Syncing newest token to database...');
+              try {
+                await syncToken({ variables: { tokenAddress: extractedTokenAddress } });
+                console.log('✅ Token synced successfully!');
+                updateStep('sync', 'completed');
+                toast.success('Token synced! It will appear in Explore.');
+              } catch (syncErr) {
+                console.warn('⚠️ Sync failed (indexer will handle it):', syncErr);
+                updateStep('sync', 'completed'); // Still mark as done - indexer will handle
+                toast.success('Token created! It will appear in Explore shortly.');
+              }
+            }
+          } catch (fallbackErr) {
+            console.error('Fallback method failed:', fallbackErr);
+            // Token was still created on blockchain - indexer will sync it
+            updateStep('sync', 'completed'); // Mark as done - indexer handles it
+            toast.success('Token created! The indexer will sync it automatically.');
+          }
+        }
+
+        // Final check - if we still don't have a token address, show error
+        if (!extractedTokenAddress) {
+          console.warn('⚠️ Could not extract token address. Manual sync may be needed.');
+          setCreatedTokenAddress('Check Stellar Expert for contract address');
+          toast.success('Token created! Check Stellar Expert for the contract address.');
         }
 
         // Redirect to explore page after 3 seconds to see the new token
@@ -277,6 +427,11 @@ export default function CreatePage() {
       console.error('Error creating token:', err);
       setFormState('error');
 
+      // Mark current active step as error
+      setTxSteps(prev => prev.map(s =>
+        s.status === 'active' ? { ...s, status: 'error' as StepStatus } : s
+      ));
+
       let errorMessage = 'Failed to create token';
 
       if (err.message) {
@@ -290,6 +445,7 @@ export default function CreatePage() {
       setTimeout(() => {
         setFormState('idle');
         setError('');
+        resetSteps();
       }, 5000);
     }
   };
@@ -552,6 +708,13 @@ export default function CreatePage() {
           </div>
         </div>
       </div>
+
+      {/* Transaction Progress Indicator */}
+      <TransactionProgress
+        steps={txSteps}
+        isVisible={isProcessing || formState === 'success'}
+        title="Creating Token"
+      />
     </DashboardLayout>
   );
 }

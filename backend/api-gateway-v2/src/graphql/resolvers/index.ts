@@ -2,23 +2,19 @@
 /**
  * GraphQL Resolvers
  * Handles all GraphQL queries and mutations
- *
- * NOTE: TypeScript errors on `cacheStrategy` are expected.
- * This property is added at runtime by Prisma Accelerate extension.
  */
 
 import type { GraphQLContext } from '../context.js'
 import type { IResolvers } from 'mercurius'
-import { CACHE_STRATEGIES } from '../../lib/prisma.js'
 import { checkDatabaseHealth } from '../../lib/prisma.js'
 import {
   cacheLeaderboard,
   cacheGlobalStats,
   cacheTrendingTokens,
-  cacheTransactions,
 } from '../cache-helpers.js'
 import { getCacheStats } from '../../lib/cache.js'
-import { feeResolvers } from './fee-resolvers.js'
+import { feeResolvers, feeTypeResolvers } from './fee-resolvers.js'
+import { syncTokenToDatabase } from '../../lib/sync-service.js'
 
 /**
  * Custom scalar resolvers
@@ -49,22 +45,21 @@ const scalarResolvers = {
  * Query resolvers
  */
 const queryResolvers = {
-  // Health check
+  // Health check - real implementation
   health: async (_parent: any, _args: any, context: GraphQLContext) => {
-    const [dbHealthy, cacheStats] = await Promise.all([
-      checkDatabaseHealth(),
-      getCacheStats(),
+    const [dbHealth, cacheStats] = await Promise.all([
+      checkDatabaseHealth().catch(() => false),
+      getCacheStats().catch(() => ({ available: false, type: 'none' as const })),
     ])
 
+    const isHealthy = dbHealth && cacheStats.available
+
     return {
-      status: dbHealthy ? 'healthy' : 'degraded',
+      status: isHealthy ? 'healthy' : 'degraded',
       timestamp: new Date(),
       version: '2.0.0',
-      database: dbHealthy,
-      cache: {
-        available: cacheStats.available,
-        type: cacheStats.type,
-      },
+      database: dbHealth,
+      cache: cacheStats,
     }
   },
 
@@ -72,7 +67,7 @@ const queryResolvers = {
   token: async (_parent: any, args: { address: string }, context: GraphQLContext) => {
     return context.prisma.token.findUnique({
       where: { address: args.address },
-      cacheStrategy: CACHE_STRATEGIES.MEDIUM_TTL,
+      
     })
   },
 
@@ -86,57 +81,73 @@ const queryResolvers = {
     },
     context: GraphQLContext
   ) => {
-    const limit = args.limit || 20
-    const offset = args.offset || 0
+    try {
+      const limit = args.limit || 20
+      const offset = args.offset || 0
 
-    // Build where clause for search
-    const where = args.search
-      ? {
+      // Build where clause for search
+      const where = args.search
+        ? {
           OR: [
             { name: { contains: args.search, mode: 'insensitive' as const } },
             { symbol: { contains: args.search, mode: 'insensitive' as const } },
           ],
         }
-      : {}
+        : {}
 
-    // Build orderBy
-    const orderByMap: Record<string, any> = {
-      CREATED_AT_DESC: { createdAt: 'desc' },
-      CREATED_AT_ASC: { createdAt: 'asc' },
-      MARKET_CAP_DESC: { marketCap: 'desc' },
-      VOLUME_DESC: { volume24h: 'desc' },
-      HOLDERS_DESC: { holders: 'desc' },
-    }
-    const orderBy = orderByMap[args.orderBy || 'CREATED_AT_DESC'] || { createdAt: 'desc' }
+      // Build orderBy
+      const orderByMap: Record<string, any> = {
+        CREATED_AT_DESC: { createdAt: 'desc' },
+        CREATED_AT_ASC: { createdAt: 'asc' },
+        MARKET_CAP_DESC: { marketCap: 'desc' },
+        VOLUME_DESC: { volume24h: 'desc' },
+        HOLDERS_DESC: { holders: 'desc' },
+      }
+      const orderBy = orderByMap[args.orderBy || 'CREATED_AT_DESC'] || { createdAt: 'desc' }
 
-    // Execute queries in parallel
-    const [edges, total] = await Promise.all([
-      context.prisma.token.findMany({
-        where,
-        take: limit,
-        skip: offset,
-        orderBy,
-        cacheStrategy: CACHE_STRATEGIES.SHORT_TTL,
-      }),
-      context.prisma.token.count({
-        where,
-        cacheStrategy: CACHE_STRATEGIES.SHORT_TTL,
-      }),
-    ])
+      // Execute queries in parallel
+      const [edges, total] = await Promise.all([
+        context.prisma.token.findMany({
+          where,
+          take: limit,
+          skip: offset,
+          orderBy,
+          
+        }),
+        context.prisma.token.count({
+          where,
+          
+        }),
+      ])
 
-    return {
-      edges: edges.map((node, index) => ({
-        cursor: Buffer.from(`${offset + index}`).toString('base64'),
-        node,
-      })),
-      pageInfo: {
-        hasNextPage: offset + limit < total,
-        hasPreviousPage: offset > 0,
-        startCursor: edges.length > 0 ? Buffer.from(`${offset}`).toString('base64') : null,
-        endCursor: edges.length > 0 ? Buffer.from(`${offset + edges.length - 1}`).toString('base64') : null,
-        total,
-      },
-      totalCount: total,
+      return {
+        edges: (edges || []).map((node, index) => ({
+          cursor: Buffer.from(`${offset + index}`).toString('base64'),
+          node,
+        })),
+        pageInfo: {
+          hasNextPage: offset + limit < total,
+          hasPreviousPage: offset > 0,
+          startCursor: edges && edges.length > 0 ? Buffer.from(`${offset}`).toString('base64') : null,
+          endCursor: edges && edges.length > 0 ? Buffer.from(`${offset + edges.length - 1}`).toString('base64') : null,
+          total: total || 0,
+        },
+        totalCount: total || 0,
+      }
+    } catch (error) {
+      console.error('[Tokens] Query error:', error)
+      // Return empty result to satisfy non-null schema requirement
+      return {
+        edges: [],
+        pageInfo: {
+          hasNextPage: false,
+          hasPreviousPage: false,
+          startCursor: null,
+          endCursor: null,
+          total: 0,
+        },
+        totalCount: 0,
+      }
     }
   },
 
@@ -145,28 +156,37 @@ const queryResolvers = {
     args: { limit?: number },
     context: GraphQLContext
   ) => {
-    const limit = args.limit || 10
+    try {
+      const limit = args.limit || 10
 
-    // Use Redis cache for trending tokens (expensive query)
-    return cacheTrendingTokens(limit, async () => {
-      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+      // Use Redis cache for trending tokens (expensive query)
+      const result = await cacheTrendingTokens(limit, async () => {
+        const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
 
-      return context.prisma.token.findMany({
-        where: {
-          createdAt: { gte: sevenDaysAgo },
-        },
-        orderBy: [{ volume24h: 'desc' }, { holders: 'desc' }],
-        take: limit,
-        cacheStrategy: CACHE_STRATEGIES.SHORT_TTL,
+        const tokens = await context.prisma.token.findMany({
+          where: {
+            createdAt: { gte: sevenDaysAgo },
+          },
+          orderBy: [{ volume24h: 'desc' }, { holders: 'desc' }],
+          take: limit,
+          
+        })
+
+        return tokens || []
       })
-    })
+
+      return result || []
+    } catch (error) {
+      console.error('[TrendingTokens] Query error:', error)
+      return []
+    }
   },
 
   // Pool queries
   pool: async (_parent: any, args: { address: string }, context: GraphQLContext) => {
     return context.prisma.pool.findUnique({
       where: { address: args.address },
-      cacheStrategy: CACHE_STRATEGIES.MEDIUM_TTL,
+      
     })
   },
 
@@ -183,10 +203,10 @@ const queryResolvers = {
         take: limit,
         skip: offset,
         orderBy: { tvl: 'desc' },
-        cacheStrategy: CACHE_STRATEGIES.SHORT_TTL,
+        
       }),
       context.prisma.pool.count({
-        cacheStrategy: CACHE_STRATEGIES.SHORT_TTL,
+        
       }),
     ])
 
@@ -210,7 +230,7 @@ const queryResolvers = {
   user: async (_parent: any, args: { address: string }, context: GraphQLContext) => {
     return context.prisma.user.findUnique({
       where: { address: args.address },
-      cacheStrategy: CACHE_STRATEGIES.MEDIUM_TTL,
+      
     })
   },
 
@@ -223,136 +243,162 @@ const queryResolvers = {
     const type = args.type || 'TRADERS'
     const timeframe = args.timeframe || 'DAY'
 
-    // Use Redis cache for leaderboard (expensive aggregation query)
-    return cacheLeaderboard(type, limit, async () => {
-      // Calculate timeframe filter
-      const now = new Date()
-      let startTime: Date
+    try {
+      // Use Redis cache for leaderboard (expensive aggregation query)
+      const result = await cacheLeaderboard(type, limit, async () => {
+        // Calculate timeframe filter
+        const now = new Date()
+        let startTime: Date
 
-      switch (timeframe) {
-        case 'HOUR':
-          startTime = new Date(now.getTime() - 60 * 60 * 1000)
-          break
-        case 'DAY':
-          startTime = new Date(now.getTime() - 24 * 60 * 60 * 1000)
-          break
-        case 'WEEK':
-          startTime = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
-          break
-        case 'MONTH':
-          startTime = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
-          break
-        case 'ALL_TIME':
-          startTime = new Date(0)
-          break
-        default:
-          startTime = new Date(now.getTime() - 24 * 60 * 60 * 1000)
-      }
+        switch (timeframe) {
+          case 'HOUR':
+            startTime = new Date(now.getTime() - 60 * 60 * 1000)
+            break
+          case 'DAY':
+            startTime = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+            break
+          case 'WEEK':
+            startTime = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+            break
+          case 'MONTH':
+            startTime = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+            break
+          case 'ALL_TIME':
+            startTime = new Date(0)
+            break
+          default:
+            startTime = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+        }
 
-      if (type === 'TRADERS') {
-        // Optimized SQL aggregation for traders
-        // GROUP BY user address, calculate volume, trades, and P/L
-        const results: any[] = await context.prisma.$queryRaw`
-          SELECT
-            t."from" as address,
-            COUNT(*) as trades_count,
-            SUM(CAST(t.amount AS DECIMAL)) as total_volume,
-            SUM(
-              CASE
-                WHEN t.type = 'TOKEN_BOUGHT' THEN -CAST(t.amount AS DECIMAL)
-                WHEN t.type = 'TOKEN_SOLD' THEN CAST(t.amount AS DECIMAL)
-                ELSE 0
-              END
-            ) as profit_loss
-          FROM "Transaction" t
-          WHERE
-            t.type IN ('TOKEN_BOUGHT', 'TOKEN_SOLD')
-            AND t.status = 'SUCCESS'
-            AND t.timestamp >= ${startTime}
-          GROUP BY t."from"
-          HAVING SUM(CAST(t.amount AS DECIMAL)) > 0
-          ORDER BY total_volume DESC
-          LIMIT ${limit}
-        `
+        if (type === 'TRADERS') {
+          try {
+            // Optimized SQL aggregation for traders
+            const results: any[] = await context.prisma.$queryRaw`
+              SELECT
+                t."from" as address,
+                COUNT(*) as trades_count,
+                COALESCE(SUM(CAST(NULLIF(t.amount, '') AS DECIMAL)), 0) as total_volume,
+                COALESCE(SUM(
+                  CASE
+                    WHEN t.type = 'TOKEN_BOUGHT' THEN -CAST(NULLIF(t.amount, '') AS DECIMAL)
+                    WHEN t.type = 'TOKEN_SOLD' THEN CAST(NULLIF(t.amount, '') AS DECIMAL)
+                    ELSE 0
+                  END
+                ), 0) as profit_loss
+              FROM "Transaction" t
+              WHERE
+                t.type IN ('TOKEN_BOUGHT', 'TOKEN_SOLD')
+                AND t.status = 'SUCCESS'
+                AND t.timestamp >= ${startTime}
+              GROUP BY t."from"
+              HAVING COALESCE(SUM(CAST(NULLIF(t.amount, '') AS DECIMAL)), 0) > 0
+              ORDER BY total_volume DESC
+              LIMIT ${limit}
+            `
 
-        // Get user data for each address
-        const addresses = results.map((r: any) => r.address)
-        const users = await context.prisma.user.findMany({
-          where: { address: { in: addresses } },
-          cacheStrategy: CACHE_STRATEGIES.SHORT_TTL,
-        })
+            if (!results || results.length === 0) {
+              return []
+            }
 
-        const userMap = new Map(users.map(u => [u.address, u]))
+            // Get user data for each address
+            const addresses = results.map((r: any) => r.address).filter(Boolean)
+            const users = addresses.length > 0 ? await context.prisma.user.findMany({
+              where: { address: { in: addresses } },
+              
+            }) : []
 
-        return results.map((result: any, index: number) => ({
-          rank: index + 1,
-          address: result.address,
-          user: userMap.get(result.address) || {
-            id: result.address,
-            address: result.address,
-            points: 0,
-            level: 1,
-            referrals: 0,
-            tokensCreatedCount: 0,
-            totalVolumeTraded: '0',
-            totalLiquidityProvided: '0',
-            createdAt: now,
-          },
-          volume24h: result.total_volume.toString(),
-          trades24h: parseInt(result.trades_count),
-          profitLoss24h: result.profit_loss.toString(),
-          volumeChange24h: 0,
-          rankChange24h: 0,
-        }))
-      } else if (type === 'CREATORS') {
-        // Optimized for creators
-        const results: any[] = await context.prisma.$queryRaw`
-          SELECT
-            t.creator as address,
-            COUNT(*) as tokens_created,
-            SUM(CAST(t."volume24h" AS DECIMAL)) as total_volume_generated
-          FROM "Token" t
-          WHERE t."createdAt" >= ${startTime}
-          GROUP BY t.creator
-          ORDER BY tokens_created DESC, total_volume_generated DESC
-          LIMIT ${limit}
-        `
+            const userMap = new Map(users.map(u => [u.address, u]))
 
-        const addresses = results.map((r: any) => r.address)
-        const users = await context.prisma.user.findMany({
-          where: { address: { in: addresses } },
-          cacheStrategy: CACHE_STRATEGIES.SHORT_TTL,
-        })
+            return results.map((result: any, index: number) => ({
+              rank: index + 1,
+              address: result.address,
+              user: userMap.get(result.address) || {
+                id: result.address,
+                address: result.address,
+                points: 0,
+                level: 1,
+                referrals: 0,
+                tokensCreatedCount: 0,
+                totalVolumeTraded: '0',
+                totalLiquidityProvided: '0',
+                createdAt: now,
+              },
+              volume24h: (result.total_volume || 0).toString(),
+              trades24h: parseInt(result.trades_count) || 0,
+              profitLoss24h: (result.profit_loss || 0).toString(),
+              volumeChange24h: 0,
+              rankChange24h: 0,
+            }))
+          } catch (err) {
+            console.error('[Leaderboard] TRADERS query error:', err)
+            return []
+          }
+        } else if (type === 'CREATORS') {
+          try {
+            // Optimized for creators
+            const results: any[] = await context.prisma.$queryRaw`
+              SELECT
+                t.creator as address,
+                COUNT(*) as tokens_created,
+                COALESCE(SUM(CAST(NULLIF(t."volume24h", '') AS DECIMAL)), 0) as total_volume_generated
+              FROM "Token" t
+              WHERE t."createdAt" >= ${startTime}
+              GROUP BY t.creator
+              ORDER BY tokens_created DESC, total_volume_generated DESC
+              LIMIT ${limit}
+            `
 
-        const userMap = new Map(users.map(u => [u.address, u]))
+            if (!results || results.length === 0) {
+              return []
+            }
 
-        return results.map((result: any, index: number) => ({
-          rank: index + 1,
-          address: result.address,
-          user: userMap.get(result.address) || {
-            id: result.address,
-            address: result.address,
-            points: 0,
-            level: 1,
-            referrals: 0,
-            tokensCreatedCount: parseInt(result.tokens_created),
-            totalVolumeTraded: '0',
-            totalLiquidityProvided: '0',
-            createdAt: now,
-          },
-          volume24h: '0',
-          trades24h: 0,
-          profitLoss24h: '0',
-          tokensCreated: parseInt(result.tokens_created),
-          totalVolumeGenerated: result.total_volume_generated.toString(),
-          volumeChange24h: 0,
-          rankChange24h: 0,
-        }))
-      } else {
-        // Fallback para otros tipos
-        return []
-      }
-    })
+            const addresses = results.map((r: any) => r.address).filter(Boolean)
+            const users = addresses.length > 0 ? await context.prisma.user.findMany({
+              where: { address: { in: addresses } },
+              
+            }) : []
+
+            const userMap = new Map(users.map(u => [u.address, u]))
+
+            return results.map((result: any, index: number) => ({
+              rank: index + 1,
+              address: result.address,
+              user: userMap.get(result.address) || {
+                id: result.address,
+                address: result.address,
+                points: 0,
+                level: 1,
+                referrals: 0,
+                tokensCreatedCount: parseInt(result.tokens_created) || 0,
+                totalVolumeTraded: '0',
+                totalLiquidityProvided: '0',
+                createdAt: now,
+              },
+              volume24h: '0',
+              trades24h: 0,
+              profitLoss24h: '0',
+              tokensCreated: parseInt(result.tokens_created) || 0,
+              totalVolumeGenerated: (result.total_volume_generated || 0).toString(),
+              volumeChange24h: 0,
+              rankChange24h: 0,
+            }))
+          } catch (err) {
+            console.error('[Leaderboard] CREATORS query error:', err)
+            return []
+          }
+        } else {
+          // Fallback para otros tipos (LIQUIDITY_PROVIDERS, VIRAL_TOKENS)
+          return []
+        }
+      })
+
+      // Ensure we always return an array
+      return result || []
+    } catch (error) {
+      console.error('[Leaderboard] Error:', error)
+      // Return empty array on error to satisfy non-null schema requirement
+      return []
+    }
   },
 
   // Transaction queries
@@ -390,11 +436,11 @@ const queryResolvers = {
         take: limit,
         skip: offset,
         orderBy: { timestamp: 'desc' },
-        cacheStrategy: CACHE_STRATEGIES.SHORT_TTL,
+        
       }),
       context.prisma.transaction.count({
         where,
-        cacheStrategy: CACHE_STRATEGIES.SHORT_TTL,
+        
       }),
     ])
 
@@ -419,16 +465,16 @@ const queryResolvers = {
     // Use Redis cache for global stats (expensive aggregation)
     return cacheGlobalStats(async () => {
       const [totalTokens, totalPools, totalUsers, tokens, pools] = await Promise.all([
-        context.prisma.token.count({ cacheStrategy: CACHE_STRATEGIES.SHORT_TTL }),
-        context.prisma.pool.count({ cacheStrategy: CACHE_STRATEGIES.SHORT_TTL }),
-        context.prisma.user.count({ cacheStrategy: CACHE_STRATEGIES.SHORT_TTL }),
+        context.prisma.token.count(),
+        context.prisma.pool.count(),
+        context.prisma.user.count(),
         context.prisma.token.findMany({
           select: { volume24h: true },
-          cacheStrategy: CACHE_STRATEGIES.SHORT_TTL,
+          
         }),
         context.prisma.pool.findMany({
           select: { tvl: true },
-          cacheStrategy: CACHE_STRATEGIES.SHORT_TTL,
+          
         }),
       ])
 
@@ -459,23 +505,44 @@ const mutationResolvers = {
     const { tokenAddress } = args
 
     try {
-      // TODO: Re-enable after fixing shared/scripts import path
-      // const { processToken } = await import('../../../shared/scripts/sync-tokens.js')
-      // await processToken(tokenAddress)
+      console.log(`[GraphQL] syncToken called for: ${tokenAddress}`)
 
-      // Return token from database (if exists)
+      // Use the sync service to fetch from blockchain and store in DB
+      const result = await syncTokenToDatabase(tokenAddress, context.prisma)
+
+      if (!result.success) {
+        // Even if sync failed, try to return existing token from DB
+        const existingToken = await context.prisma.token.findUnique({
+          where: { address: tokenAddress },
+          
+        })
+
+        if (existingToken) {
+          console.log(`[GraphQL] Returning existing token from DB`)
+          return existingToken
+        }
+
+        throw new Error(result.message)
+      }
+
+      // Return the synced token
+      if (result.token) {
+        return result.token
+      }
+
+      // Fallback: fetch from DB
       const token = await context.prisma.token.findUnique({
         where: { address: tokenAddress },
-        cacheStrategy: CACHE_STRATEGIES.SHORT_TTL,
+        
       })
 
       if (!token) {
-        throw new Error(`Token ${tokenAddress} not found in database. Manual sync required.`)
+        throw new Error(`Token ${tokenAddress} not found after sync`)
       }
 
       return token
     } catch (error: any) {
-      console.error(`Failed to sync token ${tokenAddress}:`, error)
+      console.error(`[GraphQL] Failed to sync token ${tokenAddress}:`, error)
       throw new Error(`Failed to sync token: ${error.message}`)
     }
   },
@@ -565,6 +632,9 @@ const fieldResolvers = {
 
 /**
  * Combine all resolvers
+ * IMPORTANT: Order matters - fieldResolvers and feeTypeResolvers contain
+ * type-specific resolvers (Token, Pool, User, FeeCollection, etc.)
+ * Query and Mutation must be explicitly combined, not spread from feeResolvers
  */
 export const resolvers: IResolvers = {
   ...scalarResolvers,
@@ -577,5 +647,5 @@ export const resolvers: IResolvers = {
     ...feeResolvers.Mutation,
   },
   ...fieldResolvers,
-  ...feeResolvers,
+  ...feeTypeResolvers, // Only type resolvers (FeeCollection, TokenFeePerformance), NOT Query/Mutation
 } as any // Type assertion needed due to custom context type

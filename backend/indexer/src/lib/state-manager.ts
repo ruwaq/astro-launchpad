@@ -3,7 +3,7 @@
  * Persists indexer state (last indexed ledger) for resumption
  */
 
-import { PrismaClient } from '@prisma/client'
+import { PrismaClient } from '@astroshibapop/shared/prisma'
 import { logger } from './logger.js'
 import { updateLastIndexedLedger, updateIndexingLag } from './metrics.js'
 

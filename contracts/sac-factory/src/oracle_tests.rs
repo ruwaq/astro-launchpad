@@ -9,18 +9,19 @@ mod oracle_tests {
         Address, BytesN, Env,
     };
 
-    fn create_factory(env: &Env) -> (SacFactoryClient, Address, Address) {
+    fn create_factory(env: &Env) -> (SacFactoryClient, Address, Address, Address) {
         let contract_id = env.register(SacFactory, ());
         let client = SacFactoryClient::new(env, &contract_id);
         let admin = Address::generate(env);
         let treasury = Address::generate(env);
-        (client, admin, treasury)
+        let xlm_token_address = Address::generate(env);
+        (client, admin, treasury, xlm_token_address)
     }
 
     fn setup_factory(env: &Env) -> (SacFactoryClient, Address, Address) {
-        let (client, admin, treasury) = create_factory(env);
+        let (client, admin, treasury, xlm_token_address) = create_factory(env);
         env.mock_all_auths();
-        client.initialize(&admin, &treasury);
+        client.initialize(&admin, &treasury, &xlm_token_address);
         (client, admin, treasury)
     }
 

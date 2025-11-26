@@ -4,7 +4,8 @@
  * Fetches data directly from SAC Factory contract on Stellar Testnet
  * NO mock data, NO placeholders
  *
- * Contract: CBTFVJEYLMDHDFTKLO4PR7MHPFVNISOYYBJQSCNCQXWX2WMXXXJAZWT2
+ * Contract: CC3OFGFRFYZ4XN5AWTQNSZBEA4AP62GKHYF6YUFSMM2B4A6VUQLU3ZPV
+ * Updated: November 25, 2024 (ASTRO Integration)
  */
 
 import { create } from 'zustand';

@@ -1,0 +1,123 @@
+# Docker Compose for Development
+# Uses mounted volumes for hot-reload
+# Run with: docker compose -f docker-compose.dev.yml up
+
+services:
+  # ===================
+  # Infrastructure
+  # ===================
+  postgres:
+    image: postgres:15-alpine
+    container_name: astroshibapop-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: astroshibapop
+      POSTGRES_USER: astro
+      POSTGRES_PASSWORD: shibapop_dev_password
+    ports:
+      - '5433:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U astro -d astroshibapop']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - astro-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: astroshibapop-redis
+    restart: unless-stopped
+    ports:
+      - '6380:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - astro-network
+
+  adminer:
+    image: adminer:latest
+    container_name: astroshibapop-adminer
+    restart: unless-stopped
+    ports:
+      - '8080:8080'
+    depends_on:
+      - postgres
+    networks:
+      - astro-network
+
+  # ===================
+  # Backend API (Development)
+  # ===================
+  api:
+    image: node:20-slim
+    container_name: astroshibapop-api
+    working_dir: /app
+    command: bash -c "apt-get update && apt-get install -y python3 make g++ openssl libssl-dev && corepack enable && corepack prepare pnpm@9.7.1 --activate && pnpm install && cd backend/shared && pnpm run db:generate && cd ../api-gateway-v2 && pnpm run dev"
+    ports:
+      - '4000:4000'
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/backend/api-gateway-v2/node_modules
+      - /app/backend/shared/node_modules
+    environment:
+      NODE_ENV: development
+      PORT: 4000
+      HOST: 0.0.0.0
+      DATABASE_URL: postgresql://astro:shibapop_dev_password@postgres:5432/astroshibapop
+      REDIS_URL: redis://redis:6379
+      STELLAR_NETWORK: testnet
+      STELLAR_RPC_URL: https://soroban-testnet.stellar.org
+      STELLAR_NETWORK_PASSPHRASE: "Test SDF Network ; September 2015"
+      STELLAR_HORIZON_URL: https://horizon-testnet.stellar.org
+      JWT_SECRET: docker-dev-jwt-secret
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - astro-network
+
+  # ===================
+  # Frontend Web (Development)
+  # ===================
+  web:
+    image: node:20-slim
+    container_name: astroshibapop-web
+    working_dir: /app
+    command: bash -c "apt-get update && apt-get install -y python3 make g++ openssl && corepack enable && corepack prepare pnpm@9.7.1 --activate && pnpm install && cd apps/web && pnpm run dev"
+    ports:
+      - '3000:3000'
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/apps/web/node_modules
+      - /app/apps/web/.next
+    environment:
+      NODE_ENV: development
+      NEXT_PUBLIC_API_URL: http://localhost:4000/graphql
+      NEXT_PUBLIC_NETWORK: testnet
+      STELLAR_NETWORK: testnet
+      STELLAR_RPC_URL: https://soroban-testnet.stellar.org
+      STELLAR_NETWORK_PASSPHRASE: "Test SDF Network ; September 2015"
+    depends_on:
+      - api
+    networks:
+      - astro-network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  astro-network:
+    driver: bridge

@@ -18,12 +18,12 @@
  */
 
 import { PrismaClient } from '@prisma/client';
-import { SorobanRpc, Contract, Address, xdr, scValToNative } from '@stellar/stellar-sdk';
+import { SorobanRpc, Contract, Address, scValToNative } from '@stellar/stellar-sdk';
 
 const prisma = new PrismaClient();
 
 // Configuration
-const CONTRACT_ID = process.env.TOKEN_FACTORY_CONTRACT_ID || 'CBTFVJEYLMDHDFTKLO4PR7MHPFVNISOYYBJQSCNCQXWX2WMXXXJAZWT2';
+const CONTRACT_ID = process.env.TOKEN_FACTORY_CONTRACT_ID || 'CC3OFGFRFYZ4XN5AWTQNSZBEA4AP62GKHYF6YUFSMM2B4A6VUQLU3ZPV';
 const RPC_URL = process.env.STELLAR_RPC_URL || 'https://soroban-testnet.stellar.org';
 const NETWORK_PASSPHRASE = process.env.STELLAR_NETWORK_PASSPHRASE || 'Test SDF Network ; September 2015';
 
@@ -107,8 +107,8 @@ async function getAllTokenAddressesFromEvents(): Promise<Set<string>> {
     // Approximate: 5 seconds per ledger = ~12,000 ledgers per day
     const idealStartLedger = endLedger - (7 * 24 * 60 * 12);
 
-    // Use oldestLedger if available, otherwise use idealStartLedger
-    const startLedger = latestLedger.oldestLedger || Math.max(idealStartLedger, endLedger - 120000);
+    // Use idealStartLedger calculation
+    const startLedger = Math.max(idealStartLedger, endLedger - 120000);
 
     console.log(`  📊 Querying ledgers ${startLedger} to ${endLedger}`);
 

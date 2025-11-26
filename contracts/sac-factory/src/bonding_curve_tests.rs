@@ -6,7 +6,7 @@ mod bonding_curve_tests {
     use crate::bonding_curve::BondingCurve;
     use crate::errors::Error;
 
-    const BONDING_CURVE_SUPPLY: i128 = 800_000_000_0000000; // 800M tokens
+    const BONDING_CURVE_SUPPLY: i128 = 168_000_000_0000000; // 168M tokens (80% of 210M - Bitcoin number)
 
     // ========== Creation Tests ==========
 

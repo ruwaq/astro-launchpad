@@ -1,15 +1,17 @@
 'use client';
 
-import { useTrendingTokens } from '@/hooks/useApi';
-import { formatCompactNumber, truncateAddress } from '@/lib/stellar/utils';
+import { memo } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
+import { useTrendingTokens } from '@/hooks/useApi';
+import { formatCompactNumber } from '@/lib/stellar/utils';
 
 export function TokensWidget() {
   // Fetch trending tokens (ALL tokens from platform, not filtered by user)
   const { data, loading } = useTrendingTokens(10);
 
-  // edges is already an array of Token objects (not {node: Token})
-  const tokens = data?.tokens?.edges || [];
+  // trendingTokens returns a direct array of Token objects (not a Connection)
+  const tokens = data?.trendingTokens || [];
 
   if (loading) {
     return (
@@ -55,10 +57,13 @@ export function TokensWidget() {
                   </div>
 
                   {token.imageUrl && (
-                    <img
+                    <Image
                       src={token.imageUrl}
                       alt={token.symbol}
-                      className="w-10 h-10 rounded-full"
+                      width={40}
+                      height={40}
+                      className="rounded-full"
+                      unoptimized
                     />
                   )}
 

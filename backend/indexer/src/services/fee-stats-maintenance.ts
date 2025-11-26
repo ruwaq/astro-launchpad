@@ -13,7 +13,7 @@
  *   await maintenance.startCronJobs()
  */
 
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '@astroshibapop/shared/prisma';
 import { logger } from '../lib/logger.js';
 import { FeeStatsService } from './fee-stats.service.js';
 import cron from 'node-cron';

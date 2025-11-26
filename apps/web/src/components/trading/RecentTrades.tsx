@@ -17,19 +17,19 @@ const RECENT_TRADES_QUERY = gql`
     token(address: $tokenAddress) {
       address
       symbol
-      transactions(first: 20, orderBy: { field: CREATED_AT, direction: DESC }) {
-        edges {
-          node {
-            id
-            type
-            user
-            amount0
-            amount1
-            amountUSD
-            txHash
-            timestamp
-            createdAt
-          }
+    }
+    transactions(tokenAddress: $tokenAddress, limit: 20) {
+      edges {
+        cursor
+        node {
+          id
+          hash
+          type
+          from
+          to
+          amount
+          status
+          timestamp
         }
       }
     }
@@ -44,7 +44,7 @@ export function RecentTrades({ tokenAddress }: RecentTradesProps) {
   // Fetch real trades from GraphQL
   const { data, loading, error } = useQuery(RECENT_TRADES_QUERY, {
     variables: { tokenAddress },
-    pollInterval: 3000, // Update every 3 seconds for real-time feed
+    pollInterval: 15000, // Update every 15 seconds (reduced from 3s to minimize API load)
   });
 
   if (loading) {
@@ -69,7 +69,7 @@ export function RecentTrades({ tokenAddress }: RecentTradesProps) {
     );
   }
 
-  const trades = data?.token?.transactions?.edges || [];
+  const trades = data?.transactions?.edges || [];
   const tokenSymbol = data?.token?.symbol || 'TOKEN';
 
   if (trades.length === 0) {
@@ -100,15 +100,14 @@ export function RecentTrades({ tokenAddress }: RecentTradesProps) {
 
       <div className="space-y-2 max-h-96 overflow-y-auto">
         {trades.map(({ node: trade }: any) => {
-          const isBuy = trade.type === 'TOKEN_BOUGHT';
-          const xlmAmount = parseFloat(trade.amount0 || '0');
-          const tokenAmount = parseFloat(trade.amount1 || '0');
-          const timestamp = new Date(trade.timestamp || trade.createdAt);
+          const isBuy = trade.type === 'BUY';
+          const amount = parseFloat(trade.amount || '0');
+          const timestamp = new Date(trade.timestamp);
           const timeAgo = formatDistanceToNow(timestamp, { addSuffix: true });
 
           // Truncate wallet address
-          const walletShort = trade.user
-            ? `${trade.user.slice(0, 4)}...${trade.user.slice(-4)}`
+          const walletShort = trade.from
+            ? `${trade.from.slice(0, 4)}...${trade.from.slice(-4)}`
             : 'Unknown';
 
           return (
@@ -145,15 +144,7 @@ export function RecentTrades({ tokenAddress }: RecentTradesProps) {
 
                   {/* Amounts */}
                   <div className="text-xs text-ui-text-secondary mt-0.5">
-                    {isBuy ? (
-                      <>
-                        {xlmAmount.toFixed(2)} XLM → {tokenAmount.toFixed(2)} {tokenSymbol}
-                      </>
-                    ) : (
-                      <>
-                        {tokenAmount.toFixed(2)} {tokenSymbol} → {xlmAmount.toFixed(2)} XLM
-                      </>
-                    )}
+                    {amount.toFixed(4)} {tokenSymbol}
                   </div>
                 </div>
               </div>
@@ -161,9 +152,9 @@ export function RecentTrades({ tokenAddress }: RecentTradesProps) {
               {/* Time & Link */}
               <div className="flex items-center gap-2">
                 <span className="text-xs text-ui-text-tertiary">{timeAgo}</span>
-                {trade.txHash && (
+                {trade.hash && (
                   <a
-                    href={`https://stellar.expert/explorer/testnet/tx/${trade.txHash}`}
+                    href={`https://stellar.expert/explorer/testnet/tx/${trade.hash}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-ui-text-tertiary hover:text-brand-primary transition-colors"

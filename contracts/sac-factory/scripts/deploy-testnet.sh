@@ -65,19 +65,10 @@ echo ""
 # Step 2: Fund account (if needed)
 echo -e "${YELLOW}[2/6] Checking account balance...${NC}"
 
-BALANCE=$(stellar account balance --id $DEPLOYER_ADDRESS --network $NETWORK 2>&1 || echo "0")
-
-if [[ "$BALANCE" == *"account not found"* ]] || [[ "$BALANCE" == "0" ]]; then
-    echo -e "${YELLOW}⚠️  Account needs funding${NC}"
-    echo "Fund your account at:"
-    echo "https://laboratory.stellar.org/#account-creator?network=testnet"
-    echo "Address: $DEPLOYER_ADDRESS"
-    echo ""
-    read -p "Press ENTER after funding your account..."
-else
-    echo "✅ Account balance: $BALANCE XLM"
-fi
-
+# Skip balance check since 'stellar account' command might not exist in this version
+echo "Skipping balance check (please ensure account is funded)"
+echo "Address: $DEPLOYER_ADDRESS"
+echo "Fund at: https://laboratory.stellar.org/#account-creator?network=testnet"
 echo ""
 
 # Step 3: Build contract (ensure latest)
@@ -92,10 +83,12 @@ echo -e "${YELLOW}[4/6] Deploying WASM to testnet...${NC}"
 CONTRACT_ID=$(stellar contract deploy \
     --wasm $WASM_PATH \
     --source $IDENTITY \
-    --network $NETWORK 2>&1 || echo "ERROR")
+    --network $NETWORK \
+    --network-passphrase "Test SDF Network ; September 2015" 2>&1 | tail -1)
 
-if [[ "$CONTRACT_ID" == "ERROR" ]] || [[ -z "$CONTRACT_ID" ]]; then
+if [[ "$CONTRACT_ID" == *"error"* ]] || [[ -z "$CONTRACT_ID" ]]; then
     echo -e "${RED}❌ Deployment failed${NC}"
+    echo "$CONTRACT_ID"
     exit 1
 fi
 
@@ -110,6 +103,7 @@ INIT_RESULT=$(stellar contract invoke \
     --id $CONTRACT_ID \
     --source $IDENTITY \
     --network $NETWORK \
+    --network-passphrase "Test SDF Network ; September 2015" \
     -- initialize \
     --admin $DEPLOYER_ADDRESS \
     --treasury $TREASURY_ADDRESS 2>&1 || echo "ERROR")
@@ -130,6 +124,7 @@ TOKEN_COUNT=$(stellar contract invoke \
     --id $CONTRACT_ID \
     --source $IDENTITY \
     --network $NETWORK \
+    --network-passphrase "Test SDF Network ; September 2015" \
     -- get_token_count 2>&1 || echo "ERROR")
 
 if [[ "$TOKEN_COUNT" == "0" ]]; then

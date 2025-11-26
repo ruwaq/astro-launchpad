@@ -79,9 +79,9 @@ impl<'a> DiaOracleClient<'a> {
     pub fn get_xlm_price(&self) -> Result<u128, Error> {
         let price_data = self.get_price("XLM", "USD")?;
 
-        // Validate price is not stale (within 1 hour = 3600 seconds)
+        // Validate price is not stale (uses configurable max_age from storage)
         let current_time = self.env.ledger().timestamp();
-        let max_age = 3600u64;
+        let max_age = crate::storage::get_oracle_price_max_age(self.env);
 
         if current_time - price_data.last_updated_base > max_age {
             return Err(Error::OraclePriceStale);
@@ -100,9 +100,9 @@ impl<'a> DiaOracleClient<'a> {
     pub fn get_asset_price(&self, asset_symbol: &str) -> Result<u128, Error> {
         let price_data = self.get_price(asset_symbol, "USD")?;
 
-        // Validate price is not stale (within 1 hour)
+        // Validate price is not stale (uses configurable max_age from storage)
         let current_time = self.env.ledger().timestamp();
-        let max_age = 3600u64;
+        let max_age = crate::storage::get_oracle_price_max_age(self.env);
 
         if current_time - price_data.last_updated_base > max_age {
             return Err(Error::OraclePriceStale);

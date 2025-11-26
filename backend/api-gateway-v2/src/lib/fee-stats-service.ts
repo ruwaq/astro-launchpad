@@ -6,6 +6,7 @@
  */
 
 import { PrismaClient } from '@prisma/client';
+// @ts-ignore - TODO: Move shared code to @astroshibapop/shared instead of importing from indexer
 import { FeeStatsService as IndexerFeeStatsService } from '../../../indexer/src/services/fee-stats.service.js';
 
 /**
@@ -24,3 +25,9 @@ export class FeeStatsService extends IndexerFeeStatsService {
  * Export for convenience
  */
 export { IndexerFeeStatsService };
+
+/**
+ * Re-export types from indexer
+ */
+// @ts-ignore - Re-exporting types from indexer (architectural issue to fix later)
+export type { FeeRevenue, TokenFeePerformance } from '../../../indexer/src/services/fee-stats.service.js';

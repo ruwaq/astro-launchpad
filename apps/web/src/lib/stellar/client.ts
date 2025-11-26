@@ -5,8 +5,9 @@
  * through both Horizon (for account data) and Soroban RPC (for contracts).
  */
 
-import { SorobanRpc, Horizon } from '@stellar/stellar-sdk';
+import { SorobanRpc, Horizon, Transaction, FeeBumpTransaction } from '@stellar/stellar-sdk';
 import { getNetworkConfig, NETWORK } from './config';
+import type { StellarTransaction } from './types';
 
 /**
  * Soroban RPC Client
@@ -54,7 +55,7 @@ class SorobanClient {
    * Simulate a transaction before submitting
    */
   async simulateTransaction(
-    transaction: any
+    transaction: StellarTransaction
   ): Promise<SorobanRpc.Api.SimulateTransactionResponse> {
     return this.server.simulateTransaction(transaction);
   }
@@ -63,7 +64,7 @@ class SorobanClient {
    * Submit a transaction to the network
    */
   async sendTransaction(
-    transaction: any
+    transaction: StellarTransaction
   ): Promise<SorobanRpc.Api.SendTransactionResponse> {
     return this.server.sendTransaction(transaction);
   }
@@ -117,7 +118,7 @@ class HorizonClient {
    * Submit a Horizon transaction
    */
   async submitTransaction(
-    transaction: any
+    transaction: StellarTransaction
   ): Promise<Horizon.HorizonApi.SubmitTransactionResponse> {
     return this.server.submitTransaction(transaction);
   }

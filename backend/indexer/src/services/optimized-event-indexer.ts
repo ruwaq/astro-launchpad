@@ -3,9 +3,8 @@
  * High-performance event indexing with batch processing and state management
  */
 
-import { PrismaClient } from '@prisma/client'
-import * as StellarSdk from '@stellar/stellar-sdk'
-import { SorobanRpc } from '@stellar/stellar-sdk'
+import { PrismaClient } from '@astroshibapop/shared/prisma'
+import { SorobanRpc, scValToNative } from '@stellar/stellar-sdk'
 import { logger } from '../lib/logger.js'
 import { CircuitBreaker, createCircuitBreaker, CircuitState } from '../lib/circuit-breaker.js'
 import { StateManager } from '../lib/state-manager.js'
@@ -35,6 +34,10 @@ export class OptimizedEventIndexer {
   private reconnectTimers: NodeJS.Timeout[] = []
   private isShuttingDown: boolean = false
 
+  // Polling flags to prevent concurrent executions (race condition protection)
+  private isPollingTokenFactory: boolean = false
+  private isPollingAMMFactory: boolean = false
+
   // New components
   private stateManager: StateManager
   private batchProcessor: BatchProcessor
@@ -63,7 +66,7 @@ export class OptimizedEventIndexer {
     // Initialize event handlers
     this.tokenHandler = new TokenEventHandler(prisma)
     this.poolHandler = new PoolEventHandler(prisma)
-    this.feeHandler = new FeeEventHandler(prisma, this.tokenFactory)
+    this.feeHandler = new FeeEventHandler(prisma)
 
     // Initialize circuit breaker with extended config
     this.circuitBreaker = createCircuitBreaker({
@@ -164,6 +167,14 @@ export class OptimizedEventIndexer {
   }
 
   private async pollTokenFactoryEvents() {
+    // Prevent concurrent polling (race condition protection)
+    if (this.isPollingTokenFactory) {
+      logger.debug('Token Factory polling already in progress, skipping')
+      return
+    }
+
+    this.isPollingTokenFactory = true
+
     try {
       // Get last indexed ledger from state manager
       const lastLedgerStr = await this.stateManager.getLastLedger('token_factory')
@@ -223,6 +234,8 @@ export class OptimizedEventIndexer {
       logger.error('Error polling Token Factory events:')
       console.error(error)
       recordStreamError('token_factory', 'polling_error')
+    } finally {
+      this.isPollingTokenFactory = false
     }
   }
 
@@ -249,6 +262,14 @@ export class OptimizedEventIndexer {
   }
 
   private async pollAMMEvents() {
+    // Prevent concurrent polling (race condition protection)
+    if (this.isPollingAMMFactory) {
+      logger.debug('AMM Factory polling already in progress, skipping')
+      return
+    }
+
+    this.isPollingAMMFactory = true
+
     try {
       const lastLedgerStr = await this.stateManager.getLastLedger('amm_factory')
       let startLedger: number | undefined = lastLedgerStr ? parseInt(lastLedgerStr) + 1 : undefined
@@ -304,6 +325,8 @@ export class OptimizedEventIndexer {
       logger.error('Error polling AMM events:')
       console.error(error)
       recordStreamError('amm_factory', 'polling_error')
+    } finally {
+      this.isPollingAMMFactory = false
     }
   }
 
@@ -352,7 +375,7 @@ export class OptimizedEventIndexer {
    * Handle Token Factory event
    * Adds event to batch processor queue
    */
-  private async handleTokenFactoryEvent(event: Horizon.ServerApi.EventRecord) {
+  private async handleTokenFactoryEvent(event: any) {
     const eventType = this.getEventType(event)
 
     // Record event received
@@ -377,38 +400,61 @@ export class OptimizedEventIndexer {
       return
     }
 
-    // Update state (async, non-blocking)
-    this.stateManager.updateLastLedger('token_factory', event.ledger, event.id).catch((error) => {
+    // Update state (sync, blocking to ensure consistency)
+    try {
+      await this.stateManager.updateLastLedger('token_factory', String(event.ledger), event.id)
+    } catch (error) {
       logger.error('Failed to update last ledger:', error)
-    })
+    }
 
     // Process event immediately with handler (for real-time updates)
+    // Map contract event names to handlers:
+    // Contract emits: TokenLaunched, TokensBought, TokensSold, TokenGraduated
     try {
-      switch (eventType) {
-        case 'created':
+      const normalizedType = eventType.toLowerCase()
+
+      switch (true) {
+        // Token creation events
+        case normalizedType === 'tokenlaunched':
+        case normalizedType === 'tokenlauncheddetailed':
+        case normalizedType === 'created':
+          logger.info(`📥 Processing TokenCreated event...`)
           await this.tokenHandler.handleTokenCreated(event)
           break
-        case 'buy':
+
+        // Token buy events
+        case normalizedType === 'tokensbought':
+        case normalizedType === 'tokensboughtdetailed':
+        case normalizedType === 'buy':
           await this.tokenHandler.handleTokenBuy(event)
           break
-        case 'sell':
+
+        // Token sell events
+        case normalizedType === 'tokenssold':
+        case normalizedType === 'sell':
           await this.tokenHandler.handleTokenSell(event)
           break
-        case 'graduate':
+
+        // Graduation events
+        case normalizedType === 'tokengraduated':
+        case normalizedType === 'graduationdetailed':
+        case normalizedType === 'graduate':
           await this.tokenHandler.handleTokenGraduated(event)
           break
+
         // Fee-related events
-        case 'FeeBreakdownEvent':
-        case 'ProtocolFeeCollected':
-        case 'LpFeeCollected':
-        case 'ProtocolFeeUpdated':
-        case 'LpFeeUpdated':
-        case 'CreationFeeUpdated':
-        case 'TreasuryUpdated':
+        case normalizedType === 'feebreakdownevent':
+        case normalizedType === 'protocolfeecollected':
+        case normalizedType === 'lpfeecollected':
+        case normalizedType === 'protocolfeeupdated':
+        case normalizedType === 'lpfeeupdated':
+        case normalizedType === 'creationfeeupdated':
+        case normalizedType === 'treasuryupdated':
           await this.feeHandler.handleEvent(event)
           break
+
         default:
-          logger.warn(`Unknown Token Factory event type: ${eventType}`)
+          logger.debug(`Unhandled Token Factory event type: ${eventType}`)
       }
     } catch (error) {
       logger.error(`Error processing ${eventType} event:`, error)
@@ -419,7 +465,7 @@ export class OptimizedEventIndexer {
   /**
    * Handle AMM event
    */
-  private async handleAMMEvent(event: Horizon.ServerApi.EventRecord) {
+  private async handleAMMEvent(event: any) {
     const eventType = this.getEventType(event)
 
     recordEventReceived('amm_factory', eventType)
@@ -441,9 +487,11 @@ export class OptimizedEventIndexer {
       return
     }
 
-    this.stateManager.updateLastLedger('amm_factory', event.ledger, event.id).catch((error) => {
+    try {
+      await this.stateManager.updateLastLedger('amm_factory', String(event.ledger), event.id)
+    } catch (error) {
       logger.error('Failed to update last ledger:', error)
-    })
+    }
 
     // Process event immediately
     try {
@@ -465,12 +513,38 @@ export class OptimizedEventIndexer {
     }
   }
 
-  private getEventType(event: Horizon.ServerApi.EventRecord): string {
+  /**
+   * Extract event type from Soroban event topics
+   * Topics are XDR-encoded, need scValToNative to decode
+   */
+  private getEventType(event: any): string {
     try {
-      if (event.topic && Array.isArray(event.topic) && event.topic.length > 0) {
-        return event.topic[0].toString()
+      if (!event.topic || !Array.isArray(event.topic) || event.topic.length === 0) {
+        return 'unknown'
       }
-      return 'unknown'
+
+      const firstTopic = event.topic[0]
+
+      // If it's already a string, return it
+      if (typeof firstTopic === 'string') {
+        return firstTopic
+      }
+
+      // Try to decode XDR topic
+      try {
+        const decoded = scValToNative(firstTopic)
+        if (typeof decoded === 'string') {
+          return decoded
+        }
+        // Handle Symbol type from Soroban
+        if (decoded && typeof decoded === 'object' && decoded.toString) {
+          return decoded.toString()
+        }
+        return String(decoded)
+      } catch {
+        // Fallback to toString
+        return firstTopic?.toString?.() || 'unknown'
+      }
     } catch (error) {
       logger.error('Error extracting event type:', error)
       return 'unknown'

@@ -180,12 +180,9 @@ export interface TransactionConnection {
 export interface GlobalStats {
   totalTokens: number;
   totalPools: number;
-  totalVolume24h: string;
-  totalVolumeChange24h: string;
-  totalLiquidity: string;
-  totalLiquidityChange24h: string;
-  totalTransactions: number;
   totalUsers: number;
+  totalVolume24h: string;
+  totalTVL: string;
 }
 
 export interface LeaderboardEntry {
@@ -215,6 +212,10 @@ export interface HealthStatus {
 
 export interface TokensQueryResponse {
   tokens: TokenConnection;
+}
+
+export interface TrendingTokensQueryResponse {
+  trendingTokens: Token[];
 }
 
 export interface TokenQueryResponse {

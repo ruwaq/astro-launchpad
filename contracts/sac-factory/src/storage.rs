@@ -15,26 +15,39 @@ pub enum InstanceKey {
     Admin,
     Treasury,
     TokenCount,
-    AmmWasmHash,       // WASM hash for AMM pair contract deployment
-    OracleAddress,     // DIA Oracle contract address for price feeds
-    MinMarketCapUsd,   // Minimum market cap in USD (18 decimals) for graduation
+    AmmWasmHash,           // WASM hash for AMM pair contract deployment
+    OracleAddress,         // DIA Oracle contract address for price feeds
+    MinMarketCapUsd,       // Minimum market cap in USD (18 decimals) for graduation
+    GraduationThreshold,   // Configurable graduation threshold in stroops
+    XlmTokenAddress,       // Native XLM SAC address (network-specific)
+    OraclePriceMaxAge,     // Max age for oracle price staleness check (seconds)
+    // ASTRO Token Integration
+    AstroTokenAddress,     // ASTRO protocol token address
+    AstroLiquidityBps,     // Basis points for ASTRO liquidity (default: 1000 = 10%)
+    AstroBuybackBps,       // Basis points for buyback & burn (default: 500 = 5%)
+    AstroAmmAddress,       // Pre-deployed ASTRO/XLM AMM for swaps
+    // DEX Bridge Integration
+    BridgeAddress,         // AstroSwap Bridge address for graduation to DEX
+    UseBridgeForGraduation, // Whether to use Bridge (true) or local AMM (false)
 }
 
 /// Storage keys for Persistent storage (unbounded, per-entity)
 #[contracttype]
 #[derive(Clone)]
 pub enum PersistentKey {
-    TokenInfo(Address),        // token_address -> TokenInfo
-    CreatorTokens(Address),    // creator -> Vec<token_addresses>
-    AmmPairAddress(Address),   // token_address -> amm_pair_address (for graduated tokens)
+    TokenInfo(Address),           // token_address -> TokenInfo
+    CreatorTokens(Address),       // creator -> Vec<token_addresses>
+    AmmPairAddress(Address),      // token_address -> XLM/TOKEN amm_pair_address (primary pool)
+    AstroAmmPairAddress(Address), // token_address -> ASTRO/TOKEN amm_pair_address (ecosystem pool)
 }
 
 /// Token status
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum TokenStatus {
-    Bonding,    // In bonding curve phase
-    Graduated,  // Moved to AMM
+    Bonding,           // In bonding curve phase
+    Graduated,         // Successfully moved to AMM
+    GraduationFailed,  // Graduation attempt failed (requires recovery)
 }
 
 /// Token information
@@ -46,6 +59,7 @@ pub struct TokenInfo {
     pub token_address: Address,
     pub name: soroban_sdk::String,
     pub symbol: soroban_sdk::String,
+    pub issuer: soroban_sdk::String,  // Asset issuer public key (G...) for trustline creation
     pub image_url: soroban_sdk::String,
     pub description: soroban_sdk::String,
     pub created_at: u64,
@@ -112,6 +126,22 @@ pub fn set_min_market_cap_usd(env: &Env, min_market_cap: u128) {
         .set(&InstanceKey::MinMarketCapUsd, &min_market_cap);
 }
 
+/// Default graduation threshold: 10,000 XLM in stroops
+const DEFAULT_GRADUATION_THRESHOLD: i128 = 100_000_000_000;
+
+pub fn get_graduation_threshold(env: &Env) -> i128 {
+    env.storage()
+        .instance()
+        .get(&InstanceKey::GraduationThreshold)
+        .unwrap_or(DEFAULT_GRADUATION_THRESHOLD)
+}
+
+pub fn set_graduation_threshold(env: &Env, threshold: i128) {
+    env.storage()
+        .instance()
+        .set(&InstanceKey::GraduationThreshold, &threshold);
+}
+
 // ========== Persistent Storage (Unbounded, Per-Entity) ==========
 
 /// Get token info (returns None if not found)
@@ -176,4 +206,177 @@ pub fn get_creator_tokens_paginated(
     }
 
     result
+}
+
+// ========== XLM Token Address (Network-Specific) ==========
+
+/// Get native XLM token address (must be set during initialization)
+pub fn get_xlm_token_address(env: &Env) -> Option<Address> {
+    env.storage().instance().get(&InstanceKey::XlmTokenAddress)
+}
+
+/// Set native XLM token address (called once during initialization)
+pub fn set_xlm_token_address(env: &Env, address: &Address) {
+    env.storage().instance().set(&InstanceKey::XlmTokenAddress, address);
+}
+
+/// Check if XLM token address is configured
+pub fn has_xlm_token_address(env: &Env) -> bool {
+    env.storage().instance().has(&InstanceKey::XlmTokenAddress)
+}
+
+// ========== Oracle Configuration ==========
+
+/// Default max age for oracle prices: 1 hour in seconds
+const DEFAULT_ORACLE_PRICE_MAX_AGE: u64 = 3600;
+
+/// Get oracle price max age (staleness threshold)
+pub fn get_oracle_price_max_age(env: &Env) -> u64 {
+    env.storage()
+        .instance()
+        .get(&InstanceKey::OraclePriceMaxAge)
+        .unwrap_or(DEFAULT_ORACLE_PRICE_MAX_AGE)
+}
+
+/// Set oracle price max age
+pub fn set_oracle_price_max_age(env: &Env, max_age: u64) {
+    env.storage()
+        .instance()
+        .set(&InstanceKey::OraclePriceMaxAge, &max_age);
+}
+
+// ========== ASTRO Token Integration ==========
+
+/// Default ASTRO liquidity allocation: 10% = 1000 basis points
+const DEFAULT_ASTRO_LIQUIDITY_BPS: i128 = 1000;
+
+/// Default ASTRO buyback allocation: 5% = 500 basis points
+const DEFAULT_ASTRO_BUYBACK_BPS: i128 = 500;
+
+/// Get ASTRO token address
+pub fn get_astro_token_address(env: &Env) -> Option<Address> {
+    env.storage().instance().get(&InstanceKey::AstroTokenAddress)
+}
+
+/// Set ASTRO token address
+pub fn set_astro_token_address(env: &Env, address: &Address) {
+    env.storage().instance().set(&InstanceKey::AstroTokenAddress, address);
+}
+
+/// Check if ASTRO token is configured
+pub fn has_astro_token_address(env: &Env) -> bool {
+    env.storage().instance().has(&InstanceKey::AstroTokenAddress)
+}
+
+/// Get ASTRO liquidity basis points (default 10%)
+pub fn get_astro_liquidity_bps(env: &Env) -> i128 {
+    env.storage()
+        .instance()
+        .get(&InstanceKey::AstroLiquidityBps)
+        .unwrap_or(DEFAULT_ASTRO_LIQUIDITY_BPS)
+}
+
+/// Set ASTRO liquidity basis points
+pub fn set_astro_liquidity_bps(env: &Env, bps: i128) {
+    env.storage()
+        .instance()
+        .set(&InstanceKey::AstroLiquidityBps, &bps);
+}
+
+/// Get ASTRO buyback basis points (default 5%)
+pub fn get_astro_buyback_bps(env: &Env) -> i128 {
+    env.storage()
+        .instance()
+        .get(&InstanceKey::AstroBuybackBps)
+        .unwrap_or(DEFAULT_ASTRO_BUYBACK_BPS)
+}
+
+/// Set ASTRO buyback basis points
+pub fn set_astro_buyback_bps(env: &Env, bps: i128) {
+    env.storage()
+        .instance()
+        .set(&InstanceKey::AstroBuybackBps, &bps);
+}
+
+/// Get ASTRO AMM address (for XLM/ASTRO swaps)
+pub fn get_astro_amm_address(env: &Env) -> Option<Address> {
+    env.storage().instance().get(&InstanceKey::AstroAmmAddress)
+}
+
+/// Set ASTRO AMM address
+pub fn set_astro_amm_address(env: &Env, address: &Address) {
+    env.storage().instance().set(&InstanceKey::AstroAmmAddress, address);
+}
+
+/// ASTRO integration configuration
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct AstroConfig {
+    pub token_address: Address,
+    pub amm_address: Address,
+    pub liquidity_bps: i128,
+    pub buyback_bps: i128,
+}
+
+/// Get full ASTRO configuration (returns None if not configured)
+pub fn get_astro_config(env: &Env) -> Option<AstroConfig> {
+    let token_address = get_astro_token_address(env)?;
+    let amm_address = get_astro_amm_address(env)?;
+
+    Some(AstroConfig {
+        token_address,
+        amm_address,
+        liquidity_bps: get_astro_liquidity_bps(env),
+        buyback_bps: get_astro_buyback_bps(env),
+    })
+}
+
+// ========== DEX Bridge Integration ==========
+
+/// Get DEX Bridge address
+pub fn get_bridge_address(env: &Env) -> Option<Address> {
+    env.storage().instance().get(&InstanceKey::BridgeAddress)
+}
+
+/// Set DEX Bridge address
+pub fn set_bridge_address(env: &Env, address: &Address) {
+    env.storage().instance().set(&InstanceKey::BridgeAddress, address);
+}
+
+/// Check if Bridge is configured
+pub fn has_bridge_address(env: &Env) -> bool {
+    env.storage().instance().has(&InstanceKey::BridgeAddress)
+}
+
+/// Get whether to use Bridge for graduation (default: false for backwards compatibility)
+pub fn use_bridge_for_graduation(env: &Env) -> bool {
+    env.storage()
+        .instance()
+        .get(&InstanceKey::UseBridgeForGraduation)
+        .unwrap_or(false)
+}
+
+/// Set whether to use Bridge for graduation
+pub fn set_use_bridge_for_graduation(env: &Env, use_bridge: bool) {
+    env.storage()
+        .instance()
+        .set(&InstanceKey::UseBridgeForGraduation, &use_bridge);
+}
+
+/// Bridge configuration
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct BridgeConfig {
+    pub bridge_address: Address,
+    pub enabled: bool,
+}
+
+/// Get full Bridge configuration (returns None if not configured)
+pub fn get_bridge_config(env: &Env) -> Option<BridgeConfig> {
+    let bridge_address = get_bridge_address(env)?;
+
+    Some(BridgeConfig {
+        bridge_address,
+        enabled: use_bridge_for_graduation(env),
+    })
 }

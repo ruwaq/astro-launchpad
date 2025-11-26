@@ -5,20 +5,41 @@
  * Provides methods for launching real SAC tokens, buying, selling,
  * and querying token information.
  *
- * Contract ID (Sprint 1): CDBBG4SY232EJ254PB3O3I42WOXRICFHBDJEY4R46JY42GZSESWKHO3F
+ * Contract ID: CC3OFGFRFYZ4XN5AWTQNSZBEA4AP62GKHYF6YUFSMM2B4A6VUQLU3ZPV
  * Network: Stellar Testnet
- * Updated: November 21, 2024 (Sprint 1 Days 1-5)
+ * Updated: November 25, 2024 (ASTRO Integration)
  */
 
-import { xdr, Address } from '@stellar/stellar-sdk';
+import {
+  xdr,
+  Address,
+  nativeToScVal,
+  Asset,
+  Operation,
+  TransactionBuilder,
+  Horizon,
+} from '@stellar/stellar-sdk';
 import { BaseContractService } from './base-contract.service';
 import { CONTRACT_IDS } from '../config';
 import { toScVal, addressToScVal, fromScVal } from '../utils';
+import { logger } from '../../logger';
+import type { StellarAddress } from '../../stellar/types';
 import {
   createAssetForLaunch,
+  createAssetForLaunchWithSacAddress,
   validateSymbol,
   validateName,
+  type EnhancedAssetCreationResult,
 } from '../asset-utils';
+import {
+  adaptTokenInfo,
+  validateBondingCurveInvariant,
+  type RawTokenInfo,
+} from '../adapters/contract-adapter';
+import {
+  calculateBuyOutput as calculateBuyOutputUtil,
+  calculateSellOutput as calculateSellOutputUtil,
+} from '../utils/bonding-curve.utils';
 
 /**
  * Token Status Enum (must match contract)
@@ -47,6 +68,7 @@ export interface TokenInfo {
   token_address: string;
   name: string;
   symbol: string;
+  issuer: string; // Asset issuer public key (G...) for trustline creation
   image_url: string;
   description: string;
   created_at: number;
@@ -75,6 +97,26 @@ export interface ContractState {
 }
 
 /**
+ * ASTRO Protocol Configuration
+ * Defines how XLM is allocated during token graduation
+ */
+export interface AstroConfig {
+  token_address: string;
+  amm_address: string;
+  liquidity_bps: string;
+  buyback_bps: string;
+}
+
+/**
+ * ASTRO Allocation breakdown for graduation
+ */
+export interface AstroAllocation {
+  xlm_for_main_pool: string;
+  xlm_for_astro_liquidity: string;
+  xlm_for_buyback: string;
+}
+
+/**
  * Parameters for launching a new token
  */
 export interface LaunchTokenParams {
@@ -89,12 +131,12 @@ export interface LaunchTokenParams {
  */
 export class SacFactoryService extends BaseContractService {
   constructor() {
-    // Use environment variable or fallback to Sprint 1 Contract ID
-    const contractId = CONTRACT_IDS.tokenFactory || 'CDBBG4SY232EJ254PB3O3I42WOXRICFHBDJEY4R46JY42GZSESWKHO3F';
+    // Use environment variable or fallback to ASTRO Integration Contract ID (Nov 25, 2024)
+    const contractId = CONTRACT_IDS.tokenFactory || 'CC3OFGFRFYZ4XN5AWTQNSZBEA4AP62GKHYF6YUFSMM2B4A6VUQLU3ZPV';
 
     if (!CONTRACT_IDS.tokenFactory) {
-      console.warn(
-        'SAC Factory contract ID not configured in env vars. Using fallback: CDBBG4SY232EJ254PB3O3I42WOXRICFHBDJEY4R46JY42GZSESWKHO3F'
+      logger.warn(
+        'SAC Factory contract ID not configured in env vars. Using fallback: CC3OFGFRFYZ4XN5AWTQNSZBEA4AP62GKHYF6YUFSMM2B4A6VUQLU3ZPV'
       );
     }
 
@@ -117,76 +159,50 @@ export class SacFactoryService extends BaseContractService {
       );
 
       if (!result) {
-        console.log(`[DEBUG] getTokenInfo(${tokenAddress}): No result from contract`);
+        logger.debug(`getTokenInfo(${tokenAddress}): No result from contract`);
         return null;
       }
 
-      const data = fromScVal(result);
-      console.log(`[DEBUG] getTokenInfo(${tokenAddress}): Received data:`, data);
+      // Parse raw contract response
+      const rawData = fromScVal(result) as RawTokenInfo;
+      logger.debug(`getTokenInfo(${tokenAddress}): Received raw data:`, rawData as any);
 
       // Handle Option<TokenInfo> - contract returns Some(TokenInfo) or None
-      if (!data || data === null) {
-        console.log(`[DEBUG] getTokenInfo(${tokenAddress}): Data is null or undefined`);
+      if (!rawData || rawData === null) {
+        logger.debug(`getTokenInfo(${tokenAddress}): Data is null or undefined`);
         return null;
       }
 
       // Validate required fields
-      if (!data.token_address || !data.name || !data.symbol) {
-        console.warn('Token data missing required fields:', data);
+      if (!rawData.token_address || !rawData.name || !rawData.symbol) {
+        logger.warn('Token data missing required fields:', rawData as any);
         return null;
       }
 
-      // Check if bonding_curve exists and has required fields
-      if (!data.bonding_curve) {
-        console.warn('Token bonding_curve is null/undefined:', data);
+      // Check if bonding_curve exists
+      if (!rawData.bonding_curve) {
+        logger.warn('Token bonding_curve is null/undefined:', rawData as any);
         return null;
       }
 
-      console.log(`[DEBUG] bonding_curve fields:`, {
-        xlm_reserve: data.bonding_curve.xlm_reserve,
-        xlm_reserve_type: typeof data.bonding_curve.xlm_reserve,
-        token_reserve: data.bonding_curve.token_reserve,
-        token_reserve_type: typeof data.bonding_curve.token_reserve,
-        k: data.bonding_curve.k,
-        k_type: typeof data.bonding_curve.k,
+      // Use adapter to normalize contract response
+      const tokenInfo = adaptTokenInfo(rawData);
+
+      // Validate bonding curve invariant (k = x * y)
+      const isValidCurve = validateBondingCurveInvariant(tokenInfo.bonding_curve);
+      if (!isValidCurve) {
+        logger.warn(`getTokenInfo(${tokenAddress}): Bonding curve invariant check failed`);
+      }
+
+      logger.debug(`getTokenInfo(${tokenAddress}): Successfully adapted token info`, {
+        status: tokenInfo.status,
+        token_reserve: tokenInfo.bonding_curve.token_reserve,
+        xlm_reserve: tokenInfo.bonding_curve.xlm_reserve,
       });
 
-      // Validate essential fields (xlm_reserve and k)
-      if (typeof data.bonding_curve.xlm_reserve === 'undefined' ||
-          typeof data.bonding_curve.k === 'undefined') {
-        console.warn('Token bonding curve missing essential fields (xlm_reserve or k)');
-        return null;
-      }
-
-      // WORKAROUND: Calculate token_reserve if missing
-      // Formula: k = xlm_reserve * token_reserve → token_reserve = k / xlm_reserve
-      if (typeof data.bonding_curve.token_reserve === 'undefined') {
-        console.warn(`[WORKAROUND] token_reserve is undefined, calculating from k and xlm_reserve`);
-        data.bonding_curve.token_reserve = data.bonding_curve.k / data.bonding_curve.xlm_reserve;
-        console.log(`[WORKAROUND] Calculated token_reserve:`, data.bonding_curve.token_reserve);
-      }
-
-      return {
-        id: data.id,
-        creator: data.creator,
-        token_address: data.token_address,
-        name: data.name,
-        symbol: data.symbol,
-        image_url: data.image_url || '',
-        description: data.description || '',
-        created_at: data.created_at,
-        status: data.status === 'Bonding' ? TokenStatus.Bonding : TokenStatus.Graduated,
-        bonding_curve: {
-          xlm_reserve: data.bonding_curve.xlm_reserve.toString(),
-          token_reserve: data.bonding_curve.token_reserve.toString(),
-          k: data.bonding_curve.k.toString(),
-        },
-        xlm_raised: data.xlm_raised?.toString() || '0',
-        market_cap: data.market_cap?.toString() || '0',
-        holders_count: data.holders_count || 0,
-      };
+      return tokenInfo;
     } catch (error) {
-      console.error('Error fetching token info:', error);
+      logger.error('Error fetching token info:', error);
       return null;
     }
   }
@@ -206,9 +222,9 @@ export class SacFactoryService extends BaseContractService {
 
       if (!result) return BigInt(0);
 
-      return BigInt(fromScVal(result));
+      return BigInt(fromScVal(result) as string | number | bigint);
     } catch (error) {
-      console.error('Error fetching price:', error);
+      logger.error('Error fetching price:', error);
       return BigInt(0);
     }
   }
@@ -230,7 +246,7 @@ export class SacFactoryService extends BaseContractService {
 
       return Number(fromScVal(result));
     } catch (error) {
-      console.error('Error fetching graduation progress:', error);
+      logger.error('Error fetching graduation progress:', error);
       return 0;
     }
   }
@@ -251,10 +267,10 @@ export class SacFactoryService extends BaseContractService {
 
       if (!result) return [];
 
-      const addresses = fromScVal(result);
-      return addresses.map((addr: any) => addr.toString());
+      const addresses = fromScVal(result) as StellarAddress[];
+      return addresses.map((addr) => addr.toString());
     } catch (error) {
-      console.error('Error fetching creator tokens:', error);
+      logger.error('Error fetching creator tokens:', error);
       return [];
     }
   }
@@ -282,11 +298,11 @@ export class SacFactoryService extends BaseContractService {
 
       if (!result) return [];
 
-      const addresses = fromScVal(result);
-      console.log(`[DEBUG] getCreatorTokensPaginated(${creatorAddress}): Found ${addresses?.length || 0} tokens`, addresses);
-      return addresses.map((addr: any) => addr.toString());
+      const addresses = fromScVal(result) as StellarAddress[];
+      logger.debug(`getCreatorTokensPaginated(${creatorAddress}): Found ${addresses?.length || 0} tokens`, { addresses });
+      return addresses.map((addr) => addr.toString());
     } catch (error) {
-      console.error('Error fetching creator tokens paginated:', error);
+      logger.error('Error fetching creator tokens paginated:', error);
       return [];
     }
   }
@@ -304,7 +320,7 @@ export class SacFactoryService extends BaseContractService {
 
       return Number(fromScVal(result));
     } catch (error) {
-      console.error('Error fetching token count:', error);
+      logger.error('Error fetching token count:', error);
       return 0;
     }
   }
@@ -326,15 +342,19 @@ export class SacFactoryService extends BaseContractService {
         };
       }
 
-      const data = fromScVal(result);
+      const data = fromScVal(result) as {
+        creation_fee: bigint;
+        trading_fee_bps: bigint;
+        treasury: StellarAddress;
+      };
 
       return {
         creation_fee: data.creation_fee.toString(),
         trading_fee_bps: data.trading_fee_bps.toString(),
-        treasury: data.treasury,
+        treasury: data.treasury.toString(),
       };
     } catch (error) {
-      console.error('Error fetching fee config:', error);
+      logger.error('Error fetching fee config:', error);
       return {
         creation_fee: '100000',
         trading_fee_bps: '100',
@@ -354,16 +374,120 @@ export class SacFactoryService extends BaseContractService {
 
       if (!result) return { is_active: true };
 
-      const data = fromScVal(result);
+      const data = fromScVal(result) as {
+        is_active: boolean;
+        paused_by?: string;
+      };
 
       return {
         is_active: data.is_active,
         paused_by: data.paused_by,
       };
     } catch (error) {
-      console.error('Error fetching contract state:', error);
+      logger.error('Error fetching contract state:', error);
       return { is_active: true };
     }
+  }
+
+  // ========== ASTRO Integration Methods ==========
+
+  /**
+   * Get ASTRO protocol configuration
+   *
+   * @returns ASTRO config or null if not configured
+   */
+  async getAstroConfig(): Promise<AstroConfig | null> {
+    try {
+      const result = await this.callReadOnly('get_astro_config');
+
+      if (!result) return null;
+
+      const data = fromScVal(result) as {
+        token_address: string;
+        amm_address: string;
+        liquidity_bps: bigint;
+        buyback_bps: bigint;
+      } | null;
+
+      if (!data) return null;
+
+      return {
+        token_address: data.token_address.toString(),
+        amm_address: data.amm_address.toString(),
+        liquidity_bps: data.liquidity_bps.toString(),
+        buyback_bps: data.buyback_bps.toString(),
+      };
+    } catch (error) {
+      logger.error('Error fetching ASTRO config:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Check if ASTRO integration is enabled
+   *
+   * @returns true if ASTRO is configured
+   */
+  async isAstroEnabled(): Promise<boolean> {
+    try {
+      const result = await this.callReadOnly('is_astro_enabled');
+
+      if (!result) return false;
+
+      return Boolean(fromScVal(result));
+    } catch (error) {
+      logger.error('Error checking ASTRO status:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Calculate ASTRO allocation for graduation
+   * Client-side calculation matching contract logic
+   *
+   * @param totalXlm - Total XLM raised during bonding curve
+   * @param liquidityBps - ASTRO liquidity basis points (default 1000 = 10%)
+   * @param buybackBps - Buyback basis points (default 500 = 5%)
+   * @returns Allocation breakdown
+   */
+  calculateAstroAllocation(
+    totalXlm: bigint,
+    liquidityBps: number = 1000,
+    buybackBps: number = 500
+  ): AstroAllocation {
+    const totalAstroBps = BigInt(liquidityBps + buybackBps);
+    const mainPoolBps = BigInt(10000) - totalAstroBps;
+
+    const xlmForMain = (totalXlm * mainPoolBps) / BigInt(10000);
+    const xlmForLiquidity = (totalXlm * BigInt(liquidityBps)) / BigInt(10000);
+    const xlmForBuyback = (totalXlm * BigInt(buybackBps)) / BigInt(10000);
+
+    return {
+      xlm_for_main_pool: xlmForMain.toString(),
+      xlm_for_astro_liquidity: xlmForLiquidity.toString(),
+      xlm_for_buyback: xlmForBuyback.toString(),
+    };
+  }
+
+  /**
+   * Get allocation percentages for display
+   *
+   * @param liquidityBps - ASTRO liquidity basis points
+   * @param buybackBps - Buyback basis points
+   * @returns Object with percentage strings
+   */
+  getAstroAllocationPercentages(
+    liquidityBps: number = 1000,
+    buybackBps: number = 500
+  ): { mainPool: string; astroLiquidity: string; buyback: string } {
+    const totalAstroBps = liquidityBps + buybackBps;
+    const mainPoolBps = 10000 - totalAstroBps;
+
+    return {
+      mainPool: `${(mainPoolBps / 100).toFixed(0)}%`,
+      astroLiquidity: `${(liquidityBps / 100).toFixed(0)}%`,
+      buyback: `${(buybackBps / 100).toFixed(0)}%`,
+    };
   }
 
   // ========== Write Methods (Build Operations) ==========
@@ -379,13 +503,13 @@ export class SacFactoryService extends BaseContractService {
    * @param params - Token launch parameters
    * @param creatorAddress - Creator's Stellar address
    * @param tokenCount - Current token count from contract
-   * @returns Transaction operation
+   * @returns Operation and issuer keypair (needed for set_admin call)
    */
   buildLaunchTokenOperation(
     params: LaunchTokenParams,
     creatorAddress: string,
     tokenCount: number
-  ): xdr.Operation {
+  ): { operation: xdr.Operation; issuerKeypair: import('@stellar/stellar-sdk').Keypair } {
     // Validate inputs
     if (!validateName(params.name)) {
       throw new Error('Name must be 1-32 characters');
@@ -402,17 +526,138 @@ export class SacFactoryService extends BaseContractService {
       tokenCount,
     });
 
-    // Build contract call arguments
+    // Build contract call arguments (order must match contract signature)
     const args: xdr.ScVal[] = [
       addressToScVal(creatorAddress),               // creator: Address
       toScVal(params.name),                         // name: String
       toScVal(params.symbol),                       // symbol: String
+      toScVal(assetCreation.issuerPublicKey),       // issuer: String (for trustline creation)
       toScVal(params.imageUrl),                     // image_url: String
       toScVal(params.description),                  // description: String
       assetCreation.serializedAssetScVal,           // serialized_asset: Bytes
     ];
 
-    return this.buildOperation('launch_token', ...args);
+    return {
+      operation: this.buildOperation('launch_token', ...args),
+      issuerKeypair: assetCreation.issuerKeypair,
+    };
+  }
+
+  /**
+   * Enhanced launch operation builder with pre-calculated SAC address
+   *
+   * This is the key method for improved UX: by pre-calculating the SAC
+   * address before the token is created, the frontend can:
+   * 1. Show the token address immediately
+   * 2. Automatically chain set_admin after launch (seamless flow)
+   * 3. Pre-register the token in UI state
+   *
+   * @param params - Token launch parameters
+   * @param creatorAddress - Creator's Stellar address
+   * @param tokenCount - Current token count from contract
+   * @param network - Network ('testnet' or 'mainnet')
+   * @returns Operation, asset info, and pre-calculated SAC address
+   */
+  buildLaunchTokenOperationEnhanced(
+    params: LaunchTokenParams,
+    creatorAddress: string,
+    tokenCount: number,
+    network: 'testnet' | 'mainnet' = 'testnet'
+  ): {
+    operation: xdr.Operation;
+    assetInfo: EnhancedAssetCreationResult;
+    factoryAddress: string;
+  } {
+    // Validate inputs
+    if (!validateName(params.name)) {
+      throw new Error('Name must be 1-32 characters');
+    }
+
+    if (!validateSymbol(params.symbol)) {
+      throw new Error('Symbol must be 1-12 alphanumeric characters (uppercase)');
+    }
+
+    // Create unique asset XDR with pre-calculated SAC address
+    const assetInfo = createAssetForLaunchWithSacAddress(
+      {
+        symbol: params.symbol,
+        creator: creatorAddress,
+        tokenCount,
+      },
+      network
+    );
+
+    // Build contract call arguments (order must match contract signature)
+    const args: xdr.ScVal[] = [
+      addressToScVal(creatorAddress),               // creator: Address
+      toScVal(params.name),                         // name: String
+      toScVal(params.symbol),                       // symbol: String
+      toScVal(assetInfo.issuerPublicKey),           // issuer: String (for trustline creation)
+      toScVal(params.imageUrl),                     // image_url: String
+      toScVal(params.description),                  // description: String
+      assetInfo.serializedAssetScVal,               // serialized_asset: Bytes
+    ];
+
+    return {
+      operation: this.buildOperation('launch_token', ...args),
+      assetInfo,
+      factoryAddress: this.getContractId(),
+    };
+  }
+
+  /**
+   * Prepare a complete token launch with automatic set_admin chaining
+   *
+   * This method provides the best UX for token creation:
+   * 1. Prepares the launch_token transaction
+   * 2. Returns all info needed to automatically call set_admin after
+   *
+   * The frontend should:
+   * 1. Call this method to get the launch transaction
+   * 2. Have user sign and submit
+   * 3. Immediately call prepareSetAdminTransaction with returned assetInfo
+   * 4. Submit set_admin (can be auto-signed with issuerKeypair)
+   *
+   * @param params - Token launch parameters
+   * @param creatorAddress - Creator's Stellar address
+   * @returns Prepared launch transaction and chaining info
+   */
+  async prepareLaunchTokenWithChaining(
+    params: LaunchTokenParams,
+    creatorAddress: string
+  ): Promise<{
+    txXDR: string;
+    assetInfo: EnhancedAssetCreationResult;
+    factoryAddress: string;
+    tokenCount: number;
+  }> {
+    // Get current token count for deterministic issuer creation
+    const tokenCount = await this.getTokenCount();
+
+    // Build the enhanced launch operation
+    const { operation, assetInfo, factoryAddress } = this.buildLaunchTokenOperationEnhanced(
+      params,
+      creatorAddress,
+      tokenCount,
+      'testnet' // TODO: Get from network config
+    );
+
+    // Prepare the transaction
+    const { txXDR } = await this.prepareTransaction(creatorAddress, operation);
+
+    logger.info('Prepared token launch with chaining info', {
+      sacAddress: assetInfo.sacAddress,
+      issuer: assetInfo.issuerPublicKey,
+      factoryAddress,
+      tokenCount,
+    });
+
+    return {
+      txXDR,
+      assetInfo,
+      factoryAddress,
+      tokenCount,
+    };
   }
 
   /**
@@ -440,9 +685,9 @@ export class SacFactoryService extends BaseContractService {
       'buy',
       addressToScVal(buyerAddress),
       addressToScVal(tokenAddress),
-      toScVal(xlmAmount.toString(), xdr.ScValType.scvI128()),
-      toScVal(minTokens.toString(), xdr.ScValType.scvI128()),
-      toScVal(deadline.toString(), xdr.ScValType.scvU64()) // NEW: deadline parameter
+      nativeToScVal(xlmAmount, { type: 'i128' }),
+      nativeToScVal(minTokens, { type: 'i128' }),
+      nativeToScVal(deadline, { type: 'u64' })
     );
   }
 
@@ -471,14 +716,262 @@ export class SacFactoryService extends BaseContractService {
       'sell',
       addressToScVal(sellerAddress),
       addressToScVal(tokenAddress),
-      toScVal(tokenAmount.toString(), xdr.ScValType.scvI128()),
-      toScVal(minXlm.toString(), xdr.ScValType.scvI128()),
-      toScVal(deadline.toString(), xdr.ScValType.scvU64()) // NEW: deadline parameter
+      nativeToScVal(tokenAmount, { type: 'i128' }),
+      nativeToScVal(minXlm, { type: 'i128' }),
+      nativeToScVal(deadline, { type: 'u64' })
     );
   }
 
   /**
+   * Prepare a buy transaction for signing
+   * Returns the transaction XDR that needs to be signed by the user's wallet
+   *
+   * @param tokenAddress - Token contract address
+   * @param xlmAmount - Amount of XLM to spend (in XLM, not stroops)
+   * @param buyerAddress - Buyer's Stellar address
+   * @param slippagePercent - Slippage tolerance (default 1%)
+   * @returns Prepared transaction XDR ready for signing
+   */
+  async prepareBuyTransaction(
+    tokenAddress: string,
+    xlmAmount: number,
+    buyerAddress: string,
+    slippagePercent: number = 1
+  ): Promise<{ txXDR: string; expectedTokens: bigint }> {
+    // Convert XLM to stroops (1 XLM = 10,000,000 stroops)
+    const xlmAmountStroops = BigInt(Math.floor(xlmAmount * 10_000_000));
+
+    // Get token info to calculate min tokens
+    const tokenInfo = await this.getTokenInfo(tokenAddress);
+    if (!tokenInfo) {
+      throw new Error('Token not found');
+    }
+
+    // Calculate expected output
+    const expectedTokens = this.calculateBuyOutput(tokenInfo, xlmAmountStroops);
+
+    // Apply slippage tolerance
+    const minTokens = (expectedTokens * BigInt(100 - slippagePercent)) / BigInt(100);
+
+    // Set deadline (5 minutes from now)
+    const deadline = BigInt(Math.floor(Date.now() / 1000) + 300);
+
+    // Build operation
+    const operation = this.buildBuyOperation(
+      buyerAddress,
+      tokenAddress,
+      xlmAmountStroops,
+      minTokens,
+      deadline
+    );
+
+    // Prepare transaction for signing
+    const prepared = await this.prepareTransaction(buyerAddress, operation);
+
+    return {
+      txXDR: prepared.txXDR,
+      expectedTokens,
+    };
+  }
+
+  /**
+   * Submit a signed buy transaction
+   *
+   * @param signedTxXDR - The signed transaction XDR
+   * @returns Transaction result
+   */
+  async submitBuyTransaction(signedTxXDR: string): Promise<{ success: boolean; hash?: string; error?: string }> {
+    try {
+      const { hash } = await this.submitSignedTransaction(signedTxXDR);
+      return {
+        success: true,
+        hash,
+      };
+    } catch (error: unknown) {
+      logger.error('Submit buy transaction error:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return { success: false, error: errorMessage };
+    }
+  }
+
+  /**
+   * Prepare a buy transaction with automatic trustline creation
+   *
+   * This is the KEY method for seamless UX:
+   * - Checks if buyer has trustline for the token
+   * - If not, returns a trustline transaction to sign first
+   * - Returns the buy transaction
+   *
+   * The frontend should:
+   * 1. Call this method
+   * 2. If needsTrustline is true, have user sign and submit trustlineTxXDR first
+   * 3. Then have user sign and submit buyTxXDR
+   *
+   * @param tokenAddress - Token contract address
+   * @param xlmAmount - Amount of XLM to spend (in XLM, not stroops)
+   * @param buyerAddress - Buyer's Stellar address
+   * @param slippagePercent - Slippage tolerance (default 1%)
+   * @returns Prepared transactions (trustline if needed + buy)
+   */
+  async prepareBuyWithTrustline(
+    tokenAddress: string,
+    xlmAmount: number,
+    buyerAddress: string,
+    slippagePercent: number = 1
+  ): Promise<{
+    needsTrustline: boolean;
+    trustlineTxXDR?: string;
+    buyTxXDR: string;
+    expectedTokens: bigint;
+    tokenInfo: TokenInfo;
+  }> {
+    // Get token info (includes issuer for trustline)
+    const tokenInfo = await this.getTokenInfo(tokenAddress);
+    if (!tokenInfo) {
+      throw new Error('Token not found');
+    }
+
+    // Check if buyer has trustline
+    let needsTrustline = false;
+    let trustlineTxXDR: string | undefined;
+
+    try {
+      const config = (await import('../config')).getNetworkConfig();
+      const horizonServer = new Horizon.Server(config.horizonUrl);
+      const account = await horizonServer.loadAccount(buyerAddress);
+
+      // Check for existing trustline
+      const hasTrustline = account.balances.some((balance: Horizon.HorizonApi.BalanceLine) => {
+        if (balance.asset_type === 'credit_alphanum4' || balance.asset_type === 'credit_alphanum12') {
+          const assetBalance = balance as Horizon.HorizonApi.BalanceLineAsset;
+          return (
+            assetBalance.asset_code === tokenInfo.symbol &&
+            assetBalance.asset_issuer === tokenInfo.issuer
+          );
+        }
+        return false;
+      });
+
+      if (!hasTrustline) {
+        needsTrustline = true;
+
+        // Build trustline transaction
+        const asset = new Asset(tokenInfo.symbol, tokenInfo.issuer);
+        const trustlineTx = new TransactionBuilder(account, {
+          fee: '100000', // 0.01 XLM
+          networkPassphrase: config.networkPassphrase,
+        })
+          .addOperation(Operation.changeTrust({ asset }))
+          .setTimeout(300)
+          .build();
+
+        trustlineTxXDR = trustlineTx.toXDR();
+
+        logger.info('Trustline needed for buy', {
+          buyer: buyerAddress,
+          symbol: tokenInfo.symbol,
+          issuer: tokenInfo.issuer,
+        });
+      }
+    } catch (error) {
+      logger.error('Error checking trustline:', error);
+      // If we can't check, assume we need trustline and try to build it
+      needsTrustline = true;
+
+      // Try to build trustline transaction even in error case
+      try {
+        const config = (await import('../config')).getNetworkConfig();
+        const horizonServer = new Horizon.Server(config.horizonUrl);
+        const account = await horizonServer.loadAccount(buyerAddress);
+
+        const asset = new Asset(tokenInfo.symbol, tokenInfo.issuer);
+        const trustlineTx = new TransactionBuilder(account, {
+          fee: '100000',
+          networkPassphrase: config.networkPassphrase,
+        })
+          .addOperation(Operation.changeTrust({ asset }))
+          .setTimeout(300)
+          .build();
+
+        trustlineTxXDR = trustlineTx.toXDR();
+      } catch (buildError) {
+        logger.error('Error building fallback trustline:', buildError);
+      }
+    }
+
+    // If trustline is needed, don't try to prepare buy transaction yet
+    // It will fail simulation because the trustline doesn't exist
+    // The caller should create the trustline first, then call prepareBuyTransaction
+    if (needsTrustline) {
+      // Calculate expected tokens for display purposes
+      const xlmAmountStroops = BigInt(Math.floor(xlmAmount * 10_000_000));
+      const expectedTokens = this.calculateBuyOutput(tokenInfo, xlmAmountStroops);
+
+      if (!trustlineTxXDR) {
+        throw new Error('Unable to create trustline transaction. Please try again.');
+      }
+
+      return {
+        needsTrustline: true,
+        trustlineTxXDR,
+        buyTxXDR: '', // Empty - caller must prepare after trustline is created
+        expectedTokens,
+        tokenInfo,
+      };
+    }
+
+    // Prepare the buy transaction (only if trustline already exists)
+    const { txXDR: buyTxXDR, expectedTokens } = await this.prepareBuyTransaction(
+      tokenAddress,
+      xlmAmount,
+      buyerAddress,
+      slippagePercent
+    );
+
+    return {
+      needsTrustline: false,
+      trustlineTxXDR,
+      buyTxXDR,
+      expectedTokens,
+      tokenInfo,
+    };
+  }
+
+  /**
+   * Submit a trustline transaction
+   *
+   * @param signedTxXDR - The signed trustline transaction XDR
+   * @returns Transaction result
+   */
+  async submitTrustlineTransaction(
+    signedTxXDR: string
+  ): Promise<{ success: boolean; hash?: string; error?: string }> {
+    try {
+      const config = (await import('../config')).getNetworkConfig();
+      const horizonServer = new Horizon.Server(config.horizonUrl);
+
+      const transaction = TransactionBuilder.fromXDR(signedTxXDR, config.networkPassphrase);
+      const result = await horizonServer.submitTransaction(
+        transaction as Parameters<typeof horizonServer.submitTransaction>[0]
+      );
+
+      logger.info('Trustline transaction submitted', { hash: result.hash });
+      return { success: true, hash: result.hash };
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { extras?: { result_codes?: unknown } } }; message?: string };
+      logger.error('Trustline submission error:', error);
+      return {
+        success: false,
+        error: err.response?.data?.extras?.result_codes
+          ? JSON.stringify(err.response.data.extras.result_codes)
+          : err.message || 'Unknown error'
+      };
+    }
+  }
+
+  /**
    * Buy tokens - High-level method for trading interface
+   * DEPRECATED: Use prepareBuyTransaction + signTransaction + submitBuyTransaction instead
    *
    * @param tokenAddress - Token contract address
    * @param xlmAmount - Amount of XLM to spend (in XLM, not stroops)
@@ -520,17 +1013,91 @@ export class SacFactoryService extends BaseContractService {
         deadline
       );
 
-      // Note: Actual transaction submission happens in the UI component
-      // This method is currently a placeholder for the real implementation
-      return { success: true };
-    } catch (error: any) {
-      console.error('Buy tokens error:', error);
-      return { success: false, error: error.message };
+      // Note: This method cannot sign - use prepareBuyTransaction flow instead
+      logger.warn('buyTokens() called but cannot sign without wallet. Use prepareBuyTransaction + submitBuyTransaction flow.');
+      return { success: false, error: 'Use prepareBuyTransaction flow for real transactions' };
+    } catch (error: unknown) {
+      logger.error('Buy tokens error:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return { success: false, error: errorMessage };
+    }
+  }
+
+  /**
+   * Prepare a sell transaction for signing
+   * Returns the transaction XDR that needs to be signed by the user's wallet
+   *
+   * @param tokenAddress - Token contract address
+   * @param tokenAmount - Amount of tokens to sell (in tokens, not smallest unit)
+   * @param sellerAddress - Seller's Stellar address
+   * @param slippagePercent - Slippage tolerance (default 1%)
+   * @returns Prepared transaction XDR ready for signing
+   */
+  async prepareSellTransaction(
+    tokenAddress: string,
+    tokenAmount: number,
+    sellerAddress: string,
+    slippagePercent: number = 1
+  ): Promise<{ txXDR: string; expectedXlm: bigint }> {
+    // Convert to smallest unit (7 decimals for SAC tokens)
+    const tokenAmountSmallest = BigInt(Math.floor(tokenAmount * 10_000_000));
+
+    // Get token info to calculate min XLM
+    const tokenInfo = await this.getTokenInfo(tokenAddress);
+    if (!tokenInfo) {
+      throw new Error('Token not found');
+    }
+
+    // Calculate expected output
+    const expectedXlm = this.calculateSellOutput(tokenInfo, tokenAmountSmallest);
+
+    // Apply slippage tolerance
+    const minXlm = (expectedXlm * BigInt(100 - slippagePercent)) / BigInt(100);
+
+    // Set deadline (5 minutes from now)
+    const deadline = BigInt(Math.floor(Date.now() / 1000) + 300);
+
+    // Build operation
+    const operation = this.buildSellOperation(
+      sellerAddress,
+      tokenAddress,
+      tokenAmountSmallest,
+      minXlm,
+      deadline
+    );
+
+    // Prepare transaction for signing
+    const prepared = await this.prepareTransaction(sellerAddress, operation);
+
+    return {
+      txXDR: prepared.txXDR,
+      expectedXlm,
+    };
+  }
+
+  /**
+   * Submit a signed sell transaction
+   *
+   * @param signedTxXDR - The signed transaction XDR
+   * @returns Transaction result
+   */
+  async submitSellTransaction(signedTxXDR: string): Promise<{ success: boolean; hash?: string; error?: string }> {
+    try {
+      const { hash } = await this.submitSignedTransaction(signedTxXDR);
+      return {
+        success: true,
+        hash,
+      };
+    } catch (error: unknown) {
+      logger.error('Submit sell transaction error:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return { success: false, error: errorMessage };
     }
   }
 
   /**
    * Sell tokens - High-level method for trading interface
+   * DEPRECATED: Use prepareSellTransaction + signTransaction + submitSellTransaction instead
    *
    * @param tokenAddress - Token contract address
    * @param tokenAmount - Amount of tokens to sell (in tokens, not smallest unit)
@@ -572,12 +1139,13 @@ export class SacFactoryService extends BaseContractService {
         deadline
       );
 
-      // Note: Actual transaction submission happens in the UI component
-      // This method is currently a placeholder for the real implementation
-      return { success: true };
-    } catch (error: any) {
-      console.error('Sell tokens error:', error);
-      return { success: false, error: error.message };
+      // Note: This method cannot sign - use prepareSellTransaction flow instead
+      logger.warn('sellTokens() called but cannot sign without wallet. Use prepareSellTransaction + submitSellTransaction flow.');
+      return { success: false, error: 'Use prepareSellTransaction flow for real transactions' };
+    } catch (error: unknown) {
+      logger.error('Sell tokens error:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return { success: false, error: errorMessage };
     }
   }
 
@@ -594,17 +1162,10 @@ export class SacFactoryService extends BaseContractService {
    */
   calculateBuyOutput(tokenInfo: TokenInfo, xlmAmount: bigint): bigint {
     try {
-      const xlmReserve = BigInt(tokenInfo.bonding_curve.xlm_reserve);
-      const tokenReserve = BigInt(tokenInfo.bonding_curve.token_reserve);
-      const k = BigInt(tokenInfo.bonding_curve.k);
-
-      const newXlmReserve = xlmReserve + xlmAmount;
-      const newTokenReserve = k / newXlmReserve;
-      const tokensOut = tokenReserve - newTokenReserve;
-
-      return tokensOut;
+      const result = calculateBuyOutputUtil(tokenInfo.bonding_curve, xlmAmount);
+      return result.amountOut;
     } catch (error) {
-      console.error('Error calculating buy output:', error);
+      logger.error('Error calculating buy output:', error);
       return BigInt(0);
     }
   }
@@ -620,17 +1181,10 @@ export class SacFactoryService extends BaseContractService {
    */
   calculateSellOutput(tokenInfo: TokenInfo, tokenAmount: bigint): bigint {
     try {
-      const xlmReserve = BigInt(tokenInfo.bonding_curve.xlm_reserve);
-      const tokenReserve = BigInt(tokenInfo.bonding_curve.token_reserve);
-      const k = BigInt(tokenInfo.bonding_curve.k);
-
-      const newTokenReserve = tokenReserve + tokenAmount;
-      const newXlmReserve = k / newTokenReserve;
-      const xlmOut = xlmReserve - newXlmReserve;
-
-      return xlmOut;
+      const result = calculateSellOutputUtil(tokenInfo.bonding_curve, tokenAmount);
+      return result.amountOut;
     } catch (error) {
-      console.error('Error calculating sell output:', error);
+      logger.error('Error calculating sell output:', error);
       return BigInt(0);
     }
   }

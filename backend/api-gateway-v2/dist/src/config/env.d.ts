@@ -21,6 +21,7 @@ declare const envSchema: z.ZodObject<{
     API_PORT: z.ZodDefault<z.ZodNumber>;
     API_HOST: z.ZodDefault<z.ZodString>;
     CORS_ORIGIN: z.ZodDefault<z.ZodString>;
+    ADMIN_ADDRESSES: z.ZodOptional<z.ZodString>;
     RATE_LIMIT_WINDOW_MS: z.ZodDefault<z.ZodNumber>;
     RATE_LIMIT_MAX_REQUESTS: z.ZodDefault<z.ZodNumber>;
     GRAPHQL_MAX_DEPTH: z.ZodDefault<z.ZodNumber>;
@@ -40,7 +41,8 @@ declare const envSchema: z.ZodObject<{
     GITHUB_OWNER: z.ZodOptional<z.ZodString>;
     GITHUB_REPO: z.ZodOptional<z.ZodString>;
 }, "strip", z.ZodTypeAny, {
-    NODE_ENV?: "development" | "production" | "test";
+    NODE_ENV?: "production" | "test" | "development";
+    ADMIN_ADDRESSES?: string;
     DATABASE_URL?: string;
     DIRECT_DATABASE_URL?: string;
     STELLAR_NETWORK?: "testnet" | "mainnet";
@@ -59,7 +61,7 @@ declare const envSchema: z.ZodObject<{
     GRAPHQL_MAX_COMPLEXITY?: number;
     GRAPHQL_INTROSPECTION?: boolean;
     GRAPHQL_PLAYGROUND?: boolean;
-    LOG_LEVEL?: "fatal" | "error" | "warn" | "info" | "debug" | "trace";
+    LOG_LEVEL?: "error" | "warn" | "info" | "fatal" | "debug" | "trace";
     LOG_PRETTY?: boolean;
     METRICS_ENABLED?: boolean;
     METRICS_PORT?: number;
@@ -72,7 +74,8 @@ declare const envSchema: z.ZodObject<{
     GITHUB_OWNER?: string;
     GITHUB_REPO?: string;
 }, {
-    NODE_ENV?: "development" | "production" | "test";
+    NODE_ENV?: "production" | "test" | "development";
+    ADMIN_ADDRESSES?: string;
     DATABASE_URL?: string;
     DIRECT_DATABASE_URL?: string;
     STELLAR_NETWORK?: "testnet" | "mainnet";
@@ -91,7 +94,7 @@ declare const envSchema: z.ZodObject<{
     GRAPHQL_MAX_COMPLEXITY?: number;
     GRAPHQL_INTROSPECTION?: boolean;
     GRAPHQL_PLAYGROUND?: boolean;
-    LOG_LEVEL?: "fatal" | "error" | "warn" | "info" | "debug" | "trace";
+    LOG_LEVEL?: "error" | "warn" | "info" | "fatal" | "debug" | "trace";
     LOG_PRETTY?: boolean;
     METRICS_ENABLED?: boolean;
     METRICS_PORT?: number;
@@ -113,7 +116,8 @@ export type Env = z.infer<typeof envSchema>;
  * Import this in your application code
  */
 export declare const env: {
-    NODE_ENV?: "development" | "production" | "test";
+    NODE_ENV?: "production" | "test" | "development";
+    ADMIN_ADDRESSES?: string;
     DATABASE_URL?: string;
     DIRECT_DATABASE_URL?: string;
     STELLAR_NETWORK?: "testnet" | "mainnet";
@@ -132,7 +136,7 @@ export declare const env: {
     GRAPHQL_MAX_COMPLEXITY?: number;
     GRAPHQL_INTROSPECTION?: boolean;
     GRAPHQL_PLAYGROUND?: boolean;
-    LOG_LEVEL?: "fatal" | "error" | "warn" | "info" | "debug" | "trace";
+    LOG_LEVEL?: "error" | "warn" | "info" | "fatal" | "debug" | "trace";
     LOG_PRETTY?: boolean;
     METRICS_ENABLED?: boolean;
     METRICS_PORT?: number;
@@ -211,7 +215,7 @@ export declare function getApiConfig(): {
  * Get logging configuration
  */
 export declare function getLogConfig(): {
-    level: "fatal" | "error" | "warn" | "info" | "debug" | "trace";
+    level: "error" | "warn" | "info" | "fatal" | "debug" | "trace";
     pretty: boolean;
 };
 /**

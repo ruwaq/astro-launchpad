@@ -4,6 +4,7 @@
  * Buy/Sell buttons con preset amounts (según investigación Pump.fun)
  * - [1 XLM] [10 XLM] [100 XLM] [Custom]
  * - Real contract calls a Stellar
+ * - Automatic trustline creation for first-time buyers
  * - Optimistic UI updates
  * - Clear error messages
  *
@@ -18,10 +19,11 @@ import { sacFactoryService } from '@/lib/stellar/services/sac-factory.service';
 import { Loader2, TrendingUp, TrendingDown, Info } from 'lucide-react';
 import toast from 'react-hot-toast';
 import confetti from 'canvas-confetti';
+import type { TokenGraphQLData } from '@/lib/stellar/types';
 
 interface TradingInterfaceProps {
   tokenAddress: string;
-  token: any; // Token data from GraphQL
+  token: TokenGraphQLData;
 }
 
 type TradeType = 'buy' | 'sell';
@@ -65,36 +67,87 @@ export function TradingInterface({ tokenAddress, token }: TradingInterfaceProps)
     try {
       const xlmAmount = parseFloat(amount);
 
-      // Show optimistic toast
-      const loadingToast = toast.loading(
-        `${tradeType === 'buy' ? 'Buying' : 'Selling'} ${token.symbol}...`
+      // Show preparing toast
+      let loadingToast = toast.loading(
+        `Preparing ${tradeType === 'buy' ? 'buy' : 'sell'} transaction...`
       );
 
-      // Execute real transaction on Stellar
-      let result;
+      // Step 1: Prepare the transaction
+      let txXDR: string;
+
       if (tradeType === 'buy') {
-        result = await sacFactoryService.buyTokens(
+        // Use prepareBuyWithTrustline to handle trustline creation for first-time buyers
+        const prepared = await sacFactoryService.prepareBuyWithTrustline(
           tokenAddress,
           xlmAmount,
           address,
           slippage
         );
+
+        // If trustline is needed, handle it first
+        if (prepared.needsTrustline && prepared.trustlineTxXDR) {
+          toast.dismiss(loadingToast);
+          loadingToast = toast.loading('Setting up your wallet for this token...');
+
+          // Sign trustline transaction
+          const signedTrustlineTx = await signTransaction(prepared.trustlineTxXDR);
+
+          // Submit trustline transaction
+          const trustlineResult = await sacFactoryService.submitTrustlineTransaction(signedTrustlineTx);
+
+          if (!trustlineResult.success) {
+            throw new Error(`Failed to setup trustline: ${trustlineResult.error}`);
+          }
+
+          toast.dismiss(loadingToast);
+          loadingToast = toast.loading('Trustline created! Now preparing buy...');
+
+          // Need to re-prepare the buy transaction after trustline is created
+          // because simulation may have different results now
+          const newPrepared = await sacFactoryService.prepareBuyTransaction(
+            tokenAddress,
+            xlmAmount,
+            address,
+            slippage
+          );
+          txXDR = newPrepared.txXDR;
+        } else {
+          txXDR = prepared.buyTxXDR;
+        }
       } else {
-        // For sell, amount is in tokens not XLM
-        result = await sacFactoryService.sellTokens(
+        const prepared = await sacFactoryService.prepareSellTransaction(
           tokenAddress,
           xlmAmount,
           address,
           slippage
         );
+        txXDR = prepared.txXDR;
       }
 
       toast.dismiss(loadingToast);
 
+      // Step 2: Request user signature
+      toast.loading('Please sign the transaction in your wallet...');
+      const signedTxXDR = await signTransaction(txXDR);
+      toast.dismiss();
+
+      // Step 3: Submit the signed transaction
+      const submitToast = toast.loading('Submitting transaction to Stellar...');
+
+      let result;
+      if (tradeType === 'buy') {
+        result = await sacFactoryService.submitBuyTransaction(signedTxXDR);
+      } else {
+        result = await sacFactoryService.submitSellTransaction(signedTxXDR);
+      }
+
+      toast.dismiss(submitToast);
+
       if (result.success) {
         // Success! Show celebration
         toast.success(
-          `Successfully ${tradeType === 'buy' ? 'bought' : 'sold'} ${token.symbol}!`
+          `Successfully ${tradeType === 'buy' ? 'bought' : 'sold'} ${token.symbol}!`,
+          { duration: 5000 }
         );
 
         // Confetti celebration
@@ -111,7 +164,25 @@ export function TradingInterface({ tokenAddress, token }: TradingInterfaceProps)
       }
     } catch (error: any) {
       console.error('Trade error:', error);
-      toast.error(error.message || `Failed to ${tradeType}`);
+      toast.dismiss();
+
+      // Handle specific error types
+      if (error.message?.includes('User rejected') || error.message?.includes('cancelled')) {
+        toast.error('Transaction cancelled by user');
+      } else if (error.message?.includes('insufficient')) {
+        toast.error('Insufficient balance for this transaction');
+      } else if (error.message?.includes('MissingValue') || error.message?.includes('non-existing value')) {
+        // This error occurs when the buyer has never held this token before.
+        // The SAC token's transfer function requires the recipient to have a balance entry.
+        // This is a limitation of the current contract - it needs to use mint() for first-time buyers.
+        toast.error(
+          'First-time buyer error: This token requires the contract to initialize your balance. ' +
+          'Please contact the team to fix this contract limitation.',
+          { duration: 8000 }
+        );
+      } else {
+        toast.error(error.message || `Failed to ${tradeType}`);
+      }
     } finally {
       setIsProcessing(false);
     }
@@ -128,11 +199,10 @@ export function TradingInterface({ tokenAddress, token }: TradingInterfaceProps)
       <div className="flex gap-2 mb-6">
         <button
           onClick={() => setTradeType('buy')}
-          className={`flex-1 py-3 px-4 rounded-lg font-semibold transition-all ${
-            tradeType === 'buy'
+          className={`flex-1 py-3 px-4 rounded-lg font-semibold transition-all ${tradeType === 'buy'
               ? 'bg-green-500 text-white shadow-lg'
               : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-          }`}
+            }`}
         >
           <div className="flex items-center justify-center gap-2">
             <TrendingUp className="h-4 w-4" />
@@ -141,11 +211,10 @@ export function TradingInterface({ tokenAddress, token }: TradingInterfaceProps)
         </button>
         <button
           onClick={() => setTradeType('sell')}
-          className={`flex-1 py-3 px-4 rounded-lg font-semibold transition-all ${
-            tradeType === 'sell'
+          className={`flex-1 py-3 px-4 rounded-lg font-semibold transition-all ${tradeType === 'sell'
               ? 'bg-red-500 text-white shadow-lg'
               : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-          }`}
+            }`}
         >
           <div className="flex items-center justify-center gap-2">
             <TrendingDown className="h-4 w-4" />
@@ -185,11 +254,10 @@ export function TradingInterface({ tokenAddress, token }: TradingInterfaceProps)
               key={xlm}
               onClick={() => handlePresetAmount(xlm)}
               disabled={!isConnected || isProcessing}
-              className={`py-3 px-4 rounded-lg font-semibold transition-all ${
-                amount === xlm.toString()
+              className={`py-3 px-4 rounded-lg font-semibold transition-all ${amount === xlm.toString()
                   ? 'bg-brand-primary text-white shadow-md'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              } disabled:opacity-50 disabled:cursor-not-allowed`}
+                } disabled:opacity-50 disabled:cursor-not-allowed`}
             >
               {xlm} XLM
             </button>
@@ -232,11 +300,10 @@ export function TradingInterface({ tokenAddress, token }: TradingInterfaceProps)
               key={percent}
               onClick={() => setSlippage(percent)}
               disabled={!isConnected || isProcessing}
-              className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all ${
-                slippage === percent
+              className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all ${slippage === percent
                   ? 'bg-brand-primary text-white'
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              } disabled:opacity-50 disabled:cursor-not-allowed`}
+                } disabled:opacity-50 disabled:cursor-not-allowed`}
             >
               {percent}%
             </button>
@@ -262,11 +329,10 @@ export function TradingInterface({ tokenAddress, token }: TradingInterfaceProps)
       <button
         onClick={handleTrade}
         disabled={!isConnected || isProcessing || !amount || parseFloat(amount) <= 0}
-        className={`w-full py-4 rounded-lg font-bold text-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
-          tradeType === 'buy'
+        className={`w-full py-4 rounded-lg font-bold text-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed ${tradeType === 'buy'
             ? 'bg-green-500 hover:bg-green-600 text-white'
             : 'bg-red-500 hover:bg-red-600 text-white'
-        }`}
+          }`}
       >
         {isProcessing ? (
           <div className="flex items-center justify-center gap-2">

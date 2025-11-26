@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { usePools, useTopPools } from '@/hooks/useApi';
 import { useWallet as useWalletContext } from '@/contexts/WalletContext';
 import { formatCompactNumber, truncateAddress, getTimeAgo } from '@/lib/stellar/utils';
@@ -128,17 +129,23 @@ export default function PoolsPage() {
                         <div className="flex items-center">
                           <div className="flex -space-x-2 mr-3">
                             {pool.token0.logoUrl && (
-                              <img
+                              <Image
                                 src={pool.token0.logoUrl}
                                 alt={pool.token0.symbol}
-                                className="w-8 h-8 rounded-full border-2 border-white"
+                                width={32}
+                                height={32}
+                                className="w-8 h-8 rounded-full border-2 border-white object-cover"
+                                unoptimized
                               />
                             )}
                             {pool.token1.logoUrl && (
-                              <img
+                              <Image
                                 src={pool.token1.logoUrl}
                                 alt={pool.token1.symbol}
-                                className="w-8 h-8 rounded-full border-2 border-white"
+                                width={32}
+                                height={32}
+                                className="w-8 h-8 rounded-full border-2 border-white object-cover"
+                                unoptimized
                               />
                             )}
                           </div>

@@ -1,5 +1,6 @@
 import pino from 'pino';
 
+// @ts-expect-error - Pino type signature issue with transport
 export const logger = pino({
   transport: {
     target: 'pino-pretty',

@@ -1,5 +1,3 @@
-// Prisma schema for AstroShibaPop indexer
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,71 +8,57 @@ datasource db {
 }
 
 model Token {
-  id          String  @id @default(cuid())
-  address     String  @unique
-  creator     String
-  name        String
-  symbol      String
-  decimals    Int     @default(7)
-  totalSupply String // BigInt as string
-  metadataUri String
-  imageUrl    String?
-  description String?
+  id                String        @id @default(cuid())
+  address           String        @unique
+  creator           String
+  name              String
+  symbol            String
+  decimals          Int           @default(7)
+  totalSupply       String
+  metadataUri       String
+  imageUrl          String?
+  description       String?
+  circulatingSupply String        @default("0")
+  xlmReserve        String        @default("0")
+  graduated         Boolean       @default(false)
+  xlmRaised         String        @default("0")
+  marketCap         String?
+  currentPrice      String?
+  priceChange24h    Float?
+  volume24h         String        @default("0")
+  volume7d          String        @default("0")
+  holders           Int           @default(0)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  poolsToken0       Pool[]        @relation("Token0")
+  poolsToken1       Pool[]        @relation("Token1")
+  transactions      Transaction[]
 
-  // Bonding curve state
-  circulatingSupply String  @default("0")
-  xlmReserve        String  @default("0")
-  graduated         Boolean @default(false)
-  xlmRaised         String  @default("0")
-
-  // Calculated fields
-  marketCap      String?
-  currentPrice   String?
-  priceChange24h Float?
-  volume24h      String  @default("0")
-  volume7d       String  @default("0")
-  holders        Int     @default(0)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relations
-  poolsToken0  Pool[]        @relation("Token0")
-  poolsToken1  Pool[]        @relation("Token1")
-  transactions Transaction[]
-
-  // Índices simples
   @@index([creator])
   @@index([createdAt])
   @@index([marketCap])
   @@index([volume24h])
-  // Índices compuestos para leaderboard CREATORS
   @@index([creator, createdAt, volume24h])
 }
 
 model Pool {
-  id            String @id @default(cuid())
-  address       String @unique
-  token0Address String
-  token1Address String
-  reserve0      String
-  reserve1      String
-  totalSupply   String
-
-  // Calculated fields
-  tvl       String?
-  volume24h String  @default("0")
-  volume7d  String  @default("0")
-  apr       Float?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relations
+  id              String           @id @default(cuid())
+  address         String           @unique
+  token0Address   String
+  token1Address   String
+  reserve0        String
+  reserve1        String
+  totalSupply     String
+  tvl             String?
+  volume24h       String           @default("0")
+  volume7d        String           @default("0")
+  apr             Float?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  liquidityEvents LiquidityEvent[]
   token0          Token            @relation("Token0", fields: [token0Address], references: [address])
   token1          Token            @relation("Token1", fields: [token1Address], references: [address])
   swaps           Swap[]
-  liquidityEvents LiquidityEvent[]
 
   @@index([token0Address])
   @@index([token1Address])
@@ -82,84 +66,65 @@ model Pool {
 }
 
 model User {
-  id      String @id @default(cuid())
-  address String @unique
-
-  // Gamification
-  points    Int @default(0)
-  level     Int @default(1)
-  referrals Int @default(0)
-
-  // Stats
-  tokensCreatedCount     Int    @default(0)
-  totalVolumeTraded      String @default("0")
-  totalLiquidityProvided String @default("0")
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relations
-  achievements Achievement[]
-  transactions Transaction[]
+  id                     String        @id @default(cuid())
+  address                String        @unique
+  points                 Int           @default(0)
+  level                  Int           @default(1)
+  referrals              Int           @default(0)
+  tokensCreatedCount     Int           @default(0)
+  totalVolumeTraded      String        @default("0")
+  totalLiquidityProvided String        @default("0")
+  createdAt              DateTime      @default(now())
+  updatedAt              DateTime      @updatedAt
+  achievements           Achievement[]
+  transactions           Transaction[]
 
   @@index([points])
   @@index([level])
 }
 
 model Achievement {
-  id     String @id @default(cuid())
-  userId String
-
-  achievementId String // ID of the achievement type
+  id            String    @id @default(cuid())
+  userId        String
+  achievementId String
   name          String
   description   String
   imageUrl      String
-  progress      Int     @default(0)
+  progress      Int       @default(0)
   maxProgress   Int
-  completed     Boolean @default(false)
-
-  unlockedAt DateTime?
-  createdAt  DateTime  @default(now())
-
-  user User @relation(fields: [userId], references: [id])
+  completed     Boolean   @default(false)
+  unlockedAt    DateTime?
+  createdAt     DateTime  @default(now())
+  user          User      @relation(fields: [userId], references: [id])
 
   @@unique([userId, achievementId])
   @@index([userId])
 }
 
 model Transaction {
-  id           String          @id @default(cuid())
-  hash         String          @unique
+  id           String            @id @default(cuid())
+  hash         String            @unique
   type         TransactionType
   from         String
   to           String?
   tokenAddress String?
   amount       String?
+  status       TransactionStatus @default(PENDING)
+  timestamp    DateTime
+  userId       String?
+  grossAmount  String?
+  lpFee        String?
+  netAmount    String?
+  protocolFee  String?
+  totalFees    String?
+  token        Token?            @relation(fields: [tokenAddress], references: [address])
+  user         User?             @relation(fields: [userId], references: [id])
 
-  // Fee tracking (NEW)
-  grossAmount String? // Amount before fees
-  protocolFee String? // Protocol fee (0.05%)
-  lpFee       String? // LP fee (0.25%)
-  totalFees   String? // Total fees paid
-  netAmount   String? // Amount after fees
-
-  status    TransactionStatus @default(PENDING)
-  timestamp DateTime
-
-  userId String?
-  user   User?   @relation(fields: [userId], references: [id])
-
-  token Token? @relation(fields: [tokenAddress], references: [address])
-
-  // Índices simples
   @@index([from])
   @@index([to])
   @@index([timestamp])
   @@index([type])
-  // Índices compuestos para leaderboard (PERFORMANCE CRÍTICO)
-  // Para agregar por usuario + tipo + tiempo
   @@index([from, type, timestamp, status])
-  // Para filtrar por tipo + tiempo + status
   @@index([type, status, timestamp])
 }
 
@@ -173,8 +138,7 @@ model Swap {
   amountIn  String
   amountOut String
   timestamp DateTime
-
-  pool Pool @relation(fields: [poolId], references: [id])
+  pool      Pool     @relation(fields: [poolId], references: [id])
 
   @@index([poolId])
   @@index([sender])
@@ -191,35 +155,29 @@ model LiquidityEvent {
   liquidity String
   type      LiquidityEventType
   timestamp DateTime
-
-  pool Pool @relation(fields: [poolId], references: [id])
+  pool      Pool               @relation(fields: [poolId], references: [id])
 
   @@index([poolId])
   @@index([provider])
   @@index([timestamp])
 }
 
-// Fee tracking models
 model FeeCollection {
-  id              String  @id @default(cuid())
-  hash            String  @unique
-  type            FeeType
+  id              String   @id @default(cuid())
+  timestamp       DateTime
   tokenAddress    String
-  amount          String // Amount in stroops
-  treasuryAddress String? // For protocol fees
-  userAddress     String // Who triggered the fee
-  transactionType String // "BUY" or "SELL"
-
-  // Breakdown
-  grossAmount String // Amount before fees
-  protocolFee String? // Protocol fee amount
-  lpFee       String? // LP fee amount
-  netAmount   String // Amount after fees
-
-  timestamp   DateTime
-  blockNumber String
-
-  createdAt DateTime @default(now())
+  protocolFee     String?
+  lpFee           String?
+  grossAmount     String
+  netAmount       String
+  treasuryAddress String?
+  createdAt       DateTime @default(now())
+  amount          String
+  blockNumber     String
+  hash            String   @unique
+  transactionType String
+  type            FeeType
+  userAddress     String
 
   @@index([type])
   @@index([tokenAddress])
@@ -230,62 +188,59 @@ model FeeCollection {
 }
 
 model FeeStats {
-  id           String  @id @default(cuid())
-  tokenAddress String? @unique // null for global stats
-
-  // Protocol fees (revenue)
-  totalProtocolFees String @default("0")
-  protocolFees24h   String @default("0")
-  protocolFees7d    String @default("0")
-  protocolFees30d   String @default("0")
-
-  // LP fees (liquidity)
-  totalLpFees String @default("0")
-  lpFees24h   String @default("0")
-  lpFees7d    String @default("0")
-  lpFees30d   String @default("0")
-
-  // Creation fees
-  totalCreationFees String @default("0")
-  creationFees24h   String @default("0")
-  creationFees7d    String @default("0")
-  creationFees30d   String @default("0")
-
-  // Aggregates
-  totalFees    String @default("0")
-  totalFees24h String @default("0")
-  totalFees7d  String @default("0")
-  totalFees30d String @default("0")
-
-  // Counts
-  totalTransactions Int @default(0)
-  transactions24h   Int @default(0)
-
-  updatedAt DateTime @updatedAt
+  id                String   @id @default(cuid())
+  tokenAddress      String?  @unique
+  totalProtocolFees String   @default("0")
+  totalLpFees       String   @default("0")
+  totalFees         String   @default("0")
+  creationFees24h   String   @default("0")
+  creationFees30d   String   @default("0")
+  creationFees7d    String   @default("0")
+  lpFees24h         String   @default("0")
+  lpFees30d         String   @default("0")
+  lpFees7d          String   @default("0")
+  protocolFees24h   String   @default("0")
+  protocolFees30d   String   @default("0")
+  protocolFees7d    String   @default("0")
+  totalCreationFees String   @default("0")
+  totalFees24h      String   @default("0")
+  totalFees30d      String   @default("0")
+  totalFees7d       String   @default("0")
+  totalTransactions Int      @default(0)
+  transactions24h   Int      @default(0)
+  updatedAt         DateTime @updatedAt
 
   @@index([tokenAddress])
   @@index([updatedAt])
 }
 
 model FeeConfig {
-  id              String @id @default(cuid())
-  contractAddress String @unique
-
-  // Current configuration
-  protocolFeeBps  Int // Protocol fee in basis points (5 = 0.05%)
-  lpFeeBps        Int // LP fee in basis points (25 = 0.25%)
-  creationFee     String // Creation fee in stroops (100000000 = 10 XLM)
-  treasuryAddress String // Multi-sig treasury address
-
-  // History tracking
-  effectiveFrom DateTime
-  updatedBy     String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id              String   @id @default(cuid())
+  creationFee     String
+  protocolFeeBps  Int
+  lpFeeBps        Int
+  treasuryAddress String
+  effectiveFrom   DateTime
+  updatedBy       String?
+  createdAt       DateTime @default(now())
+  contractAddress String   @unique
+  updatedAt       DateTime @updatedAt
 
   @@index([contractAddress])
   @@index([effectiveFrom])
+}
+
+model IndexerState {
+  id              String   @id @default(cuid())
+  contractName    String   @unique
+  lastLedger      String
+  lastEventId     String?
+  lastProcessedAt DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([contractName])
+  @@index([lastProcessedAt])
 }
 
 enum FeeType {
@@ -316,19 +271,4 @@ enum TransactionStatus {
 enum LiquidityEventType {
   ADD
   REMOVE
-}
-
-// Indexer state management for resumption
-model IndexerState {
-  id              String   @id @default(cuid())
-  contractName    String   @unique // e.g., "token_factory", "amm_factory"
-  lastLedger      String // Last indexed ledger number as string
-  lastEventId     String? // Last processed event ID (for cursor)
-  lastProcessedAt DateTime @default(now())
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([contractName])
-  @@index([lastProcessedAt])
 }

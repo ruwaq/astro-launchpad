@@ -12,10 +12,9 @@
  *   npx ts-node src/services/fee-stats-initializer.ts --backfill
  */
 
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '@astroshibapop/shared/prisma';
 import { logger } from '../lib/logger.js';
 import { FeeStatsService } from './fee-stats.service.js';
-import * as StellarSdk from '@stellar/stellar-sdk';
 
 interface InitOptions {
   backfill?: boolean;

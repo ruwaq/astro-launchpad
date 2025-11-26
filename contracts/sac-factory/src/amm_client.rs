@@ -108,4 +108,37 @@ impl<'a> AmmPairClient<'a> {
 
         result.map_err(|_| Error::AmmInitializationFailed)
     }
+
+    /// Swap exact token0 for token1 (XLM -> ASTRO)
+    ///
+    /// # Arguments
+    /// * `sender` - Address performing the swap
+    /// * `amount_in` - Amount of token0 to swap
+    /// * `min_amount_out` - Minimum amount of token1 to receive
+    /// * `deadline` - Transaction deadline
+    ///
+    /// # Returns
+    /// Tuple of (amount_in, amount_out)
+    pub fn swap_exact_0_for_1(
+        &self,
+        sender: &Address,
+        amount_in: i128,
+        min_amount_out: i128,
+        deadline: u64,
+    ) -> Result<(i128, i128), Error> {
+        let result: Result<(i128, i128), Error> = self.env.invoke_contract(
+            &self.address,
+            &Symbol::new(self.env, "swap_exact_tokens_for_tokens"),
+            (
+                sender.clone(),
+                amount_in,
+                min_amount_out,
+                true, // amount_in is token0
+                deadline,
+            )
+                .into_val(self.env),
+        );
+
+        result.map_err(|_| Error::AmmInitializationFailed)
+    }
 }

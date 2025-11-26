@@ -81,9 +81,8 @@ export default function DashboardPage() {
             icon={<Rocket className="h-6 w-6" />}
           />
           <MetricCard
-            title="Total Volume"
+            title="Total Volume (24h)"
             value={formatCompactNumber(parseFloat(stats?.totalVolume24h || '0'))}
-            change={parseFloat(stats?.totalVolumeChange24h || '0')}
             loading={statsLoading}
             prefix="$"
             icon={<TrendingUp className="h-6 w-6" />}
@@ -96,8 +95,7 @@ export default function DashboardPage() {
           />
           <MetricCard
             title="Total TVL"
-            value={formatCompactNumber(parseFloat(stats?.totalLiquidity || '0'))}
-            change={parseFloat(stats?.totalLiquidityChange24h || '0')}
+            value={formatCompactNumber(parseFloat(stats?.totalTVL || '0'))}
             loading={statsLoading}
             prefix="$"
             icon={<Lock className="h-6 w-6" />}

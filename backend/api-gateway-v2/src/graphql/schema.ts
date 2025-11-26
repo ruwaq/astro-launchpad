@@ -299,14 +299,9 @@ export const schema = `#graphql
     SUCCESS
     FAILED
   }
-`
-# Fee Management GraphQL Schema
-# 
-# Comprehensive schema for fee tracking, statistics, and revenue analytics.
-# Supports real-time fee monitoring, historical data, and performance metrics.
 
 # ============================================================
-# TYPE DEFINITIONS
+# FEE MANAGEMENT SCHEMA
 # ============================================================
 
 """
@@ -706,7 +701,7 @@ input RecalculateFeeStatsInput {
 }
 
 # ============================================================
-# QUERIES
+# QUERIES (EXTENSIONS)
 # ============================================================
 
 extend type Query {
@@ -760,7 +755,7 @@ extend type Query {
 }
 
 # ============================================================
-# MUTATIONS
+# MUTATIONS (EXTENSIONS)
 # ============================================================
 
 extend type Mutation {
@@ -776,19 +771,4 @@ extend type Mutation {
   """
   resetExpiredTimeWindows: MutationResponse!
 }
-
-# ============================================================
-# SUBSCRIPTIONS (Future)
-# ============================================================
-
-# extend type Subscription {
-#   """
-#   Real-time fee collection updates
-#   """
-#   onFeeCollected(tokenAddress: String): FeeCollection!
-#   
-#   """
-#   Real-time fee stats updates
-#   """
-#   onFeeStatsUpdated(tokenAddress: String): FeeStats!
-# }
+`

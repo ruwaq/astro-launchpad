@@ -42,7 +42,7 @@ export class CircuitBreaker {
     if (this.state === CircuitState.OPEN) {
       if (this.shouldAttemptReset()) {
         this.state = CircuitState.HALF_OPEN;
-        console.log('Circuit breaker entering HALF_OPEN state');
+        // Circuit breaker entering HALF_OPEN state
       } else {
         throw new Error(`Circuit breaker is OPEN. Retry in ${this.getTimeUntilRetry()}ms`);
       }
@@ -82,7 +82,7 @@ export class CircuitBreaker {
         this.state = CircuitState.CLOSED;
         this.successCount = 0;
         this.currentDelay = this.config.timeout;
-        console.log('Circuit breaker CLOSED - service recovered');
+        // Circuit breaker CLOSED - service recovered
       }
     }
   }
@@ -97,16 +97,14 @@ export class CircuitBreaker {
     if (this.state === CircuitState.HALF_OPEN) {
       this.state = CircuitState.OPEN;
       this.successCount = 0;
-      console.log('Circuit breaker OPEN - service still failing');
+      // Circuit breaker OPEN - service still failing
     }
 
     if (this.failureCount >= this.config.failureThreshold) {
       this.state = CircuitState.OPEN;
       // Exponential backoff: double the delay up to maxDelay
       this.currentDelay = Math.min(this.currentDelay * 2, this.config.maxDelay);
-      console.log(
-        `Circuit breaker OPEN after ${this.failureCount} failures. Next retry in ${this.currentDelay}ms`
-      );
+      // Circuit breaker OPEN after failures. Next retry with exponential backoff
     }
   }
 
@@ -151,7 +149,7 @@ export class CircuitBreaker {
     this.successCount = 0;
     this.lastFailureTime = null;
     this.currentDelay = this.config.timeout;
-    console.log('Circuit breaker manually reset');
+    // Circuit breaker manually reset
   }
 
   /**

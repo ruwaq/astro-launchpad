@@ -16,6 +16,7 @@ export interface GraphQLContext {
     user?: {
         address: string;
         authenticated: boolean;
+        isAdmin?: boolean;
     };
 }
 /**
@@ -40,9 +41,17 @@ export declare function getUserAgent(request: IncomingMessage): string | undefin
  */
 export declare function isAuthenticated(context: GraphQLContext): boolean;
 /**
+ * Check if user is admin
+ */
+export declare function isAdmin(context: GraphQLContext): boolean;
+/**
  * Require authentication - throws error if not authenticated
  */
 export declare function requireAuth(context: GraphQLContext): void;
+/**
+ * Require admin privileges - throws error if not admin
+ */
+export declare function requireAdmin(context: GraphQLContext): void;
 /**
  * Get user address from context - throws if not authenticated
  */

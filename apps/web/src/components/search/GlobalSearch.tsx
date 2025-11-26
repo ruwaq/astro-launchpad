@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import Image from 'next/image';
 import { useSearch } from '@/hooks/useApi';
 import { truncateAddress, formatCompactNumber } from '@/lib/stellar/utils';
 import Link from 'next/link';
@@ -24,9 +25,11 @@ export function GlobalSearch() {
   }, []);
 
   const handleSearch = (value: string) => {
-    setQuery(value);
-    if (value.length >= 2) {
-      search(value);
+    // Sanitize input: only allow alphanumeric, spaces, and common symbols
+    const sanitizedValue = value.replace(/[<>'"&]/g, '').slice(0, 100);
+    setQuery(sanitizedValue);
+    if (sanitizedValue.length >= 2) {
+      search(sanitizedValue);
       setIsOpen(true);
     } else {
       setIsOpen(false);
@@ -91,10 +94,13 @@ export function GlobalSearch() {
                     >
                       <div className="flex items-center space-x-3">
                         {token.logoUrl && (
-                          <img
+                          <Image
                             src={token.logoUrl}
                             alt={token.symbol}
-                            className="w-8 h-8 rounded-full"
+                            width={32}
+                            height={32}
+                            className="w-8 h-8 rounded-full object-cover"
+                            unoptimized
                           />
                         )}
                         <div>
@@ -137,17 +143,23 @@ export function GlobalSearch() {
                       <div className="flex items-center space-x-3">
                         <div className="flex -space-x-2">
                           {pool.token0.logoUrl && (
-                            <img
+                            <Image
                               src={pool.token0.logoUrl}
                               alt={pool.token0.symbol}
-                              className="w-8 h-8 rounded-full border-2 border-white"
+                              width={32}
+                              height={32}
+                              className="w-8 h-8 rounded-full border-2 border-white object-cover"
+                              unoptimized
                             />
                           )}
                           {pool.token1.logoUrl && (
-                            <img
+                            <Image
                               src={pool.token1.logoUrl}
                               alt={pool.token1.symbol}
-                              className="w-8 h-8 rounded-full border-2 border-white"
+                              width={32}
+                              height={32}
+                              className="w-8 h-8 rounded-full border-2 border-white object-cover"
+                              unoptimized
                             />
                           )}
                         </div>

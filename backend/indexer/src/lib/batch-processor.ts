@@ -3,7 +3,7 @@
  * Queues events and processes them in batches for efficiency
  */
 
-import { PrismaClient } from '@prisma/client'
+import { PrismaClient } from '@astroshibapop/shared/prisma'
 import PQueue from 'p-queue'
 import { logger } from './logger.js'
 import {
@@ -12,7 +12,6 @@ import {
   recordBatchProcessed,
   updateQueueSize,
   recordDatabaseWrite,
-  recordDatabaseError,
 } from './metrics.js'
 
 export interface BatchEvent {
@@ -20,7 +19,7 @@ export interface BatchEvent {
   ledger: string
   contract: string
   eventType: string
-  data: any
+  data: Record<string, unknown>
   timestamp: Date
 }
 
@@ -52,6 +51,7 @@ export class BatchProcessor {
   private queue: PQueue
   private eventBuffer: Map<string, BatchEvent[]> = new Map()
   private flushTimers: Map<string, NodeJS.Timeout> = new Map()
+  private retryTimers: Set<NodeJS.Timeout> = new Set() // Track retry timers to prevent memory leak
   private totalQueued: number = 0
   private isShuttingDown: boolean = false
 
@@ -222,6 +222,11 @@ export class BatchProcessor {
    * Retry failed batch with exponential backoff
    */
   private async retryBatch(contract: string, batch: BatchEvent[], attempt: number) {
+    if (this.isShuttingDown) {
+      logger.warn('Skipping retry: processor is shutting down')
+      return
+    }
+
     if (attempt > this.config.maxRetries) {
       logger.error(`Max retries (${this.config.maxRetries}) exceeded for batch`)
       return
@@ -230,7 +235,18 @@ export class BatchProcessor {
     const delay = Math.min(1000 * Math.pow(2, attempt - 1), 30000) // Max 30s
     logger.warn(`Retrying batch in ${delay}ms (attempt ${attempt}/${this.config.maxRetries})`)
 
-    await new Promise((resolve) => setTimeout(resolve, delay))
+    await new Promise<void>((resolve) => {
+      const timer = setTimeout(() => {
+        this.retryTimers.delete(timer)
+        resolve()
+      }, delay)
+      this.retryTimers.add(timer)
+    })
+
+    if (this.isShuttingDown) {
+      logger.warn('Aborting retry: processor is shutting down')
+      return
+    }
 
     try {
       await this.processBatch(contract, batch)
@@ -261,7 +277,7 @@ export class BatchProcessor {
    * Override this method in subclasses for custom processing
    */
   private async processEventGroup(
-    tx: any,
+    tx: Parameters<Parameters<PrismaClient['$transaction']>[0]>[0],
     contract: string,
     eventType: string,
     events: BatchEvent[]
@@ -283,7 +299,7 @@ export class BatchProcessor {
   /**
    * Example: Batch upsert tokens
    */
-  private async batchUpsertTokens(tx: any, events: BatchEvent[]) {
+  private async batchUpsertTokens(tx: Parameters<Parameters<PrismaClient['$transaction']>[0]>[0], events: BatchEvent[]) {
     // Create many tokens at once
     // This is much faster than individual upserts
     const operations = events.map((event) => {
@@ -332,6 +348,12 @@ export class BatchProcessor {
       clearTimeout(timer)
     }
     this.flushTimers.clear()
+
+    // Clear all retry timers
+    for (const timer of this.retryTimers) {
+      clearTimeout(timer)
+    }
+    this.retryTimers.clear()
 
     // Flush all pending batches
     await this.flushAll()

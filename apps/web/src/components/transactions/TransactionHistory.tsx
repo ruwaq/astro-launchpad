@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useUserTransactions } from '@/hooks/useApi';
 import { truncateAddress, getTimeAgo, formatCompactNumber } from '@/lib/stellar/utils';
 
@@ -106,10 +107,13 @@ export function TransactionHistory({ userAddress, limit = 20 }: TransactionHisto
                       {tx.token ? (
                         <div className="flex items-center">
                           {tx.token.logoUrl && (
-                            <img
+                            <Image
                               src={tx.token.logoUrl}
                               alt={tx.token.symbol}
-                              className="w-6 h-6 rounded-full mr-2"
+                              width={24}
+                              height={24}
+                              className="w-6 h-6 rounded-full mr-2 object-cover"
+                              unoptimized
                             />
                           )}
                           <span className="font-medium">{tx.token.symbol}</span>

@@ -1,0 +1,39 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "version": 2,
+  "name": "astro-launchpad",
+  "framework": "nextjs",
+  "buildCommand": "pnpm turbo build --filter=web",
+  "outputDirectory": "apps/web/.next",
+  "installCommand": "pnpm install",
+  "devCommand": "pnpm dev --filter=web",
+  "regions": ["iad1"],
+  "env": {
+    "STELLAR_NETWORK": "testnet",
+    "STELLAR_RPC_URL": "https://soroban-testnet.stellar.org"
+  },
+  "build": {
+    "env": {
+      "NEXT_PUBLIC_API_URL": "@api_url",
+      "NEXT_PUBLIC_NETWORK": "testnet",
+      "STELLAR_RPC_URL": "https://soroban-testnet.stellar.org"
+    }
+  },
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        { "key": "Access-Control-Allow-Credentials", "value": "true" },
+        { "key": "Access-Control-Allow-Origin", "value": "*" },
+        { "key": "Access-Control-Allow-Methods", "value": "GET,POST,OPTIONS" },
+        { "key": "Access-Control-Allow-Headers", "value": "Content-Type, Authorization" }
+      ]
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/graphql",
+      "destination": "https://your-api-url.vercel.app/graphql"
+    }
+  ]
+}

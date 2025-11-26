@@ -59,10 +59,8 @@ async function testSetup() {
       console.log('\n6️⃣  Testing Cached Queries')
       console.log('   ℹ️  Attempting to query tokens table...')
 
-      const tokenCount = await prisma.token.count({
-        cacheStrategy: CACHE_STRATEGIES.SHORT_TTL
-      })
-      console.log(`   ✅ Found ${tokenCount} tokens (cached for 60s)`)
+      const tokenCount = await prisma.token.count()
+      console.log(`   ✅ Found ${tokenCount} tokens`)
     } else {
       console.log('   ⚠️  Database connection failed (this is OK if DB is not running)')
       console.log('   ℹ️  To enable DB tests, start PostgreSQL and run migrations')

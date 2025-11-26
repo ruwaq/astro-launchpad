@@ -1,0 +1,10 @@
+{
+  "network": "testnet",
+  "contract_id": "CC74U5XE6VBGKSO7ZJ6F5OSY6LU6GD4NCU6PAXU5H7Q4WSGJGPIAG3QA",
+  "admin": "GB2XFP6XK2MPOGURZCEH3KISW7W657IXC3MJZKG5MNBFMUSUNX3QWCFJ",
+  "treasury": "GB2XFP6XK2MPOGURZCEH3KISW7W657IXC3MJZKG5MNBFMUSUNX3QWCFJ",
+  "wasm_size": "38K",
+  "deployed_at": "2025-11-24T03:01:48Z",
+  "deployer_identity": "testnet-deployer",
+  "stellar_version": "stellar 23.0.0 (687879f312136196d504aa859f5669238acc8bd4)"
+}

@@ -9,14 +9,16 @@ mod tests {
     };
 
     // Test helpers
-    fn create_factory_contract(env: &Env) -> (SacFactoryClient, Address, Address) {
+    fn create_factory_contract(env: &Env) -> (SacFactoryClient, Address, Address, Address) {
         let contract_id = env.register(SacFactory, ());
         let client = SacFactoryClient::new(env, &contract_id);
 
         let admin = Address::generate(env);
         let treasury = Address::generate(env);
+        // Generate a mock XLM token address for testing
+        let xlm_token_address = Address::generate(env);
 
-        (client, admin, treasury)
+        (client, admin, treasury, xlm_token_address)
     }
 
     /// Get a deadline far in the future (1 year from now)
@@ -25,12 +27,19 @@ mod tests {
     }
 
     fn setup_initialized_factory(env: &Env) -> (SacFactoryClient, Address, Address) {
-        let (client, admin, treasury) = create_factory_contract(env);
+        let (client, admin, treasury, xlm_token_address) = create_factory_contract(env);
 
         env.mock_all_auths();
-        client.initialize(&admin, &treasury);
+        client.initialize(&admin, &treasury, &xlm_token_address);
 
         (client, admin, treasury)
+    }
+
+    /// Helper to create a test issuer public key string
+    /// In production, this would be a real Stellar G... address
+    fn create_test_issuer(env: &Env) -> String {
+        // Use a dummy issuer address format (56 chars starting with G)
+        String::from_str(env, "GCEZWKCA5VLDNRLN3RPRJMRZOX3Z6G5CHCGSNFHEYVXM3XOJMDS674JZ")
     }
 
     /// Helper to create serialized asset for tests
@@ -61,10 +70,10 @@ mod tests {
     #[test]
     fn test_initialize_success() {
         let env = Env::default();
-        let (client, admin, treasury) = create_factory_contract(&env);
+        let (client, admin, treasury, xlm_token_address) = create_factory_contract(&env);
 
         env.mock_all_auths();
-        client.initialize(&admin, &treasury);
+        client.initialize(&admin, &treasury, &xlm_token_address);
 
         assert_eq!(client.get_token_count(), 0);
     }
@@ -73,11 +82,11 @@ mod tests {
     #[should_panic(expected = "Error(Contract, #1)")]
     fn test_initialize_twice_fails() {
         let env = Env::default();
-        let (client, admin, treasury) = create_factory_contract(&env);
+        let (client, admin, treasury, xlm_token_address) = create_factory_contract(&env);
 
         env.mock_all_auths();
-        client.initialize(&admin, &treasury);
-        client.initialize(&admin, &treasury);
+        client.initialize(&admin, &treasury, &xlm_token_address);
+        client.initialize(&admin, &treasury, &xlm_token_address);
     }
 
     // ========== Token Launch Tests ==========
@@ -93,10 +102,12 @@ mod tests {
 
         let serialized_asset = create_test_serialized_asset(&env, &symbol, &creator, 0);
 
+        let issuer = create_test_issuer(&env);
         let token_addr = client.launch_token(
             &creator,
             &String::from_str(&env, "Test Token"),
             &symbol,
+            &issuer,
             &String::from_str(&env, "ipfs://test"),
             &String::from_str(&env, "A test token"),
             &serialized_asset,
@@ -123,10 +134,12 @@ mod tests {
 
         let serialized_asset = create_test_serialized_asset(&env, &symbol, &creator, 0);
 
+        let issuer = create_test_issuer(&env);
         client.launch_token(
             &creator,
             &String::from_str(&env, ""),
             &symbol,
+            &issuer,
             &String::from_str(&env, "ipfs://test"),
             &String::from_str(&env, "Description"),
             &serialized_asset,
@@ -148,10 +161,12 @@ mod tests {
         let serialized_asset = create_test_serialized_asset(&env, &valid_symbol, &creator, 0);
 
         // Contract will reject the long symbol even though asset is valid
+        let issuer = create_test_issuer(&env);
         client.launch_token(
             &creator,
             &String::from_str(&env, "Test"),
             &long_symbol,  // This will fail validation
+            &issuer,
             &String::from_str(&env, "ipfs://test"),
             &String::from_str(&env, "Description"),
             &serialized_asset,
@@ -166,15 +181,17 @@ mod tests {
         let creator = Address::generate(&env);
         env.mock_all_auths();
 
+        let issuer = create_test_issuer(&env);
         for i in 0..3 {
             let symbol = String::from_str(&env, if i == 0 { "TK0" } else if i == 1 { "TK1" } else { "TK2" });
             let name = String::from_str(&env, if i == 0 { "Token 0" } else if i == 1 { "Token 1" } else { "Token 2" });
             let serialized_asset = create_test_serialized_asset(&env, &symbol, &creator, i);
-            
+
             client.launch_token(
                 &creator,
                 &name,
                 &symbol,
+                &issuer,
                 &String::from_str(&env, "ipfs://test"),
                 &String::from_str(&env, "Description"),
                 &serialized_asset,
@@ -200,10 +217,12 @@ mod tests {
 
         let serialized_asset = create_test_serialized_asset(&env, &symbol, &creator, 0);
 
+        let issuer = create_test_issuer(&env);
         let token_addr = client.launch_token(
             &creator,
             &String::from_str(&env, "Test Token"),
             &symbol,
+            &issuer,
             &String::from_str(&env, "ipfs://test"),
             &String::from_str(&env, "Description"),
             &serialized_asset,
@@ -244,10 +263,12 @@ mod tests {
 
         let serialized_asset = create_test_serialized_asset(&env, &symbol, &creator, 0);
 
+        let issuer = create_test_issuer(&env);
         let token_addr = client.launch_token(
             &creator,
             &String::from_str(&env, "Test"),
             &symbol,
+            &issuer,
             &String::from_str(&env, "ipfs://test"),
             &String::from_str(&env, "Desc"),
             &serialized_asset,
@@ -272,10 +293,12 @@ mod tests {
 
         let serialized_asset = create_test_serialized_asset(&env, &symbol, &creator, 0);
 
+        let issuer = create_test_issuer(&env);
         let token_addr = client.launch_token(
             &creator,
             &String::from_str(&env, "Test"),
             &symbol,
+            &issuer,
             &String::from_str(&env, "ipfs://test"),
             &String::from_str(&env, "Desc"),
             &serialized_asset,
@@ -306,10 +329,12 @@ mod tests {
 
         let serialized_asset = create_test_serialized_asset(&env, &symbol, &creator, 0);
 
+        let issuer = create_test_issuer(&env);
         let token_addr = client.launch_token(
             &creator,
             &String::from_str(&env, "Test"),
             &symbol,
+            &issuer,
             &String::from_str(&env, "ipfs://test"),
             &String::from_str(&env, "Desc"),
             &serialized_asset,
@@ -338,6 +363,7 @@ mod tests {
         let creator = Address::generate(&env);
         env.mock_all_auths();
 
+        let issuer = create_test_issuer(&env);
         for i in 0..10 {
             let name = if i < 5 {
                 String::from_str(&env, "TokenA")
@@ -346,13 +372,14 @@ mod tests {
             };
             let symbol_str = if i % 2 == 0 { "TA" } else { "TB" };
             let symbol = String::from_str(&env, symbol_str);
-            
+
             let serialized_asset = create_test_serialized_asset(&env, &symbol, &creator, i);
 
             client.launch_token(
                 &creator,
                 &name,
                 &symbol,
+                &issuer,
                 &String::from_str(&env, "ipfs://test"),
                 &String::from_str(&env, "Desc"),
                 &serialized_asset,
@@ -383,10 +410,12 @@ mod tests {
 
         let serialized_asset = create_test_serialized_asset(&env, &symbol, &creator, 0);
 
+        let issuer = create_test_issuer(&env);
         let token_addr = client.launch_token(
             &creator,
             &String::from_str(&env, "Test"),
             &symbol,
+            &issuer,
             &String::from_str(&env, "ipfs://test"),
             &String::from_str(&env, "Desc"),
             &serialized_asset,

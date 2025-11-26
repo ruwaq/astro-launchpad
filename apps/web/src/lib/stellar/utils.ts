@@ -6,6 +6,7 @@
  */
 
 import { Address, nativeToScVal, scValToNative, xdr } from '@stellar/stellar-sdk';
+import type { ScValConvertible } from './types';
 
 /**
  * Address Validation
@@ -117,14 +118,14 @@ export function truncateAddress(address: string, chars: number = 4): string {
 /**
  * Convert JavaScript value to Soroban ScVal
  */
-export function toScVal(value: any, type?: xdr.ScValType): xdr.ScVal {
+export function toScVal(value: ScValConvertible, type?: xdr.ScValType): xdr.ScVal {
   return nativeToScVal(value, type ? { type } : undefined);
 }
 
 /**
  * Convert Soroban ScVal to JavaScript value
  */
-export function fromScVal(scVal: xdr.ScVal): any {
+export function fromScVal(scVal: xdr.ScVal): unknown {
   return scValToNative(scVal);
 }
 

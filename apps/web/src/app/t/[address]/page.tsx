@@ -19,13 +19,13 @@ export const dynamic = 'force-dynamic';
 import { use, useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { TradingInterface } from '@/components/trading/TradingInterface';
-import { BondingCurveChart } from '@/components/charts/BondingCurveChart';
+import { TradingViewChart } from '@/components/charts/TradingViewChart';
 import { RecentTrades } from '@/components/trading/RecentTrades';
 import { TokenHeader } from '@/components/token/TokenHeader';
-import { GraduationProgress } from '@/components/token/GraduationProgress';
+import { GraduationProgressAnimated } from '@/components/token/GraduationProgressAnimated';
 import { Loader2, AlertCircle } from 'lucide-react';
 import { sacFactoryService } from '@/lib/stellar/services/sac-factory.service';
-import type { TokenInfo } from '@/lib/stellar/services/sac-factory.service';
+import type { TokenInfo, AstroConfig } from '@/lib/stellar/services/sac-factory.service';
 
 interface PageProps {
   params: Promise<{ address: string }>;
@@ -34,6 +34,7 @@ interface PageProps {
 export default function TokenTradingPage({ params }: PageProps) {
   const { address } = use(params);
   const [token, setToken] = useState<TokenInfo | null>(null);
+  const [astroConfig, setAstroConfig] = useState<AstroConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -43,7 +44,11 @@ export default function TokenTradingPage({ params }: PageProps) {
       setError(null);
 
       try {
-        const tokenInfo = await sacFactoryService.getTokenInfo(address);
+        // Fetch token info and ASTRO config in parallel
+        const [tokenInfo, astroConfigResult] = await Promise.all([
+          sacFactoryService.getTokenInfo(address),
+          sacFactoryService.getAstroConfig(),
+        ]);
 
         if (!tokenInfo) {
           setError('Token not found on Stellar Testnet');
@@ -51,6 +56,7 @@ export default function TokenTradingPage({ params }: PageProps) {
         }
 
         setToken(tokenInfo);
+        setAstroConfig(astroConfigResult);
       } catch (err: any) {
         console.error('Error fetching token:', err);
         setError(err.message || 'Failed to load token data');
@@ -115,18 +121,23 @@ export default function TokenTradingPage({ params }: PageProps) {
     address: token.token_address,
     name: token.name,
     symbol: token.symbol,
+    decimals: 7, // Stellar standard
+    totalSupply: '1000000000000000', // 100M tokens * 10^7 decimals
     description: token.description || '',
     creator: token.creator,
-    imageUrl: token.image_url || null,
+    issuer: token.issuer, // Asset issuer for trustline creation
+    logoUrl: token.image_url || null,
     currentPrice: '0', // TODO: Calculate from bonding curve
     marketCap: token.market_cap || '0',
     volume24h: '0', // TODO: Get from indexer/database
+    priceChange24h: '0', // TODO: Get from indexer/database
     holders: token.holders_count,
     circulatingSupply: token.bonding_curve?.token_reserve || '0',
     xlmRaised: token.xlm_raised,
     xlmReserve: token.bonding_curve?.xlm_reserve || '0',
     graduated: token.status === 'Graduated',
     createdAt: token.created_at.toString(),
+    updatedAt: new Date().toISOString(),
   };
 
   return (
@@ -139,13 +150,8 @@ export default function TokenTradingPage({ params }: PageProps) {
         <div className="grid lg:grid-cols-3 gap-6">
           {/* Left: Chart + Trading Interface */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Bonding Curve Chart - Real price data */}
-            <div className="bg-white rounded-xl border border-ui-border p-6">
-              <h2 className="text-lg font-bold text-ui-text-primary mb-4">
-                Price Chart
-              </h2>
-              <BondingCurveChart tokenAddress={address} />
-            </div>
+            {/* TradingView-style Price Chart */}
+            <TradingViewChart tokenAddress={address} symbol={formattedToken.symbol} />
 
             {/* Trading Interface - Real buy/sell */}
             <TradingInterface tokenAddress={address} token={formattedToken} />
@@ -153,11 +159,17 @@ export default function TokenTradingPage({ params }: PageProps) {
 
           {/* Right: Stats + Recent Trades */}
           <div className="space-y-6">
-            {/* Graduation Progress - Real XLM raised */}
-            <GraduationProgress
+            {/* Animated Graduation Progress - Real XLM raised */}
+            <GraduationProgressAnimated
               xlmRaised={formattedToken.xlmRaised}
               graduated={formattedToken.graduated}
               threshold={10000} // 10,000 XLM
+              tokenSymbol={formattedToken.symbol}
+              astroConfig={astroConfig ? {
+                liquidityBps: parseInt(astroConfig.liquidity_bps),
+                buybackBps: parseInt(astroConfig.buyback_bps),
+                enabled: true,
+              } : undefined}
             />
 
             {/* Token Stats - Real data */}

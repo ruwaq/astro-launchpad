@@ -7,9 +7,22 @@
 
 'use client';
 
+import Image from 'next/image';
 import { Copy, ExternalLink, Check } from 'lucide-react';
 import { useState } from 'react';
-import Image from 'next/image';
+
+// Helper to convert ipfs:// URLs to HTTP gateway URLs
+const getImageUrl = (url: string | undefined | null): string | null => {
+  if (!url) return null;
+  if (url.startsWith('ipfs://')) {
+    const cid = url.replace('ipfs://', '');
+    const gateway = process.env.NEXT_PUBLIC_PINATA_GATEWAY;
+    return gateway
+      ? `https://${gateway}/ipfs/${cid}`
+      : `https://gateway.pinata.cloud/ipfs/${cid}`;
+  }
+  return url;
+};
 
 interface TokenHeaderProps {
   token: any; // Token object from GraphQL
@@ -36,19 +49,27 @@ export function TokenHeader({ token }: TokenHeaderProps) {
       <div className="flex items-start gap-4">
         {/* Token Logo */}
         <div className="flex-shrink-0">
-          {token.logoUrl ? (
-            <Image
-              src={token.logoUrl}
-              alt={token.name}
-              width={80}
-              height={80}
-              className="rounded-full border-2 border-ui-border"
-            />
-          ) : (
-            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-brand-primary to-purple-600 flex items-center justify-center text-white text-2xl font-bold">
-              {token.symbol.charAt(0)}
-            </div>
-          )}
+          {(() => {
+            const imageUrl = getImageUrl(token.logoUrl || token.imageUrl);
+            return imageUrl ? (
+              <Image
+                src={imageUrl}
+                alt={token.name}
+                width={80}
+                height={80}
+                className="w-20 h-20 rounded-full border-2 border-ui-border object-cover"
+                unoptimized
+                onError={(e) => {
+                  // Hide image on error, fallback will show
+                  (e.target as HTMLImageElement).style.display = 'none';
+                  (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
+                }}
+              />
+            ) : null;
+          })()}
+          <div className={`w-20 h-20 rounded-full bg-gradient-to-br from-brand-primary to-purple-600 flex items-center justify-center text-white text-2xl font-bold ${getImageUrl(token.logoUrl || token.imageUrl) ? 'hidden' : ''}`}>
+            {token.symbol?.charAt(0) || '?'}
+          </div>
         </div>
 
         {/* Token Info */}

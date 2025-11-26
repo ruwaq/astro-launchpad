@@ -18,7 +18,6 @@
  * - Result: 1 query for tokens + 1 batched query for users = 2 queries
  */
 import DataLoader from 'dataloader';
-import { CACHE_STRATEGIES } from '../lib/prisma.js';
 /**
  * Token Loader
  * Batches token lookups by address
@@ -27,7 +26,6 @@ function createTokenLoader(prisma) {
     return new DataLoader(async (addresses) => {
         const tokens = await prisma.token.findMany({
             where: { address: { in: [...addresses] } },
-            cacheStrategy: CACHE_STRATEGIES.MEDIUM_TTL,
         });
         // Create a map for O(1) lookups
         const tokenMap = new Map(tokens.map((token) => [token.address, token]));
@@ -43,7 +41,6 @@ function createUserLoader(prisma) {
     return new DataLoader(async (addresses) => {
         const users = await prisma.user.findMany({
             where: { address: { in: [...addresses] } },
-            cacheStrategy: CACHE_STRATEGIES.MEDIUM_TTL,
         });
         const userMap = new Map(users.map((user) => [user.address, user]));
         return addresses.map((address) => userMap.get(address) || null);
@@ -57,7 +54,6 @@ function createUserByIdLoader(prisma) {
     return new DataLoader(async (ids) => {
         const users = await prisma.user.findMany({
             where: { id: { in: [...ids] } },
-            cacheStrategy: CACHE_STRATEGIES.MEDIUM_TTL,
         });
         const userMap = new Map(users.map((u) => [u.id, u]));
         return ids.map((id) => userMap.get(id) || null);
@@ -71,7 +67,6 @@ function createPoolLoader(prisma) {
     return new DataLoader(async (addresses) => {
         const pools = await prisma.pool.findMany({
             where: { address: { in: [...addresses] } },
-            cacheStrategy: CACHE_STRATEGIES.MEDIUM_TTL,
         });
         const poolMap = new Map(pools.map((pool) => [pool.address, pool]));
         return addresses.map((address) => poolMap.get(address) || null);
@@ -87,7 +82,6 @@ function createTokensByCreatorLoader(prisma) {
         const tokens = await prisma.token.findMany({
             where: { creator: { in: [...creatorAddresses] } },
             orderBy: { createdAt: 'desc' },
-            cacheStrategy: CACHE_STRATEGIES.MEDIUM_TTL,
         });
         // Group tokens by creator
         const tokensByCreator = new Map();
@@ -114,7 +108,6 @@ function createPoolsByTokenLoader(prisma) {
                     { token1Address: { in: [...tokenAddresses] } },
                 ],
             },
-            cacheStrategy: CACHE_STRATEGIES.MEDIUM_TTL,
         });
         // Group pools by token address
         const poolsByToken = new Map();
@@ -141,7 +134,6 @@ function createAchievementsByUserIdLoader(prisma) {
     return new DataLoader(async (userIds) => {
         const achievements = await prisma.achievement.findMany({
             where: { userId: { in: [...userIds] } },
-            cacheStrategy: CACHE_STRATEGIES.LONG_TTL,
         });
         // Group achievements by user ID
         const achievementsByUser = new Map();

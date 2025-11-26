@@ -182,3 +182,70 @@ export interface SwapEvent {
   amountOut: string;
   timestamp: Date;
 }
+
+// ============================================================================
+// ASTRO Token Integration Types
+// ============================================================================
+
+/**
+ * ASTRO Protocol Configuration
+ * Defines how XLM is allocated during token graduation
+ */
+export interface AstroConfig {
+  /** ASTRO token contract address */
+  tokenAddress: string;
+  /** ASTRO/XLM AMM address for swaps */
+  ammAddress: string;
+  /** Basis points for ASTRO liquidity pool (default: 1000 = 10%) */
+  liquidityBps: number;
+  /** Basis points for buyback & burn (default: 500 = 5%) */
+  buybackBps: number;
+  /** Whether ASTRO integration is enabled */
+  enabled: boolean;
+}
+
+/**
+ * ASTRO Allocation breakdown during graduation
+ */
+export interface AstroAllocation {
+  /** XLM allocated to main token/XLM pool (85% default) */
+  xlmForMainPool: string;
+  /** XLM allocated to ASTRO liquidity (10% default) */
+  xlmForAstroLiquidity: string;
+  /** XLM used for buyback & burn (5% default) */
+  xlmForBuyback: string;
+  /** Amount of ASTRO burned (if buyback executed) */
+  astroBurned?: string;
+}
+
+/**
+ * ASTRO Buyback Event
+ */
+export interface AstroBuybackEvent {
+  /** Graduated token that triggered the buyback */
+  graduatedToken: string;
+  /** XLM used for the buyback */
+  xlmUsed: string;
+  /** ASTRO tokens burned */
+  astroBurned: string;
+  /** Transaction timestamp */
+  timestamp: Date;
+}
+
+/**
+ * Graduation event with ASTRO allocation details
+ */
+export interface GraduationWithAstroEvent extends TokenCreatedEvent {
+  /** Total XLM raised during bonding curve */
+  xlmRaised: string;
+  /** XLM allocated to main liquidity pool */
+  xlmMainPool: string;
+  /** XLM allocated to ASTRO liquidity */
+  xlmAstroLiquidity: string;
+  /** XLM used for buyback */
+  xlmBuyback: string;
+  /** ASTRO tokens burned */
+  astroBurned: string;
+  /** AMM pair address for the graduated token */
+  ammPairAddress: string;
+}

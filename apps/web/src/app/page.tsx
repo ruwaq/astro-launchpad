@@ -2,7 +2,8 @@
  * Home Page - REAL DATA ONLY
  *
  * Displays live token data from Stellar Testnet
- * Contract: CBTFVJEYLMDHDFTKLO4PR7MHPFVNISOYYBJQSCNCQXWX2WMXXXJAZWT2
+ * Contract: CC3OFGFRFYZ4XN5AWTQNSZBEA4AP62GKHYF6YUFSMM2B4A6VUQLU3ZPV
+ * Updated: November 25, 2024 (ASTRO Integration)
  */
 
 'use client';
@@ -182,7 +183,7 @@ export default function Home() {
           <div className="grid md:grid-cols-2 gap-4 max-w-4xl mx-auto">
             {/* SAC Factory Contract */}
             <a
-              href="https://stellar.expert/explorer/testnet/contract/CBTFVJEYLMDHDFTKLO4PR7MHPFVNISOYYBJQSCNCQXWX2WMXXXJAZWT2"
+              href="https://stellar.expert/explorer/testnet/contract/CC3OFGFRFYZ4XN5AWTQNSZBEA4AP62GKHYF6YUFSMM2B4A6VUQLU3ZPV"
               target="_blank"
               rel="noopener noreferrer"
               className="group p-6 rounded-xl bg-gradient-to-br from-blue-50 to-white border border-blue-200 hover:shadow-lg hover:scale-102 transition-all duration-200"
@@ -190,18 +191,18 @@ export default function Home() {
               <div className="flex items-start justify-between mb-3">
                 <div>
                   <h4 className="text-lg font-bold text-gray-900 mb-1">SAC Factory</h4>
-                  <p className="text-sm text-gray-600">Token Launch & Bonding Curve</p>
+                  <p className="text-sm text-gray-600">Token Launch & Bonding Curve + ASTRO</p>
                 </div>
                 <ExternalLink className="h-5 w-5 text-brand-primary group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
               </div>
               <div className="font-mono text-xs text-gray-500 break-all bg-gray-50 p-2 rounded">
-                CBTFVJEYLMDHDFTKLO4PR7MHPFVNISOYYBJQSCNCQXWX2WMXXXJAZWT2
+                CC3OFGFRFYZ4XN5AWTQNSZBEA4AP62GKHYF6YUFSMM2B4A6VUQLU3ZPV
               </div>
             </a>
 
             {/* AMM Pair Contract */}
             <a
-              href="https://stellar.expert/explorer/testnet/contract/CBTFVJEYLMDHDFTKLO4PR7MHPFVNISOYYBJQSCNCQXWX2WMXXXJAZWT2"
+              href="https://stellar.expert/explorer/testnet/contract/CC3OFGFRFYZ4XN5AWTQNSZBEA4AP62GKHYF6YUFSMM2B4A6VUQLU3ZPV"
               target="_blank"
               rel="noopener noreferrer"
               className="group p-6 rounded-xl bg-gradient-to-br from-green-50 to-white border border-green-200 hover:shadow-lg hover:scale-102 transition-all duration-200"

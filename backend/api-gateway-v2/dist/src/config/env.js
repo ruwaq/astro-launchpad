@@ -26,8 +26,11 @@ const envSchema = z.object({
     // API Configuration
     API_PORT: z.coerce.number().int().positive().default(4000),
     API_HOST: z.string().default('0.0.0.0'),
-    // CORS
-    CORS_ORIGIN: z.string().default('*'),
+    // CORS - restrict to specific origins in production
+    // Format: comma-separated list of allowed origins, e.g., "https://app.astroshiba.io,https://staging.astroshiba.io"
+    CORS_ORIGIN: z.string().default('https://astroshiba.io,https://app.astroshiba.io,http://localhost:3000'),
+    // Admin addresses (comma-separated list of Stellar addresses with admin privileges)
+    ADMIN_ADDRESSES: z.string().optional(),
     // Rate Limiting
     RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60000), // 1 minute
     RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().positive().default(100),

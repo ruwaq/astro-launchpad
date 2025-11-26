@@ -192,7 +192,7 @@ mod tests {
 
     #[test]
     fn test_new_bonding_curve() {
-        let supply = 800_000_000 * PRECISION;
+        let supply = 168_000_000 * PRECISION; // 80% of 210M (Bitcoin number)
         let curve = BondingCurve::new(supply).unwrap();
 
         assert_eq!(curve.total_supply, supply);

@@ -1,0 +1,36 @@
+[package]
+name = "treasury-vault"
+version = "1.0.0"
+edition = "2021"
+rust-version = "1.84"
+authors = ["Astro Shiba Team"]
+description = "Multi-token Treasury Vault for Astro Shiba Protocol - Receives protocol fees from any SAC token without requiring trustlines"
+license = "MIT"
+
+[lib]
+crate-type = ["cdylib"]
+doctest = false
+
+[features]
+testutils = ["soroban-sdk/testutils"]
+
+[dependencies]
+soroban-sdk = "22.0.0"
+astro-core-shared = { git = "https://github.com/nunalabs/astro-core", tag = "v1.0.2" }
+
+[dev-dependencies]
+soroban-sdk = { version = "22.0.0", features = ["testutils"] }
+
+[profile.release]
+opt-level = "z"
+overflow-checks = true
+debug = 0
+strip = "symbols"
+debug-assertions = false
+panic = "abort"
+codegen-units = 1
+lto = true
+
+[profile.release-with-logs]
+inherits = "release"
+debug-assertions = true

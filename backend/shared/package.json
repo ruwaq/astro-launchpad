@@ -4,12 +4,13 @@
   "private": true,
   "type": "module",
   "exports": {
-    "./prisma": "./prisma/client.ts",
+    "./prisma": "./prisma/index.ts",
     "./types": "./types/index.ts",
     "./config": "./config/env.ts",
     "./utils": "./utils/index.ts"
   },
   "scripts": {
+    "build": "pnpm run db:generate && tsc",
     "db:generate": "prisma generate --schema=./prisma/schema.prisma",
     "db:push": "prisma db push --schema=./prisma/schema.prisma",
     "db:migrate": "prisma migrate dev --schema=./prisma/schema.prisma",
