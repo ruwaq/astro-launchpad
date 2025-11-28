@@ -2,7 +2,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "version": 2,
   "installCommand": "npx pnpm@9 install",
-  "buildCommand": "npm run vercel-build",
+  "buildCommand": "cd backend/api-gateway-v2 && npm run vercel-build",
   "outputDirectory": ".",
   "cleanUrls": true,
   "trailingSlash": false,
