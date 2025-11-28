@@ -80,7 +80,7 @@ const resolvers = {
     health: async () => {
       let dbHealthy = false;
       try {
-        await prisma.$queryRaw\`SELECT 1\`;
+        await prisma.$queryRaw`SELECT 1`;
         dbHealthy = true;
       } catch (e) {
         console.error('DB health check failed:', e);
