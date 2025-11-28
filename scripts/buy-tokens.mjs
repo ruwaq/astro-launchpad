@@ -26,8 +26,17 @@ const CONFIG = {
   symbol: 'TEST9',
 };
 
-const BUYER_SECRET = 'SD7Q3SMHYNTJJT7J5RZS2HW67MSTYGM3TRW7RZNNAG54KELGOBL37GRU';
-const TREASURY_SECRET = 'SBLK5NCAL63Z3MS4NL5T2H7A6BQHDUEJMN5ETHPGE6AIGIK5TEYNWX5R';
+// SECURITY: Load secrets from environment variables, never hardcode
+const BUYER_SECRET = process.env.BUYER_SECRET;
+const TREASURY_SECRET = process.env.TREASURY_SECRET;
+
+if (!BUYER_SECRET || !TREASURY_SECRET) {
+  console.error('❌ Missing required environment variables:');
+  console.error('   BUYER_SECRET - Stellar secret key for buyer account');
+  console.error('   TREASURY_SECRET - Stellar secret key for treasury account');
+  console.error('\nSet them in your environment or .env.local file');
+  process.exit(1);
+}
 
 async function createTrustline(keypair, asset) {
   console.log(`Creating trustline for ${keypair.publicKey()}...`);

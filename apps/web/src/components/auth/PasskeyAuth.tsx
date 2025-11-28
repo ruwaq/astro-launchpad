@@ -7,9 +7,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Fingerprint, Loader2, Check, AlertCircle, Sparkles } from 'lucide-react';
+import { Fingerprint, Loader2, AlertCircle, Sparkles } from 'lucide-react';
 import { PasskeyClient, type PasskeyAccount } from '@/lib/auth/passkey';
 import toast from 'react-hot-toast';
+import { logger } from '@/lib/logger';
 
 interface PasskeyAuthProps {
   onSuccess?: (stellarAddress: string) => void;
@@ -55,7 +56,7 @@ export function PasskeyAuth({ onSuccess, onError }: PasskeyAuthProps) {
 
       if (result.success && result.stellarAddress) {
         toast.success('Passkey created successfully!');
-        console.log('Stellar Address:', result.stellarAddress);
+        logger.info('Passkey registered', { stellarAddress: result.stellarAddress });
 
         // Refresh accounts list
         const updatedAccounts = await client.listAccounts();
@@ -67,7 +68,7 @@ export function PasskeyAuth({ onSuccess, onError }: PasskeyAuthProps) {
         throw new Error(result.error || 'Registration failed');
       }
     } catch (error: any) {
-      console.error('Registration error:', error);
+      logger.error('Registration error', { error });
       const errorMsg = error.message || 'Failed to create passkey';
       toast.error(errorMsg);
       onError?.(errorMsg);
@@ -86,7 +87,7 @@ export function PasskeyAuth({ onSuccess, onError }: PasskeyAuthProps) {
 
       if (result.success && result.stellarAddress) {
         toast.success('Authenticated successfully!');
-        console.log('Stellar Address:', result.stellarAddress);
+        logger.info('Passkey authenticated', { stellarAddress: result.stellarAddress });
 
         // Notify parent
         onSuccess?.(result.stellarAddress);
@@ -94,7 +95,7 @@ export function PasskeyAuth({ onSuccess, onError }: PasskeyAuthProps) {
         throw new Error(result.error || 'Authentication failed');
       }
     } catch (error: any) {
-      console.error('Authentication error:', error);
+      logger.error('Authentication error', { error });
       const errorMsg = error.message || 'Failed to authenticate';
       toast.error(errorMsg);
       onError?.(errorMsg);

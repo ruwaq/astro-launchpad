@@ -62,13 +62,20 @@ export function InstallPrompt() {
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
 
+    // MEMORY LEAK FIX: Track timeout for cleanup
+    let iosPromptTimeout: ReturnType<typeof setTimeout> | null = null;
+
     // Show iOS prompt after delay
     if (isIOSDevice && !isPWA && !wasDismissed) {
-      setTimeout(() => setShowPrompt(true), 3000);
+      iosPromptTimeout = setTimeout(() => setShowPrompt(true), 3000);
     }
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      // MEMORY LEAK FIX: Clear timeout on unmount
+      if (iosPromptTimeout) {
+        clearTimeout(iosPromptTimeout);
+      }
     };
   }, []);
 

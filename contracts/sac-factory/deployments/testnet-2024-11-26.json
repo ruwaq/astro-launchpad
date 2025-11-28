@@ -1,0 +1,18 @@
+{
+  "network": "testnet",
+  "contract_id": "CBFRERAZAPWNNFB7Z4NB3DZGUYGJAVD5YM4IRAXVQFBT4IVXD6WFZLEX",
+  "wasm_hash": "79222b47ec8f57e42785bae25d24de32e2ba1b7f7b31e90189bed6fc2b8db75f",
+  "admin": "GB2XFP6XK2MPOGURZCEH3KISW7W657IXC3MJZKG5MNBFMUSUNX3QWCFJ",
+  "treasury": "GB2XFP6XK2MPOGURZCEH3KISW7W657IXC3MJZKG5MNBFMUSUNX3QWCFJ",
+  "xlm_token_address": "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+  "wasm_size": "64387 bytes (optimized)",
+  "deployed_at": "2025-11-26T18:35:00Z",
+  "deployer_identity": "testnet-deployer",
+  "stellar_version": "stellar 23.0.0",
+  "linked_dex": {
+    "factory": "CDC22YEAGFSW7AO5I2FQAAJ7PMHMN5Q76ER6BT7XALZ4UQCFEKA2G2WT",
+    "router": "CCBNY4JPDHS45KXK34HI4VSYE7P2YKOZEHFVXQ4UZMYHVHOAS7DLPWUM",
+    "pair_wasm_hash": "cf8d4b116f6c23ab1102d7f7d928d638ec4fd37ce90ea290cde31f60f6807c9d"
+  },
+  "explorer_url": "https://stellar.expert/explorer/testnet/contract/CBFRERAZAPWNNFB7Z4NB3DZGUYGJAVD5YM4IRAXVQFBT4IVXD6WFZLEX"
+}

@@ -1,0 +1,20 @@
+# Robots.txt for Astro Shiba
+# https://astro-shiba.com
+
+User-agent: *
+Allow: /
+
+# Disallow API routes
+Disallow: /api/
+Disallow: /_next/
+
+# Allow important pages
+Allow: /
+Allow: /explore
+Allow: /create
+Allow: /swap
+Allow: /leaderboard
+Allow: /t/
+
+# Sitemap location
+Sitemap: https://astro-shiba.com/sitemap.xml

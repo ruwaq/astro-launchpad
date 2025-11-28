@@ -5,12 +5,25 @@
  * NO MOCK DATA - Real XLM raised from contract
  *
  * Updated: November 25, 2024 - Added ASTRO allocation display
+ * Updated: November 26, 2024 - Fixed formatting for consistent locale display
  */
 
 'use client';
 
 import { Trophy, Flame, Droplets, TrendingUp, Info } from 'lucide-react';
 import { useState } from 'react';
+import { formatCompactNumber, GRADUATION_THRESHOLD_XLM } from '@/lib/stellar/utils';
+
+/**
+ * Format XLM/token amount with consistent en-US locale
+ * Avoids locale-dependent formatting issues (e.g., 1.500.000 vs 1,500,000)
+ */
+function formatAmount(amount: number, decimals: number = 2): string {
+  return new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: decimals,
+  }).format(amount);
+}
 
 interface AstroAllocationConfig {
   /** ASTRO liquidity basis points (default 1000 = 10%) */
@@ -31,7 +44,7 @@ interface GraduationProgressProps {
 export function GraduationProgress({
   xlmRaised,
   graduated,
-  threshold = 10000,
+  threshold = GRADUATION_THRESHOLD_XLM,
   astroConfig,
 }: GraduationProgressProps) {
   const [showDetails, setShowDetails] = useState(false);
@@ -101,7 +114,7 @@ export function GraduationProgress({
           <div className="mb-4">
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm text-ui-text-secondary">
-                {raised.toLocaleString()} XLM raised
+                {formatAmount(raised)} XLM raised
               </span>
               <span className="text-sm font-semibold text-brand-primary">
                 {percentComplete.toFixed(1)}%
@@ -124,13 +137,13 @@ export function GraduationProgress({
             <div className="flex items-center justify-between text-sm">
               <span className="text-ui-text-secondary">Target</span>
               <span className="font-semibold text-ui-text-primary">
-                {threshold.toLocaleString()} XLM
+                {formatCompactNumber(threshold)} XLM
               </span>
             </div>
             <div className="flex items-center justify-between text-sm">
               <span className="text-ui-text-secondary">Remaining</span>
               <span className="font-semibold text-ui-text-primary">
-                {remaining.toLocaleString()} XLM
+                {formatCompactNumber(remaining)} XLM
               </span>
             </div>
           </div>
@@ -178,7 +191,7 @@ export function GraduationProgress({
                         <span className="text-ui-text-secondary">Main Pool ({mainPoolPercent}%)</span>
                       </span>
                       <span className="font-semibold text-ui-text-primary">
-                        ~{xlmForMainPool.toLocaleString()} XLM
+                        ~{formatCompactNumber(xlmForMainPool)} XLM
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
@@ -187,7 +200,7 @@ export function GraduationProgress({
                         <span className="text-ui-text-secondary">ASTRO Liquidity ({astroLiquidityPercent}%)</span>
                       </span>
                       <span className="font-semibold text-ui-text-primary">
-                        ~{xlmForAstroLiquidity.toLocaleString()} XLM
+                        ~{formatCompactNumber(xlmForAstroLiquidity)} XLM
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
@@ -196,7 +209,7 @@ export function GraduationProgress({
                         <span className="text-ui-text-secondary">Buyback & Burn ({buybackPercent}%)</span>
                       </span>
                       <span className="font-semibold text-ui-text-primary">
-                        ~{xlmForBuyback.toLocaleString()} XLM
+                        ~{formatCompactNumber(xlmForBuyback)} XLM
                       </span>
                     </div>
                   </div>
@@ -214,7 +227,7 @@ export function GraduationProgress({
             <p className="text-xs text-blue-800">
               <strong>What happens at graduation?</strong>
               <br />
-              When this token reaches {threshold.toLocaleString()} XLM in bonding curve
+              When this token reaches {formatCompactNumber(threshold)} XLM in bonding curve
               buys, it will automatically graduate to a full AMM pool on Stellar
               DEX with permanent liquidity.
               {astroEnabled && (

@@ -9,7 +9,7 @@ import { beforeAll, afterAll, vi } from 'vitest'
 process.env.NODE_ENV = 'test'
 process.env.LOG_LEVEL = 'error'
 process.env.LOG_PRETTY = 'false'
-process.env.API_PORT = '0' // Random port
+process.env.API_PORT = '4000' // Test port (must be > 0)
 process.env.API_HOST = '127.0.0.1'
 process.env.DATABASE_URL = 'postgresql://test:test@localhost:5432/test'
 process.env.DIRECT_DATABASE_URL = 'postgresql://test:test@localhost:5432/test'
@@ -54,7 +54,7 @@ vi.mock('@astroshibapop/shared/config', () => ({
     NODE_ENV: 'test',
     LOG_LEVEL: 'error',
     LOG_PRETTY: false,
-    API_PORT: 0,
+    API_PORT: 4000, // Must be > 0 per schema validation
     API_HOST: '127.0.0.1',
     DATABASE_URL: 'postgresql://test:test@localhost:5432/test',
     DIRECT_DATABASE_URL: 'postgresql://test:test@localhost:5432/test',

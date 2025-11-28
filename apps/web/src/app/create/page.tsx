@@ -1,27 +1,58 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
-import { Upload, Info, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Info, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useWallet } from '@/contexts/WalletContext';
 import { useSyncToken } from '@/hooks/useApi';
 import { sacFactoryService } from '@/lib/stellar/services/sac-factory.service';
 import { stellarClient } from '@/lib/stellar/client';
 import { TransactionBuilder, SorobanRpc, Address } from '@stellar/stellar-sdk';
 import { getNetworkConfig } from '@/lib/config/network';
-import { CONTRACT_IDS } from '@/lib/stellar/config';
-import { setFactoryAsTokenAdmin } from '@/lib/stellar/asset-utils';
 import toast from 'react-hot-toast';
-import confetti from 'canvas-confetti';
+import nextDynamic from 'next/dynamic';
 import { ImageUpload } from '@/components/ImageUpload';
-import { TransactionProgress, TransactionStep, StepStatus } from '@/components/TransactionProgress';
+import type { TransactionStep, StepStatus } from '@/components/TransactionProgress';
+import { logger } from '@/lib/logger';
 
 // Force dynamic rendering to avoid build-time errors with contract service
 export const dynamic = 'force-dynamic';
 
+// PERFORMANCE: Dynamic import for TransactionProgress (uses framer-motion)
+const TransactionProgress = nextDynamic(
+  () => import('@/components/TransactionProgress').then((mod) => ({ default: mod.TransactionProgress })),
+  { ssr: false }
+);
+
+// PERFORMANCE: Dynamic import for confetti - only loaded on successful token creation
+const triggerConfetti = () => {
+  import('canvas-confetti').then((confettiModule) => {
+    confettiModule.default({
+      particleCount: 200,
+      spread: 100,
+      origin: { y: 0.6 },
+      colors: ['#10b981', '#8b5cf6', '#f59e0b', '#ef4444', '#3b82f6'],
+    });
+  });
+};
+
 // Form states
 type FormState = 'idle' | 'validating' | 'building' | 'signing' | 'submitting' | 'confirming' | 'success' | 'error';
+
+// Session storage key for form persistence
+const FORM_STORAGE_KEY = 'astro_create_token_form';
+
+// Helper to safely access sessionStorage
+const getStoredForm = () => {
+  if (typeof window === 'undefined') return null;
+  try {
+    const stored = sessionStorage.getItem(FORM_STORAGE_KEY);
+    return stored ? JSON.parse(stored) : null;
+  } catch {
+    return null;
+  }
+};
 
 export default function CreatePage() {
   const router = useRouter();
@@ -30,26 +61,72 @@ export default function CreatePage() {
   // GraphQL mutation for automatic token sync
   const [syncToken] = useSyncToken();
 
-  // Form fields
+  // Form fields - initialize from sessionStorage to persist across reloads
   const [name, setName] = useState('');
   const [symbol, setSymbol] = useState('');
   const [imageUrl, setImageUrl] = useState('');
   const [description, setDescription] = useState('');
+  // Optional social links
+  const [website, setWebsite] = useState('');
+  const [telegram, setTelegram] = useState('');
+  const [isHydrated, setIsHydrated] = useState(false);
+
+  // Restore form from sessionStorage on mount
+  useEffect(() => {
+    const stored = getStoredForm();
+    if (stored) {
+      if (stored.name) setName(stored.name);
+      if (stored.symbol) setSymbol(stored.symbol);
+      if (stored.imageUrl) setImageUrl(stored.imageUrl);
+      if (stored.description) setDescription(stored.description);
+      if (stored.website) setWebsite(stored.website);
+      if (stored.telegram) setTelegram(stored.telegram);
+    }
+    setIsHydrated(true);
+  }, []);
+
+  // Save form to sessionStorage whenever it changes
+  useEffect(() => {
+    if (!isHydrated) return;
+    try {
+      sessionStorage.setItem(FORM_STORAGE_KEY, JSON.stringify({
+        name,
+        symbol,
+        imageUrl,
+        description,
+        website,
+        telegram,
+      }));
+    } catch {
+      // Ignore storage errors
+    }
+  }, [name, symbol, imageUrl, description, website, telegram, isHydrated]);
+
+  // Clear form storage on successful creation
+  const clearFormStorage = useCallback(() => {
+    try {
+      sessionStorage.removeItem(FORM_STORAGE_KEY);
+    } catch {
+      // Ignore
+    }
+  }, []);
 
   // State management
   const [formState, setFormState] = useState<FormState>('idle');
-  const [tokenCount, setTokenCount] = useState<number>(0);
   const [createdTokenAddress, setCreatedTokenAddress] = useState<string>('');
   const [transactionHash, setTransactionHash] = useState<string>('');
   const [error, setError] = useState<string>('');
 
-  // Transaction progress steps
+  // CRITICAL: Ref to prevent double-submission race condition
+  // State updates are async, but ref updates are immediate
+  const isSubmittingRef = useRef(false);
+
+  // Transaction progress steps (V2: no admin step needed - factory is already admin)
   const [txSteps, setTxSteps] = useState<TransactionStep[]>([
     { id: 'build', label: 'Building transaction', status: 'pending' },
-    { id: 'sign1', label: 'Sign to create token', description: 'Approve in wallet', status: 'pending' },
+    { id: 'sign', label: 'Sign to create token', description: 'Approve in wallet', status: 'pending' },
     { id: 'submit', label: 'Submitting to network', status: 'pending' },
     { id: 'confirm', label: 'Confirming on chain', status: 'pending' },
-    { id: 'admin', label: 'Setting up trading', description: 'Sign again for permissions', status: 'pending' },
     { id: 'sync', label: 'Syncing to database', status: 'pending' },
   ]);
 
@@ -63,27 +140,6 @@ export default function CreatePage() {
   // Reset all steps to pending
   const resetSteps = () => {
     setTxSteps(prev => prev.map(s => ({ ...s, status: 'pending' as StepStatus })));
-  };
-
-  // Fetch token count on mount (for unique issuer generation)
-  useEffect(() => {
-    if (isConnected) {
-      fetchTokenCount();
-    }
-  }, [isConnected]);
-
-  const fetchTokenCount = async (): Promise<number> => {
-    try {
-      const count = await sacFactoryService.getTokenCount();
-      setTokenCount(count);
-      return count;
-    } catch (error) {
-      console.error('Error fetching token count:', error);
-      // Default to timestamp-based uniqueness if fetch fails
-      const fallback = Date.now();
-      setTokenCount(fallback);
-      return fallback;
-    }
   };
 
   const handleConnect = async () => {
@@ -125,15 +181,25 @@ export default function CreatePage() {
     return true;
   };
 
-  const handleCreateToken = async () => {
+  const handleCreateToken = useCallback(async () => {
+    // CRITICAL: Immediate check to prevent double-submission race condition
+    // Ref check happens before any async operation or state update
+    if (isSubmittingRef.current) {
+      logger.warn('Prevented double submission - transaction already in progress');
+      return;
+    }
+    isSubmittingRef.current = true;
+
     if (!address || !isConnected) {
       toast.error('Please connect your wallet first');
+      isSubmittingRef.current = false;
       return;
     }
 
     // Validate form
     if (!validateForm()) {
       toast.error(error);
+      isSubmittingRef.current = false;
       return;
     }
 
@@ -141,18 +207,12 @@ export default function CreatePage() {
       // Reset and start progress
       resetSteps();
 
-      // Step 1: Validating
-      setFormState('validating');
+      // Step 1: Building transaction
+      setFormState('building');
       setError('');
       updateStep('build', 'active');
 
-      // Fetch latest token count for unique issuer
-      // IMPORTANT: Use the returned value directly, not React state (which updates asynchronously)
-      const currentTokenCount = await fetchTokenCount();
-      console.log(`📊 Current token count: ${currentTokenCount} (new token will get this ID)`);
-
-      // Step 2: Building transaction
-      setFormState('building');
+      logger.info('Creating token with V2 (pure Soroban token)');
 
       const config = getNetworkConfig();
       const soroban = stellarClient.getSoroban();
@@ -161,17 +221,18 @@ export default function CreatePage() {
       // Get account for transaction source
       const account = await server.getAccount(address);
 
-      // Build launch token operation (returns operation + issuer keypair for set_admin)
-      // Use currentTokenCount so the issuer keypair matches what will be stored in the contract
-      const { operation: launchOperation, issuerKeypair } = sacFactoryService.buildLaunchTokenOperation(
+      // Build launch token V2 operation (no issuer keypair needed - factory is admin)
+      const launchOperation = sacFactoryService.buildLaunchTokenV2Operation(
         {
           name,
           symbol,
           imageUrl,
           description,
+          // Optional social links (stored in metadata on-chain)
+          website: website || undefined,
+          telegram: telegram || undefined,
         },
-        address,
-        currentTokenCount
+        address
       );
 
       // Create transaction
@@ -183,7 +244,7 @@ export default function CreatePage() {
         .setTimeout(30)
         .build();
 
-      // Step 3: Simulate transaction
+      // Simulate transaction
       const simulated = await server.simulateTransaction(transaction);
 
       if (!simulated || 'error' in simulated) {
@@ -198,17 +259,17 @@ export default function CreatePage() {
         simulated
       ).build();
 
-      // Step 4: Sign transaction
+      // Step 2: Sign transaction
       setFormState('signing');
       updateStep('build', 'completed');
-      updateStep('sign1', 'active');
+      updateStep('sign', 'active');
 
       const signedXDR = await signTransaction(preparedTx.toXDR());
       const signedTx = TransactionBuilder.fromXDR(signedXDR, config.passphrase);
 
-      // Step 5: Submit transaction
+      // Step 3: Submit transaction
       setFormState('submitting');
-      updateStep('sign1', 'completed');
+      updateStep('sign', 'completed');
       updateStep('submit', 'active');
 
       const sendResponse = await server.sendTransaction(signedTx as any);
@@ -219,26 +280,22 @@ export default function CreatePage() {
 
       setTransactionHash(sendResponse.hash);
 
-      // Step 6: Wait for confirmation
+      // Step 4: Wait for confirmation
       setFormState('confirming');
       updateStep('submit', 'completed');
       updateStep('confirm', 'active');
 
       let attempts = 0;
       const maxAttempts = 30;
-      let getResponse: any = null;
       let transactionSuccess = false;
 
       // Track extracted token address locally (React state doesn't update immediately)
       let extractedTokenAddress: string | null = null;
 
-      // issuerKeypair is already obtained from buildLaunchTokenOperation above
-      // It uses timestamp=0 for deterministic generation
-
       // Poll for transaction with error handling for SDK incompatibility
       while (attempts < maxAttempts) {
         try {
-          getResponse = await server.getTransaction(sendResponse.hash);
+          const getResponse: any = await server.getTransaction(sendResponse.hash);
 
           if (getResponse.status === 'SUCCESS') {
             transactionSuccess = true;
@@ -250,28 +307,46 @@ export default function CreatePage() {
                 // Convert ScVal to native value (address string)
                 extractedTokenAddress = Address.fromScVal(resultValue).toString();
                 setCreatedTokenAddress(extractedTokenAddress);
-                console.log('✅ Extracted token address from transaction:', extractedTokenAddress);
+                logger.info('Token created successfully', { tokenAddress: extractedTokenAddress });
               } catch (err) {
-                console.warn('Could not parse return value, will try fallback:', err);
+                logger.warn('Could not parse return value, will try fallback', { error: err });
               }
             }
             break;
           } else if (getResponse.status === 'FAILED') {
             throw new Error('Transaction failed on the network');
           } else if (getResponse.status !== 'NOT_FOUND') {
-            // Unexpected status
-            console.warn('Unexpected transaction status:', getResponse.status);
+            logger.warn('Unexpected transaction status', { status: getResponse.status });
           }
         } catch (err: any) {
           // Handle "Bad union switch" error from SDK version incompatibility
+          // This error means the SDK can't parse the response, NOT that the tx failed
+          // We need to use Horizon API as fallback to verify transaction status
           if (err.message?.includes('Bad union switch')) {
-            console.warn('SDK version incompatibility detected. Will use fallback method.');
-            transactionSuccess = true;
-            break;
+            logger.warn('SDK version incompatibility detected, verifying via Horizon API');
+            try {
+              // Use Horizon API to check transaction status directly
+              const horizonUrl = process.env.NEXT_PUBLIC_STELLAR_NETWORK === 'mainnet'
+                ? 'https://horizon.stellar.org'
+                : 'https://horizon-testnet.stellar.org';
+              const horizonResponse = await fetch(`${horizonUrl}/transactions/${sendResponse.hash}`);
+              if (horizonResponse.ok) {
+                const txData = await horizonResponse.json();
+                if (txData.successful === true) {
+                  transactionSuccess = true;
+                  logger.info('Transaction verified successful via Horizon');
+                  break;
+                } else {
+                  throw new Error('Transaction failed on chain');
+                }
+              }
+              // If Horizon doesn't have it yet, continue polling
+            } catch (horizonErr) {
+              logger.warn('Horizon fallback check failed, continuing to poll', { error: horizonErr });
+            }
           } else if (err.message?.includes('NOT_FOUND')) {
             // Transaction not yet processed, continue polling
           } else {
-            // Other error, rethrow
             throw err;
           }
         }
@@ -285,123 +360,60 @@ export default function CreatePage() {
         setFormState('success');
         updateStep('confirm', 'completed');
         updateStep('sync', 'active');
-        toast.success('🎉 Token created successfully! Syncing to database...');
+        toast.success('Token created successfully! Syncing to database...');
 
-        // Confetti celebration!
-        confetti({
-          particleCount: 200,
-          spread: 100,
-          origin: { y: 0.6 },
-          colors: ['#10b981', '#8b5cf6', '#f59e0b', '#ef4444', '#3b82f6'],
-        });
+        // PERFORMANCE: Confetti celebration loaded dynamically
+        triggerConfetti();
 
-        // If we got the token address from transaction result, set factory as admin then sync
+        // V2: No admin setup needed - factory is already the admin!
+        // Just sync the token to database
         if (extractedTokenAddress) {
-          // CRITICAL: Set factory as token admin so it can mint/burn for bonding curve trades
           try {
-            console.log('🔑 Setting factory as token admin...');
-            updateStep('admin', 'active');
-            toast.loading('Setting up trading permissions...', { id: 'set-admin' });
-
-            const adminResult = await setFactoryAsTokenAdmin(
-              extractedTokenAddress,
-              CONTRACT_IDS.tokenFactory,
-              issuerKeypair,
-              address,
-              signTransaction  // Pass signTransaction to create issuer account if needed
-            );
-
-            toast.dismiss('set-admin');
-
-            if (adminResult.success) {
-              console.log('✅ Factory set as token admin:', adminResult.hash);
-              updateStep('admin', 'completed');
-              toast.success('Trading permissions configured!');
-            } else {
-              console.error('❌ Failed to set factory as admin:', adminResult.error);
-              updateStep('admin', 'error');
-              // Don't fail the whole flow - token is created, just trading may not work
-              toast.error('Warning: Trading setup incomplete. Contact support if trading fails.');
-            }
-          } catch (adminError: any) {
-            console.error('❌ Error setting factory as admin:', adminError);
-            updateStep('admin', 'error');
-            toast.dismiss('set-admin');
-            toast.error('Warning: Trading setup incomplete. Token created successfully.');
-          }
-
-          // Sync token to database
-          try {
-            console.log('🔄 Syncing new token to database:', extractedTokenAddress);
+            logger.info('Syncing new token to database', { tokenAddress: extractedTokenAddress });
             await syncToken({ variables: { tokenAddress: extractedTokenAddress } });
-            console.log('✅ Token synced successfully!');
+            logger.info('Token synced successfully');
             updateStep('sync', 'completed');
-            toast.success('Token synced to database! It will appear in Explore.');
+            toast.success('Token synced! It will appear in Explore.');
           } catch (syncError: any) {
-            console.error('❌ Failed to sync token:', syncError);
+            logger.error('Failed to sync token', { error: syncError });
             updateStep('sync', 'error');
-            toast.error('Token created but sync may have failed. Trying fallback...');
+            toast.error('Token created but sync may have failed.');
           }
         }
 
         // FALLBACK: If we couldn't extract token address from transaction result,
         // fetch the creator's newest token and sync only that one.
-        // Note: The indexer service should automatically detect new tokens via blockchain events.
-        // This fallback is only for edge cases where the indexer might be delayed.
         if (!extractedTokenAddress && address) {
-          console.log('🔍 Using fallback: fetching newest creator token...');
+          logger.info('Using fallback: fetching newest creator token');
           try {
             // Wait a moment for blockchain to index the new token
             await new Promise(resolve => setTimeout(resolve, 3000));
 
             const creatorTokens = await sacFactoryService.getCreatorTokensPaginated(address, 0, 100);
-            console.log('📋 Creator tokens found:', creatorTokens?.length || 0);
+            logger.info('Creator tokens found', { count: creatorTokens?.length || 0 });
 
             if (creatorTokens && creatorTokens.length > 0) {
               // The newest token is at the END of the array (contract returns oldest first)
               extractedTokenAddress = creatorTokens[creatorTokens.length - 1];
               setCreatedTokenAddress(extractedTokenAddress);
-              console.log('✅ Newest token address:', extractedTokenAddress);
+              logger.info('Newest token address found', { tokenAddress: extractedTokenAddress });
 
-              // Set factory as admin for the new token
-              try {
-                console.log('🔑 Setting factory as token admin (fallback)...');
-                updateStep('admin', 'active');
-                const adminResult = await setFactoryAsTokenAdmin(
-                  extractedTokenAddress,
-                  CONTRACT_IDS.tokenFactory,
-                  issuerKeypair,
-                  address,
-                  signTransaction  // Pass signTransaction to create issuer account if needed
-                );
-                if (adminResult.success) {
-                  console.log('✅ Factory set as admin (fallback):', adminResult.hash);
-                  updateStep('admin', 'completed');
-                } else {
-                  console.warn('⚠️ Could not set factory as admin:', adminResult.error);
-                  updateStep('admin', 'error');
-                }
-              } catch (adminErr) {
-                console.warn('⚠️ Admin setup failed (fallback):', adminErr);
-                updateStep('admin', 'error');
-              }
-
-              // Sync ONLY the newest token (scalable approach)
-              // The indexer handles automatic syncing for all tokens
-              console.log('🔄 Syncing newest token to database...');
+              // V2: No admin setup needed - factory is already the admin!
+              // Just sync the token to database
+              logger.info('Syncing newest token to database');
               try {
                 await syncToken({ variables: { tokenAddress: extractedTokenAddress } });
-                console.log('✅ Token synced successfully!');
+                logger.info('Token synced successfully');
                 updateStep('sync', 'completed');
                 toast.success('Token synced! It will appear in Explore.');
               } catch (syncErr) {
-                console.warn('⚠️ Sync failed (indexer will handle it):', syncErr);
+                logger.warn('Sync failed, indexer will handle it', { error: syncErr });
                 updateStep('sync', 'completed'); // Still mark as done - indexer will handle
                 toast.success('Token created! It will appear in Explore shortly.');
               }
             }
           } catch (fallbackErr) {
-            console.error('Fallback method failed:', fallbackErr);
+            logger.error('Fallback method failed', { error: fallbackErr });
             // Token was still created on blockchain - indexer will sync it
             updateStep('sync', 'completed'); // Mark as done - indexer handles it
             toast.success('Token created! The indexer will sync it automatically.');
@@ -410,12 +422,13 @@ export default function CreatePage() {
 
         // Final check - if we still don't have a token address, show error
         if (!extractedTokenAddress) {
-          console.warn('⚠️ Could not extract token address. Manual sync may be needed.');
+          logger.warn('Could not extract token address, manual sync may be needed');
           setCreatedTokenAddress('Check Stellar Expert for contract address');
           toast.success('Token created! Check Stellar Expert for the contract address.');
         }
 
-        // Redirect to explore page after 3 seconds to see the new token
+        // Clear saved form data and redirect to explore page
+        clearFormStorage();
         setTimeout(() => {
           router.push('/explore');
         }, 3000);
@@ -424,7 +437,7 @@ export default function CreatePage() {
       }
 
     } catch (err: any) {
-      console.error('Error creating token:', err);
+      logger.error('Error creating token', { error: err });
       setFormState('error');
 
       // Mark current active step as error
@@ -446,9 +459,11 @@ export default function CreatePage() {
         setFormState('idle');
         setError('');
         resetSteps();
+        // Reset submission ref to allow retry
+        isSubmittingRef.current = false;
       }, 5000);
     }
-  };
+  }, [address, isConnected, name, symbol, imageUrl, description, website, telegram, error, signTransaction, syncToken, clearFormStorage, router]);
 
   const isProcessing = ['validating', 'building', 'signing', 'submitting', 'confirming'].includes(formState);
   const isSuccess = formState === 'success';
@@ -463,7 +478,7 @@ export default function CreatePage() {
             Create Token
           </h1>
           <p className="text-ui-text-secondary mt-1">
-            Launch your SAC token with Real Transferable Assets
+            Launch your token on Soroban with bonding curve pricing
           </p>
         </div>
 
@@ -635,23 +650,57 @@ export default function CreatePage() {
               </div>
             </div>
 
+            {/* Social Links (Optional) */}
+            <div>
+              <h2 className="text-lg font-bold text-ui-text-primary mb-4">
+                Social Links <span className="text-ui-text-secondary text-sm font-normal">(Optional)</span>
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-ui-text-primary mb-2">
+                    Website
+                  </label>
+                  <input
+                    type="url"
+                    placeholder="https://yourtoken.com"
+                    value={website}
+                    onChange={(e) => setWebsite(e.target.value)}
+                    className="w-full px-4 py-3 border border-ui-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent"
+                    disabled={!isConnected || isProcessing}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-ui-text-primary mb-2">
+                    Telegram
+                  </label>
+                  <input
+                    type="url"
+                    placeholder="https://t.me/yourtoken"
+                    value={telegram}
+                    onChange={(e) => setTelegram(e.target.value)}
+                    className="w-full px-4 py-3 border border-ui-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent"
+                    disabled={!isConnected || isProcessing}
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-gray-500 mt-2">
+                These links will be stored on-chain in the token metadata
+              </p>
+            </div>
+
             {/* Fair Launch Info */}
             <div className="bg-brand-green-50 border border-brand-green-200 rounded-xl p-6">
               <h3 className="font-bold text-brand-green-900 mb-3">
-                ✅ Real SAC Token Deployment
+                Soroban Token Features
               </h3>
               <ul className="space-y-2 text-sm text-brand-green-800">
                 <li className="flex items-center gap-2">
                   <span className="text-brand-green-600">✓</span>
-                  Real transferable Stellar Asset Contract
+                  Pure Soroban token (SEP-41 compatible)
                 </li>
                 <li className="flex items-center gap-2">
                   <span className="text-brand-green-600">✓</span>
-                  Visible in all Stellar wallets (Freighter, xBull, Lobstr, Rabet)
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className="text-brand-green-600">✓</span>
-                  Compatible with all Stellar DEXs
+                  Factory-managed (no trustlines needed)
                 </li>
                 <li className="flex items-center gap-2">
                   <span className="text-brand-green-600">✓</span>
@@ -659,7 +708,11 @@ export default function CreatePage() {
                 </li>
                 <li className="flex items-center gap-2">
                   <span className="text-brand-green-600">✓</span>
-                  Auto-graduation to AMM at $69k market cap
+                  Single signature token creation
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-brand-green-600">✓</span>
+                  Auto-graduation to DEX at $69k market cap
                 </li>
               </ul>
             </div>

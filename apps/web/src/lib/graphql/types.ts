@@ -33,11 +33,12 @@ export enum TransactionOrderByField {
 }
 
 export enum TransactionType {
-  BUY = 'BUY',
-  SELL = 'SELL',
+  TOKEN_CREATED = 'TOKEN_CREATED',
+  TOKEN_BOUGHT = 'TOKEN_BOUGHT',
+  TOKEN_SOLD = 'TOKEN_SOLD',
+  LIQUIDITY_ADDED = 'LIQUIDITY_ADDED',
+  LIQUIDITY_REMOVED = 'LIQUIDITY_REMOVED',
   SWAP = 'SWAP',
-  ADD_LIQUIDITY = 'ADD_LIQUIDITY',
-  REMOVE_LIQUIDITY = 'REMOVE_LIQUIDITY',
 }
 
 export enum BondingCurveType {
@@ -87,11 +88,13 @@ export interface PageInfo {
 }
 
 export interface Token {
+  id?: string;
   address: string;
   name: string;
   symbol: string;
   decimals: number;
   totalSupply: string;
+  circulatingSupply?: string;
   creator: string;
   bondingCurve: BondingCurveType;
   initialPrice: string;
@@ -101,6 +104,7 @@ export interface Token {
   priceChange24h: string;
   holders: number;
   logoUrl?: string | null;
+  imageUrl?: string | null;
   description?: string | null;
   website?: string | null;
   twitter?: string | null;
@@ -108,10 +112,15 @@ export interface Token {
   discord?: string | null;
   createdAt: string;
   updatedAt: string;
-  pools: PoolConnection;
-  transactions: TransactionConnection;
-  holders24h: number;
-  holdersChange24h: string;
+  pools?: PoolConnection;
+  transactions?: TransactionConnection;
+  holders24h?: number;
+  holdersChange24h?: string;
+  // Additional fields for graduation tracking
+  graduated?: boolean;
+  graduatedAt?: string;
+  xlmRaised?: string;
+  xlmReserve?: string;
 }
 
 export interface TokenEdge {
@@ -185,12 +194,29 @@ export interface GlobalStats {
   totalTVL: string;
 }
 
-export interface LeaderboardEntry {
+export interface LeaderboardUser {
+  id: string;
   address: string;
+  points: number;
+  level: number;
+  referrals: number;
+  tokensCreatedCount: number;
+  totalVolumeTraded: string;
+  totalLiquidityProvided: string;
+  createdAt: string;
+}
+
+export interface LeaderboardEntry {
+  rank: number;
+  address: string;
+  user?: LeaderboardUser | null;
   volume24h: string;
   trades24h: number;
   profitLoss24h: string;
-  rank: number;
+  tokensCreated?: number;
+  totalVolumeGenerated?: string;
+  totalLiquidity?: string;
+  feesEarned24h?: string;
 }
 
 export interface SearchResult {
@@ -198,12 +224,17 @@ export interface SearchResult {
   pools: Pool[];
 }
 
+export interface CacheStatus {
+  available: boolean;
+  type: string;
+}
+
 export interface HealthStatus {
   status: string;
   timestamp: string;
-  uptime: number;
-  database: string;
-  cache: string;
+  version: string;
+  database: boolean;
+  cache: CacheStatus;
 }
 
 // ============================================================================

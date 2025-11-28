@@ -52,7 +52,7 @@ export function AmountInput({
           {readOnly ? (
             <div className="flex-1 text-2xl font-bold text-gray-400">
               {isCalculating ? (
-                <Loader2 className="h-6 w-6 animate-spin" />
+                <Loader2 className="h-6 w-6 animate-spin" aria-label="Calculating amount" />
               ) : value ? (
                 `~${value}`
               ) : (

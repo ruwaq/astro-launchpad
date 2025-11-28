@@ -17,8 +17,16 @@ const CONFIG = {
   tokenAddress: 'CBITJZL7TC25WJKALVVPPMZUBHBOET6WLDUX3GWBNHZEIALQOYI7AB5F',
 };
 
-// Use testnet-deployer for queries
-const QUERY_KEYPAIR = Keypair.fromSecret('SBLK5NCAL63Z3MS4NL5T2H7A6BQHDUEJMN5ETHPGE6AIGIK5TEYNWX5R');
+// SECURITY: Load secrets from environment variables, never hardcode
+const DEPLOYER_SECRET = process.env.DEPLOYER_SECRET;
+
+if (!DEPLOYER_SECRET) {
+  console.error('❌ Missing required environment variable: DEPLOYER_SECRET');
+  console.error('   Set it in your environment or .env.local file');
+  process.exit(1);
+}
+
+const QUERY_KEYPAIR = Keypair.fromSecret(DEPLOYER_SECRET);
 
 async function main() {
   const server = new SorobanRpc.Server(CONFIG.rpcUrl);

@@ -18,6 +18,11 @@ model Token {
   metadataUri       String
   imageUrl          String?
   description       String?
+  // Social links
+  website           String?
+  twitter           String?
+  telegram          String?
+  discord           String?
   circulatingSupply String        @default("0")
   xlmReserve        String        @default("0")
   graduated         Boolean       @default(false)
@@ -39,6 +44,15 @@ model Token {
   @@index([marketCap])
   @@index([volume24h])
   @@index([creator, createdAt, volume24h])
+  // Added: indexes for search functionality
+  @@index([name])
+  @@index([symbol])
+  // PERFORMANCE: Index for graduated filter (used in explore page)
+  @@index([graduated])
+  // PERFORMANCE: Composite index for graduated tokens sorted by date (common query pattern)
+  @@index([graduated, createdAt(sort: Desc)])
+  // PERFORMANCE: Composite for trending/volume queries
+  @@index([graduated, volume24h(sort: Desc)])
 }
 
 model Pool {
@@ -53,6 +67,7 @@ model Pool {
   volume24h       String           @default("0")
   volume7d        String           @default("0")
   apr             Float?
+  feeRate         Float            @default(0.003) // 0.3% default fee
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
   liquidityEvents LiquidityEvent[]
@@ -63,6 +78,11 @@ model Pool {
   @@index([token0Address])
   @@index([token1Address])
   @@index([tvl])
+  // PERFORMANCE: Composite index for pool queries ordered by creation
+  @@index([token0Address, createdAt(sort: Desc)])
+  @@index([token1Address, createdAt(sort: Desc)])
+  // PERFORMANCE: Index for TVL-based ordering
+  @@index([tvl(sort: Desc), createdAt(sort: Desc)])
 }
 
 model User {
@@ -126,6 +146,10 @@ model Transaction {
   @@index([type])
   @@index([from, type, timestamp, status])
   @@index([type, status, timestamp])
+  // PERFORMANCE: Index for token history queries (common pattern)
+  @@index([tokenAddress, timestamp(sort: Desc)])
+  // PERFORMANCE: Index for token transaction type queries
+  @@index([tokenAddress, type, timestamp(sort: Desc)])
 }
 
 model Swap {
@@ -271,4 +295,130 @@ enum TransactionStatus {
 enum LiquidityEventType {
   ADD
   REMOVE
+}
+
+// ========== New Event Models ==========
+
+/// Admin events (role changes, ownership transfer)
+model AdminEvent {
+  id          String         @id @default(cuid())
+  type        AdminEventType
+  account     String
+  role        String?
+  previousOwner String?
+  newOwner    String?
+  executedBy  String
+  timestamp   DateTime
+  txHash      String?
+  blockNumber String?
+  createdAt   DateTime       @default(now())
+
+  @@index([type])
+  @@index([account])
+  @@index([timestamp])
+  @@index([type, timestamp])
+}
+
+enum AdminEventType {
+  ROLE_GRANTED
+  ROLE_REVOKED
+  OWNERSHIP_TRANSFERRED
+  CONTRACT_PAUSED
+  CONTRACT_UNPAUSED
+}
+
+/// Graduation events (success, failure, recovery)
+model GraduationEvent {
+  id            String              @id @default(cuid())
+  type          GraduationEventType
+  tokenAddress  String
+  xlmRaised     String?
+  tokensGraduated String?
+  ammPairAddress String?
+  lpTokensBurned String?
+  reason        String?
+  recoveredBy   String?
+  recoveryType  String?
+  timestamp     DateTime
+  txHash        String?
+  blockNumber   String?
+  createdAt     DateTime            @default(now())
+
+  @@index([type])
+  @@index([tokenAddress])
+  @@index([timestamp])
+  @@index([tokenAddress, type])
+}
+
+enum GraduationEventType {
+  GRADUATED
+  GRADUATION_DETAILED
+  GRADUATION_FAILED
+  TOKEN_RECOVERED
+  GRADUATION_RETRIED
+  BRIDGE_GRADUATION
+  GRADUATION_WITH_ASTRO
+}
+
+/// ASTRO token events (buyback, liquidity)
+model AstroEvent {
+  id               String         @id @default(cuid())
+  type             AstroEventType
+  graduatedToken   String?
+  xlmUsed          String?
+  astroBurned      String?
+  astroAmount      String?
+  tokenAmount      String?
+  ammPair          String?
+  xlmMainPool      String?
+  xlmAstroLiquidity String?
+  xlmBuyback       String?
+  timestamp        DateTime
+  txHash           String?
+  blockNumber      String?
+  createdAt        DateTime       @default(now())
+
+  @@index([type])
+  @@index([graduatedToken])
+  @@index([timestamp])
+}
+
+enum AstroEventType {
+  ASTRO_CONFIG_UPDATED
+  ASTRO_BUYBACK_EXECUTED
+  ASTRO_LIQUIDITY_ADDED
+}
+
+/// Config update events (fee changes, address updates)
+model ConfigUpdateEvent {
+  id              String           @id @default(cuid())
+  type            ConfigEventType
+  oldValue        String?
+  newValue        String?
+  oldAddress      String?
+  newAddress      String?
+  updatedBy       String
+  timestamp       DateTime
+  txHash          String?
+  blockNumber     String?
+  createdAt       DateTime         @default(now())
+
+  @@index([type])
+  @@index([timestamp])
+  @@index([updatedBy])
+}
+
+enum ConfigEventType {
+  PROTOCOL_FEE_UPDATED
+  LP_FEE_UPDATED
+  CREATION_FEE_UPDATED
+  TREASURY_UPDATED
+  GRADUATION_THRESHOLD_UPDATED
+  XLM_ADDRESS_UPDATED
+  ORACLE_ADDRESS_UPDATED
+  AMM_WASM_HASH_UPDATED
+  ANTI_WHALE_CONFIG_UPDATED
+  MIN_MARKET_CAP_UPDATED
+  ORACLE_PRICE_MAX_AGE_UPDATED
+  BRIDGE_CONFIG_UPDATED
 }

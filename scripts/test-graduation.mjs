@@ -33,9 +33,17 @@ const CONFIG = {
   xlmAddress: 'CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC',
 };
 
-// Load keys from environment or use existing testnet keys
-const DEPLOYER_SECRET = process.env.DEPLOYER_SECRET || 'SBLK5NCAL63Z3MS4NL5T2H7A6BQHDUEJMN5ETHPGE6AIGIK5TEYNWX5R';
-const BUYER_SECRET = process.env.BUYER_SECRET || 'SD7Q3SMHYNTJJT7J5RZS2HW67MSTYGM3TRW7RZNNAG54KELGOBL37GRU';
+// SECURITY: Load secrets from environment variables, never hardcode
+const DEPLOYER_SECRET = process.env.DEPLOYER_SECRET;
+const BUYER_SECRET = process.env.BUYER_SECRET;
+
+if (!DEPLOYER_SECRET || !BUYER_SECRET) {
+  console.error('❌ Missing required environment variables:');
+  console.error('   DEPLOYER_SECRET - Stellar secret key for deployer account');
+  console.error('   BUYER_SECRET - Stellar secret key for buyer account');
+  console.error('\nSet them in your environment or .env.local file');
+  process.exit(1);
+}
 
 // Generate unique issuer keypair
 function createUniqueIssuerKeypair(symbol, creator, tokenCount, timestamp = 0) {

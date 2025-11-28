@@ -51,6 +51,25 @@ export const schema = `#graphql
   type Mutation {
     # Sync a token from blockchain to database
     syncToken(tokenAddress: String!): Token!
+
+    # Admin: Delete a token from database (requires admin key)
+    deleteToken(tokenAddress: String!, adminKey: String!): DeleteTokenResult!
+
+    # Admin: Delete multiple tokens from database (requires admin key)
+    deleteTokensBatch(tokenAddresses: [String!]!, adminKey: String!): DeleteTokensBatchResult!
+  }
+
+  type DeleteTokenResult {
+    success: Boolean!
+    address: String!
+    message: String
+  }
+
+  type DeleteTokensBatchResult {
+    success: Boolean!
+    deletedCount: Int!
+    failedCount: Int!
+    results: [DeleteTokenResult!]!
   }
 
   type HealthCheck {
@@ -158,6 +177,7 @@ export const schema = `#graphql
     achievements: [Achievement!]!
 
     createdAt: DateTime!
+    updatedAt: DateTime!
   }
 
   type Achievement {

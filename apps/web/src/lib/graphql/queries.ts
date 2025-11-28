@@ -25,9 +25,12 @@ export const HEALTH_QUERY = gql`
     health {
       status
       timestamp
-      uptime
+      version
       database
-      cache
+      cache {
+        available
+        type
+      }
     }
   }
 `;

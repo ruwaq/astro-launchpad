@@ -3,10 +3,13 @@
  *
  * Displays live transaction feed from GraphQL API
  * NO MOCK DATA - Real Stellar blockchain transactions
+ *
+ * PERFORMANCE: Memoized to prevent unnecessary re-renders
  */
 
 'use client';
 
+import { memo, useMemo } from 'react';
 import { useQuery } from '@apollo/client';
 import { gql } from '@apollo/client';
 import { Loader2, TrendingUp, TrendingDown, ExternalLink } from 'lucide-react';
@@ -40,7 +43,94 @@ interface RecentTradesProps {
   tokenAddress: string;
 }
 
-export function RecentTrades({ tokenAddress }: RecentTradesProps) {
+interface TradeItemProps {
+  trade: {
+    id: string;
+    hash?: string;
+    type: string;
+    from?: string;
+    amount?: string;
+    timestamp: string;
+  };
+  tokenSymbol: string;
+}
+
+/**
+ * Memoized Trade Item Component
+ * Prevents re-render of individual trades when list updates
+ */
+const TradeItem = memo(function TradeItem({ trade, tokenSymbol }: TradeItemProps) {
+  const isBuy = trade.type === 'BUY';
+  const amount = parseFloat(trade.amount || '0');
+  const timestamp = new Date(trade.timestamp);
+  const timeAgo = formatDistanceToNow(timestamp, { addSuffix: true });
+
+  // Truncate wallet address
+  const walletShort = trade.from
+    ? `${trade.from.slice(0, 4)}...${trade.from.slice(-4)}`
+    : 'Unknown';
+
+  return (
+    <div
+      className="flex items-center justify-between py-3 px-3 rounded-lg hover:bg-gray-50 transition-colors border border-transparent hover:border-gray-200"
+    >
+      {/* Trade Type Icon */}
+      <div className="flex items-center gap-3 flex-1">
+        <div
+          className={`p-2 rounded-lg ${
+            isBuy
+              ? 'bg-green-100 text-green-600'
+              : 'bg-red-100 text-red-600'
+          }`}
+        >
+          {isBuy ? (
+            <TrendingUp className="h-4 w-4" />
+          ) : (
+            <TrendingDown className="h-4 w-4" />
+          )}
+        </div>
+
+        {/* Trade Info */}
+        <div className="flex-1">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold text-ui-text-primary">
+              {isBuy ? 'Buy' : 'Sell'}
+            </span>
+            <span className="text-xs text-ui-text-secondary">
+              {walletShort}
+            </span>
+          </div>
+
+          {/* Amounts */}
+          <div className="text-xs text-ui-text-secondary mt-0.5">
+            {amount.toFixed(4)} {tokenSymbol}
+          </div>
+        </div>
+      </div>
+
+      {/* Time & Link */}
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-ui-text-tertiary">{timeAgo}</span>
+        {trade.hash && (
+          <a
+            href={`https://stellar.expert/explorer/testnet/tx/${trade.hash}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-ui-text-tertiary hover:text-brand-primary transition-colors"
+          >
+            <ExternalLink className="h-3 w-3" />
+          </a>
+        )}
+      </div>
+    </div>
+  );
+});
+
+/**
+ * Recent Trades Component
+ * Memoized to prevent unnecessary re-renders from parent components
+ */
+export const RecentTrades = memo(function RecentTrades({ tokenAddress }: RecentTradesProps) {
   // Fetch real trades from GraphQL
   const { data, loading, error } = useQuery(RECENT_TRADES_QUERY, {
     variables: { tokenAddress },
@@ -52,7 +142,7 @@ export function RecentTrades({ tokenAddress }: RecentTradesProps) {
       <div className="bg-white rounded-xl border border-ui-border p-6">
         <h3 className="font-bold text-ui-text-primary mb-4">Recent Trades</h3>
         <div className="flex items-center justify-center h-32">
-          <Loader2 className="h-6 w-6 animate-spin text-brand-primary" />
+          <Loader2 className="h-6 w-6 animate-spin text-brand-primary" aria-label="Loading trades" />
         </div>
       </div>
     );
@@ -99,73 +189,9 @@ export function RecentTrades({ tokenAddress }: RecentTradesProps) {
       </div>
 
       <div className="space-y-2 max-h-96 overflow-y-auto">
-        {trades.map(({ node: trade }: any) => {
-          const isBuy = trade.type === 'BUY';
-          const amount = parseFloat(trade.amount || '0');
-          const timestamp = new Date(trade.timestamp);
-          const timeAgo = formatDistanceToNow(timestamp, { addSuffix: true });
-
-          // Truncate wallet address
-          const walletShort = trade.from
-            ? `${trade.from.slice(0, 4)}...${trade.from.slice(-4)}`
-            : 'Unknown';
-
-          return (
-            <div
-              key={trade.id}
-              className="flex items-center justify-between py-3 px-3 rounded-lg hover:bg-gray-50 transition-colors border border-transparent hover:border-gray-200"
-            >
-              {/* Trade Type Icon */}
-              <div className="flex items-center gap-3 flex-1">
-                <div
-                  className={`p-2 rounded-lg ${
-                    isBuy
-                      ? 'bg-green-100 text-green-600'
-                      : 'bg-red-100 text-red-600'
-                  }`}
-                >
-                  {isBuy ? (
-                    <TrendingUp className="h-4 w-4" />
-                  ) : (
-                    <TrendingDown className="h-4 w-4" />
-                  )}
-                </div>
-
-                {/* Trade Info */}
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-ui-text-primary">
-                      {isBuy ? 'Buy' : 'Sell'}
-                    </span>
-                    <span className="text-xs text-ui-text-secondary">
-                      {walletShort}
-                    </span>
-                  </div>
-
-                  {/* Amounts */}
-                  <div className="text-xs text-ui-text-secondary mt-0.5">
-                    {amount.toFixed(4)} {tokenSymbol}
-                  </div>
-                </div>
-              </div>
-
-              {/* Time & Link */}
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-ui-text-tertiary">{timeAgo}</span>
-                {trade.hash && (
-                  <a
-                    href={`https://stellar.expert/explorer/testnet/tx/${trade.hash}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-ui-text-tertiary hover:text-brand-primary transition-colors"
-                  >
-                    <ExternalLink className="h-3 w-3" />
-                  </a>
-                )}
-              </div>
-            </div>
-          );
-        })}
+        {trades.map(({ node: trade }: any) => (
+          <TradeItem key={trade.id} trade={trade} tokenSymbol={tokenSymbol} />
+        ))}
       </div>
 
       {/* Footer */}
@@ -176,4 +202,4 @@ export function RecentTrades({ tokenAddress }: RecentTradesProps) {
       </div>
     </div>
   );
-}
+});

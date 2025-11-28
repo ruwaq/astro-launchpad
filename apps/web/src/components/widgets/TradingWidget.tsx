@@ -12,16 +12,28 @@
 
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { ArrowDown } from 'lucide-react';
 import { useWallet } from '@/contexts/WalletContext';
 import { sacFactoryService, type TokenInfo } from '@/lib/stellar/services/sac-factory.service';
 import { stellarClient } from '@/lib/stellar/client';
-import { TransactionBuilder, SorobanRpc, Asset, Horizon, BASE_FEE, Operation } from '@stellar/stellar-sdk';
+import { TransactionBuilder, SorobanRpc } from '@stellar/stellar-sdk';
+import { ensureTrustlineExists } from '@/lib/stellar/utils/trustline';
 import { getNetworkConfig } from '@/lib/config/network';
 import toast from 'react-hot-toast';
-import confetti from 'canvas-confetti';
 import { useQuery, gql } from '@apollo/client';
+
+// PERFORMANCE: Dynamic import for confetti - only loaded on successful trade
+const triggerConfetti = () => {
+  import('canvas-confetti').then((confettiModule) => {
+    confettiModule.default({
+      particleCount: 150,
+      spread: 100,
+      origin: { y: 0.6 },
+      colors: ['#10b981', '#8b5cf6', '#f59e0b'],
+    });
+  });
+};
 
 import {
   TradeTypeTabs,
@@ -96,47 +108,22 @@ export function TradingWidget() {
     return SIMULATED_PRICES[symbol] || DEFAULT_SIMULATED_PRICE;
   }, []);
 
+  // REFACTORED: Use centralized trustline utility to avoid code duplication
   const ensureTrustline = async (
     userAddress: string,
     tokenSymbol: string,
     tokenIssuer: string
   ): Promise<boolean> => {
-    const config = getNetworkConfig();
-    const horizonServer = new Horizon.Server(config.horizonUrl);
-
-    try {
-      const account = await horizonServer.loadAccount(userAddress);
-      const asset = new Asset(tokenSymbol, tokenIssuer);
-
-      const hasTrustline = account.balances.some((balance: Horizon.HorizonApi.BalanceLine) => {
-        if (balance.asset_type === 'credit_alphanum4' || balance.asset_type === 'credit_alphanum12') {
-          const assetBalance = balance as Horizon.HorizonApi.BalanceLineAsset;
-          return assetBalance.asset_code === tokenSymbol && assetBalance.asset_issuer === tokenIssuer;
-        }
-        return false;
-      });
-
-      if (hasTrustline) return true;
-
-      const trustlineTx = new TransactionBuilder(account, {
-        fee: BASE_FEE,
-        networkPassphrase: config.passphrase,
-      })
-        .addOperation(Operation.changeTrust({ asset }))
-        .setTimeout(30)
-        .build();
-
-      const signedXDR = await signTransaction(trustlineTx.toXDR());
-      const signedTx = TransactionBuilder.fromXDR(signedXDR, config.passphrase);
-      await horizonServer.submitTransaction(signedTx as Parameters<typeof horizonServer.submitTransaction>[0]);
-      return true;
-    } catch (error) {
-      const err = error as { response?: { status?: number }; message?: string };
-      if (err.response?.status === 404) {
-        throw new Error('Your account is not funded. Please fund your account first.');
-      }
-      throw new Error(`Failed to create trustline: ${err.message}`);
+    const result = await ensureTrustlineExists(
+      userAddress,
+      tokenSymbol,
+      tokenIssuer,
+      signTransaction
+    );
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to create trustline');
     }
+    return true;
   };
 
   const loadTokenInfo = useCallback(async (tokenAddress: string) => {
@@ -176,9 +163,14 @@ export function TradingWidget() {
         const outputAfterFee = sacFactoryService.applyTradingFee(output);
         const outputHuman = Number(outputAfterFee) / 10_000_000;
 
+        // SAFETY: Validate output is a valid number before displaying
+        const outputStr = Number.isFinite(outputHuman) && outputHuman >= 0
+          ? outputHuman.toFixed(4)
+          : '0';
+
         setState((prev) => ({
           ...prev,
-          outputAmount: outputHuman.toFixed(4),
+          outputAmount: outputStr,
           isCalculating: false,
         }));
       } else if (state.selectedToken?.isTestnet && state.selectedToken?.classicIssuer) {
@@ -186,9 +178,14 @@ export function TradingWidget() {
         const output =
           state.type === 'buy' ? inputAmount * simulatedPrice : inputAmount / simulatedPrice;
 
+        // SAFETY: Validate output is a valid number before displaying
+        const outputStr = Number.isFinite(output) && output >= 0
+          ? output.toFixed(4)
+          : '0';
+
         setState((prev) => ({
           ...prev,
-          outputAmount: output.toFixed(4),
+          outputAmount: outputStr,
           isCalculating: false,
         }));
       } else {
@@ -317,8 +314,50 @@ export function TradingWidget() {
 
         const simulated = await server.simulateTransaction(transaction);
 
-        if (!simulated || 'error' in simulated) {
-          throw new Error('Simulation failed');
+        // Enhanced error handling for simulation failures
+        if (!simulated) {
+          throw new Error('Simulation returned empty response. Network may be congested.');
+        }
+
+        if (SorobanRpc.Api.isSimulationError(simulated)) {
+          // Extract meaningful error message from simulation
+          const errorMsg = simulated.error || 'Unknown simulation error';
+
+          // Provide user-friendly error messages for common failures
+          // Use case-insensitive matching for contract error strings
+          const errorLower = errorMsg.toLowerCase();
+
+          // MAX HOLDINGS ERROR
+          if (errorLower.includes('max') && errorLower.includes('holdings')) {
+            throw new Error('You\'ve reached the maximum token holdings (50%). This limit helps maintain fair distribution.');
+          }
+
+          // WHALE TAX INFO (not an error, but informational)
+          if (errorLower.includes('whale') || errorLower.includes('antiwhale')) {
+            throw new Error('Large purchase detected. A small whale fee will be applied to help distribution.');
+          }
+
+          // INSUFFICIENT BALANCE
+          if (errorLower.includes('insufficient') || errorLower.includes('balance')) {
+            throw new Error('Insufficient balance. Please check your XLM balance.');
+          }
+
+          // SLIPPAGE
+          if (errorLower.includes('slippage') || errorLower.includes('min_output') || errorLower.includes('slippageexceeded')) {
+            throw new Error('Price moved too much. Try increasing slippage or reducing amount.');
+          }
+
+          // LIQUIDITY
+          if (errorLower.includes('liquidity')) {
+            throw new Error('Not enough liquidity in the pool for this trade size.');
+          }
+
+          // GRADUATED TOKEN
+          if (errorLower.includes('graduated')) {
+            throw new Error('This token has graduated to the DEX. Trade on AstroSwap instead!');
+          }
+
+          throw new Error(`Transaction failed: ${errorMsg}`);
         }
 
         const preparedTx = SorobanRpc.assembleTransaction(transaction, simulated).build();
@@ -351,9 +390,23 @@ export function TradingWidget() {
             }
           } catch (err) {
             const error = err as { message?: string };
+            // Don't assume success on SDK errors - verify via Horizon
             if (error.message?.includes('Bad union switch')) {
-              success = true;
-              break;
+              try {
+                const horizonUrl = process.env.NEXT_PUBLIC_STELLAR_NETWORK === 'mainnet'
+                  ? 'https://horizon.stellar.org'
+                  : 'https://horizon-testnet.stellar.org';
+                const horizonResponse = await fetch(`${horizonUrl}/transactions/${sendResponse.hash}`);
+                if (horizonResponse.ok) {
+                  const txData = await horizonResponse.json();
+                  if (txData.successful === true) {
+                    success = true;
+                    break;
+                  }
+                }
+              } catch {
+                // Continue polling if Horizon check fails
+              }
             }
           }
 
@@ -378,12 +431,8 @@ export function TradingWidget() {
         `Successfully ${state.type === 'buy' ? 'bought' : 'sold'} ${state.selectedToken.symbol}!`
       );
 
-      confetti({
-        particleCount: 150,
-        spread: 100,
-        origin: { y: 0.6 },
-        colors: ['#10b981', '#8b5cf6', '#f59e0b'],
-      });
+      // PERFORMANCE: Confetti loaded dynamically only on success
+      triggerConfetti();
 
       setState((prev) => ({
         ...prev,
@@ -402,10 +451,13 @@ export function TradingWidget() {
     }
   };
 
-  const platformTokens = (tokensData?.tokens?.edges || []).map(
-    (edge: { node: TokenOption }) => edge.node
-  );
-  const allTokens: TokenOption[] = [...TESTNET_TOKENS, ...platformTokens];
+  // PERFORMANCE: Memoize token list to prevent unnecessary re-renders
+  const allTokens = useMemo<TokenOption[]>(() => {
+    const platformTokens = (tokensData?.tokens?.edges || []).map(
+      (edge: { node: TokenOption }) => edge.node
+    );
+    return [...TESTNET_TOKENS, ...platformTokens];
+  }, [tokensData?.tokens?.edges]);
 
   return (
     <div className="bg-white rounded-xl border border-ui-border shadow-sm">

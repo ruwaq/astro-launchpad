@@ -177,11 +177,13 @@ export class PasskeyClient {
         stellarAddress,
         publicKey: account.publicKey,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Passkey registration error:', error);
+      // Type guard for error message extraction
+      const errorMessage = error instanceof Error ? error.message : 'Registration failed';
       return {
         success: false,
-        error: error.message || 'Registration failed',
+        error: errorMessage,
       };
     }
   }
@@ -253,11 +255,13 @@ export class PasskeyClient {
         stellarAddress: account.stellarAddress,
         credentialId: authResp.id,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Passkey authentication error:', error);
+      // Type guard for error message extraction
+      const errorMessage = error instanceof Error ? error.message : 'Authentication failed';
       return {
         success: false,
-        error: error.message || 'Authentication failed',
+        error: errorMessage,
       };
     }
   }

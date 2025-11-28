@@ -5,13 +5,20 @@
  * Updates in real-time via polling
  */
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { sacFactoryService } from '@/lib/stellar/services/sac-factory.service';
+
+// PERFORMANCE: Polling intervals optimized for production
+// Previous: 5000ms = 720 requests/hour per token (too aggressive)
+// Current: 30000ms = 120 requests/hour per token (production-ready)
+const DEFAULT_POLLING_INTERVAL = 30000; // 30 seconds
+const MIN_POLLING_INTERVAL = 10000; // 10 seconds minimum to prevent abuse
 
 interface UsePriceOptions {
   /**
    * Polling interval in ms
-   * Default: 5000 (5 seconds) - fast updates like Pump.fun
+   * Default: 30000 (30 seconds) - balanced for production
+   * Minimum: 10000 (10 seconds) - prevents excessive RPC calls
    */
   interval?: number;
 
@@ -19,11 +26,14 @@ interface UsePriceOptions {
    * Auto-start polling
    * Default: true
    */
-  autoStart?: number;
+  autoStart?: boolean;
 }
 
 export function usePrice(tokenAddress: string | null | undefined, options: UsePriceOptions = {}) {
-  const { interval = 5000, autoStart = true } = options;
+  // PERFORMANCE: Enforce minimum polling interval
+  const requestedInterval = options.interval ?? DEFAULT_POLLING_INTERVAL;
+  const interval = Math.max(requestedInterval, MIN_POLLING_INTERVAL);
+  const { autoStart = true } = options;
 
   const [price, setPrice] = useState<bigint>(BigInt(0));
   const [previousPrice, setPreviousPrice] = useState<bigint>(BigInt(0));
@@ -31,55 +41,71 @@ export function usePrice(tokenAddress: string | null | undefined, options: UsePr
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch current price
+  // Use refs to track prices without causing re-renders or infinite loops
+  // This breaks the circular dependency: fetchPrice -> price -> fetchPrice
+  const priceRef = useRef<bigint>(BigInt(0));
+  const previousPriceRef = useRef<bigint>(BigInt(0));
+
+  // Fetch current price - only depends on tokenAddress
   const fetchPrice = useCallback(async () => {
     if (!tokenAddress) return;
 
     try {
       const currentPrice = await sacFactoryService.getPrice(tokenAddress);
 
-      // Update previous price if we had one
-      if (price > BigInt(0)) {
-        setPreviousPrice(price);
+      // Update previous price if we had one (using ref value)
+      if (priceRef.current > BigInt(0)) {
+        previousPriceRef.current = priceRef.current;
+        setPreviousPrice(priceRef.current);
       }
 
+      // Update current price
+      priceRef.current = currentPrice;
       setPrice(currentPrice);
       setError(null);
 
-      // Calculate 24h change (simplified - would need historical data from backend)
-      // For now, just compare with previous poll
-      if (previousPrice > BigInt(0)) {
-        const change = Number(currentPrice - previousPrice) / Number(previousPrice) * 100;
+      // Calculate change using ref values (avoids stale closure)
+      if (previousPriceRef.current > BigInt(0)) {
+        const change = Number(currentPrice - previousPriceRef.current) / Number(previousPriceRef.current) * 100;
         setPriceChange24h(change);
       }
 
       setIsLoading(false);
-    } catch (err) {
+    } catch (err: unknown) {
       console.error('Error fetching price:', err);
-      setError((err as Error).message);
+      // Type guard for error message extraction
+      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch price';
+      setError(errorMessage);
       setIsLoading(false);
     }
-  }, [tokenAddress, price, previousPrice]);
+  }, [tokenAddress]); // Only depends on tokenAddress - breaks the infinite loop
 
-  // Initial fetch
+  // Initial fetch - runs once when tokenAddress changes
   useEffect(() => {
     if (tokenAddress && autoStart) {
+      // Reset state for new token
+      priceRef.current = BigInt(0);
+      previousPriceRef.current = BigInt(0);
+      setPrice(BigInt(0));
+      setPreviousPrice(BigInt(0));
+      setPriceChange24h(0);
+      setIsLoading(true);
+      setError(null);
+
       fetchPrice();
     }
   }, [tokenAddress, autoStart, fetchPrice]);
 
-  // Polling
+  // Polling - separate effect to avoid recreating interval on price changes
   useEffect(() => {
     if (!tokenAddress || !autoStart || interval === 0) return;
 
-    const pollInterval = setInterval(() => {
-      fetchPrice();
-    }, interval);
+    const pollInterval = setInterval(fetchPrice, interval);
 
     return () => clearInterval(pollInterval);
   }, [tokenAddress, interval, autoStart, fetchPrice]);
 
-  // Price direction indicator
+  // Price direction indicator - computed from state for rendering
   const priceDirection = price > previousPrice ? 'up' : price < previousPrice ? 'down' : 'stable';
 
   return {

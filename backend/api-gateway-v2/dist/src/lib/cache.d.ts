@@ -17,8 +17,14 @@ import { Redis as IORedis } from 'ioredis';
 type CacheClient = typeof kv | IORedis | null;
 /**
  * Get or initialize cache client
+ * SAFETY: Uses mutex pattern to prevent race condition during concurrent initialization
  */
 export declare function getCacheClient(): CacheClient;
+/**
+ * Async version of getCacheClient for scenarios requiring async initialization
+ * This ensures only one initialization occurs even with concurrent async calls
+ */
+export declare function getCacheClientAsync(): Promise<CacheClient>;
 /**
  * Check if cache is available
  */

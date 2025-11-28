@@ -20,6 +20,7 @@ import { Loader2, TrendingUp, TrendingDown, Info } from 'lucide-react';
 import toast from 'react-hot-toast';
 import confetti from 'canvas-confetti';
 import type { TokenGraphQLData } from '@/lib/stellar/types';
+import { logger } from '@/lib/logger';
 
 interface TradingInterfaceProps {
   tokenAddress: string;
@@ -163,7 +164,7 @@ export function TradingInterface({ tokenAddress, token }: TradingInterfaceProps)
         throw new Error(result.error || 'Transaction failed');
       }
     } catch (error: any) {
-      console.error('Trade error:', error);
+      logger.error('Trade error', { error });
       toast.dismiss();
 
       // Handle specific error types
@@ -336,7 +337,7 @@ export function TradingInterface({ tokenAddress, token }: TradingInterfaceProps)
       >
         {isProcessing ? (
           <div className="flex items-center justify-center gap-2">
-            <Loader2 className="h-5 w-5 animate-spin" />
+            <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
             Processing...
           </div>
         ) : (
@@ -363,12 +364,12 @@ export function TradingInterface({ tokenAddress, token }: TradingInterfaceProps)
 function calculateEstimatedOutput(
   xlmAmount: number,
   tradeType: TradeType,
-  token: any
+  token: TokenGraphQLData
 ): number {
   // Simplified bonding curve calculation
   // In production, this should call the contract view function
-  const circulatingSupply = parseFloat(token.circulatingSupply) || 0;
-  const xlmReserve = parseFloat(token.xlmReserve) || 0;
+  const circulatingSupply = parseFloat(token.circulatingSupply ?? '0') || 0;
+  const xlmReserve = parseFloat(token.xlmReserve ?? '0') || 0;
 
   if (circulatingSupply === 0 || xlmReserve === 0) {
     return xlmAmount * 1000; // Initial price estimate

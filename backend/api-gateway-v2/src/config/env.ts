@@ -41,19 +41,27 @@ const envSchema = z.object({
   // Admin addresses (comma-separated list of Stellar addresses with admin privileges)
   ADMIN_ADDRESSES: z.string().optional(),
 
+  // Admin API Key (required in production for admin mutations)
+  ADMIN_API_KEY: z.string().min(32, 'ADMIN_API_KEY must be at least 32 characters').optional(),
+
   // Rate Limiting
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60000), // 1 minute
   RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().positive().default(100),
 
   // GraphQL
   GRAPHQL_MAX_DEPTH: z.coerce.number().int().positive().default(10),
-  GRAPHQL_MAX_COMPLEXITY: z.coerce.number().int().positive().default(1000),
-  GRAPHQL_INTROSPECTION: z.coerce.boolean().default(true),
-  GRAPHQL_PLAYGROUND: z.coerce.boolean().default(true),
+  GRAPHQL_MAX_COMPLEXITY: z.coerce.number().int().positive().default(5000),
+  // SECURITY: Default to false in production - set GRAPHQL_INTROSPECTION=true for development
+  GRAPHQL_INTROSPECTION: z.coerce.boolean().default(false),
+  // SECURITY: Default to false in production - set GRAPHQL_PLAYGROUND=true for development
+  GRAPHQL_PLAYGROUND: z.coerce.boolean().default(false),
 
   // Logging
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
   LOG_PRETTY: z.coerce.boolean().default(true),
+
+  // Health checks (Kubernetes-compatible)
+  HEALTH_PORT: z.coerce.number().int().positive().default(4001),
 
   // Metrics
   METRICS_ENABLED: z.coerce.boolean().default(true),

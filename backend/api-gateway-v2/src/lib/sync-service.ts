@@ -12,14 +12,15 @@
  */
 
 import { SorobanRpc, Contract, Address, scValToNative, TransactionBuilder, Account } from '@stellar/stellar-sdk';
+import { randomUUID } from 'crypto';
 import type { PrismaClient } from '@prisma/client';
 
 // ============================================================================
 // Configuration
 // ============================================================================
 
-// IMPORTANT: Use the ACTIVE testnet contract ID as default
-const CONTRACT_ID = process.env.TOKEN_FACTORY_CONTRACT_ID || 'CDAGI666QPS2QU4RVUXW4WFHABETECXQVJVFNTAJJJCGS36XX6R3AWSC';
+// IMPORTANT: Use the ACTIVE testnet contract ID as default (V5 - Nov 26, 2024)
+const CONTRACT_ID = process.env.TOKEN_FACTORY_CONTRACT_ID || 'CAETFO74SF5GSPA2SCUIR6P5XET6ASEMQPESLRWNWRDC37UX32HBKEMK';
 const RPC_URL = process.env.STELLAR_RPC_URL || 'https://soroban-testnet.stellar.org';
 const NETWORK_PASSPHRASE = process.env.STELLAR_NETWORK_PASSPHRASE || 'Test SDF Network ; September 2015';
 
@@ -70,6 +71,53 @@ export interface TokenInfo {
   created_at?: number;
 }
 
+/**
+ * Social links parsed from embedded metadata
+ */
+export interface SocialLinks {
+  website?: string;
+  telegram?: string;
+  twitter?: string;
+  discord?: string;
+}
+
+/**
+ * Parse embedded metadata from description
+ * Format: "Description text\n\n---METADATA---\n{json}"
+ */
+function parseEmbeddedMetadata(description: string): { cleanDescription: string; socialLinks: SocialLinks } {
+  const defaultResult = { cleanDescription: description, socialLinks: {} };
+
+  if (!description) return defaultResult;
+
+  const metadataSeparator = '---METADATA---';
+  const separatorIndex = description.indexOf(metadataSeparator);
+
+  if (separatorIndex === -1) return defaultResult;
+
+  // Split into description and metadata
+  const cleanDescription = description.substring(0, separatorIndex).trim();
+  const metadataJson = description.substring(separatorIndex + metadataSeparator.length).trim();
+
+  try {
+    const metadata = JSON.parse(metadataJson);
+    const socialLinks: SocialLinks = {};
+
+    if (metadata.social) {
+      if (metadata.social.website) socialLinks.website = metadata.social.website;
+      if (metadata.social.telegram) socialLinks.telegram = metadata.social.telegram;
+      if (metadata.social.twitter) socialLinks.twitter = metadata.social.twitter;
+      if (metadata.social.discord) socialLinks.discord = metadata.social.discord;
+    }
+
+    console.log(`[SyncService] Parsed social links:`, socialLinks);
+    return { cleanDescription, socialLinks };
+  } catch (error) {
+    console.warn(`[SyncService] Failed to parse embedded metadata:`, error);
+    return defaultResult;
+  }
+}
+
 export interface SyncResult {
   success: boolean;
   tokenAddress: string;
@@ -80,6 +128,39 @@ export interface SyncResult {
 // ============================================================================
 // Utility Functions
 // ============================================================================
+
+/**
+ * PERFORMANCE: Default timeout for contract calls (30 seconds)
+ * Prevents hanging requests if RPC is slow/unresponsive
+ */
+const CONTRACT_CALL_TIMEOUT_MS = 30000;
+
+/**
+ * Execute a promise with a timeout
+ * @throws Error if timeout is exceeded
+ */
+async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  operationName: string
+): Promise<T> {
+  let timeoutId: NodeJS.Timeout;
+
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new Error(`Operation '${operationName}' timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+  });
+
+  try {
+    const result = await Promise.race([promise, timeoutPromise]);
+    clearTimeout(timeoutId!);
+    return result;
+  } catch (error) {
+    clearTimeout(timeoutId!);
+    throw error;
+  }
+}
 
 /**
  * Retry a function with exponential backoff
@@ -101,7 +182,8 @@ async function retry<T>(
 }
 
 /**
- * Call contract read-only method with proper error handling
+ * Call contract read-only method with proper error handling and timeout
+ * PERFORMANCE: Added timeout to prevent hanging requests
  */
 async function callContractMethod(method: string, ...params: any[]): Promise<any> {
   return retry(async () => {
@@ -110,20 +192,26 @@ async function callContractMethod(method: string, ...params: any[]): Promise<any
 
     const operation = contract.call(method, ...params);
 
-    const simulationResponse = await server.simulateTransaction(
-      new TransactionBuilder(
-        new Account(
-          'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF',
-          '0'
-        ),
-        {
-          fee: '100',
-          networkPassphrase: NETWORK_PASSPHRASE,
-        }
-      )
-        .addOperation(operation as any)
-        .setTimeout(30)
-        .build() as any
+    // Build the transaction for simulation
+    const tx = new TransactionBuilder(
+      new Account(
+        'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF',
+        '0'
+      ),
+      {
+        fee: '100',
+        networkPassphrase: NETWORK_PASSPHRASE,
+      }
+    )
+      .addOperation(operation as any)
+      .setTimeout(30)
+      .build() as any;
+
+    // PERFORMANCE: Execute simulation with timeout to prevent hanging
+    const simulationResponse = await withTimeout(
+      server.simulateTransaction(tx),
+      CONTRACT_CALL_TIMEOUT_MS,
+      `contract.${method}`
     );
 
     if (SorobanRpc.Api.isSimulationSuccess(simulationResponse)) {
@@ -137,17 +225,80 @@ async function callContractMethod(method: string, ...params: any[]): Promise<any
 }
 
 /**
- * Get token info from contract
+ * Validate TokenInfo response from contract
+ * Ensures required fields are present and valid
+ */
+function validateTokenInfo(info: any): info is TokenInfo {
+  if (!info || typeof info !== 'object') {
+    console.error('[SyncService] TokenInfo is null or not an object');
+    return false;
+  }
+
+  const requiredFields = ['name', 'symbol', 'creator'];
+  const missingFields = requiredFields.filter(field => !info[field]);
+
+  if (missingFields.length > 0) {
+    console.error(`[SyncService] TokenInfo missing required fields: ${missingFields.join(', ')}`);
+    return false;
+  }
+
+  // Validate creator is a valid Stellar address
+  if (typeof info.creator !== 'string' || info.creator.length !== 56 || !info.creator.startsWith('G')) {
+    console.error(`[SyncService] Invalid creator address: ${info.creator}`);
+    return false;
+  }
+
+  return true;
+}
+
+/**
+ * Get token info from contract with extended retry for race conditions
+ * New tokens may not be immediately visible in RPC after creation
  */
 async function getTokenInfoFromContract(tokenAddress: string): Promise<TokenInfo | null> {
+  // First attempt with standard retry
   try {
     const address = Address.fromString(tokenAddress).toScVal();
     const info = await callContractMethod('get_token_info', address);
-    return info;
-  } catch (error: any) {
-    console.error(`[SyncService] Failed to get info for token ${tokenAddress}:`, error.message);
+
+    if (validateTokenInfo(info)) {
+      return info;
+    }
+
+    console.warn(`[SyncService] Token info validation failed for ${tokenAddress}`);
     return null;
+  } catch (error: any) {
+    console.warn(`[SyncService] First attempt failed for ${tokenAddress}: ${error.message}`);
   }
+
+  // Extended retry for newly created tokens (race condition fix)
+  // Wait progressively longer as RPC might need time to index
+  console.log(`[SyncService] Attempting extended retry for newly created token...`);
+
+  const extendedRetries = 5;
+  const baseDelay = 2000; // 2 seconds
+
+  for (let attempt = 0; attempt < extendedRetries; attempt++) {
+    const delay = baseDelay * (attempt + 1); // 2s, 4s, 6s, 8s, 10s
+    console.log(`[SyncService] Retry ${attempt + 1}/${extendedRetries} after ${delay}ms...`);
+
+    await new Promise(resolve => setTimeout(resolve, delay));
+
+    try {
+      const address = Address.fromString(tokenAddress).toScVal();
+      const info = await callContractMethod('get_token_info', address);
+
+      if (validateTokenInfo(info)) {
+        console.log(`[SyncService] Token found on retry ${attempt + 1}`);
+        return info;
+      }
+    } catch (error: any) {
+      console.warn(`[SyncService] Retry ${attempt + 1} failed: ${error.message}`);
+    }
+  }
+
+  console.error(`[SyncService] All retries exhausted for token ${tokenAddress}`);
+  return null;
 }
 
 // ============================================================================
@@ -193,7 +344,10 @@ export async function syncTokenToDatabase(
 
     console.log(`[SyncService] Token info: ${tokenInfo.name} (${tokenInfo.symbol})`);
 
-    // Step 2: Prepare token data
+    // Step 2: Parse embedded metadata from description (social links)
+    const { cleanDescription, socialLinks } = parseEmbeddedMetadata(tokenInfo.description || '');
+
+    // Step 3: Prepare token data
     const tokenData = {
       address: tokenAddress,
       creator: tokenInfo.creator,
@@ -203,7 +357,13 @@ export async function syncTokenToDatabase(
       totalSupply: tokenInfo.total_supply?.toString() || '1000000000000000',
       metadataUri: tokenInfo.image_url || '',
       imageUrl: tokenInfo.image_url || null,
-      description: tokenInfo.description || `${tokenInfo.name} token on Stellar`,
+      description: cleanDescription || `${tokenInfo.name} token on Stellar`,
+
+      // Social links (parsed from embedded metadata)
+      website: socialLinks.website || null,
+      telegram: socialLinks.telegram || null,
+      twitter: socialLinks.twitter || null,
+      discord: socialLinks.discord || null,
 
       // Bonding curve data
       circulatingSupply: tokenInfo.circulating_supply?.toString() || '0',
@@ -223,53 +383,65 @@ export async function syncTokenToDatabase(
       updatedAt: new Date(),
     };
 
-    // Step 3: Upsert token (insert or update)
-    const token = await prisma.token.upsert({
-      where: { address: tokenAddress },
-      update: {
-        ...tokenData,
-        // Don't overwrite createdAt on update
-        createdAt: undefined,
-      },
-      create: tokenData,
-    });
+    // CRITICAL: Use Prisma interactive transaction for atomic operations
+    // This ensures all-or-nothing behavior - if any operation fails, all are rolled back
+    const token = await prisma.$transaction(async (tx) => {
+      // Step 4: Upsert token (insert or update)
+      const upsertedToken = await tx.token.upsert({
+        where: { address: tokenAddress },
+        update: {
+          ...tokenData,
+          // Don't overwrite createdAt on update
+          createdAt: undefined,
+        },
+        create: tokenData,
+      });
 
-    // Step 4: Ensure creator exists as user
-    await prisma.user.upsert({
-      where: { address: tokenInfo.creator },
-      update: {},
-      create: {
-        address: tokenInfo.creator,
-        points: 0,
-        level: 1,
-        referrals: 0,
-        tokensCreatedCount: 1,
-        totalVolumeTraded: '0',
-        totalLiquidityProvided: '0',
-      },
-    });
+      // Step 5: Ensure creator exists as user
+      await tx.user.upsert({
+        where: { address: tokenInfo.creator },
+        update: {},
+        create: {
+          address: tokenInfo.creator,
+          points: 0,
+          level: 1,
+          referrals: 0,
+          tokensCreatedCount: 1,
+          totalVolumeTraded: '0',
+          totalLiquidityProvided: '0',
+        },
+      });
 
-    // Step 5: Record transaction if it's a new token
-    const existingTx = await prisma.transaction.findFirst({
-      where: {
-        tokenAddress,
-        type: 'TOKEN_CREATED'
-      }
-    });
-
-    if (!existingTx) {
-      await prisma.transaction.create({
-        data: {
-          hash: `create_${tokenAddress}_${Date.now()}`,
-          type: 'TOKEN_CREATED',
-          from: tokenInfo.creator,
+      // Step 6: Record transaction if it's a new token
+      const existingTx = await tx.transaction.findFirst({
+        where: {
           tokenAddress,
-          amount: '0',
-          status: 'SUCCESS',
-          timestamp: token.createdAt,
+          type: 'TOKEN_CREATED'
         }
       });
-    }
+
+      if (!existingTx) {
+        // Use cryptographically secure UUID to prevent hash collisions
+        const uniqueId = randomUUID();
+        await tx.transaction.create({
+          data: {
+            hash: `create_${tokenAddress}_${uniqueId}`,
+            type: 'TOKEN_CREATED',
+            from: tokenInfo.creator,
+            tokenAddress,
+            amount: '0',
+            status: 'SUCCESS',
+            timestamp: upsertedToken.createdAt,
+          }
+        });
+      }
+
+      return upsertedToken;
+    }, {
+      // Transaction options for robustness
+      maxWait: 5000, // Max time to wait for transaction slot
+      timeout: 10000, // Max time for transaction to complete
+    });
 
     console.log(`[SyncService] Successfully synced token: ${tokenInfo.name}`);
 

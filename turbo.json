@@ -1,6 +1,18 @@
 {
   "$schema": "https://turbo.build/schema.json",
-  "globalDependencies": ["**/.env.*local"],
+  "globalDependencies": ["**/.env.*local", ".env", "packages/config/src/**"],
+  "globalEnv": [
+    "STELLAR_NETWORK",
+    "STELLAR_RPC_URL",
+    "STELLAR_NETWORK_PASSPHRASE",
+    "TOKEN_FACTORY_CONTRACT_ID",
+    "ASTRO_TOKEN_ADDRESS",
+    "DEX_FACTORY_CONTRACT_ID",
+    "DEX_ROUTER_CONTRACT_ID",
+    "DEX_PAIR_WASM_HASH",
+    "ORACLE_CONTRACT_ID",
+    "XLM_SAC_ADDRESS"
+  ],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],

@@ -3,38 +3,43 @@
 // Force dynamic rendering to avoid build-time errors with contract service
 export const dynamic = 'force-dynamic';
 
-import { useState, useEffect, memo } from 'react';
-import Image from 'next/image';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
+import { motion, AnimatePresence } from 'framer-motion';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
-import { Search, TrendingUp, Loader2 } from 'lucide-react';
+import { TokenCardPremium } from '@/components/token/TokenCardPremium';
+import { LiveActivityFeed } from '@/components/activity/LiveActivityFeed';
+import { Search, TrendingUp, Loader2, Flame, Sparkles, Activity, Filter } from 'lucide-react';
 import { useWallet } from '@/contexts/WalletContext';
-import { formatCompactNumber } from '@/lib/stellar/utils';
 import toast from 'react-hot-toast';
 import { useQuery, gql } from '@apollo/client';
-
-// Helper to convert ipfs:// URLs to HTTP gateway URLs
-const getImageUrl = (url: string | undefined | null): string | null => {
-  if (!url) return null;
-  if (url.startsWith('ipfs://')) {
-    const cid = url.replace('ipfs://', '');
-    // Use Pinata gateway or fallback to public gateway
-    const gateway = process.env.NEXT_PUBLIC_PINATA_GATEWAY;
-    return gateway
-      ? `https://${gateway}/ipfs/${cid}`
-      : `https://gateway.pinata.cloud/ipfs/${cid}`;
-  }
-  return url;
-};
+import type { Token, TokenEdge } from '@/lib/graphql/types';
+import { GRADUATION_THRESHOLD_XLM } from '@/lib/stellar/utils';
 
 type SortOption = 'trending' | 'new' | 'marketCap' | 'volume' | 'graduation';
 type StatusFilter = 'all' | 'bonding' | 'graduated';
+
+// Animation variants for staggered children
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.05,
+    },
+  },
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 20 },
+  visible: { opacity: 1, y: 0 },
+};
 
 export default function ExplorePage() {
   const { address, isConnected, connect, isConnecting } = useWallet();
 
   // Fetch ALL tokens from GraphQL API (not filtered by user)
-  const { data: tokensData, loading: tokensLoading } = useQuery(gql`
+  const { data: tokensData, loading: tokensLoading, error: tokensError } = useQuery(gql`
     query GetAllTokens($limit: Int!, $orderBy: TokenOrderBy!) {
       tokens(limit: $limit, orderBy: $orderBy) {
         edges {
@@ -72,8 +77,8 @@ export default function ExplorePage() {
   });
 
   // State
-  const [tokens, setTokens] = useState<any[]>([]);
-  const [filteredTokens, setFilteredTokens] = useState<any[]>([]);
+  const [tokens, setTokens] = useState<Token[]>([]);
+  const [filteredTokens, setFilteredTokens] = useState<Token[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [sortBy, setSortBy] = useState<SortOption>('new');
@@ -82,7 +87,7 @@ export default function ExplorePage() {
   useEffect(() => {
     if (tokensData?.tokens?.edges) {
       // Extract token data from edges[].node structure
-      const tokensList = tokensData.tokens.edges.map((edge: any) => edge.node);
+      const tokensList = tokensData.tokens.edges.map((edge: TokenEdge) => edge.node);
       setTokens(tokensList);
     }
   }, [tokensData]);
@@ -118,8 +123,8 @@ export default function ExplorePage() {
         case 'volume':
           return parseFloat(b.volume24h || '0') - parseFloat(a.volume24h || '0');
         case 'graduation':
-          const progressA = (parseFloat(a.xlmRaised || '0') / 10000) * 100;
-          const progressB = (parseFloat(b.xlmRaised || '0') / 10000) * 100;
+          const progressA = (parseFloat(a.xlmRaised || '0') / GRADUATION_THRESHOLD_XLM) * 100;
+          const progressB = (parseFloat(b.xlmRaised || '0') / GRADUATION_THRESHOLD_XLM) * 100;
           return progressB - progressA;
         default:
           return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
@@ -133,123 +138,82 @@ export default function ExplorePage() {
     try {
       await connect();
       toast.success('Wallet connected! Loading tokens...');
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Error already shown by WalletContext
     }
   };
 
-  // Token Card Component - Memoized for performance
-  const TokenCard = memo(function TokenCard({ token }: { token: { address: string; symbol?: string; name?: string; imageUrl?: string; graduated?: boolean; xlmRaised?: string; marketCap?: string } }) {
-    const graduationProgress = Math.min(
-      (parseFloat(token.xlmRaised || '0') / 10000) * 100,
-      100
+  // Calculate trending rank and new status
+  const getTokenMetadata = useMemo(() => {
+    const now = Date.now();
+    const oneDay = 24 * 60 * 60 * 1000;
+
+    // Sort by volume for trending rank
+    const byVolume = [...filteredTokens].sort(
+      (a, b) => parseFloat(b.volume24h || '0') - parseFloat(a.volume24h || '0')
     );
-    const imageUrl = getImageUrl(token.imageUrl);
 
-    return (
-      <Link
-        href={`/t/${token.address}`}
-        className="block bg-white rounded-xl p-6 border border-ui-border hover:border-brand-primary transition-all hover:shadow-md"
-      >
-        <div className="flex items-start gap-4">
-          {/* Token Image */}
-          {imageUrl ? (
-            <Image
-              src={imageUrl}
-              alt={token.symbol || 'Token'}
-              width={48}
-              height={48}
-              className="rounded-lg flex-shrink-0 object-cover"
-              unoptimized
-            />
-          ) : (
-            <div className="w-12 h-12 bg-gradient-to-br from-brand-primary to-brand-blue rounded-lg flex items-center justify-center text-white font-bold text-xl flex-shrink-0">
-              {token.symbol?.charAt(0) || '?'}
-            </div>
-          )}
+    return filteredTokens.reduce((acc, token, index) => {
+      const createdAt = new Date(token.createdAt).getTime();
+      const isNew = now - createdAt < oneDay; // New if created within 24h
+      const trendingRank = byVolume.findIndex((t) => t.address === token.address) + 1;
 
-          {/* Token Info */}
-          <div className="flex-1 min-w-0">
-            <div className="flex items-start justify-between">
-              <div>
-                <h3 className="font-bold text-ui-text-primary truncate">
-                  {token.name}
-                </h3>
-                <p className="text-sm text-ui-text-secondary">${token.symbol}</p>
-              </div>
-              <span
-                className={`px-2 py-1 text-xs font-medium rounded ${
-                  !token.graduated
-                    ? 'bg-brand-blue-50 text-brand-blue'
-                    : 'bg-brand-green-50 text-brand-green'
-                }`}
-              >
-                {token.graduated ? 'Graduated' : 'Bonding'}
-              </span>
-            </div>
+      acc[token.address] = { isNew, trendingRank };
+      return acc;
+    }, {} as Record<string, { isNew: boolean; trendingRank: number }>);
+  }, [filteredTokens]);
 
-            {/* Graduation Progress */}
-            {!token.graduated && (
-              <div className="mt-4">
-                <div className="flex items-center justify-between text-xs text-ui-text-secondary mb-2">
-                  <span>Graduation Progress</span>
-                  <span>{graduationProgress.toFixed(1)}%</span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div
-                    className="bg-gradient-to-r from-brand-primary to-brand-blue h-2 rounded-full transition-all"
-                    style={{ width: `${graduationProgress}%` }}
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* Stats */}
-            <div className="mt-4 grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-xs text-ui-text-secondary">XLM Raised</p>
-                <p className="text-sm font-semibold text-ui-text-primary">
-                  {formatCompactNumber(parseFloat(token.xlmRaised || '0') / 10_000_000)} XLM
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-ui-text-secondary">Market Cap</p>
-                <p className="text-sm font-semibold text-ui-text-primary">
-                  ${formatCompactNumber(parseFloat(token.marketCap || '0') / 10_000_000)}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Security Badges */}
-        <div className="mt-4 pt-4 border-t border-ui-border flex flex-wrap gap-2">
-          <span className="inline-flex items-center gap-1 px-2 py-1 bg-brand-blue-50 text-brand-blue text-xs font-medium rounded">
-            🛡️ Fair Launch
-          </span>
-          <span className="inline-flex items-center gap-1 px-2 py-1 bg-brand-green-50 text-brand-green text-xs font-medium rounded">
-            🔒 Real SAC
-          </span>
-        </div>
-      </Link>
-    );
-  });
+  // State for activity sidebar
+  const [showActivity, setShowActivity] = useState(false);
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        {/* Page Header */}
-        <div>
-          <h1 className="text-2xl lg:text-3xl font-bold text-ui-text-primary">
-            Explore Tokens
-          </h1>
-          <p className="text-ui-text-secondary mt-1">
-            Discover and trade real SAC tokens on Stellar Testnet
-          </p>
-        </div>
+      <div className="flex gap-6">
+        {/* Main Content */}
+        <div className="flex-1 space-y-6">
+          {/* Page Header with Animation */}
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4"
+          >
+            <div>
+              <h1 className="text-2xl lg:text-3xl font-bold text-ui-text-primary flex items-center gap-3">
+                <Flame className="h-8 w-8 text-brand-primary" />
+                Explore Tokens
+              </h1>
+              <p className="text-ui-text-secondary mt-1">
+                Discover and trade real SAC tokens on Stellar Testnet
+              </p>
+            </div>
 
-        {/* Search and Filters */}
-        <div className="bg-white rounded-xl p-4 border border-ui-border">
+            {/* Quick Stats */}
+            <div className="flex gap-3">
+              <div className="bg-white rounded-xl px-4 py-2 border border-ui-border">
+                <p className="text-xs text-ui-text-secondary">Total Tokens</p>
+                <p className="text-lg font-bold text-ui-text-primary">{tokens.length}</p>
+              </div>
+              <button
+                onClick={() => setShowActivity(!showActivity)}
+                className={`hidden lg:flex items-center gap-2 px-4 py-2 rounded-xl border transition-colors ${
+                  showActivity
+                    ? 'bg-brand-primary text-white border-brand-primary'
+                    : 'bg-white border-ui-border hover:border-brand-primary'
+                }`}
+              >
+                <Activity className="h-4 w-4" />
+                Live Feed
+              </button>
+            </div>
+          </motion.div>
+
+          {/* Search and Filters */}
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="bg-white rounded-xl p-4 border border-ui-border shadow-sm"
+          >
             <div className="flex flex-col lg:flex-row gap-4">
               {/* Search */}
               <div className="flex-1 relative">
@@ -259,7 +223,7 @@ export default function ExplorePage() {
                   placeholder="Search by name or symbol..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border border-ui-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                  className="w-full pl-10 pr-4 py-3 border border-ui-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-primary transition-shadow"
                 />
               </div>
 
@@ -277,84 +241,149 @@ export default function ExplorePage() {
               </div>
             </div>
 
-            {/* Sort */}
+            {/* Sort Tabs */}
             <div className="flex items-center gap-4 mt-4 pt-4 border-t border-ui-border">
-              <span className="text-sm font-medium text-ui-text-secondary">Sort by:</span>
+              <span className="text-sm font-medium text-ui-text-secondary flex items-center gap-1">
+                <Filter className="h-4 w-4" />
+                Sort:
+              </span>
               <div className="flex flex-wrap gap-2">
-                <button
-                  onClick={() => setSortBy('new')}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                    sortBy === 'new'
-                      ? 'bg-brand-primary text-white'
-                      : 'bg-gray-100 text-ui-text-secondary hover:bg-gray-200'
-                  }`}
-                >
-                  New
-                </button>
-                <button
-                  onClick={() => setSortBy('marketCap')}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                    sortBy === 'marketCap'
-                      ? 'bg-brand-primary text-white'
-                      : 'bg-gray-100 text-ui-text-secondary hover:bg-gray-200'
-                  }`}
-                >
-                  Market Cap
-                </button>
-                <button
-                  onClick={() => setSortBy('graduation')}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                    sortBy === 'graduation'
-                      ? 'bg-brand-primary text-white'
-                      : 'bg-gray-100 text-ui-text-secondary hover:bg-gray-200'
-                  }`}
-                >
-                  Graduation %
-                </button>
+                {[
+                  { id: 'new', label: 'New', icon: <Sparkles className="h-3.5 w-3.5" /> },
+                  { id: 'trending', label: 'Trending', icon: <Flame className="h-3.5 w-3.5" /> },
+                  { id: 'marketCap', label: 'Market Cap', icon: <TrendingUp className="h-3.5 w-3.5" /> },
+                  { id: 'graduation', label: 'Graduation %', icon: null },
+                ].map((option) => (
+                  <button
+                    key={option.id}
+                    onClick={() => setSortBy(option.id as SortOption)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                      sortBy === option.id
+                        ? 'bg-brand-primary text-white shadow-md'
+                        : 'bg-gray-100 text-ui-text-secondary hover:bg-gray-200'
+                    }`}
+                  >
+                    {option.icon}
+                    {option.label}
+                  </button>
+                ))}
               </div>
             </div>
-          </div>
+          </motion.div>
 
-        {/* Content */}
-        {tokensLoading ? (
-          // Loading state
-          <div className="bg-white rounded-xl border border-ui-border p-12 text-center">
-            <Loader2 className="h-12 w-12 text-brand-primary animate-spin mx-auto mb-4" />
-            <p className="text-ui-text-secondary">Loading tokens from platform...</p>
-          </div>
-        ) : filteredTokens.length === 0 ? (
-          // Empty state (no tokens found)
-          <div className="bg-white rounded-xl border border-ui-border p-12 text-center">
-            <div className="max-w-md mx-auto">
-              <div className="w-20 h-20 bg-brand-primary-50 rounded-full flex items-center justify-center mx-auto mb-6">
-                <TrendingUp className="h-10 w-10 text-brand-primary" />
-              </div>
-              <h3 className="text-xl font-bold text-ui-text-primary mb-2">
-                {tokens.length === 0 ? 'No tokens created yet' : 'No tokens match your filters'}
-              </h3>
-              <p className="text-ui-text-secondary mb-6">
-                {tokens.length === 0
-                  ? 'Be the first to create a token on SAC Factory!'
-                  : 'Try adjusting your search or filters'}
-              </p>
-              {tokens.length === 0 && (
-                <Link
-                  href="/create"
-                  className="inline-flex items-center gap-2 px-6 py-3 bg-brand-primary text-white rounded-lg hover:bg-brand-primary-600 transition-colors font-medium"
-                >
-                  Create Token
-                </Link>
-              )}
+          {/* GraphQL Error Display - only show if there's an error */}
+          {tokensError && (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6">
+              <h3 className="font-bold text-red-700">Error loading tokens</h3>
+              <p className="text-red-600 text-sm">{tokensError.message}</p>
             </div>
-          </div>
-        ) : (
-          // Tokens grid
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredTokens.map((token, index) => (
-              <TokenCard key={token.address || token.token_address || `token-${index}`} token={token} />
-            ))}
-          </div>
-        )}
+          )}
+
+          {/* Content */}
+          {tokensLoading ? (
+            // Loading state with skeleton
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {[...Array(6)].map((_, i) => (
+                <div
+                  key={i}
+                  className="bg-white rounded-xl border border-ui-border p-4 animate-pulse"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="w-12 h-12 bg-gray-200 rounded-lg" />
+                    <div className="flex-1 space-y-2">
+                      <div className="h-4 bg-gray-200 rounded w-2/3" />
+                      <div className="h-3 bg-gray-200 rounded w-1/3" />
+                    </div>
+                  </div>
+                  <div className="mt-4 space-y-2">
+                    <div className="h-6 bg-gray-200 rounded w-1/2" />
+                    <div className="grid grid-cols-3 gap-2">
+                      {[1, 2, 3].map((j) => (
+                        <div key={j} className="h-12 bg-gray-100 rounded" />
+                      ))}
+                    </div>
+                    <div className="h-2 bg-gray-200 rounded" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : filteredTokens.length === 0 ? (
+            // Empty state (no tokens found)
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-white rounded-xl border border-ui-border p-12 text-center"
+            >
+              <div className="max-w-md mx-auto">
+                <div className="w-20 h-20 bg-gradient-to-br from-brand-primary/20 to-brand-blue/20 rounded-full flex items-center justify-center mx-auto mb-6">
+                  <TrendingUp className="h-10 w-10 text-brand-primary" />
+                </div>
+                <h3 className="text-xl font-bold text-ui-text-primary mb-2">
+                  {tokens.length === 0 ? 'No tokens created yet' : 'No tokens match your filters'}
+                </h3>
+                <p className="text-ui-text-secondary mb-6">
+                  {tokens.length === 0
+                    ? 'Be the first to create a token on SAC Factory!'
+                    : 'Try adjusting your search or filters'}
+                </p>
+                {tokens.length === 0 && (
+                  <Link
+                    href="/create"
+                    className="inline-flex items-center gap-2 px-6 py-3 bg-brand-primary text-white rounded-lg hover:bg-brand-primary/90 transition-colors font-medium shadow-lg shadow-brand-primary/25"
+                  >
+                    <Sparkles className="h-5 w-5" />
+                    Create Token
+                  </Link>
+                )}
+              </div>
+            </motion.div>
+          ) : (
+            // Premium Tokens Grid with staggered animation
+            <motion.div
+              variants={containerVariants}
+              initial="hidden"
+              animate="visible"
+              className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"
+            >
+              <AnimatePresence mode="popLayout">
+                {filteredTokens.map((token) => {
+                  const metadata = getTokenMetadata[token.address] || { isNew: false, trendingRank: 0 };
+                  return (
+                    <motion.div
+                      key={token.address}
+                      variants={itemVariants}
+                      layout
+                      exit={{ opacity: 0, scale: 0.9 }}
+                    >
+                      <TokenCardPremium
+                        token={token}
+                        isNew={metadata.isNew}
+                        trendingRank={sortBy === 'trending' ? metadata.trendingRank : undefined}
+                        showQuickActions={true}
+                      />
+                    </motion.div>
+                  );
+                })}
+              </AnimatePresence>
+            </motion.div>
+          )}
+        </div>
+
+        {/* Live Activity Sidebar - Desktop Only */}
+        <AnimatePresence>
+          {showActivity && (
+            <motion.div
+              initial={{ opacity: 0, x: 20, width: 0 }}
+              animate={{ opacity: 1, x: 0, width: 380 }}
+              exit={{ opacity: 0, x: 20, width: 0 }}
+              className="hidden lg:block flex-shrink-0"
+            >
+              <div className="sticky top-24">
+                <LiveActivityFeed maxItems={10} pollInterval={3000} />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </DashboardLayout>
   );

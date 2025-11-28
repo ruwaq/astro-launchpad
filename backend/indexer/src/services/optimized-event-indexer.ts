@@ -12,6 +12,10 @@ import { BatchProcessor, BatchEvent, DEFAULT_BATCH_CONFIG } from '../lib/batch-p
 import { TokenEventHandler } from './handlers/token-events.js'
 import { PoolEventHandler } from './handlers/pool-events.js'
 import { FeeEventHandler } from './handlers/fee-events.js'
+import { AdminEventHandler } from './handlers/admin-events.js'
+import { GraduationEventHandler } from './handlers/graduation-events.js'
+import { AstroEventHandler } from './handlers/astro-events.js'
+import { ConfigEventHandler } from './handlers/config-events.js'
 import {
   recordEventReceived,
   recordEventFailed,
@@ -25,6 +29,65 @@ import {
   getMetricsText,
 } from '../lib/metrics.js'
 
+// ============================================================================
+// Async Mutex Implementation
+// ============================================================================
+
+/**
+ * Simple async mutex to prevent race conditions in concurrent async operations
+ * Unlike boolean flags, a mutex properly serializes access even during await gaps
+ */
+class AsyncMutex {
+  private locked: boolean = false
+  private waitQueue: Array<() => void> = []
+
+  /**
+   * Acquire the lock. If already locked, waits until released.
+   * Returns a release function that MUST be called when done.
+   */
+  async acquire(): Promise<() => void> {
+    // If not locked, acquire immediately
+    if (!this.locked) {
+      this.locked = true
+      return () => this.release()
+    }
+
+    // Otherwise, wait in queue
+    return new Promise((resolve) => {
+      this.waitQueue.push(() => {
+        resolve(() => this.release())
+      })
+    })
+  }
+
+  private release(): void {
+    // If there are waiters, give lock to next in queue
+    if (this.waitQueue.length > 0) {
+      const next = this.waitQueue.shift()!
+      // Use setImmediate to prevent stack overflow with many waiters
+      setImmediate(next)
+    } else {
+      this.locked = false
+    }
+  }
+
+  /**
+   * Try to acquire the lock without waiting.
+   * Returns null if lock is already held.
+   */
+  tryAcquire(): (() => void) | null {
+    if (this.locked) {
+      return null
+    }
+    this.locked = true
+    return () => this.release()
+  }
+
+  get isLocked(): boolean {
+    return this.locked
+  }
+}
+
 export class OptimizedEventIndexer {
   private sorobanRpc: SorobanRpc.Server
   private tokenFactory: string
@@ -34,9 +97,10 @@ export class OptimizedEventIndexer {
   private reconnectTimers: NodeJS.Timeout[] = []
   private isShuttingDown: boolean = false
 
-  // Polling flags to prevent concurrent executions (race condition protection)
-  private isPollingTokenFactory: boolean = false
-  private isPollingAMMFactory: boolean = false
+  // CRITICAL: Use proper async mutexes instead of boolean flags
+  // Boolean flags have race conditions during await gaps in async functions
+  private tokenFactoryMutex: AsyncMutex = new AsyncMutex()
+  private ammFactoryMutex: AsyncMutex = new AsyncMutex()
 
   // New components
   private stateManager: StateManager
@@ -44,6 +108,10 @@ export class OptimizedEventIndexer {
   private tokenHandler: TokenEventHandler
   private poolHandler: PoolEventHandler
   private feeHandler: FeeEventHandler
+  private adminHandler: AdminEventHandler
+  private graduationHandler: GraduationEventHandler
+  private astroHandler: AstroEventHandler
+  private configHandler: ConfigEventHandler
 
   constructor(private prisma: PrismaClient) {
     const rpcUrl = process.env.STELLAR_RPC_URL!
@@ -67,6 +135,10 @@ export class OptimizedEventIndexer {
     this.tokenHandler = new TokenEventHandler(prisma)
     this.poolHandler = new PoolEventHandler(prisma)
     this.feeHandler = new FeeEventHandler(prisma)
+    this.adminHandler = new AdminEventHandler(prisma)
+    this.graduationHandler = new GraduationEventHandler(prisma)
+    this.astroHandler = new AstroEventHandler(prisma)
+    this.configHandler = new ConfigEventHandler(prisma)
 
     // Initialize circuit breaker with extended config
     this.circuitBreaker = createCircuitBreaker({
@@ -167,13 +239,13 @@ export class OptimizedEventIndexer {
   }
 
   private async pollTokenFactoryEvents() {
-    // Prevent concurrent polling (race condition protection)
-    if (this.isPollingTokenFactory) {
-      logger.debug('Token Factory polling already in progress, skipping')
+    // CRITICAL: Use mutex.tryAcquire() for non-blocking lock acquisition
+    // If lock is held, another poll is in progress - skip this one
+    const releaseLock = this.tokenFactoryMutex.tryAcquire()
+    if (!releaseLock) {
+      logger.debug('Token Factory polling already in progress (mutex held), skipping')
       return
     }
-
-    this.isPollingTokenFactory = true
 
     try {
       // Get last indexed ledger from state manager
@@ -235,7 +307,8 @@ export class OptimizedEventIndexer {
       console.error(error)
       recordStreamError('token_factory', 'polling_error')
     } finally {
-      this.isPollingTokenFactory = false
+      // CRITICAL: Always release the mutex, even on error
+      releaseLock()
     }
   }
 
@@ -262,13 +335,12 @@ export class OptimizedEventIndexer {
   }
 
   private async pollAMMEvents() {
-    // Prevent concurrent polling (race condition protection)
-    if (this.isPollingAMMFactory) {
-      logger.debug('AMM Factory polling already in progress, skipping')
+    // CRITICAL: Use mutex.tryAcquire() for non-blocking lock acquisition
+    const releaseLock = this.ammFactoryMutex.tryAcquire()
+    if (!releaseLock) {
+      logger.debug('AMM Factory polling already in progress (mutex held), skipping')
       return
     }
-
-    this.isPollingAMMFactory = true
 
     try {
       const lastLedgerStr = await this.stateManager.getLastLedger('amm_factory')
@@ -326,7 +398,8 @@ export class OptimizedEventIndexer {
       console.error(error)
       recordStreamError('amm_factory', 'polling_error')
     } finally {
-      this.isPollingAMMFactory = false
+      // CRITICAL: Always release the mutex, even on error
+      releaseLock()
     }
   }
 
@@ -435,22 +508,60 @@ export class OptimizedEventIndexer {
           await this.tokenHandler.handleTokenSell(event)
           break
 
-        // Graduation events
+        // Graduation events (basic)
         case normalizedType === 'tokengraduated':
-        case normalizedType === 'graduationdetailed':
-        case normalizedType === 'graduate':
           await this.tokenHandler.handleTokenGraduated(event)
           break
 
-        // Fee-related events
+        // Graduation events (detailed) - use dedicated handler
+        case normalizedType === 'graduationdetailed':
+        case normalizedType === 'graduationfailed':
+        case normalizedType === 'tokenrecovered':
+        case normalizedType === 'graduationretried':
+        case normalizedType === 'bridgegraduation':
+        case normalizedType === 'graduationwithastro':
+        case normalizedType === 'liquiditylocked':
+          await this.graduationHandler.handleEvent(event)
+          break
+
+        // Fee-related events (collection)
         case normalizedType === 'feebreakdownevent':
         case normalizedType === 'protocolfeecollected':
         case normalizedType === 'lpfeecollected':
+          await this.feeHandler.handleEvent(event)
+          break
+
+        // Config update events
         case normalizedType === 'protocolfeeupdated':
         case normalizedType === 'lpfeeupdated':
         case normalizedType === 'creationfeeupdated':
         case normalizedType === 'treasuryupdated':
-          await this.feeHandler.handleEvent(event)
+        case normalizedType === 'feeconfigpdated':
+        case normalizedType === 'graduationthresholdupdated':
+        case normalizedType === 'xlmaddressupdated':
+        case normalizedType === 'oracleaddressupdated':
+        case normalizedType === 'ammwasmhashupdated':
+        case normalizedType === 'antiwhaleconfigpdated':
+        case normalizedType === 'minmarketcapupdated':
+        case normalizedType === 'oraclepricemaxageupdated':
+        case normalizedType === 'bridgeconfigpdated':
+          await this.configHandler.handleEvent(event)
+          break
+
+        // Admin events (access control)
+        case normalizedType === 'rolegranted':
+        case normalizedType === 'rolerevoked':
+        case normalizedType === 'ownershiptransferred':
+        case normalizedType === 'contractpaused':
+        case normalizedType === 'contractunpaused':
+          await this.adminHandler.handleEvent(event)
+          break
+
+        // ASTRO token events
+        case normalizedType === 'astroconfigpdated':
+        case normalizedType === 'astrobuybackexecuted':
+        case normalizedType === 'astroliquidityadded':
+          await this.astroHandler.handleEvent(event)
           break
 
         default:

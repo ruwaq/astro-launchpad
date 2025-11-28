@@ -1,263 +1,244 @@
 /**
- * Bonding Curve Chart Component - REAL DATA
+ * Minimalist Price Chart - Bonding Curve Progress
  *
- * Displays real-time price chart from actual Stellar transactions
- * NO MOCK DATA - All from GraphQL API
+ * Ultra-simple: just a colored line showing price movement.
+ * - Green when trending up
+ * - Red when trending down
+ * - Matches system white theme
  */
 
 'use client';
 
-import { useQuery } from '@apollo/client';
-import { gql } from '@apollo/client';
-import { Loader2 } from 'lucide-react';
-import { useMemo } from 'react';
-
-const TOKEN_PRICE_HISTORY = gql`
-  query TokenPriceHistory($address: String!) {
-    token(address: $address) {
-      address
-      currentPrice
-    }
-    transactions(tokenAddress: $address, limit: 100) {
-      edges {
-        cursor
-        node {
-          id
-          type
-          amount
-          timestamp
-        }
-      }
-    }
-  }
-`;
+import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
+import { motion } from 'framer-motion';
+import { sacFactoryService } from '@/lib/stellar/services/sac-factory.service';
+import { formatCompactNumber, GRADUATION_THRESHOLD_XLM } from '@/lib/stellar/utils';
 
 interface BondingCurveChartProps {
   tokenAddress: string;
+  symbol?: string;
+  compact?: boolean;
 }
 
-export function BondingCurveChart({ tokenAddress }: BondingCurveChartProps) {
-  // Fetch real transaction data from GraphQL
-  const { data, loading, error } = useQuery(TOKEN_PRICE_HISTORY, {
-    variables: { address: tokenAddress },
-    pollInterval: 5000, // Update every 5 seconds
-  });
+const MAX_POINTS = 50;
 
-  // Transform transaction data into price points
-  const priceData = useMemo(() => {
-    if (!data?.transactions?.edges) return [];
+interface PricePoint {
+  value: number;
+  type: 'up' | 'down' | 'neutral';
+}
 
-    const transactions = data.transactions.edges;
-    let runningPrice = 0;
+export function BondingCurveChart({
+  tokenAddress,
+  compact = false,
+}: BondingCurveChartProps) {
+  const [price, setPrice] = useState<number>(0);
+  const [xlmRaised, setXlmRaised] = useState<number>(0);
+  const [priceHistory, setPriceHistory] = useState<PricePoint[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [trend, setTrend] = useState<'up' | 'down' | 'neutral'>('neutral');
+  const lastXlmRef = useRef<number | null>(null);
 
-    return transactions
-      .filter((edge: any) =>
-        edge.node.type === 'BUY' || edge.node.type === 'SELL'
-      )
-      .map((edge: any) => {
-        const tx = edge.node;
-        const amount = parseFloat(tx.amount || '0');
+  const checkForChanges = useCallback(async () => {
+    try {
+      // RESILIENT: Use allSettled so price fetch failure doesn't break the chart
+      const results = await Promise.allSettled([
+        sacFactoryService.getTokenInfo(tokenAddress),
+        sacFactoryService.getPrice(tokenAddress),
+      ]);
 
-        // Use amount as a proxy for price movement
-        const price = amount > 0 ? amount : runningPrice;
-        runningPrice = price;
+      const [infoResult, priceResult] = results;
 
-        const date = new Date(tx.timestamp);
-        const timestamp = date.toLocaleTimeString('en-US', {
-          hour: '2-digit',
-          minute: '2-digit',
+      // Token info is required
+      if (infoResult.status === 'rejected') {
+        console.error('Failed to fetch token info:', infoResult.reason);
+        return;
+      }
+
+      const info = infoResult.value;
+      if (!info) return;
+
+      // Price is optional - use fallback if failed
+      const priceBigInt = priceResult.status === 'fulfilled' ? priceResult.value : BigInt(0);
+
+      const newXlm = Number(BigInt(info.xlm_raised)) / 10_000_000;
+      const newPrice = Number(priceBigInt) / 10_000_000;
+
+      setPrice(newPrice);
+      setXlmRaised(newXlm);
+
+      // Determine trend
+      let pointType: 'up' | 'down' | 'neutral' = 'neutral';
+      if (lastXlmRef.current !== null && newXlm !== lastXlmRef.current) {
+        pointType = newXlm > lastXlmRef.current ? 'up' : 'down';
+        setTrend(pointType);
+
+        // Add point only when value changes
+        setPriceHistory(prev => {
+          const updated = [...prev, { value: newXlm, type: pointType }];
+          return updated.slice(-MAX_POINTS);
         });
+      } else if (priceHistory.length === 0) {
+        // Initial point
+        setPriceHistory([{ value: newXlm, type: 'neutral' }]);
+      }
 
-        return {
-          timestamp,
-          value: price,
-          type: tx.type,
-        };
-      });
-  }, [data]);
+      lastXlmRef.current = newXlm;
+    } catch (err) {
+      console.error('Error:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [tokenAddress, priceHistory.length]);
 
-  // Calculate min/max for chart
-  const { min, max, path, area } = useMemo(() => {
-    if (priceData.length === 0) {
-      return { min: 0, max: 0, path: '', area: '' };
+  useEffect(() => {
+    checkForChanges();
+    // PERFORMANCE: Reduced from 10s to 60s - chart updates on trade completion anyway
+    const interval = setInterval(checkForChanges, 60000);
+    return () => clearInterval(interval);
+  }, [checkForChanges]);
+
+  // Generate SVG path
+  const { path, areaPath } = useMemo(() => {
+    if (priceHistory.length < 2) {
+      return { path: '', areaPath: '' };
     }
 
-    const values = priceData.map((d: { value: number }) => d.value);
-    const min = Math.min(...values);
-    const max = Math.max(...values);
-    const range = max - min || 1;
+    const w = 400;
+    const h = 100;
+    const pad = 2;
 
-    const width = 100;
-    const height = 200;
-    const step = width / (priceData.length - 1 || 1);
+    const values = priceHistory.map(p => p.value);
+    const minV = Math.min(...values) * 0.9;
+    const maxV = Math.max(...values, GRADUATION_THRESHOLD_XLM) * 1.1;
 
-    // Generate path for line
-    const linePath = priceData
-      .map((point: { value: number }, index: number) => {
-        const x = index * step;
-        const y = height - ((point.value - min) / range) * height;
-        return `${index === 0 ? 'M' : 'L'} ${x} ${y}`;
-      })
-      .join(' ');
+    const points = priceHistory.map((p, i) => {
+      const x = pad + (i / (priceHistory.length - 1)) * (w - pad * 2);
+      const y = h - pad - ((p.value - minV) / (maxV - minV)) * (h - pad * 2);
+      return { x, y };
+    });
 
-    // Generate path for area
-    const areaPath = `${linePath} L ${width} ${height} L 0 ${height} Z`;
+    const path = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ');
+    const areaPath = `${path} L${points[points.length - 1].x},${h} L${pad},${h} Z`;
 
-    return { min, max, path: linePath, area: areaPath };
-  }, [priceData]);
+    return { path, areaPath };
+  }, [priceHistory]);
+
+  const progressPercent = Math.min((xlmRaised / GRADUATION_THRESHOLD_XLM) * 100, 100);
+  const trendColor = trend === 'up' ? '#22c55e' : trend === 'down' ? '#ef4444' : '#fa9427';
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-48">
-        <Loader2 className="h-8 w-8 animate-spin text-brand-primary" />
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-        <p className="text-sm text-red-700">Failed to load price chart</p>
-      </div>
-    );
-  }
-
-  if (priceData.length === 0) {
-    return (
-      <div className="bg-gray-50 border border-gray-200 rounded-lg p-8">
-        <div className="text-center">
-          <p className="text-sm text-ui-text-secondary mb-2">No trading history yet</p>
-          <p className="text-xs text-ui-text-tertiary">
-            Be the first to trade this token!
-          </p>
+      <div className="bg-white rounded-xl border border-ui-border shadow-sm overflow-hidden animate-pulse">
+        {/* Price Header Skeleton - matches actual structure */}
+        <div className="px-4 pt-4 pb-2">
+          <div className="flex items-baseline gap-2">
+            <div className="h-8 bg-gray-200 rounded w-32" />
+            <div className="h-4 bg-gray-200 rounded w-12" />
+          </div>
+        </div>
+        {/* Chart Skeleton - h-24 to match SVG */}
+        <div className="px-2">
+          <div className="h-24 bg-gray-100 rounded" />
+        </div>
+        {/* Progress Bar Skeleton */}
+        <div className="p-4">
+          <div className="flex justify-between mb-1">
+            <div className="h-3 bg-gray-200 rounded w-24" />
+            <div className="h-3 bg-gray-200 rounded w-16" />
+          </div>
+          <div className="h-2 bg-gray-200 rounded-full" />
         </div>
       </div>
     );
   }
-
-  const currentPrice = data?.token?.currentPrice || 0;
-  const priceChange = priceData.length > 1
-    ? ((priceData[priceData.length - 1].value - priceData[0].value) / priceData[0].value) * 100
-    : 0;
 
   return (
-    <div>
+    <div className="bg-white rounded-xl border border-ui-border shadow-sm overflow-hidden">
       {/* Price Header */}
-      <div className="mb-4 flex items-end justify-between">
-        <div>
-          <p className="text-sm text-ui-text-secondary mb-1">Current Price</p>
-          <p className="text-3xl font-bold text-ui-text-primary">
-            {parseFloat(currentPrice).toFixed(8)} XLM
-          </p>
-        </div>
-        <div className="text-right">
-          <p className="text-sm text-ui-text-secondary mb-1">Change</p>
-          <p
-            className={`text-xl font-semibold ${
-              priceChange >= 0 ? 'text-green-600' : 'text-red-600'
-            }`}
-          >
-            {priceChange >= 0 ? '+' : ''}
-            {priceChange.toFixed(2)}%
-          </p>
+      <div className="px-4 pt-4 pb-2">
+        <div className="flex items-baseline gap-2">
+          <span className="text-2xl font-bold text-ui-text-primary">
+            {price.toFixed(8)}
+          </span>
+          <span className="text-sm text-ui-text-secondary">XLM</span>
+          {trend !== 'neutral' && (
+            <motion.span
+              initial={{ opacity: 0, y: -5 }}
+              animate={{ opacity: 1, y: 0 }}
+              className={`text-xs font-medium px-2 py-0.5 rounded ${
+                trend === 'up' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'
+              }`}
+            >
+              {trend === 'up' ? '↑' : '↓'}
+            </motion.span>
+          )}
         </div>
       </div>
 
-      {/* Chart */}
-      <div className="relative">
-        <svg
-          viewBox="0 0 100 200"
-          preserveAspectRatio="none"
-          className="w-full"
-          style={{ height: '200px' }}
-        >
-          {/* Grid lines */}
-          <line
-            x1="0"
-            y1="50"
-            x2="100"
-            y2="50"
-            stroke="#e5e7eb"
-            strokeWidth="0.3"
-            vectorEffect="non-scaling-stroke"
-          />
-          <line
-            x1="0"
-            y1="100"
-            x2="100"
-            y2="100"
-            stroke="#e5e7eb"
-            strokeWidth="0.3"
-            vectorEffect="non-scaling-stroke"
-          />
-          <line
-            x1="0"
-            y1="150"
-            x2="100"
-            y2="150"
-            stroke="#e5e7eb"
-            strokeWidth="0.3"
-            vectorEffect="non-scaling-stroke"
-          />
+      {/* Minimalist Chart */}
+      <div className="px-2">
+        <svg viewBox="0 0 400 100" className="w-full h-24" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="chartGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor={trendColor} stopOpacity="0.2" />
+              <stop offset="100%" stopColor={trendColor} stopOpacity="0.02" />
+            </linearGradient>
+          </defs>
 
           {/* Area fill */}
-          <path
-            d={area}
-            fill={priceChange >= 0 ? 'rgb(34, 197, 94)' : 'rgb(239, 68, 68)'}
-            fillOpacity="0.1"
-          />
+          {areaPath && (
+            <path d={areaPath} fill="url(#chartGradient)" />
+          )}
 
-          {/* Line */}
-          <path
-            d={path}
-            fill="none"
-            stroke={priceChange >= 0 ? 'rgb(34, 197, 94)' : 'rgb(239, 68, 68)'}
-            strokeWidth="0.8"
-            vectorEffect="non-scaling-stroke"
-          />
+          {/* Price line */}
+          {path && (
+            <path
+              d={path}
+              fill="none"
+              stroke={trendColor}
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          )}
 
-          {/* Data points */}
-          {priceData.map((point: { timestamp: string; value: number; type: string }, index: number) => {
-            const x = (index / (priceData.length - 1 || 1)) * 100;
-            const y = 200 - ((point.value - min) / (max - min || 1)) * 200;
-
-            return (
+          {/* Current point glow */}
+          {priceHistory.length > 0 && path && (
+            <>
               <circle
-                key={index}
-                cx={x}
-                cy={y}
-                r="1"
-                fill={priceChange >= 0 ? 'rgb(34, 197, 94)' : 'rgb(239, 68, 68)'}
-                className="hover:r-2 transition-all"
-              >
-                <title>{`${point.timestamp}: ${point.value.toFixed(8)} XLM`}</title>
-              </circle>
-            );
-          })}
+                cx={2 + ((priceHistory.length - 1) / Math.max(priceHistory.length - 1, 1)) * 396}
+                cy={100 - 2 - ((priceHistory[priceHistory.length - 1].value - Math.min(...priceHistory.map(p => p.value)) * 0.9) / (Math.max(...priceHistory.map(p => p.value), GRADUATION_THRESHOLD_XLM) * 1.1 - Math.min(...priceHistory.map(p => p.value)) * 0.9)) * 96}
+                r="4"
+                fill={trendColor}
+              />
+            </>
+          )}
+
+          {/* Empty state line */}
+          {priceHistory.length < 2 && (
+            <line x1="2" y1="50" x2="398" y2="50" stroke="#e5e7eb" strokeWidth="1" strokeDasharray="4 4" />
+          )}
         </svg>
+      </div>
 
-        {/* Y-axis labels */}
-        <div className="absolute left-0 top-0 bottom-0 flex flex-col justify-between text-xs text-ui-text-secondary -ml-2">
-          <span>{max.toFixed(8)}</span>
-          <span>{((max + min) / 2).toFixed(8)}</span>
-          <span>{min.toFixed(8)}</span>
+      {/* Progress bar - ultra minimal */}
+      <div className="px-4 pb-4 pt-2">
+        <div className="flex items-center justify-between text-xs text-ui-text-secondary mb-1">
+          <span>{formatCompactNumber(xlmRaised)} XLM</span>
+          <span>{progressPercent.toFixed(0)}%</span>
         </div>
-      </div>
-
-      {/* X-axis labels */}
-      <div className="flex justify-between mt-2 text-xs text-ui-text-secondary">
-        <span>{priceData[0]?.timestamp}</span>
-        {priceData.length > 2 && (
-          <span>{priceData[Math.floor(priceData.length / 2)]?.timestamp}</span>
-        )}
-        <span>{priceData[priceData.length - 1]?.timestamp}</span>
-      </div>
-
-      {/* Chart Info */}
-      <div className="mt-4 flex items-center justify-between text-xs text-ui-text-secondary">
-        <span>{priceData.length} trades</span>
-        <span>Real-time data from Stellar Testnet</span>
+        <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+          <motion.div
+            className="h-full rounded-full"
+            style={{ backgroundColor: trendColor }}
+            initial={{ width: 0 }}
+            animate={{ width: `${progressPercent}%` }}
+            transition={{ duration: 0.3 }}
+          />
+        </div>
       </div>
     </div>
   );
 }
+
+export default BondingCurveChart;

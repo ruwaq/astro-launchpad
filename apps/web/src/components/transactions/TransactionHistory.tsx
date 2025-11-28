@@ -3,6 +3,7 @@
 import Image from 'next/image';
 import { useUserTransactions } from '@/hooks/useApi';
 import { truncateAddress, getTimeAgo, formatCompactNumber } from '@/lib/stellar/utils';
+import type { Transaction, TransactionEdge } from '@/lib/graphql/types';
 
 interface TransactionHistoryProps {
   userAddress: string;
@@ -12,7 +13,7 @@ interface TransactionHistoryProps {
 export function TransactionHistory({ userAddress, limit = 20 }: TransactionHistoryProps) {
   const { data, loading, error } = useUserTransactions(userAddress, limit);
 
-  const transactions = data?.transactions.edges.map((edge: any) => edge.node) || [];
+  const transactions: Transaction[] = data?.transactions.edges.map((edge: TransactionEdge) => edge.node) || [];
 
   if (loading) {
     return (
@@ -93,7 +94,7 @@ export function TransactionHistory({ userAddress, limit = 20 }: TransactionHisto
                 </td>
               </tr>
             ) : (
-              transactions.map((tx: any) => {
+              transactions.map((tx: Transaction) => {
                 const timestamp = Math.floor(new Date(tx.timestamp).getTime() / 1000);
 
                 return (

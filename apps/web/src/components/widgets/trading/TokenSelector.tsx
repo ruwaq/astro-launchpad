@@ -111,7 +111,7 @@ export function TokenSelector({
             <div className="flex-1 overflow-y-auto p-2">
               {isLoading ? (
                 <div className="flex justify-center py-8">
-                  <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+                  <Loader2 className="h-8 w-8 animate-spin text-gray-400" aria-label="Loading tokens" />
                 </div>
               ) : filteredTokens.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">No tokens found</div>

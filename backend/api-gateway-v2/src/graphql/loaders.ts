@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * DataLoader Implementations
  * Batches and caches database queries to prevent N+1 query problems
@@ -22,8 +21,6 @@ import DataLoader from 'dataloader'
 import type { PrismaClientWithAdapter } from '../lib/prisma.js'
 import type { Token, User, Pool, Achievement } from '@astroshibapop/shared/prisma'
 
-// Type-only imports for compatibility
-
 /**
  * DataLoaders interface
  * All loaders available in GraphQL context
@@ -42,17 +39,17 @@ export interface DataLoaders {
  * Token Loader
  * Batches token lookups by address
  */
-function createTokenLoader(prisma: PrismaClientWithAdapter) {
-  return new DataLoader<string, Token | null>(async (addresses) => {
-    const tokens: any = await prisma.token.findMany({
+function createTokenLoader(prisma: PrismaClientWithAdapter): DataLoader<string, Token | null> {
+  return new DataLoader<string, Token | null>(async (addresses: readonly string[]) => {
+    const tokens = await prisma.token.findMany({
       where: { address: { in: [...addresses] } },
     })
 
     // Create a map for O(1) lookups
-    const tokenMap = new Map(tokens.map((token: any) => [token.address, token]))
+    const tokenMap = new Map<string, Token>(tokens.map((token) => [token.address, token]))
 
     // Return tokens in the same order as requested addresses
-    return addresses.map((address) => tokenMap.get(address) || null) as any
+    return addresses.map((address) => tokenMap.get(address) ?? null)
   })
 }
 
@@ -60,14 +57,14 @@ function createTokenLoader(prisma: PrismaClientWithAdapter) {
  * User Loader
  * Batches user lookups by address
  */
-function createUserLoader(prisma: PrismaClientWithAdapter) {
-  return new DataLoader<string, User | null>(async (addresses) => {
-    const users: any = await prisma.user.findMany({
+function createUserLoader(prisma: PrismaClientWithAdapter): DataLoader<string, User | null> {
+  return new DataLoader<string, User | null>(async (addresses: readonly string[]) => {
+    const users = await prisma.user.findMany({
       where: { address: { in: [...addresses] } },
     })
 
-    const userMap = new Map(users.map((user: any) => [user.address, user]))
-    return addresses.map((address) => userMap.get(address) || null) as any
+    const userMap = new Map<string, User>(users.map((user) => [user.address, user]))
+    return addresses.map((address) => userMap.get(address) ?? null)
   })
 }
 
@@ -75,14 +72,14 @@ function createUserLoader(prisma: PrismaClientWithAdapter) {
  * User By ID Loader
  * Batches user lookups by ID
  */
-function createUserByIdLoader(prisma: PrismaClientWithAdapter) {
-  return new DataLoader<string, User | null>(async (ids) => {
-    const users: any = await prisma.user.findMany({
+function createUserByIdLoader(prisma: PrismaClientWithAdapter): DataLoader<string, User | null> {
+  return new DataLoader<string, User | null>(async (ids: readonly string[]) => {
+    const users = await prisma.user.findMany({
       where: { id: { in: [...ids] } },
     })
 
-    const userMap = new Map(users.map((u: any) => [u.id, u]))
-    return ids.map((id) => userMap.get(id) || null) as any
+    const userMap = new Map<string, User>(users.map((u) => [u.id, u]))
+    return ids.map((id) => userMap.get(id) ?? null)
   })
 }
 
@@ -90,14 +87,14 @@ function createUserByIdLoader(prisma: PrismaClientWithAdapter) {
  * Pool Loader
  * Batches pool lookups by address
  */
-function createPoolLoader(prisma: PrismaClientWithAdapter) {
-  return new DataLoader<string, Pool | null>(async (addresses) => {
-    const pools: any = await prisma.pool.findMany({
+function createPoolLoader(prisma: PrismaClientWithAdapter): DataLoader<string, Pool | null> {
+  return new DataLoader<string, Pool | null>(async (addresses: readonly string[]) => {
+    const pools = await prisma.pool.findMany({
       where: { address: { in: [...addresses] } },
     })
 
-    const poolMap = new Map(pools.map((pool: any) => [pool.address, pool]))
-    return addresses.map((address) => poolMap.get(address) || null) as any
+    const poolMap = new Map<string, Pool>(pools.map((pool) => [pool.address, pool]))
+    return addresses.map((address) => poolMap.get(address) ?? null)
   })
 }
 
@@ -106,9 +103,9 @@ function createPoolLoader(prisma: PrismaClientWithAdapter) {
  * Batches token lookups by creator address
  * Returns array of tokens for each creator
  */
-function createTokensByCreatorLoader(prisma: PrismaClientWithAdapter) {
-  return new DataLoader<string, Token[]>(async (creatorAddresses) => {
-    const tokens: any = await prisma.token.findMany({
+function createTokensByCreatorLoader(prisma: PrismaClientWithAdapter): DataLoader<string, Token[]> {
+  return new DataLoader<string, Token[]>(async (creatorAddresses: readonly string[]) => {
+    const tokens = await prisma.token.findMany({
       where: { creator: { in: [...creatorAddresses] } },
       orderBy: { createdAt: 'desc' },
     })
@@ -116,13 +113,13 @@ function createTokensByCreatorLoader(prisma: PrismaClientWithAdapter) {
     // Group tokens by creator
     const tokensByCreator = new Map<string, Token[]>()
     for (const token of tokens) {
-      const existing = tokensByCreator.get(token.creator) || []
+      const existing = tokensByCreator.get(token.creator) ?? []
       existing.push(token)
       tokensByCreator.set(token.creator, existing)
     }
 
     // Return tokens in the same order as requested creators
-    return creatorAddresses.map((creator) => tokensByCreator.get(creator) || []) as any
+    return creatorAddresses.map((creator) => tokensByCreator.get(creator) ?? [])
   })
 }
 
@@ -131,9 +128,9 @@ function createTokensByCreatorLoader(prisma: PrismaClientWithAdapter) {
  * Batches pool lookups by token address
  * Returns array of pools that contain the token (as token0 or token1)
  */
-function createPoolsByTokenLoader(prisma: PrismaClientWithAdapter) {
-  return new DataLoader<string, Pool[]>(async (tokenAddresses) => {
-    const pools: any = await prisma.pool.findMany({
+function createPoolsByTokenLoader(prisma: PrismaClientWithAdapter): DataLoader<string, Pool[]> {
+  return new DataLoader<string, Pool[]>(async (tokenAddresses: readonly string[]) => {
+    const pools = await prisma.pool.findMany({
       where: {
         OR: [
           { token0Address: { in: [...tokenAddresses] } },
@@ -146,18 +143,18 @@ function createPoolsByTokenLoader(prisma: PrismaClientWithAdapter) {
     const poolsByToken = new Map<string, Pool[]>()
     for (const pool of pools) {
       // Add to token0
-      const existing0 = poolsByToken.get(pool.token0Address) || []
+      const existing0 = poolsByToken.get(pool.token0Address) ?? []
       existing0.push(pool)
       poolsByToken.set(pool.token0Address, existing0)
 
       // Add to token1
-      const existing1 = poolsByToken.get(pool.token1Address) || []
+      const existing1 = poolsByToken.get(pool.token1Address) ?? []
       existing1.push(pool)
       poolsByToken.set(pool.token1Address, existing1)
     }
 
     // Return pools in the same order as requested token addresses
-    return tokenAddresses.map((address) => poolsByToken.get(address) || []) as any
+    return tokenAddresses.map((address) => poolsByToken.get(address) ?? [])
   })
 }
 
@@ -166,22 +163,22 @@ function createPoolsByTokenLoader(prisma: PrismaClientWithAdapter) {
  * Batches achievement lookups by user ID
  * Returns array of achievements for each user
  */
-function createAchievementsByUserIdLoader(prisma: PrismaClientWithAdapter) {
-  return new DataLoader<string, Achievement[]>(async (userIds) => {
-    const achievements: any = await prisma.achievement.findMany({
+function createAchievementsByUserIdLoader(prisma: PrismaClientWithAdapter): DataLoader<string, Achievement[]> {
+  return new DataLoader<string, Achievement[]>(async (userIds: readonly string[]) => {
+    const achievements = await prisma.achievement.findMany({
       where: { userId: { in: [...userIds] } },
     })
 
     // Group achievements by user ID
     const achievementsByUser = new Map<string, Achievement[]>()
     for (const achievement of achievements) {
-      const existing = achievementsByUser.get(achievement.userId) || []
+      const existing = achievementsByUser.get(achievement.userId) ?? []
       existing.push(achievement)
       achievementsByUser.set(achievement.userId, existing)
     }
 
     // Return achievements in the same order as requested user IDs
-    return userIds.map((userId) => achievementsByUser.get(userId) || []) as any
+    return userIds.map((userId) => achievementsByUser.get(userId) ?? [])
   })
 }
 

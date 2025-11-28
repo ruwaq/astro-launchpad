@@ -3,11 +3,121 @@
  *
  * Provides a singleton instance for interacting with the Stellar network
  * through both Horizon (for account data) and Soroban RPC (for contracts).
+ *
+ * PRODUCTION: All RPC calls have timeouts to prevent hanging requests
  */
 
 import { SorobanRpc, Horizon, Transaction, FeeBumpTransaction } from '@stellar/stellar-sdk';
 import { getNetworkConfig, NETWORK } from './config';
 import type { StellarTransaction } from './types';
+
+// RPC timeout configuration (in milliseconds)
+const RPC_TIMEOUTS = {
+  DEFAULT: 30_000,        // 30 seconds for most operations
+  SIMULATE: 45_000,       // 45 seconds for simulation (can be slow)
+  SEND: 30_000,           // 30 seconds for submission
+  HEALTH: 10_000,         // 10 seconds for health checks
+  ACCOUNT: 15_000,        // 15 seconds for account loading
+} as const;
+
+// Retry configuration
+const RETRY_CONFIG = {
+  MAX_RETRIES: 3,
+  BASE_DELAY_MS: 1000,
+  MAX_DELAY_MS: 10000,
+  RETRYABLE_ERRORS: [
+    'ETIMEDOUT',
+    'ECONNRESET',
+    'ECONNREFUSED',
+    'ENOTFOUND',
+    'socket hang up',
+    'network',
+    '502',
+    '503',
+    '504',
+    'rate limit',
+  ],
+} as const;
+
+/**
+ * Wrap a promise with a timeout
+ * Rejects with TimeoutError if the operation takes too long
+ */
+async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  operation: string
+): Promise<T> {
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    const timeoutId = setTimeout(() => {
+      reject(new Error(`RPC timeout: ${operation} took longer than ${timeoutMs}ms`));
+    }, timeoutMs);
+    // Ensure timeout is cleared if promise resolves
+    promise.finally(() => clearTimeout(timeoutId));
+  });
+
+  return Promise.race([promise, timeoutPromise]);
+}
+
+/**
+ * Check if an error is retryable (transient network error)
+ */
+function isRetryableError(error: unknown): boolean {
+  if (!error) return false;
+  const errorMessage = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+  return RETRY_CONFIG.RETRYABLE_ERRORS.some((retryable) =>
+    errorMessage.includes(retryable.toLowerCase())
+  );
+}
+
+/**
+ * Calculate exponential backoff delay with jitter
+ */
+function getBackoffDelay(attempt: number): number {
+  const exponentialDelay = RETRY_CONFIG.BASE_DELAY_MS * Math.pow(2, attempt);
+  const jitter = Math.random() * 0.3 * exponentialDelay; // 30% jitter
+  return Math.min(exponentialDelay + jitter, RETRY_CONFIG.MAX_DELAY_MS);
+}
+
+/**
+ * PRODUCTION: Retry wrapper with exponential backoff for transient errors
+ * Use this for critical operations that may fail due to network issues
+ */
+export async function withRetry<T>(
+  operation: () => Promise<T>,
+  operationName: string,
+  maxRetries: number = RETRY_CONFIG.MAX_RETRIES
+): Promise<T> {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error;
+
+      // Don't retry non-retryable errors
+      if (!isRetryableError(error)) {
+        throw error;
+      }
+
+      // Don't retry if we've exhausted retries
+      if (attempt >= maxRetries) {
+        console.error(`[${operationName}] All ${maxRetries} retries exhausted`, error);
+        throw error;
+      }
+
+      const delay = getBackoffDelay(attempt);
+      console.warn(
+        `[${operationName}] Attempt ${attempt + 1}/${maxRetries + 1} failed, retrying in ${Math.round(delay)}ms...`,
+        error instanceof Error ? error.message : error
+      );
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  }
+
+  throw lastError;
+}
 
 /**
  * Soroban RPC Client
@@ -39,43 +149,68 @@ class SorobanClient {
 
   /**
    * Get health status of the Soroban RPC endpoint
+   * TIMEOUT: 10 seconds
    */
   async getHealth(): Promise<SorobanRpc.Api.GetHealthResponse> {
-    return this.server.getHealth();
+    return withTimeout(
+      this.server.getHealth(),
+      RPC_TIMEOUTS.HEALTH,
+      'Soroban getHealth'
+    );
   }
 
   /**
    * Get current ledger information
+   * TIMEOUT: 10 seconds
    */
   async getLatestLedger(): Promise<SorobanRpc.Api.GetLatestLedgerResponse> {
-    return this.server.getLatestLedger();
+    return withTimeout(
+      this.server.getLatestLedger(),
+      RPC_TIMEOUTS.HEALTH,
+      'Soroban getLatestLedger'
+    );
   }
 
   /**
    * Simulate a transaction before submitting
+   * TIMEOUT: 45 seconds (simulation can be slow for complex contracts)
    */
   async simulateTransaction(
     transaction: StellarTransaction
   ): Promise<SorobanRpc.Api.SimulateTransactionResponse> {
-    return this.server.simulateTransaction(transaction);
+    return withTimeout(
+      this.server.simulateTransaction(transaction),
+      RPC_TIMEOUTS.SIMULATE,
+      'Soroban simulateTransaction'
+    );
   }
 
   /**
    * Submit a transaction to the network
+   * TIMEOUT: 30 seconds
    */
   async sendTransaction(
     transaction: StellarTransaction
   ): Promise<SorobanRpc.Api.SendTransactionResponse> {
-    return this.server.sendTransaction(transaction);
+    return withTimeout(
+      this.server.sendTransaction(transaction),
+      RPC_TIMEOUTS.SEND,
+      'Soroban sendTransaction'
+    );
   }
 
   /**
    * Get transaction status
+   * TIMEOUT: 30 seconds
    */
   async getTransaction(
     hash: string
   ): Promise<SorobanRpc.Api.GetTransactionResponse> {
-    return this.server.getTransaction(hash);
+    return withTimeout(
+      this.server.getTransaction(hash),
+      RPC_TIMEOUTS.DEFAULT,
+      'Soroban getTransaction'
+    );
   }
 }
 
@@ -102,25 +237,40 @@ class HorizonClient {
 
   /**
    * Load account information
+   * TIMEOUT: 15 seconds
    */
   async loadAccount(publicKey: string): Promise<Horizon.AccountResponse> {
-    return this.server.loadAccount(publicKey);
+    return withTimeout(
+      this.server.loadAccount(publicKey),
+      RPC_TIMEOUTS.ACCOUNT,
+      'Horizon loadAccount'
+    );
   }
 
   /**
    * Fetch current base fee for the network
+   * TIMEOUT: 10 seconds
    */
   async fetchBaseFee(): Promise<number> {
-    return this.server.fetchBaseFee();
+    return withTimeout(
+      this.server.fetchBaseFee(),
+      RPC_TIMEOUTS.HEALTH,
+      'Horizon fetchBaseFee'
+    );
   }
 
   /**
    * Submit a Horizon transaction
+   * TIMEOUT: 30 seconds
    */
   async submitTransaction(
     transaction: StellarTransaction
   ): Promise<Horizon.HorizonApi.SubmitTransactionResponse> {
-    return this.server.submitTransaction(transaction);
+    return withTimeout(
+      this.server.submitTransaction(transaction),
+      RPC_TIMEOUTS.SEND,
+      'Horizon submitTransaction'
+    );
   }
 }
 

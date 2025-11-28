@@ -34,8 +34,9 @@ const envSchema = z.object({
   API_PORT: z.coerce.number().int().positive().default(4000),
   API_HOST: z.string().default('0.0.0.0'),
 
-  // CORS
-  CORS_ORIGIN: z.string().default('*'),
+  // CORS - SECURITY: Never default to '*' in production
+  // Use comma-separated list: "https://app.example.com,https://example.com"
+  CORS_ORIGIN: z.string().default('https://astroshiba.io,https://app.astroshiba.io'),
 
   // Rate Limiting
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60000), // 1 minute

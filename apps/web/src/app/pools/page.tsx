@@ -5,14 +5,15 @@ import { usePools, useTopPools } from '@/hooks/useApi';
 import { useWallet as useWalletContext } from '@/contexts/WalletContext';
 import { formatCompactNumber, truncateAddress, getTimeAgo } from '@/lib/stellar/utils';
 import toast from 'react-hot-toast';
+import type { Pool, PoolEdge } from '@/lib/graphql/types';
 
 export default function PoolsPage() {
   const { address } = useWalletContext();
   const { data, loading, error } = usePools({ first: 50 });
   const { data: topPoolsData } = useTopPools(5);
 
-  const pools = data?.pools.edges.map((edge: any) => edge.node) || [];
-  const topPools = topPoolsData?.pools.edges.map((edge: any) => edge.node) || [];
+  const pools: Pool[] = data?.pools.edges.map((edge: PoolEdge) => edge.node) || [];
+  const topPools: Pool[] = topPoolsData?.pools.edges.map((edge: PoolEdge) => edge.node) || [];
 
   if (loading) {
     return (
@@ -47,7 +48,7 @@ export default function PoolsPage() {
         <div className="mb-8">
           <h2 className="text-xl font-semibold mb-4">Top Pools by TVL</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
-            {topPools.map((pool: any) => (
+            {topPools.map((pool: Pool) => (
               <div
                 key={pool.address}
                 className="bg-gradient-to-br from-blue-500 to-purple-600 text-white rounded-lg p-4 hover:shadow-lg transition-shadow cursor-pointer"
@@ -119,7 +120,7 @@ export default function PoolsPage() {
                   </td>
                 </tr>
               ) : (
-                pools.map((pool: any) => {
+                pools.map((pool: Pool) => {
                   const volumeChange = parseFloat(pool.volumeChange24h);
                   const isPositiveChange = volumeChange >= 0;
 

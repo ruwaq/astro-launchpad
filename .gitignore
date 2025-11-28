@@ -39,6 +39,11 @@ Cargo.lock
 *.wasm
 *.optimized.wasm
 
+# SECURITY: Stellar identity files contain secret keys
+.stellar/identity/
+**/.stellar/identity/
+*.toml
+
 # Database
 *.db
 *.db-shm

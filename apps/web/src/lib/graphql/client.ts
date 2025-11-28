@@ -4,13 +4,48 @@
  */
 
 import { ApolloClient, InMemoryCache, HttpLink, from } from '@apollo/client';
+import { setContext } from '@apollo/client/link/context';
 import { onError } from '@apollo/client/link/error';
 
 // ============================================================================
 // Configuration
 // ============================================================================
 
-const GRAPHQL_ENDPOINT = process.env.NEXT_PUBLIC_GRAPHQL_ENDPOINT || 'http://localhost:4000/graphql';
+const GRAPHQL_ENDPOINT = process.env.NEXT_PUBLIC_GRAPHQL_ENDPOINT || 'http://localhost:4000';
+
+// ============================================================================
+// Authentication Headers Store
+// ============================================================================
+
+// Store for auth headers - updated by WalletContext
+let authHeaders: Record<string, string> = {};
+
+/**
+ * Set authentication headers for API requests
+ * Called by WalletContext when user connects/disconnects wallet
+ */
+export function setAuthHeaders(headers: Record<string, string>) {
+  authHeaders = headers;
+}
+
+/**
+ * Clear authentication headers
+ * Called when user disconnects wallet
+ */
+export function clearAuthHeaders() {
+  authHeaders = {};
+}
+
+/**
+ * Reset Apollo Client cache
+ * Called when user disconnects wallet to clear user-specific cached data
+ */
+export function resetApolloCache() {
+  // Use clearStore for a complete cache reset (safer than resetStore)
+  apolloClient.clearStore().catch((err) => {
+    console.warn('Failed to clear Apollo cache:', err);
+  });
+}
 
 // ============================================================================
 // Error Link
@@ -28,6 +63,19 @@ const errorLink = onError(({ graphQLErrors, networkError }) => {
   if (networkError) {
     console.error(`[Network error]: ${networkError}`);
   }
+});
+
+// ============================================================================
+// Auth Link
+// ============================================================================
+
+const authLink = setContext((_, { headers }) => {
+  return {
+    headers: {
+      ...headers,
+      ...authHeaders,
+    },
+  };
 });
 
 // ============================================================================
@@ -103,7 +151,7 @@ const cache = new InMemoryCache({
 // ============================================================================
 
 export const apolloClient = new ApolloClient({
-  link: from([errorLink, httpLink]),
+  link: from([errorLink, authLink, httpLink]),
   cache,
   defaultOptions: {
     watchQuery: {

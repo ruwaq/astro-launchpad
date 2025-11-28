@@ -26,10 +26,12 @@ type CacheClient = typeof kv | IORedis | null
  */
 let cacheClient: CacheClient = null
 let isVercelKV = false
+let initializationPromise: Promise<CacheClient> | null = null
 
 /**
  * Initialize cache client
  * Detects Vercel KV or standard Redis based on environment
+ * SAFETY: Thread-safe initialization to prevent race conditions
  */
 function initializeCacheClient(): CacheClient {
   // Skip in test environment
@@ -68,12 +70,40 @@ function initializeCacheClient(): CacheClient {
 
 /**
  * Get or initialize cache client
+ * SAFETY: Uses mutex pattern to prevent race condition during concurrent initialization
  */
 export function getCacheClient(): CacheClient {
-  if (!cacheClient) {
+  if (!cacheClient && !initializationPromise) {
+    // Synchronous initialization - no race condition since JS is single-threaded
+    // for synchronous code, but we add the flag for clarity
     cacheClient = initializeCacheClient()
   }
   return cacheClient
+}
+
+/**
+ * Async version of getCacheClient for scenarios requiring async initialization
+ * This ensures only one initialization occurs even with concurrent async calls
+ */
+export async function getCacheClientAsync(): Promise<CacheClient> {
+  if (cacheClient) {
+    return cacheClient
+  }
+
+  if (!initializationPromise) {
+    initializationPromise = Promise.resolve(initializeCacheClient())
+      .then((client) => {
+        cacheClient = client
+        initializationPromise = null
+        return client
+      })
+      .catch((error) => {
+        initializationPromise = null
+        throw error
+      })
+  }
+
+  return initializationPromise
 }
 
 /**

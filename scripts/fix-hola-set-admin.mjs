@@ -32,8 +32,14 @@ const TOKEN = {
   tokenCountAtCreation: 2,
 };
 
-// Source account for paying fees (testnet-deployer)
-const SOURCE_SECRET = 'SBLK5NCAL63Z3MS4NL5T2H7A6BQHDUEJMN5ETHPGE6AIGIK5TEYNWX5R';
+// SECURITY: Load secrets from environment variables, never hardcode
+const SOURCE_SECRET = process.env.DEPLOYER_SECRET;
+
+if (!SOURCE_SECRET) {
+  console.error('❌ Missing required environment variable: DEPLOYER_SECRET');
+  console.error('   Set it in your environment or .env.local file');
+  process.exit(1);
+}
 
 /**
  * Recreate the issuer keypair using the same deterministic algorithm

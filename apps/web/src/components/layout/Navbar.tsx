@@ -44,9 +44,13 @@ export function Navbar() {
           {/* Right: User Actions */}
           <div className="flex items-center gap-4">
           {/* Notifications */}
-          <button className="relative p-2 text-ui-text-secondary hover:text-ui-text-primary">
-            <Bell className="h-5 w-5" />
-            <span className="absolute top-1 right-1 w-2 h-2 bg-brand-primary rounded-full" />
+          <button
+            aria-label="Notifications"
+            className="relative p-2 text-ui-text-secondary hover:text-ui-text-primary"
+          >
+            <Bell className="h-5 w-5" aria-hidden="true" />
+            <span className="absolute top-1 right-1 w-2 h-2 bg-brand-primary rounded-full" aria-hidden="true" />
+            <span className="sr-only">You have new notifications</span>
           </button>
 
           {/* Wallet Connection */}
@@ -54,9 +58,11 @@ export function Navbar() {
             <button
               onClick={handleConnect}
               disabled={isConnecting}
+              aria-label={isConnecting ? 'Connecting wallet' : 'Connect wallet'}
+              aria-busy={isConnecting}
               className="flex items-center gap-2 bg-gradient-to-r from-brand-primary to-brand-blue text-white px-6 py-2 rounded-lg font-medium hover:shadow-lg hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
             >
-              <Wallet className="h-4 w-4" />
+              <Wallet className="h-4 w-4" aria-hidden="true" />
               <span className="hidden sm:inline">
                 {isConnecting ? 'Connecting...' : 'Connect Wallet'}
               </span>
@@ -65,6 +71,9 @@ export function Navbar() {
             <div className="relative">
               <button
                 onClick={() => setShowDropdown(!showDropdown)}
+                aria-expanded={showDropdown}
+                aria-haspopup="true"
+                aria-label={`Wallet menu for ${formatAddress(address!)}`}
                 className="flex items-center gap-3 bg-green-50 border border-green-200 px-4 py-2 rounded-lg hover:bg-green-100 transition-colors"
               >
                 <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
@@ -87,12 +96,19 @@ export function Navbar() {
                 <>
                   {/* Backdrop */}
                   <div
+                    role="presentation"
+                    aria-hidden="true"
                     className="fixed inset-0 z-40"
                     onClick={() => setShowDropdown(false)}
                   />
 
                   {/* Dropdown Menu */}
-                  <div className="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+                  <div
+                    role="menu"
+                    aria-orientation="vertical"
+                    aria-label="Wallet options"
+                    className="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 z-50"
+                  >
                     <div className="p-4 border-b border-gray-200">
                       <p className="text-xs text-gray-600 mb-1">
                         Connected Wallet
@@ -113,9 +129,11 @@ export function Navbar() {
                     </div>
                     <button
                       onClick={handleDisconnect}
+                      role="menuitem"
+                      aria-label="Disconnect wallet"
                       className="w-full flex items-center gap-2 px-4 py-3 text-left text-gray-900 hover:bg-gray-50 transition-colors"
                     >
-                      <LogOut className="h-4 w-4 text-gray-600" />
+                      <LogOut className="h-4 w-4 text-gray-600" aria-hidden="true" />
                       <span>Disconnect</span>
                     </button>
                   </div>

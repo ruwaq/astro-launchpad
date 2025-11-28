@@ -51,10 +51,12 @@ export function useBalance(address: string | null) {
           console.warn('[useBalance] No native balance found');
           setBalance('0');
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (!isMounted) return;
         console.error('[useBalance] Error fetching balance:', err);
-        setError(err.message || 'Failed to fetch balance');
+        // Type guard for error message extraction
+        const errorMessage = err instanceof Error ? err.message : 'Failed to fetch balance';
+        setError(errorMessage);
         setBalance('0');
       } finally {
         if (isMounted) {
@@ -65,8 +67,10 @@ export function useBalance(address: string | null) {
 
     fetchBalance();
 
-    // Refresh balance every 10 seconds
-    const interval = setInterval(fetchBalance, 10000);
+    // PERFORMANCE: Refresh balance every 60 seconds (was 10s)
+    // Previous: 10000ms = 360 requests/hour (too aggressive for balance checks)
+    // Current: 60000ms = 60 requests/hour (sufficient for balance display)
+    const interval = setInterval(fetchBalance, 60000);
 
     return () => {
       isMounted = false;

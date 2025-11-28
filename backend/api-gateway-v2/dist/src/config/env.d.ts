@@ -22,6 +22,7 @@ declare const envSchema: z.ZodObject<{
     API_HOST: z.ZodDefault<z.ZodString>;
     CORS_ORIGIN: z.ZodDefault<z.ZodString>;
     ADMIN_ADDRESSES: z.ZodOptional<z.ZodString>;
+    ADMIN_API_KEY: z.ZodOptional<z.ZodString>;
     RATE_LIMIT_WINDOW_MS: z.ZodDefault<z.ZodNumber>;
     RATE_LIMIT_MAX_REQUESTS: z.ZodDefault<z.ZodNumber>;
     GRAPHQL_MAX_DEPTH: z.ZodDefault<z.ZodNumber>;
@@ -30,6 +31,7 @@ declare const envSchema: z.ZodObject<{
     GRAPHQL_PLAYGROUND: z.ZodDefault<z.ZodBoolean>;
     LOG_LEVEL: z.ZodDefault<z.ZodEnum<["fatal", "error", "warn", "info", "debug", "trace"]>>;
     LOG_PRETTY: z.ZodDefault<z.ZodBoolean>;
+    HEALTH_PORT: z.ZodDefault<z.ZodNumber>;
     METRICS_ENABLED: z.ZodDefault<z.ZodBoolean>;
     METRICS_PORT: z.ZodDefault<z.ZodNumber>;
     PINATA_API_KEY: z.ZodOptional<z.ZodString>;
@@ -55,6 +57,7 @@ declare const envSchema: z.ZodObject<{
     API_PORT?: number;
     API_HOST?: string;
     CORS_ORIGIN?: string;
+    ADMIN_API_KEY?: string;
     RATE_LIMIT_WINDOW_MS?: number;
     RATE_LIMIT_MAX_REQUESTS?: number;
     GRAPHQL_MAX_DEPTH?: number;
@@ -63,6 +66,7 @@ declare const envSchema: z.ZodObject<{
     GRAPHQL_PLAYGROUND?: boolean;
     LOG_LEVEL?: "error" | "warn" | "info" | "fatal" | "debug" | "trace";
     LOG_PRETTY?: boolean;
+    HEALTH_PORT?: number;
     METRICS_ENABLED?: boolean;
     METRICS_PORT?: number;
     PINATA_API_KEY?: string;
@@ -88,6 +92,7 @@ declare const envSchema: z.ZodObject<{
     API_PORT?: number;
     API_HOST?: string;
     CORS_ORIGIN?: string;
+    ADMIN_API_KEY?: string;
     RATE_LIMIT_WINDOW_MS?: number;
     RATE_LIMIT_MAX_REQUESTS?: number;
     GRAPHQL_MAX_DEPTH?: number;
@@ -96,6 +101,7 @@ declare const envSchema: z.ZodObject<{
     GRAPHQL_PLAYGROUND?: boolean;
     LOG_LEVEL?: "error" | "warn" | "info" | "fatal" | "debug" | "trace";
     LOG_PRETTY?: boolean;
+    HEALTH_PORT?: number;
     METRICS_ENABLED?: boolean;
     METRICS_PORT?: number;
     PINATA_API_KEY?: string;
@@ -130,6 +136,7 @@ export declare const env: {
     API_PORT?: number;
     API_HOST?: string;
     CORS_ORIGIN?: string;
+    ADMIN_API_KEY?: string;
     RATE_LIMIT_WINDOW_MS?: number;
     RATE_LIMIT_MAX_REQUESTS?: number;
     GRAPHQL_MAX_DEPTH?: number;
@@ -138,6 +145,7 @@ export declare const env: {
     GRAPHQL_PLAYGROUND?: boolean;
     LOG_LEVEL?: "error" | "warn" | "info" | "fatal" | "debug" | "trace";
     LOG_PRETTY?: boolean;
+    HEALTH_PORT?: number;
     METRICS_ENABLED?: boolean;
     METRICS_PORT?: number;
     PINATA_API_KEY?: string;

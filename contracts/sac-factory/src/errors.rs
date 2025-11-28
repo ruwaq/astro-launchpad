@@ -52,6 +52,7 @@ pub enum Error {
     TokenAlreadyExists = 91,
     InvalidWasmHash = 92,
     AmmWasmNotSet = 93,
+    TokenWasmNotSet = 94,
 
     // Transaction Protection
     TransactionExpired = 100,

@@ -40,11 +40,15 @@ export abstract class BaseContractService {
 
   /**
    * Call a read-only contract method (no transaction required)
+   * Includes network timeout protection
    */
   protected async callReadOnly(
     method: string,
     ...params: xdr.ScVal[]
   ): Promise<ContractCallResult<xdr.ScVal>> {
+    // SAFETY: Network timeout to prevent hanging requests
+    const NETWORK_TIMEOUT = 15000; // 15 seconds
+
     try {
       const soroban = stellarClient.getSoroban();
       const server = soroban.getServer();
@@ -52,23 +56,29 @@ export abstract class BaseContractService {
       // Build the contract call operation
       const operation = this.contract.call(method, ...params);
 
-      // Simulate the transaction to get the result
-      const simulationResponse = await server.simulateTransaction(
-        new TransactionBuilder(
-          // Use a dummy source account for read-only calls
-          new Account(
-            'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF',
-            '0'
-          ),
-          {
-            fee: '100',
-            networkPassphrase: getNetworkConfig().networkPassphrase,
-          }
-        )
-          .addOperation(operation as any)
-          .setTimeout(30)
-          .build() as any
-      );
+      // Build the simulation transaction
+      const tx = new TransactionBuilder(
+        // Use a dummy source account for read-only calls
+        new Account(
+          'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF',
+          '0'
+        ),
+        {
+          fee: '100',
+          networkPassphrase: getNetworkConfig().networkPassphrase,
+        }
+      )
+        .addOperation(operation as any)
+        .setTimeout(30)
+        .build();
+
+      // SAFETY: Wrap simulation in timeout to prevent hanging
+      const simulationPromise = server.simulateTransaction(tx as any);
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error(`Contract call ${method} timed out after ${NETWORK_TIMEOUT}ms`)), NETWORK_TIMEOUT);
+      });
+
+      const simulationResponse = await Promise.race([simulationPromise, timeoutPromise]);
 
       if (SorobanRpc.Api.isSimulationSuccess(simulationResponse)) {
         return simulationResponse.result?.retval ?? null;

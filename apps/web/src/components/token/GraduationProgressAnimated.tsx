@@ -16,6 +16,18 @@
 import { useEffect, useState, useMemo } from 'react';
 import { motion, AnimatePresence, useSpring, useTransform } from 'framer-motion';
 import { Rocket, Trophy, Flame, Zap, Star, PartyPopper, TrendingUp, Target, Droplets, Info } from 'lucide-react';
+import { GRADUATION_THRESHOLD_XLM } from '@/lib/stellar/utils';
+
+/**
+ * Format XLM amounts consistently (using en-US locale)
+ * This ensures consistent display regardless of browser locale
+ */
+function formatXlmAmount(amount: number, decimals: number = 2): string {
+  return new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: decimals,
+  }).format(amount);
+}
 
 interface AstroAllocationConfig {
   /** ASTRO liquidity basis points (default 1000 = 10%) */
@@ -92,11 +104,12 @@ function Confetti() {
 export function GraduationProgressAnimated({
   xlmRaised,
   graduated,
-  threshold = 10000,
+  threshold = GRADUATION_THRESHOLD_XLM,
   tokenSymbol = 'TOKEN',
   astroConfig,
 }: GraduationProgressAnimatedProps) {
-  const [particles, setParticles] = useState<{ id: number; x: number; y: number; emoji: string }[]>([]);
+  const [particles, setParticles] = useState<{ id: string; x: number; y: number; emoji: string }[]>([]);
+  const [particleCounter, setParticleCounter] = useState(0);
   const [showConfetti, setShowConfetti] = useState(false);
   const [prevProgress, setPrevProgress] = useState(0);
   const [showAstroDetails, setShowAstroDetails] = useState(false);
@@ -136,9 +149,12 @@ export function GraduationProgressAnimated({
   useEffect(() => {
     milestones.forEach((milestone) => {
       if (percentComplete >= milestone.percent && prevProgress < milestone.percent) {
-        // Milestone reached! Create particles
+        // Milestone reached! Create particles with unique IDs
+        const baseId = particleCounter;
+        setParticleCounter((c) => c + 8);
+
         const newParticles = Array.from({ length: 8 }, (_, i) => ({
-          id: Date.now() + i,
+          id: `particle-${milestone.percent}-${baseId + i}`,
           x: (milestone.percent / 100) * 300,
           y: 50,
           emoji: milestone.emoji,
@@ -153,7 +169,7 @@ export function GraduationProgressAnimated({
     });
 
     setPrevProgress(percentComplete);
-  }, [percentComplete, prevProgress]);
+  }, [percentComplete, prevProgress, particleCounter]);
 
   // Graduation celebration
   useEffect(() => {
@@ -204,7 +220,7 @@ export function GraduationProgressAnimated({
 
           <div className="flex items-center justify-center gap-4 text-sm">
             <div className="bg-white/80 rounded-lg px-4 py-2">
-              <span className="text-green-600 font-semibold">{raised.toLocaleString()} XLM</span>
+              <span className="text-green-600 font-semibold">{formatXlmAmount(raised)} XLM</span>
               <span className="text-green-500 ml-1">raised</span>
             </div>
             <div className="bg-white/80 rounded-lg px-4 py-2">
@@ -382,7 +398,7 @@ export function GraduationProgressAnimated({
             initial={{ scale: 1.1 }}
             animate={{ scale: 1 }}
           >
-            {raised.toLocaleString()} <span className="text-sm font-normal">XLM</span>
+            {formatXlmAmount(raised)} <span className="text-sm font-normal">XLM</span>
           </motion.p>
         </div>
 
@@ -392,7 +408,7 @@ export function GraduationProgressAnimated({
             <span className="text-xs text-blue-600 font-medium">Remaining</span>
           </div>
           <p className="text-xl font-bold text-blue-700">
-            {remaining.toLocaleString()} <span className="text-sm font-normal">XLM</span>
+            {formatXlmAmount(remaining)} <span className="text-sm font-normal">XLM</span>
           </p>
         </div>
       </div>
@@ -411,9 +427,14 @@ export function GraduationProgressAnimated({
           >
             <span className="flex items-center gap-2">
               <Flame className="h-4 w-4" />
-              <span className="font-medium">ASTRO Allocation Preview</span>
+              <span className="font-medium">How will XLM be distributed?</span>
             </span>
-            <Info className="h-4 w-4" />
+            <motion.span
+              animate={{ rotate: showAstroDetails ? 180 : 0 }}
+              transition={{ duration: 0.2 }}
+            >
+              <Info className="h-4 w-4" />
+            </motion.span>
           </button>
 
           <AnimatePresence>
@@ -425,59 +446,77 @@ export function GraduationProgressAnimated({
                 className="overflow-hidden"
               >
                 <div className="mt-2 bg-purple-50 border border-purple-200 rounded-xl p-4 space-y-3">
-                  {/* Visual allocation bar */}
-                  <div className="h-3 rounded-full overflow-hidden flex">
-                    <div
-                      className="bg-brand-primary h-full"
-                      style={{ width: `${mainPoolPercent}%` }}
-                      title={`Main Pool: ${mainPoolPercent}%`}
-                    />
-                    <div
-                      className="bg-blue-500 h-full"
-                      style={{ width: `${astroLiquidityPercent}%` }}
-                      title={`ASTRO Liquidity: ${astroLiquidityPercent}%`}
-                    />
-                    <div
-                      className="bg-purple-600 h-full"
-                      style={{ width: `${buybackPercent}%` }}
-                      title={`Buyback: ${buybackPercent}%`}
-                    />
-                  </div>
-
-                  {/* Legend */}
-                  <div className="space-y-2 text-xs">
-                    <div className="flex items-center justify-between">
-                      <span className="flex items-center gap-2">
-                        <TrendingUp className="h-3 w-3 text-brand-primary" />
-                        <span className="text-purple-700">Main Pool ({mainPoolPercent}%)</span>
-                      </span>
-                      <span className="font-semibold text-purple-800">
-                        ~{xlmForMainPool.toLocaleString()} XLM
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="flex items-center gap-2">
-                        <Droplets className="h-3 w-3 text-blue-500" />
-                        <span className="text-purple-700">ASTRO Liquidity ({astroLiquidityPercent}%)</span>
-                      </span>
-                      <span className="font-semibold text-purple-800">
-                        ~{xlmForAstroLiquidity.toLocaleString()} XLM
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="flex items-center gap-2">
-                        <Flame className="h-3 w-3 text-purple-600" />
-                        <span className="text-purple-700">Buyback & Burn ({buybackPercent}%)</span>
-                      </span>
-                      <span className="font-semibold text-purple-800">
-                        ~{xlmForBuyback.toLocaleString()} XLM
-                      </span>
-                    </div>
-                  </div>
-
-                  <p className="text-xs text-purple-600 pt-2 border-t border-purple-200">
-                    ASTRO buyback supports the ecosystem by permanently removing tokens from circulation.
+                  {/* Header explanation */}
+                  <p className="text-xs text-purple-700 font-medium pb-2 border-b border-purple-200">
+                    When graduation completes, the {formatXlmAmount(threshold)} XLM will be allocated:
                   </p>
+
+                  {/* Visual allocation bar */}
+                  <div className="h-4 rounded-full overflow-hidden flex shadow-inner">
+                    <div
+                      className="bg-gradient-to-r from-brand-primary to-orange-400 h-full relative group"
+                      style={{ width: `${mainPoolPercent}%` }}
+                    >
+                      <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white">
+                        {mainPoolPercent}%
+                      </span>
+                    </div>
+                    <div
+                      className="bg-gradient-to-r from-blue-500 to-blue-400 h-full"
+                      style={{ width: `${astroLiquidityPercent}%` }}
+                    />
+                    <div
+                      className="bg-gradient-to-r from-purple-600 to-purple-500 h-full"
+                      style={{ width: `${buybackPercent}%` }}
+                    />
+                  </div>
+
+                  {/* Legend with clearer descriptions */}
+                  <div className="space-y-3 text-xs">
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="flex items-start gap-2">
+                        <TrendingUp className="h-3 w-3 text-brand-primary mt-0.5 flex-shrink-0" />
+                        <span className="text-purple-700">
+                          <strong className="block">{tokenSymbol}/XLM Trading Pool</strong>
+                          <span className="text-purple-500">Permanent DEX liquidity</span>
+                        </span>
+                      </span>
+                      <span className="font-bold text-purple-800 whitespace-nowrap">
+                        {formatXlmAmount(xlmForMainPool)} XLM
+                      </span>
+                    </div>
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="flex items-start gap-2">
+                        <Droplets className="h-3 w-3 text-blue-500 mt-0.5 flex-shrink-0" />
+                        <span className="text-purple-700">
+                          <strong className="block">ASTRO/XLM Pool</strong>
+                          <span className="text-purple-500">Ecosystem liquidity</span>
+                        </span>
+                      </span>
+                      <span className="font-bold text-purple-800 whitespace-nowrap">
+                        {formatXlmAmount(xlmForAstroLiquidity)} XLM
+                      </span>
+                    </div>
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="flex items-start gap-2">
+                        <Flame className="h-3 w-3 text-purple-600 mt-0.5 flex-shrink-0" />
+                        <span className="text-purple-700">
+                          <strong className="block">ASTRO Buyback & Burn</strong>
+                          <span className="text-purple-500">Permanently removed from supply</span>
+                        </span>
+                      </span>
+                      <span className="font-bold text-purple-800 whitespace-nowrap">
+                        {formatXlmAmount(xlmForBuyback)} XLM
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="text-xs text-purple-600 pt-2 border-t border-purple-200 flex items-start gap-2">
+                    <Info className="h-3 w-3 mt-0.5 flex-shrink-0" />
+                    <span>
+                      All liquidity is <strong>locked forever</strong>. No one can remove it - not even the token creator.
+                    </span>
+                  </div>
                 </div>
               </motion.div>
             )}
@@ -501,7 +540,7 @@ export function GraduationProgressAnimated({
               What happens at graduation?
             </p>
             <p className="text-xs text-purple-600 leading-relaxed">
-              When {tokenSymbol} reaches <strong>{threshold.toLocaleString()} XLM</strong>, it automatically
+              When {tokenSymbol} reaches <strong>{formatXlmAmount(threshold)} XLM</strong>, it automatically
               graduates to a full AMM pool on Stellar DEX with permanently locked liquidity.
               {astroEnabled && (
                 <span className="block mt-1 text-purple-700">

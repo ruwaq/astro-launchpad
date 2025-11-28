@@ -2,11 +2,12 @@
 
 import { useRecentTransactions } from '@/hooks/useApi';
 import { truncateAddress, getTimeAgo, formatCompactNumber } from '@/lib/stellar/utils';
+import type { Transaction, TransactionEdge } from '@/lib/graphql/types';
 
 export function ActivityWidget() {
   const { data, loading } = useRecentTransactions(10);
 
-  const transactions = data?.transactions.edges.map((edge: any) => edge.node) || [];
+  const transactions: Transaction[] = data?.transactions.edges.map((edge: TransactionEdge) => edge.node) || [];
 
   if (loading) {
     return (
@@ -63,7 +64,7 @@ export function ActivityWidget() {
         {transactions.length === 0 ? (
           <p className="text-center text-gray-500 py-8">No recent activity</p>
         ) : (
-          transactions.map((tx: any) => {
+          transactions.map((tx: Transaction) => {
             const timestamp = Math.floor(new Date(tx.timestamp).getTime() / 1000);
 
             return (

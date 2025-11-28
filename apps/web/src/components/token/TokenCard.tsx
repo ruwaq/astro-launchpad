@@ -3,16 +3,20 @@
  *
  * Displays token information from Stellar contract
  * All data is live from the blockchain
+ *
+ * PERFORMANCE: Wrapped in React.memo to prevent unnecessary re-renders
+ * when parent components update but token data hasn't changed.
  */
 
 'use client';
 
-import { useState } from 'react';
+import { memo } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { TrendingUp, TrendingDown, Users, DollarSign } from 'lucide-react';
 import { useToken } from '@/hooks/useToken';
 import { usePrice } from '@/hooks/usePrice';
+import { stroopsToXlm, formatCompactNumber, GRADUATION_THRESHOLD_STROOPS } from '@/lib/stellar/utils';
 
 interface TokenCardProps {
   tokenAddress: string;
@@ -26,7 +30,11 @@ interface TokenCardProps {
   onClick?: () => void;
 }
 
-export function TokenCard({ tokenAddress, compact = false, onClick }: TokenCardProps) {
+/**
+ * PERFORMANCE: Memoized TokenCard component
+ * Only re-renders when tokenAddress, compact, or onClick changes
+ */
+export const TokenCard = memo(function TokenCard({ tokenAddress, compact = false, onClick }: TokenCardProps) {
   const { token, isLoading, error } = useToken(tokenAddress, {
     refreshInterval: 30000, // Refresh every 30s
   });
@@ -66,19 +74,18 @@ export function TokenCard({ tokenAddress, compact = false, onClick }: TokenCardP
     );
   }
 
-  // Calculate graduation progress
-  const GRADUATION_THRESHOLD = BigInt(100_000_000_000); // 10,000 XLM in stroops
+  // Calculate graduation progress using centralized constant
   const xlmRaised = BigInt(token.xlm_raised);
   const graduationPercent = Math.min(
-    Number((xlmRaised * BigInt(100)) / GRADUATION_THRESHOLD),
+    Number((xlmRaised * BigInt(100)) / GRADUATION_THRESHOLD_STROOPS),
     100
   );
 
-  // Format price (stroops to XLM)
-  const formattedPrice = (Number(price) / 10_000_000).toFixed(7);
+  // Format price (stroops to XLM) using utility function
+  const formattedPrice = stroopsToXlm(price.toString(), 7);
 
-  // Format market cap
-  const formattedMarketCap = (Number(token.market_cap) / 10_000_000).toFixed(2);
+  // Format market cap using utility function
+  const formattedMarketCap = formatCompactNumber(parseFloat(stroopsToXlm(token.market_cap)));
 
   // Is token graduated?
   const isGraduated = token.status === 'Graduated';
@@ -102,7 +109,7 @@ export function TokenCard({ tokenAddress, compact = false, onClick }: TokenCardP
               sizes="48px"
               onError={(e) => {
                 // Fallback to default image on error
-                (e.target as HTMLImageElement).src = '/images/default-token.png';
+                (e.target as HTMLImageElement).src = '/images/default-token.svg';
               }}
             />
           </div>
@@ -183,11 +190,14 @@ export function TokenCard({ tokenAddress, compact = false, onClick }: TokenCardP
             </div>
             <div className="flex items-center gap-1 text-xs text-ui-text-secondary">
               <DollarSign className="h-3 w-3" />
-              <span>{(Number(xlmRaised) / 10_000_000).toFixed(0)} XLM raised</span>
+              <span>{formatCompactNumber(parseFloat(stroopsToXlm(xlmRaised.toString())))} XLM</span>
             </div>
           </div>
         )}
       </div>
     </Link>
   );
-}
+});
+
+// Display name for React DevTools
+TokenCard.displayName = 'TokenCard';

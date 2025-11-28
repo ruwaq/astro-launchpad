@@ -203,5 +203,6 @@ export const LEADERBOARD_ENTRY_FRAGMENT = gql`
     tokensCreated
     totalVolumeGenerated
     totalLiquidity
+    feesEarned24h
   }
 `;

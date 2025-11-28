@@ -6,7 +6,7 @@ import { Wallet, TrendingUp, Clock } from 'lucide-react';
 import { useWallet } from '@/contexts/WalletContext';
 import { useUserTransactions } from '@/hooks/useApi';
 import { TransactionHistory } from '@/components/transactions/TransactionHistory';
-import { formatCompactNumber, truncateAddress } from '@/lib/stellar/utils';
+import { formatCompactNumber, truncateAddress, stroopsToXlm, GRADUATION_THRESHOLD_XLM } from '@/lib/stellar/utils';
 import toast from 'react-hot-toast';
 
 type TabType = 'holdings' | 'created' | 'history';
@@ -332,13 +332,23 @@ function CreatedTokensTab({ address }: { address: string }) {
         return;
       }
 
-      // Fetch detailed info for each token
-      const tokenPromises = tokenAddresses.map(addr =>
-        sacFactoryService.getTokenInfo(addr)
+      // RESILIENT: Fetch detailed info for each token with graceful failure handling
+      const tokenResults = await Promise.allSettled(
+        tokenAddresses.map(addr => sacFactoryService.getTokenInfo(addr))
       );
 
-      const tokenInfos = await Promise.all(tokenPromises);
-      const validTokens = tokenInfos.filter(t => t !== null);
+      // Filter successful results only - failed tokens won't break the page
+      const validTokens = tokenResults
+        .filter((result): result is PromiseFulfilledResult<NonNullable<typeof result extends PromiseFulfilledResult<infer T> ? T : never>> =>
+          result.status === 'fulfilled' && result.value !== null
+        )
+        .map(result => result.value);
+
+      // Log any failures for debugging
+      const failedTokens = tokenResults.filter(r => r.status === 'rejected');
+      if (failedTokens.length > 0) {
+        console.warn(`Failed to load ${failedTokens.length} token(s):`, failedTokens);
+      }
 
       setTokens(validTokens);
     } catch (error: any) {
@@ -409,10 +419,8 @@ function CreatedTokensTab({ address }: { address: string }) {
 
 // Created Token Card Component
 function CreatedTokenCard({ token }: { token: any }) {
-  const { formatCompactNumber, stroopsToXlm } = require('@/lib/stellar/utils');
-
   const graduationProgress = Math.min(
-    (Number(token.xlm_raised) / 10000) * 100,
+    (Number(token.xlm_raised) / GRADUATION_THRESHOLD_XLM) * 100,
     100
   );
 

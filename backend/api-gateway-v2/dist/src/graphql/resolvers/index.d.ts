@@ -2,7 +2,7 @@
  * GraphQL Resolvers
  * Handles all GraphQL queries and mutations
  */
-import type { IResolvers } from 'mercurius';
+type IResolvers = Record<string, any>;
 /**
  * Combine all resolvers
  * IMPORTANT: Order matters - fieldResolvers and feeTypeResolvers contain
@@ -10,4 +10,5 @@ import type { IResolvers } from 'mercurius';
  * Query and Mutation must be explicitly combined, not spread from feeResolvers
  */
 export declare const resolvers: IResolvers;
+export {};
 //# sourceMappingURL=index.d.ts.map

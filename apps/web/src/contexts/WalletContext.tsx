@@ -11,7 +11,7 @@
  * Uses @creit.tech/stellar-wallets-kit for unified wallet interface
  */
 
-import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
 import {
   StellarWalletsKit,
   WalletNetwork,
@@ -23,6 +23,8 @@ import {
   type ISupportedWallet,
 } from '@creit.tech/stellar-wallets-kit';
 import { getNetworkConfig } from '@/lib/config/network';
+import { setAuthHeaders, clearAuthHeaders, resetApolloCache } from '@/lib/graphql/client';
+import { useTokenStore } from '@/stores/useTokenStore';
 
 interface WalletContextType {
   address: string | null;
@@ -35,6 +37,8 @@ interface WalletContextType {
   connect: () => Promise<void>;
   disconnect: () => void;
   signTransaction: (txXDR: string) => Promise<string>;
+  signAuthMessage: () => Promise<{ signature: string; timestamp: string } | null>;
+  getAuthHeaders: () => Promise<Record<string, string>>;
   openMobileWallet: (wallet: 'lobstr' | 'xbull') => void;
 }
 
@@ -114,16 +118,39 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
     setKit(walletsKit);
 
-    // Restore saved connection
+    // Restore saved connection with validation
     if (typeof window !== 'undefined') {
       try {
         const savedAddress = localStorage.getItem('stellar_wallet_address');
         const savedWalletId = localStorage.getItem('stellar_wallet_id');
 
-        if (savedAddress && savedWalletId) {
-          walletsKit.setWallet(savedWalletId);
-          setAddress(savedAddress);
-          setIsConnected(true);
+        // Validate saved data before using
+        const isValidStellarAddress = savedAddress &&
+          typeof savedAddress === 'string' &&
+          savedAddress.length === 56 &&
+          (savedAddress.startsWith('G') || savedAddress.startsWith('C'));
+
+        const validWalletIds = ['freighter', 'xbull', 'albedo', 'hana', 'lobstr'];
+        const isValidWalletId = savedWalletId &&
+          typeof savedWalletId === 'string' &&
+          validWalletIds.includes(savedWalletId.toLowerCase());
+
+        if (isValidStellarAddress && isValidWalletId) {
+          try {
+            walletsKit.setWallet(savedWalletId);
+            setAddress(savedAddress);
+            setIsConnected(true);
+          } catch (walletError) {
+            // Wallet extension might not be available - clear invalid state
+            console.warn('Could not restore wallet connection:', walletError);
+            localStorage.removeItem('stellar_wallet_address');
+            localStorage.removeItem('stellar_wallet_id');
+          }
+        } else if (savedAddress || savedWalletId) {
+          // Clear invalid/corrupted data
+          console.warn('Invalid wallet data in localStorage, clearing');
+          localStorage.removeItem('stellar_wallet_address');
+          localStorage.removeItem('stellar_wallet_id');
         }
       } catch (e) {
         console.warn('Could not access localStorage:', e);
@@ -138,6 +165,19 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         .catch((err) => console.warn('[PWA] Service worker registration failed:', err));
     }
   }, []);
+
+  // Sync auth headers with Apollo client when address changes
+  useEffect(() => {
+    if (address) {
+      // Set basic auth header immediately
+      // Signature will be added on-demand for mutations
+      setAuthHeaders({
+        'X-Stellar-Address': address,
+      });
+    } else {
+      clearAuthHeaders();
+    }
+  }, [address]);
 
   const connect = useCallback(async () => {
     if (!kit) {
@@ -206,6 +246,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     } catch (e) {
       console.warn('Could not clear localStorage:', e);
     }
+    // Clear all cached data to prevent stale user-specific data
+    clearAuthHeaders();
+    resetApolloCache();
+    // Reset token store (use getState to avoid hook dependency)
+    useTokenStore.getState().reset();
   }, []);
 
   const signTransaction = useCallback(async (txXDR: string): Promise<string> => {
@@ -227,6 +272,63 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       throw new Error(err.message || 'Failed to sign transaction');
     }
   }, [kit, address]);
+
+  /**
+   * Sign an authentication message for API requests
+   * Message format: "stellar:auth:{address}:{timestamp}"
+   * Returns signature and timestamp for use in request headers
+   */
+  const signAuthMessage = useCallback(async (): Promise<{ signature: string; timestamp: string } | null> => {
+    if (!kit || !address) {
+      return null;
+    }
+
+    try {
+      const timestamp = Date.now().toString();
+      const message = `stellar:auth:${address}:${timestamp}`;
+      const messageBuffer = Buffer.from(message, 'utf8');
+
+      // Try to sign using the wallet's signBlob method
+      // Note: Not all wallets support this - will fall back gracefully
+      // Type assertion needed as signBlob is not in all kit versions' types
+      const { signedBlob } = await (kit as any).signBlob(messageBuffer, {
+        address,
+      });
+
+      // signedBlob is returned as base64
+      return {
+        signature: signedBlob,
+        timestamp,
+      };
+    } catch (err: any) {
+      // Many wallets don't support signBlob - this is expected
+      console.debug('[Auth] Wallet does not support message signing:', err.message);
+      return null;
+    }
+  }, [kit, address]);
+
+  /**
+   * Get authentication headers for API requests
+   * Includes address and optionally signature + timestamp if wallet supports signing
+   */
+  const getAuthHeaders = useCallback(async (): Promise<Record<string, string>> => {
+    if (!address) {
+      return {};
+    }
+
+    const headers: Record<string, string> = {
+      'X-Stellar-Address': address,
+    };
+
+    // Try to get a fresh signature
+    const authData = await signAuthMessage();
+    if (authData) {
+      headers['X-Stellar-Signature'] = authData.signature;
+      headers['X-Stellar-Timestamp'] = authData.timestamp;
+    }
+
+    return headers;
+  }, [address, signAuthMessage]);
 
   // Open mobile wallet app via deep link
   const openMobileWallet = useCallback((wallet: 'lobstr' | 'xbull') => {
@@ -255,6 +357,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     connect,
     disconnect,
     signTransaction,
+    signAuthMessage,
+    getAuthHeaders,
     openMobileWallet,
   };
 

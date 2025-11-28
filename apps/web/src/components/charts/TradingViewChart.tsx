@@ -3,42 +3,23 @@
  *
  * Professional candlestick chart using lightweight-charts
  * Features:
- * - Real-time price updates
+ * - Real-time price updates from Stellar contract
  * - Candlestick/Line toggle
  * - Time frame selection (1m, 5m, 15m, 1h, 4h, 1d)
  * - Volume indicator
  * - Responsive design
  * - Dark/Light theme support
+ *
+ * Updated: Nov 26, 2024 - Now reads directly from bonding curve contract
  */
 
 'use client';
 
-import { useEffect, useRef, useState, useMemo } from 'react';
+import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { createChart, ColorType, IChartApi, ISeriesApi, CandlestickData, LineData, Time, CandlestickSeries, LineSeries, AreaSeries } from 'lightweight-charts';
-import { useQuery } from '@apollo/client';
-import { gql } from '@apollo/client';
 import { Loader2, TrendingUp, TrendingDown, BarChart2, Activity } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-
-const TOKEN_PRICE_HISTORY = gql`
-  query TokenPriceHistory($address: String!) {
-    token(address: $address) {
-      address
-      currentPrice
-    }
-    transactions(tokenAddress: $address, limit: 100) {
-      edges {
-        cursor
-        node {
-          id
-          type
-          amount
-          timestamp
-        }
-      }
-    }
-  }
-`;
+import { sacFactoryService, type TokenInfo } from '@/lib/stellar/services/sac-factory.service';
 
 interface TradingViewChartProps {
   tokenAddress: string;
@@ -47,6 +28,12 @@ interface TradingViewChartProps {
 
 type ChartType = 'candlestick' | 'line';
 type TimeFrame = '1m' | '5m' | '15m' | '1h' | '4h' | '1d';
+
+// Price history point stored locally
+interface PricePoint {
+  time: number; // Unix timestamp in seconds
+  price: number;
+}
 
 export function TradingViewChart({ tokenAddress, symbol = 'TOKEN' }: TradingViewChartProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
@@ -58,43 +45,74 @@ export function TradingViewChart({ tokenAddress, symbol = 'TOKEN' }: TradingView
   const [isHovering, setIsHovering] = useState(false);
   const [hoverData, setHoverData] = useState<{ price: number; time: string } | null>(null);
 
-  // Fetch real transaction data
-  const { data, loading, error } = useQuery(TOKEN_PRICE_HISTORY, {
-    variables: { address: tokenAddress },
-    pollInterval: 5000,
-  });
+  // State for contract data
+  const [tokenInfo, setTokenInfo] = useState<TokenInfo | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Transform transaction data to chart format
+  // Store price history locally (builds up over time as we poll)
+  const [priceHistory, setPriceHistory] = useState<PricePoint[]>([]);
+  const lastPriceRef = useRef<number>(0);
+
+  // Price from contract (with proper precision)
+  const priceRef = useRef<number>(0);
+
+  // Fetch price from contract (uses proper bonding curve calculation)
+  const fetchTokenData = useCallback(async () => {
+    try {
+      // Fetch price directly from contract - handles virtual liquidity properly
+      const priceBigInt = await sacFactoryService.getPrice(tokenAddress);
+      // Convert from stroops (price * 10^7) to XLM
+      const currentPrice = Number(priceBigInt) / 10_000_000;
+
+      // Also fetch token info for metadata
+      const info = await sacFactoryService.getTokenInfo(tokenAddress);
+      if (info) {
+        setTokenInfo(info);
+      }
+
+      setError(null);
+      const now = Math.floor(Date.now() / 1000);
+
+      // Add to price history if price changed or enough time passed
+      if (currentPrice !== lastPriceRef.current || priceHistory.length === 0) {
+        lastPriceRef.current = currentPrice;
+        priceRef.current = currentPrice;
+        setPriceHistory(prev => {
+          // Avoid duplicate timestamps
+          const lastTime = prev.length > 0 ? prev[prev.length - 1].time : 0;
+          if (now <= lastTime) return prev;
+
+          const newHistory = [...prev, { time: now, price: currentPrice }];
+          // Keep max 500 points (about 40 mins at 5s intervals)
+          return newHistory.slice(-500);
+        });
+      }
+    } catch (err: any) {
+      console.error('Error fetching price for chart:', err);
+      setError(err.message || 'Failed to load chart data');
+    } finally {
+      setLoading(false);
+    }
+  }, [tokenAddress, priceHistory.length]);
+
+  // Initial fetch and polling
+  useEffect(() => {
+    fetchTokenData();
+    // PERFORMANCE: Reduced from 5s to 30s - price updates less frequently
+    const interval = setInterval(fetchTokenData, 30000);
+    return () => clearInterval(interval);
+  }, [fetchTokenData]);
+
+  // Transform price history to chart format
   const chartData = useMemo(() => {
-    if (!data?.transactions?.edges) return { line: [], candle: [] };
-
-    const transactions = data.transactions.edges
-      .filter((edge: any) => edge.node.type === 'BUY' || edge.node.type === 'SELL')
-      .map((edge: any) => ({
-        amount: parseFloat(edge.node.amount || '0'),
-        timestamp: new Date(edge.node.timestamp).getTime() / 1000,
-        type: edge.node.type,
-      }))
-      .sort((a: any, b: any) => a.timestamp - b.timestamp);
-
-    if (transactions.length === 0) return { line: [], candle: [] };
+    if (priceHistory.length === 0) return { line: [], candle: [] };
 
     // Generate line data
-    let runningPrice = 0.00000001; // Initial price
-    const lineData: LineData[] = transactions.map((tx: any) => {
-      // Simulate price movement based on buy/sell
-      if (tx.type === 'BUY') {
-        runningPrice *= 1 + (tx.amount * 0.0001);
-      } else {
-        runningPrice *= 1 - (tx.amount * 0.00005);
-      }
-      runningPrice = Math.max(0.00000001, runningPrice);
-
-      return {
-        time: tx.timestamp as Time,
-        value: runningPrice,
-      };
-    });
+    const lineData: LineData[] = priceHistory.map((point) => ({
+      time: point.time as Time,
+      value: point.price,
+    }));
 
     // Generate candlestick data (aggregate by time intervals)
     const candleData: CandlestickData[] = [];
@@ -126,7 +144,7 @@ export function TradingViewChart({ tokenAddress, symbol = 'TOKEN' }: TradingView
     }
 
     return { line: lineData, candle: candleData };
-  }, [data, timeFrame]);
+  }, [priceHistory, timeFrame]);
 
   // Calculate price change
   const { currentPrice, priceChange, isPositive } = useMemo(() => {

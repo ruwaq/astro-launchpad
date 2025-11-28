@@ -17,8 +17,14 @@ const CONFIG = {
   symbol: 'TEST9',
 };
 
-// Treasury secret (this is actually testnet-deployer, but used as treasury in the contract)
-const TREASURY_SECRET = 'SBLK5NCAL63Z3MS4NL5T2H7A6BQHDUEJMN5ETHPGE6AIGIK5TEYNWX5R';
+// SECURITY: Load secrets from environment variables, never hardcode
+const TREASURY_SECRET = process.env.TREASURY_SECRET;
+
+if (!TREASURY_SECRET) {
+  console.error('❌ Missing required environment variable: TREASURY_SECRET');
+  console.error('   Set it in your environment or .env.local file');
+  process.exit(1);
+}
 
 // Actual treasury address that receives creator fee
 const ACTUAL_TREASURY = 'GCNNAUR5SCD2NXBXOIL32J7IJQ7N2RPTQH3T27FR5NGUOVK2L4HXPD2E';

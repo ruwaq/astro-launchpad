@@ -17,9 +17,10 @@
 //! - 🌟 Stellar exclusive: Multi-currency support
 
 use soroban_sdk::{
-    contract, contractimpl, token, Address, Env, String, Vec, Bytes,
+    contract, contractimpl, token, Address, Env, String, Vec, Bytes, BytesN,
     auth::{ContractContext, InvokerContractAuthEntry, SubContractInvocation},
     IntoVal, Symbol,
+    xdr::ToXdr,
 };
 
 mod bonding_curve;
@@ -30,7 +31,8 @@ mod math;
 mod access_control;
 mod fee_management;
 mod state_management;
-mod sac_deployment;  // Real SAC token deployment
+mod sac_deployment;  // Real SAC token deployment (legacy, not used with pure Soroban tokens)
+mod launchpad_token_client;  // Pure Soroban token client (no SAC)
 mod amm_deployment;  // AMM pair deployment for graduation
 mod amm_client;      // AMM client for cross-contract calls
 mod price_oracle;    // DIA Oracle price feed integration
@@ -210,6 +212,120 @@ impl SacFactory {
         Ok(token_address)
     }
 
+    /// Launch a new meme token V2 - Pure Soroban Token (no SAC)
+    ///
+    /// This version deploys a pure Soroban token that the factory can freely
+    /// mint/burn without SAC issuer restrictions. Much simpler for clients!
+    ///
+    /// # Arguments
+    /// * `creator` - Your address
+    /// * `name` - Token name (e.g., "Doge Shiba")
+    /// * `symbol` - Token symbol (e.g., "DSHIB", max 12 chars)
+    /// * `image_url` - IPFS image URL
+    /// * `description` - Token description
+    ///
+    /// # Returns
+    /// Address of the newly created token
+    ///
+    /// # Requirements
+    /// Token WASM hash must be set via set_token_wasm_hash before calling
+    pub fn launch_token_v2(
+        env: Env,
+        creator: Address,
+        name: String,
+        symbol: String,
+        image_url: String,
+        description: String,
+    ) -> Result<Address, Error> {
+        creator.require_auth();
+
+        // Check contract is active
+        state_management::require_active(&env)?;
+
+        // Validate inputs
+        if name.len() == 0 || name.len() > 32 {
+            return Err(Error::InvalidName);
+        }
+        if symbol.len() == 0 || symbol.len() > 12 {
+            return Err(Error::InvalidSymbol);
+        }
+
+        // Verify token WASM hash is set
+        if !storage::has_token_wasm_hash(&env) {
+            return Err(Error::TokenWasmNotSet);
+        }
+
+        // Collect creation fee
+        let fee_paid = fee_management::collect_creation_fee(&env, &creator)?;
+
+        // Get token count for tracking and salt generation
+        let token_count = storage::get_token_count(&env);
+
+        // Generate deterministic salt using token_count and creator address
+        // NOTE: We use only token_count (which is deterministic) to ensure the salt
+        // is the same between simulation and actual execution. Using timestamp
+        // causes different addresses in simulation vs execution, breaking footprints.
+        let mut salt_bytes = [0u8; 32];
+        let count_bytes = token_count.to_be_bytes();
+
+        // Use creator address bytes in the salt for additional uniqueness per-creator
+        let creator_bytes = creator.clone().to_xdr(&env);
+        let creator_hash = env.crypto().sha256(&creator_bytes);
+        // Convert Hash<32> to array of bytes
+        let creator_hash_array: [u8; 32] = creator_hash.to_array();
+
+        // Fill salt: first 4 bytes = count, next 28 bytes = creator hash truncated
+        salt_bytes[0..4].copy_from_slice(&count_bytes);
+        // Copy first 28 bytes of creator hash
+        salt_bytes[4..32].copy_from_slice(&creator_hash_array[0..28]);
+
+        let salt = soroban_sdk::BytesN::from_array(&env, &salt_bytes);
+
+        // Deploy pure Soroban token with factory as admin
+        let token_address = Self::deploy_launchpad_token(&env, &name, &symbol, salt)?;
+
+        // Initialize bonding curve (constant product: x * y = k)
+        let bonding_curve = BondingCurve::new(BONDING_CURVE_SUPPLY)?;
+
+        // Create token info (issuer is empty for pure Soroban tokens)
+        let token_info = TokenInfo {
+            id: token_count,
+            creator: creator.clone(),
+            token_address: token_address.clone(),
+            name: name.clone(),
+            symbol: symbol.clone(),
+            issuer: String::from_str(&env, ""),  // No issuer for pure Soroban tokens
+            image_url,
+            description,
+            created_at: env.ledger().timestamp(),
+            status: TokenStatus::Bonding,
+            bonding_curve,
+            xlm_raised: 0,
+            market_cap: 0,
+            holders_count: 0,
+        };
+
+        // Store token info
+        storage::set_token_info(&env, &token_address, &token_info);
+        storage::add_creator_token(&env, &creator, &token_address);
+        storage::increment_token_count(&env);
+
+        // Emit events (both basic and detailed)
+        events::token_launched(&env, &creator, &token_address, &name, &symbol);
+        events::token_launched_detailed(
+            &env,
+            &creator,
+            &token_address,
+            &name,
+            &symbol,
+            INITIAL_SUPPLY,
+            BONDING_CURVE_SUPPLY,
+            fee_paid,
+        );
+
+        Ok(token_address)
+    }
+
     /// Buy tokens from bonding curve
     ///
     /// # Arguments
@@ -325,16 +441,60 @@ impl SacFactory {
             return Err(Error::SlippageExceeded);
         }
 
-        // 10. MINT tokens to buyer (bonding curve creates tokens dynamically)
-        // Factory must be token admin for this to work (set via set_admin after launch)
-        #[cfg(not(test))]
-        {
-            let token_client = token::StellarAssetClient::new(&env, &token);
-            // mint() creates balance entry if it doesn't exist - solves first-time buyer issue
-            token_client.mint(&buyer, &fee_breakdown.net_amount);
+        // ============================================================
+        // CEI PATTERN: EFFECTS - Update all state BEFORE interactions
+        // This prevents reentrancy attacks
+        // ============================================================
+
+        // 10. Update bonding curve state (with gross amount)
+        token_info.bonding_curve.execute_buy(xlm_amount, tokens_gross)?;
+
+        // 11. Get price after trade
+        let price_after = token_info.bonding_curve.get_current_price();
+
+        // 12. Calculate actual slippage
+        let slippage_bps = math::calculate_slippage_bps(price_before, price_after)?;
+
+        // 13. Update total XLM raised
+        token_info.xlm_raised = math::safe_add(token_info.xlm_raised, xlm_amount)?;
+
+        // 14. Update market cap (XLM raised * 2 for constant product)
+        token_info.market_cap = math::safe_mul(token_info.xlm_raised, 2)?;
+
+        // 15. Check for auto-graduation (using configurable threshold)
+        let graduation_threshold = storage::get_graduation_threshold(&env);
+        let should_graduate = token_info.xlm_raised >= graduation_threshold;
+        if should_graduate {
+            Self::graduate_to_amm(&env, &mut token_info)?;
         }
 
-        // 10b. Transfer protocol fee to treasury
+        // 16. Save state BEFORE any external calls
+        storage::set_token_info(&env, &token, &token_info);
+
+        // Record buy for anti-whale tracking (state update)
+        anti_whale::record_buy(&env, &buyer, fee_breakdown.net_amount);
+
+        // ============================================================
+        // CEI PATTERN: INTERACTIONS - External calls AFTER state updates
+        // ============================================================
+
+        // 17. MINT tokens to buyer (bonding curve creates tokens dynamically)
+        // Factory is the token admin for pure Soroban tokens (V2)
+        // For SAC tokens (V1), factory must be set as admin via set_admin after launch
+        #[cfg(not(test))]
+        {
+            // Check if this is a pure Soroban token (empty issuer) or SAC (has issuer)
+            if token_info.issuer.len() == 0 {
+                // Pure Soroban token (V2) - use launchpad_token_client
+                launchpad_token_client::mint(&env, &token, &buyer, fee_breakdown.net_amount);
+            } else {
+                // SAC token (V1) - use StellarAssetClient
+                let token_client = token::StellarAssetClient::new(&env, &token);
+                token_client.mint(&buyer, &fee_breakdown.net_amount);
+            }
+        }
+
+        // 18. Transfer protocol fee to treasury
         #[cfg(not(test))]
         {
             if fee_breakdown.protocol_fee > 0 {
@@ -343,34 +503,10 @@ impl SacFactory {
             }
         }
 
-        // 10c. LP fee stays in bonding curve (already included in reserves)
+        // 19. LP fee stays in bonding curve (already included in reserves)
         if fee_breakdown.lp_fee > 0 {
             events::lp_fee_collected(&env, &token, fee_breakdown.lp_fee);
         }
-
-        // 11. Update bonding curve state (with gross amount)
-        token_info.bonding_curve.execute_buy(xlm_amount, tokens_gross)?;
-
-        // 12. Get price after trade
-        let price_after = token_info.bonding_curve.get_current_price();
-
-        // 13. Calculate actual slippage
-        let slippage_bps = math::calculate_slippage_bps(price_before, price_after)?;
-
-        // 14. Update total XLM raised
-        token_info.xlm_raised = math::safe_add(token_info.xlm_raised, xlm_amount)?;
-
-        // 15. Update market cap (XLM raised * 2 for constant product)
-        token_info.market_cap = math::safe_mul(token_info.xlm_raised, 2)?;
-
-        // 16. Check for auto-graduation (using configurable threshold)
-        let graduation_threshold = storage::get_graduation_threshold(&env);
-        if token_info.xlm_raised >= graduation_threshold {
-            Self::graduate_to_amm(&env, &mut token_info)?;
-        }
-
-        // 17. Save state
-        storage::set_token_info(&env, &token, &token_info);
 
         // 18. Emit events (both basic and detailed)
         events::tokens_bought(&env, &buyer, &token, xlm_amount, fee_breakdown.net_amount);
@@ -387,7 +523,7 @@ impl SacFactory {
             slippage_bps,
         );
 
-        // 18b. Emit fee breakdown event for transparency
+        // 20. Emit fee breakdown event for transparency
         events::fee_breakdown_event(
             &env,
             "BUY",
@@ -398,9 +534,6 @@ impl SacFactory {
             fee_breakdown.lp_fee,
             fee_breakdown.net_amount,
         );
-
-        // 19. Record buy for anti-whale tracking
-        anti_whale::record_buy(&env, &buyer, fee_breakdown.net_amount);
 
         Ok(fee_breakdown.net_amount)
     }
@@ -467,16 +600,47 @@ impl SacFactory {
             return Err(Error::SlippageExceeded);
         }
 
-        // 8. BURN tokens from seller (bonding curve destroys tokens dynamically)
-        // Factory must be token admin for this to work (set via set_admin after launch)
+        // ============================================================
+        // CEI PATTERN: EFFECTS - Update all state BEFORE interactions
+        // This prevents reentrancy attacks
+        // ============================================================
+
+        // 8. Update bonding curve state (using gross amount for reserves)
+        token_info.bonding_curve.execute_sell(xlm_gross, token_amount)?;
+
+        // 9. Update total XLM raised (using safe math)
+        token_info.xlm_raised = math::safe_sub(token_info.xlm_raised, xlm_gross)?;
+
+        // 10. Update market cap
+        token_info.market_cap = math::safe_mul(token_info.xlm_raised, 2)?;
+
+        // 11. Save state BEFORE any external calls
+        storage::set_token_info(&env, &token, &token_info);
+
+        // Record sell for anti-whale tracking (state update)
+        anti_whale::record_sell(&env, &seller, token_amount);
+
+        // ============================================================
+        // CEI PATTERN: INTERACTIONS - External calls AFTER state updates
+        // ============================================================
+
+        // 12. BURN tokens from seller (bonding curve destroys tokens dynamically)
+        // For pure Soroban tokens (V2), factory uses admin_burn
+        // For SAC tokens (V1), factory must be set as admin and uses burn
         #[cfg(not(test))]
         {
-            let token_client = token::StellarAssetClient::new(&env, &token);
-            // burn() requires seller auth which is already done above
-            token_client.burn(&seller, &token_amount);
+            // Check if this is a pure Soroban token (empty issuer) or SAC (has issuer)
+            if token_info.issuer.len() == 0 {
+                // Pure Soroban token (V2) - use admin_burn (factory is admin)
+                launchpad_token_client::admin_burn(&env, &token, &seller, token_amount);
+            } else {
+                // SAC token (V1) - use StellarAssetClient burn (seller already auth'd)
+                let token_client = token::StellarAssetClient::new(&env, &token);
+                token_client.burn(&seller, &token_amount);
+            }
         }
 
-        // 9. CRITICAL FIX: Transfer XLM from contract to seller (net amount after fees)
+        // 13. Transfer XLM from contract to seller (net amount after fees)
         #[cfg(not(test))]
         {
             let xlm_token_address = Self::get_xlm_token_address(&env);
@@ -486,7 +650,7 @@ impl SacFactory {
             xlm_client.transfer(&contract_address, &seller, &fee_breakdown.net_amount);
         }
 
-        // 9b. Transfer protocol fee to treasury (in XLM)
+        // 14. Transfer protocol fee to treasury (in XLM)
         #[cfg(not(test))]
         {
             if fee_breakdown.protocol_fee > 0 {
@@ -500,28 +664,16 @@ impl SacFactory {
             }
         }
 
-        // 9c. LP fee stays in bonding curve (already in XLM reserves)
+        // 15. LP fee stays in bonding curve (already in XLM reserves)
         if fee_breakdown.lp_fee > 0 {
             let xlm_token_address = Self::get_xlm_token_address(&env);
             events::lp_fee_collected(&env, &xlm_token_address, fee_breakdown.lp_fee);
         }
 
-        // 10. Update bonding curve state (using gross amount for reserves)
-        token_info.bonding_curve.execute_sell(xlm_gross, token_amount)?;
-
-        // 11. Update total XLM raised (using safe math)
-        token_info.xlm_raised = math::safe_sub(token_info.xlm_raised, xlm_gross)?;
-
-        // 12. Update market cap
-        token_info.market_cap = math::safe_mul(token_info.xlm_raised, 2)?;
-
-        // 13. Save state
-        storage::set_token_info(&env, &token, &token_info);
-
-        // 14. Emit events (with net amount)
+        // 16. Emit events (with net amount)
         events::tokens_sold(&env, &seller, &token, token_amount, fee_breakdown.net_amount);
 
-        // 14b. Emit fee breakdown event for transparency
+        // 17. Emit fee breakdown event for transparency
         events::fee_breakdown_event(
             &env,
             "SELL",
@@ -532,9 +684,6 @@ impl SacFactory {
             fee_breakdown.lp_fee,
             fee_breakdown.net_amount,
         );
-
-        // 15. Record sell for anti-whale tracking
-        anti_whale::record_sell(&env, &seller, token_amount);
 
         Ok(fee_breakdown.net_amount)
     }
@@ -776,6 +925,26 @@ impl SacFactory {
         Ok(())
     }
 
+    /// Set Launchpad Token WASM hash for new token deployment (Owner only)
+    ///
+    /// This enables deploying pure Soroban tokens (not SAC) that the factory
+    /// can freely mint/burn without classic asset issuer restrictions.
+    ///
+    /// # Arguments
+    /// * `admin` - Owner address
+    /// * `wasm_hash` - WASM hash of the launchpad-token contract
+    pub fn set_token_wasm_hash(env: Env, admin: Address, wasm_hash: soroban_sdk::BytesN<32>) -> Result<(), Error> {
+        admin.require_auth();
+
+        // Only owner can set token WASM hash
+        access_control::require_role(&env, &admin, access_control::Role::Owner)?;
+
+        // Store WASM hash
+        storage::set_token_wasm_hash(&env, &wasm_hash);
+
+        Ok(())
+    }
+
     /// Get AMM pair address for a graduated token
     ///
     /// # Arguments
@@ -998,6 +1167,47 @@ impl SacFactory {
         anti_whale::get_wallet_holdings(&env, &wallet)
     }
 
+    /// Reset wallet holdings tracking to a specific value (Owner only)
+    ///
+    /// This is useful for fixing desynchronization between internal tracking
+    /// and actual token balances. Use this when a wallet's tracked holdings
+    /// don't match their actual token balance.
+    ///
+    /// # Arguments
+    /// * `admin` - Owner address
+    /// * `wallet` - Wallet address to reset
+    /// * `actual_balance` - The actual token balance (get from token.balance())
+    ///
+    /// # Example
+    /// If a wallet has 1000 tokens but internal tracking shows 50000:
+    /// ```
+    /// reset_wallet_holdings(admin, wallet, 1000_0000000) // 1000 tokens with 7 decimals
+    /// ```
+    pub fn reset_wallet_holdings(
+        env: Env,
+        admin: Address,
+        wallet: Address,
+        actual_balance: i128,
+    ) -> Result<(), Error> {
+        anti_whale::reset_wallet_holdings(&env, &admin, &wallet, actual_balance)
+    }
+
+    /// Clear wallet holdings tracking completely (Owner only)
+    ///
+    /// Sets tracked holdings to 0 and clears the last buy timestamp.
+    /// Use this for a complete reset when desync is severe.
+    ///
+    /// # Arguments
+    /// * `admin` - Owner address
+    /// * `wallet` - Wallet address to clear
+    pub fn clear_wallet_holdings(
+        env: Env,
+        admin: Address,
+        wallet: Address,
+    ) -> Result<(), Error> {
+        anti_whale::clear_wallet_holdings(&env, &admin, &wallet)
+    }
+
     // ========== ASTRO Token Integration ==========
 
     /// Configure ASTRO token integration (Owner only)
@@ -1155,6 +1365,7 @@ impl SacFactory {
     }
 
     /// Deploy a real SAC token using client-provided serialized asset
+    /// LEGACY: Use deploy_launchpad_token for new deployments
     fn deploy_sac_token(
         env: &Env,
         serialized_asset: Bytes,
@@ -1162,6 +1373,41 @@ impl SacFactory {
         // Deploy REAL SAC token using Stellar's built-in deployer
         // The serialized_asset is created and validated by the client
         sac_deployment::deploy_sac_from_serialized_asset(env, serialized_asset)
+    }
+
+    /// Deploy a pure Soroban token (not SAC) with factory as admin
+    /// This allows the factory to mint/burn freely without SAC issuer restrictions
+    fn deploy_launchpad_token(
+        env: &Env,
+        name: &String,
+        symbol: &String,
+        salt: soroban_sdk::BytesN<32>,
+    ) -> Result<Address, Error> {
+        // Get token WASM hash (must be set via set_token_wasm_hash)
+        if !storage::has_token_wasm_hash(env) {
+            return Err(Error::TokenWasmNotSet);
+        }
+        let wasm_hash = storage::get_token_wasm_hash(env);
+
+        // Deploy token contract using WASM hash
+        // Use with_address with current contract as the deployer
+        let factory_addr = env.current_contract_address();
+        let token_address = env.deployer()
+            .with_address(factory_addr.clone(), salt)
+            .deploy_v2(wasm_hash, ());
+
+        // Initialize token with factory as admin
+        let factory_address = env.current_contract_address();
+        launchpad_token_client::initialize_token(
+            env,
+            &token_address,
+            &factory_address,
+            7,  // 7 decimals (Stellar standard)
+            name,
+            symbol,
+        );
+
+        Ok(token_address)
     }
 
     /// Graduate token to AMM with Dual-Pool System
@@ -1806,5 +2052,45 @@ impl SacFactory {
         }
 
         failed_tokens
+    }
+
+    // ========== Contract Upgrade ==========
+
+    /// Upgrade the contract code in-place (Owner only)
+    ///
+    /// This enables scalable contract upgrades without redeploying:
+    /// - Preserves contract address
+    /// - Preserves all storage/state
+    /// - Only changes the executable code
+    ///
+    /// # Arguments
+    /// * `admin` - Owner address (must have Owner role)
+    /// * `new_wasm_hash` - WASM hash of the new contract code (must be uploaded first)
+    ///
+    /// # Process
+    /// 1. Upload new WASM: `stellar contract upload --wasm new_contract.wasm`
+    /// 2. Call this function with the returned hash
+    /// 3. Contract code updates after invocation completes
+    ///
+    /// # Security
+    /// - Only Owner can upgrade
+    /// - Emits system event for transparency
+    /// - Old contract code remains in ledger (can rollback if needed)
+    pub fn upgrade(env: Env, admin: Address, new_wasm_hash: BytesN<32>) -> Result<(), Error> {
+        admin.require_auth();
+
+        // Only Owner can upgrade the contract
+        access_control::require_role(&env, &admin, access_control::Role::Owner)?;
+
+        // Update the contract's WASM code
+        // This takes effect after the current invocation completes
+        env.deployer().update_current_contract_wasm(new_wasm_hash);
+
+        Ok(())
+    }
+
+    /// Get the current contract version (useful for tracking upgrades)
+    pub fn version() -> u32 {
+        5 // V5: Added upgrade capability
     }
 }

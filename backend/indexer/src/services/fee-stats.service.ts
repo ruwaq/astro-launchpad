@@ -16,7 +16,7 @@
  */
 
 import { PrismaClient, Prisma } from '@astroshibapop/shared/prisma';
-// @ts-expect-error - Importing from indexer lib (architectural issue to fix later)
+// @ts-ignore - Cross-package import (resolved at runtime)
 import { logger } from '../lib/logger.js';
 import type { FeeStats } from '@astroshibapop/shared/types';
 

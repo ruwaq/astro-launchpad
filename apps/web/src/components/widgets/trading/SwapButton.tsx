@@ -35,10 +35,10 @@ export function SwapButton({
   const getButtonText = () => {
     if (isProcessing) {
       return (
-        <div className="flex items-center justify-center gap-2">
-          <Loader2 className="h-5 w-5 animate-spin" />
+        <span className="flex items-center justify-center gap-2">
+          <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
           Processing...
-        </div>
+        </span>
       );
     }
     if (!isConnected) return 'Connect Wallet';
@@ -47,10 +47,22 @@ export function SwapButton({
     return `Swap ${tradeType === 'buy' ? 'XLM' : selectedToken.symbol}`;
   };
 
+  const getAriaLabel = () => {
+    if (isProcessing) return 'Processing transaction, please wait';
+    if (!isConnected) return 'Connect your wallet to trade';
+    if (!selectedToken) return 'Select a token to trade';
+    if (isTestnetOnly) return 'Demo mode - simulated prices only';
+    const action = tradeType === 'buy' ? 'Buy' : 'Sell';
+    return `${action} ${selectedToken.symbol} tokens`;
+  };
+
   return (
     <button
       onClick={onClick}
       disabled={isDisabled}
+      aria-label={getAriaLabel()}
+      aria-busy={isProcessing}
+      aria-disabled={isDisabled}
       className={`w-full py-3 rounded-lg font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
         tradeType === 'buy'
           ? 'bg-green-500 hover:bg-green-600 text-white'

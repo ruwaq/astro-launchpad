@@ -1,6 +1,9 @@
 /**
  * Network Configuration
- * Modular system para fácil migración de testnet a mainnet
+ * Modular system for testnet/mainnet switching
+ *
+ * IMPORTANT: This is the canonical network configuration.
+ * Uses standardized environment variable names from root .env
  */
 
 export type NetworkType = 'testnet' | 'mainnet';
@@ -10,30 +13,65 @@ export interface NetworkConfig {
   contractId: string;
   rpcUrl: string;
   horizonUrl: string;
+  /** Network passphrase - use either `passphrase` or `networkPassphrase` */
   passphrase: string;
+  /** Alias for passphrase - for compatibility with Stellar SDK naming */
+  networkPassphrase: string;
 }
+
+/**
+ * Get contract ID from environment with fallback to legacy variable names
+ */
+function getContractId(network: 'testnet' | 'mainnet'): string {
+  if (network === 'testnet') {
+    return (
+      process.env.NEXT_PUBLIC_TOKEN_FACTORY_CONTRACT_ID ||
+      process.env.NEXT_PUBLIC_TESTNET_CONTRACT_ID ||
+      ''
+    );
+  }
+  return process.env.NEXT_PUBLIC_MAINNET_CONTRACT_ID || '';
+}
+
+const TESTNET_PASSPHRASE = 'Test SDF Network ; September 2015';
+const MAINNET_PASSPHRASE = 'Public Global Stellar Network ; September 2015';
 
 const TESTNET_CONFIG: NetworkConfig = {
   name: 'Testnet',
-  contractId: process.env.NEXT_PUBLIC_TESTNET_CONTRACT_ID || '',
-  rpcUrl: process.env.NEXT_PUBLIC_TESTNET_RPC_URL || 'https://soroban-testnet.stellar.org',
-  horizonUrl: process.env.NEXT_PUBLIC_TESTNET_HORIZON_URL || 'https://horizon-testnet.stellar.org',
-  passphrase: process.env.NEXT_PUBLIC_TESTNET_PASSPHRASE || 'Test SDF Network ; September 2015',
+  contractId: getContractId('testnet'),
+  rpcUrl:
+    process.env.NEXT_PUBLIC_STELLAR_RPC_URL ||
+    process.env.NEXT_PUBLIC_TESTNET_RPC_URL ||
+    'https://soroban-testnet.stellar.org',
+  horizonUrl:
+    process.env.NEXT_PUBLIC_TESTNET_HORIZON_URL ||
+    'https://horizon-testnet.stellar.org',
+  passphrase: TESTNET_PASSPHRASE,
+  networkPassphrase: TESTNET_PASSPHRASE,
 };
 
 const MAINNET_CONFIG: NetworkConfig = {
   name: 'Mainnet',
-  contractId: process.env.NEXT_PUBLIC_MAINNET_CONTRACT_ID || '',
-  rpcUrl: process.env.NEXT_PUBLIC_MAINNET_RPC_URL || 'https://soroban.stellar.org',
-  horizonUrl: process.env.NEXT_PUBLIC_MAINNET_HORIZON_URL || 'https://horizon.stellar.org',
-  passphrase: process.env.NEXT_PUBLIC_MAINNET_PASSPHRASE || 'Public Global Stellar Network ; September 2015',
+  contractId: getContractId('mainnet'),
+  rpcUrl:
+    process.env.NEXT_PUBLIC_MAINNET_RPC_URL ||
+    'https://soroban.stellar.org',
+  horizonUrl:
+    process.env.NEXT_PUBLIC_MAINNET_HORIZON_URL ||
+    'https://horizon.stellar.org',
+  passphrase: MAINNET_PASSPHRASE,
+  networkPassphrase: MAINNET_PASSPHRASE,
 };
 
 /**
  * Get current network from environment
  */
 export function getCurrentNetwork(): NetworkType {
-  const network = process.env.NEXT_PUBLIC_NETWORK as NetworkType;
+  const network = (
+    process.env.NEXT_PUBLIC_NETWORK ||
+    process.env.NEXT_PUBLIC_STELLAR_NETWORK
+  ) as NetworkType;
+
   if (network !== 'testnet' && network !== 'mainnet') {
     console.warn(`Invalid NEXT_PUBLIC_NETWORK: ${network}. Defaulting to testnet.`);
     return 'testnet';

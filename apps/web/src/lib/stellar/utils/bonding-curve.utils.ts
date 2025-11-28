@@ -42,9 +42,24 @@ export function calculateBuyOutput(
   curve: NormalizedBondingCurve,
   xlmAmount: bigint
 ): BondingCurveOutput {
+  // SAFETY: Validate curve state before calculations
+  if (!curve || !curve.xlm_reserve || !curve.token_reserve || !curve.k) {
+    return { amountOut: 0n, priceImpact: 0, effectivePrice: 0n };
+  }
+
   const xlmReserve = BigInt(curve.xlm_reserve);
   const tokenReserve = BigInt(curve.token_reserve);
   const k = BigInt(curve.k);
+
+  // SAFETY: Validate reserves are positive to prevent division by zero
+  if (xlmReserve <= 0n || tokenReserve <= 0n || k <= 0n) {
+    return { amountOut: 0n, priceImpact: 0, effectivePrice: 0n };
+  }
+
+  // SAFETY: Validate input amount
+  if (xlmAmount <= 0n) {
+    return { amountOut: 0n, priceImpact: 0, effectivePrice: 0n };
+  }
 
   // New reserves after trade
   const newXlmReserve = xlmReserve + xlmAmount;
@@ -82,9 +97,24 @@ export function calculateSellOutput(
   curve: NormalizedBondingCurve,
   tokenAmount: bigint
 ): BondingCurveOutput {
+  // SAFETY: Validate curve state before calculations
+  if (!curve || !curve.xlm_reserve || !curve.token_reserve || !curve.k) {
+    return { amountOut: 0n, priceImpact: 0, effectivePrice: 0n };
+  }
+
   const xlmReserve = BigInt(curve.xlm_reserve);
   const tokenReserve = BigInt(curve.token_reserve);
   const k = BigInt(curve.k);
+
+  // SAFETY: Validate reserves are positive to prevent division by zero
+  if (xlmReserve <= 0n || tokenReserve <= 0n || k <= 0n) {
+    return { amountOut: 0n, priceImpact: 0, effectivePrice: 0n };
+  }
+
+  // SAFETY: Validate input amount
+  if (tokenAmount <= 0n) {
+    return { amountOut: 0n, priceImpact: 0, effectivePrice: 0n };
+  }
 
   // New reserves after trade
   const newTokenReserve = tokenReserve + tokenAmount;

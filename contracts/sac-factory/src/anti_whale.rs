@@ -362,3 +362,63 @@ pub fn get_fee_tiers(env: &Env) -> Vec<(i128, i128)> {
 
     tiers
 }
+
+/// Reset wallet holdings tracking to a specific value (Owner only)
+///
+/// This is useful for fixing desynchronization between internal tracking
+/// and actual token balances. The actual_balance should be obtained from
+/// the token contract's balance() function.
+///
+/// # Arguments
+/// * `env` - Contract environment
+/// * `admin` - Owner address
+/// * `wallet` - Wallet address to reset
+/// * `actual_balance` - The actual token balance from the token contract
+///
+/// # Note
+/// This does NOT change actual token balances - it only updates the
+/// internal tracking used for anti-whale validation.
+pub fn reset_wallet_holdings(
+    env: &Env,
+    admin: &Address,
+    wallet: &Address,
+    actual_balance: i128,
+) -> Result<(), Error> {
+    admin.require_auth();
+
+    // Only Owner can reset holdings
+    access_control::require_role(env, admin, access_control::Role::Owner)?;
+
+    // Validate balance is non-negative
+    if actual_balance < 0 {
+        return Err(Error::InvalidAmount);
+    }
+
+    // Update the internal holdings tracking
+    update_wallet_holdings(env, wallet, actual_balance);
+
+    Ok(())
+}
+
+/// Clear wallet holdings tracking completely (set to 0) - Owner only
+///
+/// Use this when you need to completely reset a wallet's tracked holdings.
+pub fn clear_wallet_holdings(
+    env: &Env,
+    admin: &Address,
+    wallet: &Address,
+) -> Result<(), Error> {
+    admin.require_auth();
+
+    // Only Owner can clear holdings
+    access_control::require_role(env, admin, access_control::Role::Owner)?;
+
+    // Set holdings to 0
+    update_wallet_holdings(env, wallet, 0);
+
+    // Also clear the last buy time
+    let key = AntiWhaleKey::LastBuyTime(wallet.clone());
+    env.storage().persistent().remove(&key);
+
+    Ok(())
+}

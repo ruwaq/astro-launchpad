@@ -7,7 +7,11 @@ import { IncomingMessage } from 'http';
 import { prisma } from '../lib/prisma.js';
 import type { PrismaClientWithAdapter } from '../lib/prisma.js';
 import { createLoaders, type DataLoaders } from './loaders.js';
-import { StrKey } from '@stellar/stellar-base';
+import { StrKey, Keypair } from '@stellar/stellar-base';
+
+// Configuration for signature verification
+// SECURITY: Reduced from 5 minutes to 30 seconds to minimize replay attack window
+const SIGNATURE_MAX_AGE_MS = 30 * 1000; // 30 seconds - production-secure
 
 /**
  * GraphQL Context Interface
@@ -55,34 +59,48 @@ export async function createContext(
  */
 function extractUser(request: IncomingMessage): { address: string; authenticated: boolean; isAdmin?: boolean } | undefined {
   try {
-    // Method 1: Bearer token authentication
-    const authHeader = request.headers['authorization'];
-    if (authHeader?.startsWith('Bearer ')) {
-      const token = authHeader.substring(7);
-
-      // For now, the token IS the Stellar address (simple auth)
-      // In production, use JWT with signature verification
-      if (isValidStellarAddress(token)) {
-        const isAdmin = checkAdminStatus(token);
-        return { address: token, authenticated: true, isAdmin };
-      }
-    }
-
-    // Method 2: X-Stellar-Address header (wallet-signed requests)
+    // Method 1: X-Stellar-Address header with signature verification
+    // SECURITY: Always requires signature to prevent spoofing
     const stellarAddress = request.headers['x-stellar-address'];
     if (stellarAddress) {
       const address = Array.isArray(stellarAddress) ? stellarAddress[0] : stellarAddress;
 
       if (isValidStellarAddress(address)) {
-        // Optionally verify signature from X-Stellar-Signature header
         const signature = request.headers['x-stellar-signature'];
-        if (signature) {
-          // TODO: Verify signature against message (e.g., timestamp + address)
-          // For now, just validate the address format
+        const timestamp = request.headers['x-stellar-timestamp'];
+
+        // SECURITY: Signature is REQUIRED for authentication
+        if (signature && timestamp) {
+          const signatureStr = Array.isArray(signature) ? signature[0] : signature;
+          const timestampStr = Array.isArray(timestamp) ? timestamp[0] : timestamp;
+
+          const verificationResult = verifyStellarSignature(address, signatureStr, timestampStr);
+          if (verificationResult.valid) {
+            const isAdmin = checkAdminStatus(address);
+            return { address, authenticated: true, isAdmin };
+          }
+          // Invalid signature - log and reject completely
+          console.warn(`[Auth] Invalid signature for address ${address}: ${verificationResult.error}`);
+          return undefined;
         }
 
-        const isAdmin = checkAdminStatus(address);
-        return { address, authenticated: true, isAdmin };
+        // SECURITY: No signature provided - reject authentication entirely
+        // User must sign to prove ownership of address
+        // This prevents address spoofing attacks
+        return undefined;
+      }
+    }
+
+    // Method 2: Bearer token (legacy - for read-only access indication only)
+    // SECURITY: NOT AUTHENTICATED - only used for UX hints, not for actual auth
+    const authHeader = request.headers['authorization'];
+    if (authHeader?.startsWith('Bearer ')) {
+      const token = authHeader.substring(7);
+
+      // WARNING: This does NOT prove ownership - only for UI display
+      // Mutations MUST check requireAuth() which will fail without signature
+      if (isValidStellarAddress(token)) {
+        return { address: token, authenticated: false, isAdmin: false };
       }
     }
 
@@ -138,6 +156,75 @@ function isValidStellarAddress(address: string): boolean {
 function checkAdminStatus(address: string): boolean {
   const adminAddresses = process.env.ADMIN_ADDRESSES?.split(',').map(a => a.trim()) || [];
   return adminAddresses.includes(address);
+}
+
+/**
+ * Verify Stellar signature for authentication
+ * The message format is: "stellar:auth:{address}:{timestamp}"
+ *
+ * @param address - The claimed Stellar address (G...)
+ * @param signature - Base64-encoded Ed25519 signature
+ * @param timestamp - Unix timestamp in milliseconds as string
+ * @returns Verification result with valid flag and optional error
+ */
+function verifyStellarSignature(
+  address: string,
+  signature: string,
+  timestamp: string
+): { valid: boolean; error?: string } {
+  try {
+    // 1. Validate timestamp is recent (prevent replay attacks)
+    const timestampMs = parseInt(timestamp, 10);
+    if (isNaN(timestampMs)) {
+      return { valid: false, error: 'Invalid timestamp format' };
+    }
+
+    const now = Date.now();
+    const age = now - timestampMs;
+
+    if (age < 0) {
+      return { valid: false, error: 'Timestamp is in the future' };
+    }
+
+    if (age > SIGNATURE_MAX_AGE_MS) {
+      return { valid: false, error: `Signature expired (age: ${Math.round(age / 1000)}s)` };
+    }
+
+    // 2. Construct the message that was signed
+    // Format: "stellar:auth:{address}:{timestamp}"
+    const message = `stellar:auth:${address}:${timestamp}`;
+    const messageBuffer = Buffer.from(message, 'utf8');
+
+    // 3. Decode the signature from base64
+    let signatureBuffer: Buffer;
+    try {
+      signatureBuffer = Buffer.from(signature, 'base64');
+    } catch {
+      return { valid: false, error: 'Invalid signature encoding (expected base64)' };
+    }
+
+    // Ed25519 signatures are 64 bytes
+    if (signatureBuffer.length !== 64) {
+      return { valid: false, error: `Invalid signature length: ${signatureBuffer.length} (expected 64)` };
+    }
+
+    // 4. Get the public key from the address and verify
+    // Stellar G... addresses encode Ed25519 public keys
+    if (!address.startsWith('G')) {
+      return { valid: false, error: 'Only G... addresses support signature verification' };
+    }
+
+    const keypair = Keypair.fromPublicKey(address);
+    const isValid = keypair.verify(messageBuffer, signatureBuffer);
+
+    if (!isValid) {
+      return { valid: false, error: 'Signature verification failed' };
+    }
+
+    return { valid: true };
+  } catch (error: any) {
+    return { valid: false, error: `Verification error: ${error.message}` };
+  }
 }
 
 /**

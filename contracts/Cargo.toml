@@ -8,6 +8,11 @@ members = [
     "treasury-vault",
 ]
 
+exclude = [
+    "sac-factory",
+    "launchpad-token",
+]
+
 [workspace.package]
 version = "1.0.0"
 edition = "2021"

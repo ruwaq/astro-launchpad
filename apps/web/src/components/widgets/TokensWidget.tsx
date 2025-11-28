@@ -5,6 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useTrendingTokens } from '@/hooks/useApi';
 import { formatCompactNumber } from '@/lib/stellar/utils';
+import type { Token } from '@/lib/graphql/types';
 
 export function TokensWidget() {
   // Fetch trending tokens (ALL tokens from platform, not filtered by user)
@@ -42,7 +43,7 @@ export function TokensWidget() {
         {tokens.length === 0 ? (
           <p className="text-center text-gray-500 py-8">No tokens yet</p>
         ) : (
-          tokens.map((token: any, index: number) => {
+          tokens.map((token: Token, index: number) => {
             const priceChange = parseFloat(token.priceChange24h);
             const isPositive = priceChange >= 0;
 

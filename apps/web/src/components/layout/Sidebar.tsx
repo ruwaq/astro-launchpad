@@ -24,14 +24,19 @@ export function Sidebar() {
       {/* Mobile menu button */}
       <button
         onClick={() => setMobileOpen(!mobileOpen)}
+        aria-expanded={mobileOpen}
+        aria-controls="main-navigation"
+        aria-label={mobileOpen ? 'Close navigation menu' : 'Open navigation menu'}
         className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-brand-primary text-white rounded-lg shadow-lg"
       >
-        {mobileOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+        {mobileOpen ? <X className="h-6 w-6" aria-hidden="true" /> : <Menu className="h-6 w-6" aria-hidden="true" />}
       </button>
 
       {/* Overlay for mobile */}
       {mobileOpen && (
         <div
+          role="presentation"
+          aria-hidden="true"
           className="lg:hidden fixed inset-0 bg-black/50 z-40"
           onClick={() => setMobileOpen(false)}
         />
@@ -39,6 +44,9 @@ export function Sidebar() {
 
       {/* Sidebar */}
       <aside
+        id="main-navigation"
+        role="navigation"
+        aria-label="Main navigation"
         className={`
           fixed inset-y-0 left-0 z-40 w-64 bg-white border-r border-ui-border
           transform transition-transform duration-200 ease-in-out
@@ -69,7 +77,7 @@ export function Sidebar() {
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 p-4 space-y-1">
+          <nav className="flex-1 p-4 space-y-1" aria-label="Primary">
             {navigation.map((item) => {
               const isActive = pathname === item.href;
               const Icon = item.icon;

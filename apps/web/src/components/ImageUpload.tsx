@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import NextImage from 'next/image';
 import { Upload, X, Loader2, CheckCircle2, AlertCircle, Info, Crop } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -42,12 +42,31 @@ interface ImageValidationResult {
   isSquare?: boolean;
 }
 
+// Helper to convert IPFS URL to gateway URL for browser display
+function ipfsToGateway(url: string | undefined): string {
+  if (!url) return '';
+  if (url.startsWith('ipfs://')) {
+    const cid = url.replace('ipfs://', '');
+    return `https://gateway.pinata.cloud/ipfs/${cid}`;
+  }
+  return url;
+}
+
 export function ImageUpload({ value, onChange, disabled }: ImageUploadProps) {
   const [isUploading, setIsUploading] = useState(false);
-  const [previewUrl, setPreviewUrl] = useState<string>(value || '');
+  // Initialize with gateway URL if value is IPFS URL
+  const [previewUrl, setPreviewUrl] = useState<string>(() => ipfsToGateway(value));
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
   const [imageDimensions, setImageDimensions] = useState<{ width: number; height: number } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Sync previewUrl with value prop (for form restoration after reload)
+  // Only sync when NOT uploading and we don't already have a preview
+  useEffect(() => {
+    if (value && !isUploading && !previewUrl) {
+      setPreviewUrl(ipfsToGateway(value));
+    }
+  }, [value, previewUrl, isUploading]);
 
   /**
    * Validate image dimensions by loading it
@@ -147,12 +166,21 @@ export function ImageUpload({ value, onChange, disabled }: ImageUploadProps) {
       toast(validation.warning, { icon: '✂️', duration: 3000 });
     }
 
-    // Show preview immediately
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setPreviewUrl(reader.result as string);
-    };
-    reader.readAsDataURL(file);
+    // Show preview immediately using a Promise to ensure it's set before upload
+    const previewDataUrl = await new Promise<string>((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        resolve(reader.result as string);
+      };
+      reader.onerror = () => {
+        resolve(''); // Empty on error
+      };
+      reader.readAsDataURL(file);
+    });
+
+    if (previewDataUrl) {
+      setPreviewUrl(previewDataUrl);
+    }
 
     // Upload to IPFS
     await uploadToIPFS(file);
@@ -194,16 +222,20 @@ export function ImageUpload({ value, onChange, disabled }: ImageUploadProps) {
       setUploadStatus('error');
       toast.error(error.message || 'Failed to upload image to IPFS');
 
-      // Clear preview on error
-      setPreviewUrl('');
+      // Don't clear preview on error - user can see what they selected and retry
+      // Only clear the onChange value so form knows upload failed
       onChange('');
 
-      // Reset after 3 seconds
+      // Reset status after 3 seconds so user can try again
       setTimeout(() => {
         setUploadStatus('idle');
       }, 3000);
     } finally {
       setIsUploading(false);
+      // Reset file input to allow re-selecting the same file
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     }
   };
 
@@ -218,6 +250,10 @@ export function ImageUpload({ value, onChange, disabled }: ImageUploadProps) {
 
   const handleClick = () => {
     if (!disabled && !isUploading) {
+      // Reset input value to allow re-selecting the same file
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
       fileInputRef.current?.click();
     }
   };
@@ -263,7 +299,7 @@ export function ImageUpload({ value, onChange, disabled }: ImageUploadProps) {
         >
           <div className="flex flex-col items-center justify-center gap-3">
             {uploadStatus === 'uploading' ? (
-              <Loader2 className="h-12 w-12 text-brand-primary animate-spin" />
+              <Loader2 className="h-12 w-12 text-brand-primary animate-spin" aria-label="Uploading image" />
             ) : uploadStatus === 'success' ? (
               <CheckCircle2 className="h-12 w-12 text-green-600" />
             ) : uploadStatus === 'error' ? (
@@ -318,7 +354,7 @@ export function ImageUpload({ value, onChange, disabled }: ImageUploadProps) {
             <div className="absolute bottom-2 left-2 px-3 py-1 rounded-full bg-white/90 backdrop-blur-sm flex items-center gap-2 shadow-lg">
               {uploadStatus === 'uploading' && (
                 <>
-                  <Loader2 className="h-4 w-4 text-blue-600 animate-spin" />
+                  <Loader2 className="h-4 w-4 text-blue-600 animate-spin" aria-hidden="true" />
                   <span className="text-sm font-medium text-blue-900">Uploading...</span>
                 </>
               )}

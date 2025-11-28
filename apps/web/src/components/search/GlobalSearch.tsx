@@ -1,16 +1,40 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import Image from 'next/image';
 import { useSearch } from '@/hooks/useApi';
 import { truncateAddress, formatCompactNumber } from '@/lib/stellar/utils';
 import Link from 'next/link';
+import type { Token, Pool } from '@/lib/graphql/types';
+
+/**
+ * Custom hook for debouncing values
+ * PERFORMANCE: Prevents API flood on every keystroke
+ */
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+}
 
 export function GlobalSearch() {
   const [query, setQuery] = useState('');
   const [isOpen, setIsOpen] = useState(false);
-  const { search, data, loading } = useSearch();
+  const { search, data, loading, error } = useSearch();
   const wrapperRef = useRef<HTMLDivElement>(null);
+
+  // PERFORMANCE: Debounce search query to prevent API flood
+  const debouncedQuery = useDebounce(query, 300);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -24,17 +48,21 @@ export function GlobalSearch() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleSearch = (value: string) => {
-    // Sanitize input: only allow alphanumeric, spaces, and common symbols
-    const sanitizedValue = value.replace(/[<>'"&]/g, '').slice(0, 100);
-    setQuery(sanitizedValue);
-    if (sanitizedValue.length >= 2) {
-      search(sanitizedValue);
+  // PERFORMANCE: Execute search only when debounced query changes
+  useEffect(() => {
+    if (debouncedQuery.length >= 2) {
+      search(debouncedQuery);
       setIsOpen(true);
     } else {
       setIsOpen(false);
     }
-  };
+  }, [debouncedQuery, search]);
+
+  const handleSearch = useCallback((value: string) => {
+    // Sanitize input: only allow alphanumeric, spaces, and common symbols
+    const sanitizedValue = value.replace(/[<>'"&]/g, '').slice(0, 100);
+    setQuery(sanitizedValue);
+  }, []);
 
   const tokens = data?.search.tokens || [];
   const pools = data?.search.pools || [];
@@ -68,13 +96,23 @@ export function GlobalSearch() {
 
       {/* Results Dropdown */}
       {isOpen && (
-        <div className="absolute z-50 w-full mt-2 bg-white rounded-lg shadow-lg border border-gray-200 max-h-96 overflow-y-auto">
+        <div
+          className="absolute z-50 w-full mt-2 bg-white rounded-lg shadow-lg border border-gray-200 max-h-96 overflow-y-auto"
+          role="listbox"
+          aria-label="Search results"
+        >
           {loading ? (
-            <div className="p-4 text-center text-gray-500">
+            <div className="p-4 text-center text-gray-500" aria-live="polite">
+              <span className="sr-only">Searching</span>
               Searching...
             </div>
+          ) : error ? (
+            <div className="p-4 text-center text-red-500" role="alert">
+              <p className="font-medium">Search failed</p>
+              <p className="text-sm text-red-400">Please try again later</p>
+            </div>
           ) : !hasResults && query.length >= 2 ? (
-            <div className="p-4 text-center text-gray-500">
+            <div className="p-4 text-center text-gray-500" aria-live="polite">
               No results found for &quot;{query}&quot;
             </div>
           ) : (
@@ -85,7 +123,7 @@ export function GlobalSearch() {
                   <div className="px-4 py-2 bg-gray-50 text-xs font-medium text-gray-500 uppercase">
                     Tokens
                   </div>
-                  {tokens.map((token: any) => (
+                  {tokens.map((token: Token) => (
                     <Link
                       key={token.address}
                       href={`/explore?token=${token.address}`}
@@ -133,7 +171,7 @@ export function GlobalSearch() {
                   <div className="px-4 py-2 bg-gray-50 text-xs font-medium text-gray-500 uppercase">
                     Pools
                   </div>
-                  {pools.map((pool: any) => (
+                  {pools.map((pool: Pool) => (
                     <Link
                       key={pool.address}
                       href={`/pools?pool=${pool.address}`}

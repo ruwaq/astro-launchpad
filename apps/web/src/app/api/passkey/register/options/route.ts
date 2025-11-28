@@ -2,6 +2,7 @@
  * Passkey Registration Options API
  *
  * Generates WebAuthn registration options for creating new passkeys
+ * Uses stateless HMAC-signed challenge tokens for serverless compatibility
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -9,15 +10,53 @@ import {
   generateRegistrationOptions,
   type GenerateRegistrationOptionsOpts,
 } from '@simplewebauthn/server';
+import crypto from 'crypto';
 
 // In production, store these in environment variables
 const RP_NAME = process.env.NEXT_PUBLIC_APP_NAME || 'Astro Shiba';
 const RP_ID = process.env.NEXT_PUBLIC_RP_ID || 'localhost';
-const ORIGIN = process.env.NEXT_PUBLIC_ORIGIN || 'http://localhost:3000';
 
-// In production, use a database to store challenges
-// For demo, we use a simple in-memory map (will be lost on restart)
-const challengeStore = new Map<string, { challenge: string; expiresAt: number }>();
+// Secret for signing challenge tokens (MUST be set in production)
+// SECURITY: In production, this MUST be set via environment variable
+function getSecretKey(): string {
+  const secret = process.env.PASSKEY_CHALLENGE_SECRET;
+
+  if (secret) {
+    return secret;
+  }
+
+  // In production, require the secret (checked at runtime, not build time)
+  if (process.env.NODE_ENV === 'production') {
+    console.error('CRITICAL: PASSKEY_CHALLENGE_SECRET environment variable is required in production');
+    throw new Error('Server configuration error');
+  }
+
+  // Development-only insecure fallback
+  return 'dev-only-insecure-secret-' + (process.pid || 'build');
+}
+
+/**
+ * Sign a challenge with expiration for stateless verification
+ * Returns: base64url encoded JSON { challenge, userId, expiresAt, signature }
+ */
+function signChallenge(challenge: string, userId: string): string {
+  const expiresAt = Date.now() + 5 * 60 * 1000; // 5 minutes
+  const payload = JSON.stringify({ challenge, userId, expiresAt });
+
+  // Create HMAC signature
+  const signature = crypto
+    .createHmac('sha256', getSecretKey())
+    .update(payload)
+    .digest('base64url');
+
+  // Combine payload + signature
+  const token = Buffer.from(JSON.stringify({
+    payload,
+    signature,
+  })).toString('base64url');
+
+  return token;
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -42,10 +81,8 @@ export async function POST(request: NextRequest) {
       userName: username,
       userDisplayName: username,
       // Stellar uses secp256r1 (ES256, alg -7)
-      // This is the CRITICAL part that makes Stellar compatible
       attestationType: 'none',
       authenticatorSelection: {
-        // Platform authenticators (FaceID, TouchID, Windows Hello)
         authenticatorAttachment: 'platform',
         requireResidentKey: true,
         residentKey: 'required',
@@ -58,20 +95,14 @@ export async function POST(request: NextRequest) {
 
     const registrationOptions = await generateRegistrationOptions(options);
 
-    // Store challenge for verification (expires in 5 minutes)
-    challengeStore.set(userId, {
-      challenge: registrationOptions.challenge,
-      expiresAt: Date.now() + 5 * 60 * 1000,
+    // Create stateless signed challenge token
+    const challengeToken = signChallenge(registrationOptions.challenge, userId);
+
+    return NextResponse.json({
+      ...registrationOptions,
+      // Include the signed token for the client to send back
+      challengeToken,
     });
-
-    // Clean up expired challenges
-    for (const [id, data] of challengeStore.entries()) {
-      if (data.expiresAt < Date.now()) {
-        challengeStore.delete(id);
-      }
-    }
-
-    return NextResponse.json(registrationOptions);
   } catch (error: any) {
     console.error('Error generating registration options:', error);
     return NextResponse.json(

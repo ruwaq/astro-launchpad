@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * DataLoader Implementations
  * Batches and caches database queries to prevent N+1 query problems
@@ -30,7 +29,7 @@ function createTokenLoader(prisma) {
         // Create a map for O(1) lookups
         const tokenMap = new Map(tokens.map((token) => [token.address, token]));
         // Return tokens in the same order as requested addresses
-        return addresses.map((address) => tokenMap.get(address) || null);
+        return addresses.map((address) => tokenMap.get(address) ?? null);
     });
 }
 /**
@@ -43,7 +42,7 @@ function createUserLoader(prisma) {
             where: { address: { in: [...addresses] } },
         });
         const userMap = new Map(users.map((user) => [user.address, user]));
-        return addresses.map((address) => userMap.get(address) || null);
+        return addresses.map((address) => userMap.get(address) ?? null);
     });
 }
 /**
@@ -56,7 +55,7 @@ function createUserByIdLoader(prisma) {
             where: { id: { in: [...ids] } },
         });
         const userMap = new Map(users.map((u) => [u.id, u]));
-        return ids.map((id) => userMap.get(id) || null);
+        return ids.map((id) => userMap.get(id) ?? null);
     });
 }
 /**
@@ -69,7 +68,7 @@ function createPoolLoader(prisma) {
             where: { address: { in: [...addresses] } },
         });
         const poolMap = new Map(pools.map((pool) => [pool.address, pool]));
-        return addresses.map((address) => poolMap.get(address) || null);
+        return addresses.map((address) => poolMap.get(address) ?? null);
     });
 }
 /**
@@ -86,12 +85,12 @@ function createTokensByCreatorLoader(prisma) {
         // Group tokens by creator
         const tokensByCreator = new Map();
         for (const token of tokens) {
-            const existing = tokensByCreator.get(token.creator) || [];
+            const existing = tokensByCreator.get(token.creator) ?? [];
             existing.push(token);
             tokensByCreator.set(token.creator, existing);
         }
         // Return tokens in the same order as requested creators
-        return creatorAddresses.map((creator) => tokensByCreator.get(creator) || []);
+        return creatorAddresses.map((creator) => tokensByCreator.get(creator) ?? []);
     });
 }
 /**
@@ -113,16 +112,16 @@ function createPoolsByTokenLoader(prisma) {
         const poolsByToken = new Map();
         for (const pool of pools) {
             // Add to token0
-            const existing0 = poolsByToken.get(pool.token0Address) || [];
+            const existing0 = poolsByToken.get(pool.token0Address) ?? [];
             existing0.push(pool);
             poolsByToken.set(pool.token0Address, existing0);
             // Add to token1
-            const existing1 = poolsByToken.get(pool.token1Address) || [];
+            const existing1 = poolsByToken.get(pool.token1Address) ?? [];
             existing1.push(pool);
             poolsByToken.set(pool.token1Address, existing1);
         }
         // Return pools in the same order as requested token addresses
-        return tokenAddresses.map((address) => poolsByToken.get(address) || []);
+        return tokenAddresses.map((address) => poolsByToken.get(address) ?? []);
     });
 }
 /**
@@ -138,12 +137,12 @@ function createAchievementsByUserIdLoader(prisma) {
         // Group achievements by user ID
         const achievementsByUser = new Map();
         for (const achievement of achievements) {
-            const existing = achievementsByUser.get(achievement.userId) || [];
+            const existing = achievementsByUser.get(achievement.userId) ?? [];
             existing.push(achievement);
             achievementsByUser.set(achievement.userId, existing);
         }
         // Return achievements in the same order as requested user IDs
-        return userIds.map((userId) => achievementsByUser.get(userId) || []);
+        return userIds.map((userId) => achievementsByUser.get(userId) ?? []);
     });
 }
 /**

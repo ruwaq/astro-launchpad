@@ -16,8 +16,33 @@ export interface IndexerStateData {
 
 export class StateManager {
   private cache: Map<string, IndexerStateData> = new Map()
+  /** Mutex locks per contract to prevent concurrent updates */
+  private locks: Map<string, Promise<boolean>> = new Map()
 
   constructor(private prisma: PrismaClient) {}
+
+  /**
+   * Acquire a lock for a contract to prevent concurrent updates
+   * Returns a release function to call when done
+   */
+  private async acquireLock(contractName: string): Promise<() => void> {
+    // Wait for any existing lock to complete
+    while (this.locks.has(contractName)) {
+      await this.locks.get(contractName)
+    }
+
+    // Create a new lock with a resolver
+    let releaseLock: () => void
+    const lockPromise = new Promise<boolean>((resolve) => {
+      releaseLock = () => {
+        this.locks.delete(contractName)
+        resolve(true)
+      }
+    })
+
+    this.locks.set(contractName, lockPromise)
+    return releaseLock!
+  }
 
   /**
    * Get last indexed ledger for a contract
@@ -60,12 +85,16 @@ export class StateManager {
   /**
    * Update last indexed ledger for a contract
    * Uses upsert to handle both create and update cases
+   * Protected by mutex to prevent race conditions in concurrent updates
    */
   async updateLastLedger(
     contractName: string,
     lastLedger: string,
     lastEventId?: string
   ): Promise<boolean> {
+    // Acquire lock to prevent concurrent updates for same contract
+    const releaseLock = await this.acquireLock(contractName)
+
     try {
       const now = new Date()
 
@@ -107,6 +136,9 @@ export class StateManager {
     } catch (error) {
       logger.error(`Failed to update last ledger for ${contractName}:`, error)
       return false
+    } finally {
+      // Always release the lock
+      releaseLock()
     }
   }
 

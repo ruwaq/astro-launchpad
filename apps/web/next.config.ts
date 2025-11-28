@@ -8,6 +8,30 @@ const nextConfig: NextConfig = {
     optimizePackageImports: ['@repo/ui'],
   },
 
+  // Webpack configuration to handle native modules (sodium-native)
+  // This prevents Fast Refresh from doing full reloads
+  webpack: (config, { isServer }) => {
+    if (!isServer) {
+      // Don't try to bundle native modules on the client
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        net: false,
+        tls: false,
+        crypto: false,
+      };
+    }
+
+    // Ignore native module warnings
+    config.ignoreWarnings = [
+      ...(config.ignoreWarnings || []),
+      { module: /node_modules\/sodium-native/ },
+      { module: /node_modules\/require-addon/ },
+    ];
+
+    return config;
+  },
+
   // PWA and Security Headers
   async headers() {
     return [
@@ -72,7 +96,7 @@ const nextConfig: NextConfig = {
     ];
   },
 
-  // Image optimization for external domains (IPFS gateways)
+  // Image optimization for external domains (IPFS gateways + Stellar + any)
   images: {
     remotePatterns: [
       {
@@ -94,6 +118,26 @@ const nextConfig: NextConfig = {
         protocol: 'https',
         hostname: 'cloudflare-ipfs.com',
         pathname: '/ipfs/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'stellar.org',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: '*.stellar.org',
+        pathname: '/**',
+      },
+      // Allow any HTTPS image for user-submitted token logos
+      {
+        protocol: 'https',
+        hostname: '**',
+      },
+      // UI Avatars for placeholder images
+      {
+        protocol: 'https',
+        hostname: 'ui-avatars.com',
       },
     ],
   },

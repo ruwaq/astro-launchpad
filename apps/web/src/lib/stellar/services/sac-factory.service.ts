@@ -25,11 +25,8 @@ import { toScVal, addressToScVal, fromScVal } from '../utils';
 import { logger } from '../../logger';
 import type { StellarAddress } from '../../stellar/types';
 import {
-  createAssetForLaunch,
-  createAssetForLaunchWithSacAddress,
   validateSymbol,
   validateName,
-  type EnhancedAssetCreationResult,
 } from '../asset-utils';
 import {
   adaptTokenInfo,
@@ -124,6 +121,61 @@ export interface LaunchTokenParams {
   symbol: string;
   imageUrl: string;
   description: string;
+  // Optional social links (stored in metadata JSON)
+  website?: string;
+  telegram?: string;
+  twitter?: string;
+  discord?: string;
+}
+
+// ============================================================================
+// Precision Utilities
+// ============================================================================
+
+/**
+ * CRITICAL: Convert decimal amount to BigInt stroops WITHOUT precision loss
+ *
+ * Problem: Math.floor(0.1234567 * 10_000_000) can give wrong results due to
+ * floating-point arithmetic issues (e.g., 0.1 + 0.2 = 0.30000000000000004)
+ *
+ * Solution: String-based conversion that handles decimals precisely
+ *
+ * @param amount - Amount in XLM or tokens (e.g., 1.2345678)
+ * @param decimals - Number of decimal places (default 7 for Stellar)
+ * @returns BigInt representation in smallest unit (stroops)
+ *
+ * @example
+ * toStroopsBigInt(1.2345678) // 12345678n
+ * toStroopsBigInt(100) // 1000000000n
+ * toStroopsBigInt("0.0000001") // 1n
+ */
+function toStroopsBigInt(amount: number | string, decimals: number = 7): bigint {
+  // Convert to string to avoid floating-point issues
+  const amountStr = typeof amount === 'number' ? amount.toString() : amount;
+
+  // Handle negative numbers
+  const isNegative = amountStr.startsWith('-');
+  const absAmountStr = isNegative ? amountStr.slice(1) : amountStr;
+
+  // Split into integer and decimal parts
+  const parts = absAmountStr.split('.');
+  const integerPart = parts[0] || '0';
+  let decimalPart = parts[1] || '';
+
+  // Pad or truncate decimal part to exact decimals length
+  if (decimalPart.length > decimals) {
+    // Truncate (don't round - match Math.floor behavior)
+    decimalPart = decimalPart.slice(0, decimals);
+  } else {
+    // Pad with zeros
+    decimalPart = decimalPart.padEnd(decimals, '0');
+  }
+
+  // Combine and convert to BigInt
+  const combined = integerPart + decimalPart;
+  const result = BigInt(combined);
+
+  return isNegative ? -result : result;
 }
 
 /**
@@ -131,12 +183,12 @@ export interface LaunchTokenParams {
  */
 export class SacFactoryService extends BaseContractService {
   constructor() {
-    // Use environment variable or fallback to ASTRO Integration Contract ID (Nov 25, 2024)
-    const contractId = CONTRACT_IDS.tokenFactory || 'CC3OFGFRFYZ4XN5AWTQNSZBEA4AP62GKHYF6YUFSMM2B4A6VUQLU3ZPV';
+    // Use environment variable or fallback to V5 Contract ID (Nov 26, 2024)
+    const contractId = CONTRACT_IDS.tokenFactory || 'CAETFO74SF5GSPA2SCUIR6P5XET6ASEMQPESLRWNWRDC37UX32HBKEMK';
 
     if (!CONTRACT_IDS.tokenFactory) {
       logger.warn(
-        'SAC Factory contract ID not configured in env vars. Using fallback: CC3OFGFRFYZ4XN5AWTQNSZBEA4AP62GKHYF6YUFSMM2B4A6VUQLU3ZPV'
+        'SAC Factory contract ID not configured in env vars. Using fallback: CAETFO74SF5GSPA2SCUIR6P5XET6ASEMQPESLRWNWRDC37UX32HBKEMK'
       );
     }
 
@@ -337,7 +389,7 @@ export class SacFactoryService extends BaseContractService {
       if (!result) {
         return {
           creation_fee: '100000', // 0.01 XLM default
-          trading_fee_bps: '100', // 1% default
+          trading_fee_bps: '30', // 0.3% default (0.05% protocol + 0.25% LP)
           treasury: '',
         };
       }
@@ -357,7 +409,7 @@ export class SacFactoryService extends BaseContractService {
       logger.error('Error fetching fee config:', error);
       return {
         creation_fee: '100000',
-        trading_fee_bps: '100',
+        trading_fee_bps: '30', // 0.3% default (0.05% protocol + 0.25% LP)
         treasury: '',
       };
     }
@@ -493,171 +545,57 @@ export class SacFactoryService extends BaseContractService {
   // ========== Write Methods (Build Operations) ==========
 
   /**
-   * Build operation to launch a new meme token
+   * Build operation to launch a new token using V2 (pure Soroban tokens)
    *
-   * This creates a REAL Stellar Asset Contract (SAC) token that is:
-   * - Transferable
-   * - Visible in wallets (Freighter, Lobstr, etc.)
-   * - Compatible with all Stellar DEXs
-   *
-   * @param params - Token launch parameters
-   * @param creatorAddress - Creator's Stellar address
-   * @param tokenCount - Current token count from contract
-   * @returns Operation and issuer keypair (needed for set_admin call)
-   */
-  buildLaunchTokenOperation(
-    params: LaunchTokenParams,
-    creatorAddress: string,
-    tokenCount: number
-  ): { operation: xdr.Operation; issuerKeypair: import('@stellar/stellar-sdk').Keypair } {
-    // Validate inputs
-    if (!validateName(params.name)) {
-      throw new Error('Name must be 1-32 characters');
-    }
-
-    if (!validateSymbol(params.symbol)) {
-      throw new Error('Symbol must be 1-12 alphanumeric characters (uppercase)');
-    }
-
-    // Create unique asset XDR (client-side as per Stellar best practices)
-    const assetCreation = createAssetForLaunch({
-      symbol: params.symbol,
-      creator: creatorAddress,
-      tokenCount,
-    });
-
-    // Build contract call arguments (order must match contract signature)
-    const args: xdr.ScVal[] = [
-      addressToScVal(creatorAddress),               // creator: Address
-      toScVal(params.name),                         // name: String
-      toScVal(params.symbol),                       // symbol: String
-      toScVal(assetCreation.issuerPublicKey),       // issuer: String (for trustline creation)
-      toScVal(params.imageUrl),                     // image_url: String
-      toScVal(params.description),                  // description: String
-      assetCreation.serializedAssetScVal,           // serialized_asset: Bytes
-    ];
-
-    return {
-      operation: this.buildOperation('launch_token', ...args),
-      issuerKeypair: assetCreation.issuerKeypair,
-    };
-  }
-
-  /**
-   * Enhanced launch operation builder with pre-calculated SAC address
-   *
-   * This is the key method for improved UX: by pre-calculating the SAC
-   * address before the token is created, the frontend can:
-   * 1. Show the token address immediately
-   * 2. Automatically chain set_admin after launch (seamless flow)
-   * 3. Pre-register the token in UI state
+   * V2 creates pure Soroban tokens that are:
+   * - Fully managed by the factory (admin)
+   * - No SAC issuer restrictions
+   * - Simple, streamlined deployment
    *
    * @param params - Token launch parameters
    * @param creatorAddress - Creator's Stellar address
-   * @param tokenCount - Current token count from contract
-   * @param network - Network ('testnet' or 'mainnet')
-   * @returns Operation, asset info, and pre-calculated SAC address
+   * @returns Operation (no issuer keypair needed - factory is admin)
    */
-  buildLaunchTokenOperationEnhanced(
-    params: LaunchTokenParams,
-    creatorAddress: string,
-    tokenCount: number,
-    network: 'testnet' | 'mainnet' = 'testnet'
-  ): {
-    operation: xdr.Operation;
-    assetInfo: EnhancedAssetCreationResult;
-    factoryAddress: string;
-  } {
-    // Validate inputs
-    if (!validateName(params.name)) {
-      throw new Error('Name must be 1-32 characters');
-    }
-
-    if (!validateSymbol(params.symbol)) {
-      throw new Error('Symbol must be 1-12 alphanumeric characters (uppercase)');
-    }
-
-    // Create unique asset XDR with pre-calculated SAC address
-    const assetInfo = createAssetForLaunchWithSacAddress(
-      {
-        symbol: params.symbol,
-        creator: creatorAddress,
-        tokenCount,
-      },
-      network
-    );
-
-    // Build contract call arguments (order must match contract signature)
-    const args: xdr.ScVal[] = [
-      addressToScVal(creatorAddress),               // creator: Address
-      toScVal(params.name),                         // name: String
-      toScVal(params.symbol),                       // symbol: String
-      toScVal(assetInfo.issuerPublicKey),           // issuer: String (for trustline creation)
-      toScVal(params.imageUrl),                     // image_url: String
-      toScVal(params.description),                  // description: String
-      assetInfo.serializedAssetScVal,               // serialized_asset: Bytes
-    ];
-
-    return {
-      operation: this.buildOperation('launch_token', ...args),
-      assetInfo,
-      factoryAddress: this.getContractId(),
-    };
-  }
-
-  /**
-   * Prepare a complete token launch with automatic set_admin chaining
-   *
-   * This method provides the best UX for token creation:
-   * 1. Prepares the launch_token transaction
-   * 2. Returns all info needed to automatically call set_admin after
-   *
-   * The frontend should:
-   * 1. Call this method to get the launch transaction
-   * 2. Have user sign and submit
-   * 3. Immediately call prepareSetAdminTransaction with returned assetInfo
-   * 4. Submit set_admin (can be auto-signed with issuerKeypair)
-   *
-   * @param params - Token launch parameters
-   * @param creatorAddress - Creator's Stellar address
-   * @returns Prepared launch transaction and chaining info
-   */
-  async prepareLaunchTokenWithChaining(
+  buildLaunchTokenV2Operation(
     params: LaunchTokenParams,
     creatorAddress: string
-  ): Promise<{
-    txXDR: string;
-    assetInfo: EnhancedAssetCreationResult;
-    factoryAddress: string;
-    tokenCount: number;
-  }> {
-    // Get current token count for deterministic issuer creation
-    const tokenCount = await this.getTokenCount();
+  ): xdr.Operation {
+    // Validate inputs
+    if (!validateName(params.name)) {
+      throw new Error('Name must be 1-32 characters');
+    }
 
-    // Build the enhanced launch operation
-    const { operation, assetInfo, factoryAddress } = this.buildLaunchTokenOperationEnhanced(
-      params,
-      creatorAddress,
-      tokenCount,
-      'testnet' // TODO: Get from network config
-    );
+    if (!validateSymbol(params.symbol)) {
+      throw new Error('Symbol must be 1-12 alphanumeric characters (uppercase)');
+    }
 
-    // Prepare the transaction
-    const { txXDR } = await this.prepareTransaction(creatorAddress, operation);
+    // Build description with embedded metadata JSON for social links
+    // Format: "Description text\n\n---METADATA---\n{json}"
+    // This allows social links to be stored on-chain without contract changes
+    let finalDescription = params.description;
 
-    logger.info('Prepared token launch with chaining info', {
-      sacAddress: assetInfo.sacAddress,
-      issuer: assetInfo.issuerPublicKey,
-      factoryAddress,
-      tokenCount,
-    });
+    const socialLinks: Record<string, string> = {};
+    if (params.website) socialLinks.website = params.website;
+    if (params.telegram) socialLinks.telegram = params.telegram;
+    if (params.twitter) socialLinks.twitter = params.twitter;
+    if (params.discord) socialLinks.discord = params.discord;
 
-    return {
-      txXDR,
-      assetInfo,
-      factoryAddress,
-      tokenCount,
-    };
+    if (Object.keys(socialLinks).length > 0) {
+      const metadata = JSON.stringify({ social: socialLinks });
+      finalDescription = `${params.description}\n\n---METADATA---\n${metadata}`;
+    }
+
+    // Build contract call arguments for launch_token_v2
+    // Signature: launch_token_v2(creator, name, symbol, image_url, description)
+    const args: xdr.ScVal[] = [
+      addressToScVal(creatorAddress),               // creator: Address
+      toScVal(params.name),                         // name: String
+      toScVal(params.symbol),                       // symbol: String
+      toScVal(params.imageUrl),                     // image_url: String
+      toScVal(finalDescription),                    // description: String (with embedded metadata)
+    ];
+
+    return this.buildOperation('launch_token_v2', ...args);
   }
 
   /**
@@ -738,8 +676,8 @@ export class SacFactoryService extends BaseContractService {
     buyerAddress: string,
     slippagePercent: number = 1
   ): Promise<{ txXDR: string; expectedTokens: bigint }> {
-    // Convert XLM to stroops (1 XLM = 10,000,000 stroops)
-    const xlmAmountStroops = BigInt(Math.floor(xlmAmount * 10_000_000));
+    // Convert XLM to stroops using precision-safe conversion
+    const xlmAmountStroops = toStroopsBigInt(xlmAmount);
 
     // Get token info to calculate min tokens
     const tokenInfo = await this.getTokenInfo(tokenAddress);
@@ -750,8 +688,10 @@ export class SacFactoryService extends BaseContractService {
     // Calculate expected output
     const expectedTokens = this.calculateBuyOutput(tokenInfo, xlmAmountStroops);
 
-    // Apply slippage tolerance
-    const minTokens = (expectedTokens * BigInt(100 - slippagePercent)) / BigInt(100);
+    // Apply slippage tolerance using basis points for precision (100 bps = 1%)
+    // This prevents precision loss for fractional slippage like 1.5%
+    const slippageBps = BigInt(Math.floor(slippagePercent * 100));
+    const minTokens = (expectedTokens * (BigInt(10000) - slippageBps)) / BigInt(10000);
 
     // Set deadline (5 minutes from now)
     const deadline = BigInt(Math.floor(Date.now() / 1000) + 300);
@@ -904,7 +844,7 @@ export class SacFactoryService extends BaseContractService {
     // The caller should create the trustline first, then call prepareBuyTransaction
     if (needsTrustline) {
       // Calculate expected tokens for display purposes
-      const xlmAmountStroops = BigInt(Math.floor(xlmAmount * 10_000_000));
+      const xlmAmountStroops = toStroopsBigInt(xlmAmount);
       const expectedTokens = this.calculateBuyOutput(tokenInfo, xlmAmountStroops);
 
       if (!trustlineTxXDR) {
@@ -986,8 +926,8 @@ export class SacFactoryService extends BaseContractService {
     slippagePercent: number = 1
   ): Promise<{ success: boolean; error?: string }> {
     try {
-      // Convert XLM to stroops (1 XLM = 10,000,000 stroops)
-      const xlmAmountStroops = BigInt(Math.floor(xlmAmount * 10_000_000));
+      // Convert XLM to stroops using precision-safe conversion
+      const xlmAmountStroops = toStroopsBigInt(xlmAmount);
 
       // Get token info to calculate min tokens
       const tokenInfo = await this.getTokenInfo(tokenAddress);
@@ -1001,7 +941,7 @@ export class SacFactoryService extends BaseContractService {
       // Apply slippage tolerance
       const minTokens = (expectedTokens * BigInt(100 - slippagePercent)) / BigInt(100);
 
-      // Set deadline (5 minutes from now)
+      // Set deadline (5 minutes from now) - Date.now()/1000 is an integer so Math.floor is safe
       const deadline = BigInt(Math.floor(Date.now() / 1000) + 300);
 
       // Build and execute operation
@@ -1039,8 +979,8 @@ export class SacFactoryService extends BaseContractService {
     sellerAddress: string,
     slippagePercent: number = 1
   ): Promise<{ txXDR: string; expectedXlm: bigint }> {
-    // Convert to smallest unit (7 decimals for SAC tokens)
-    const tokenAmountSmallest = BigInt(Math.floor(tokenAmount * 10_000_000));
+    // Convert to smallest unit using precision-safe conversion (7 decimals for SAC tokens)
+    const tokenAmountSmallest = toStroopsBigInt(tokenAmount);
 
     // Get token info to calculate min XLM
     const tokenInfo = await this.getTokenInfo(tokenAddress);
@@ -1052,7 +992,9 @@ export class SacFactoryService extends BaseContractService {
     const expectedXlm = this.calculateSellOutput(tokenInfo, tokenAmountSmallest);
 
     // Apply slippage tolerance
-    const minXlm = (expectedXlm * BigInt(100 - slippagePercent)) / BigInt(100);
+    // Apply slippage tolerance using basis points for precision (100 bps = 1%)
+    const slippageBps = BigInt(Math.floor(slippagePercent * 100));
+    const minXlm = (expectedXlm * (BigInt(10000) - slippageBps)) / BigInt(10000);
 
     // Set deadline (5 minutes from now)
     const deadline = BigInt(Math.floor(Date.now() / 1000) + 300);
@@ -1112,8 +1054,8 @@ export class SacFactoryService extends BaseContractService {
     slippagePercent: number = 1
   ): Promise<{ success: boolean; error?: string }> {
     try {
-      // Convert to smallest unit (7 decimals for SAC tokens)
-      const tokenAmountSmallest = BigInt(Math.floor(tokenAmount * 10_000_000));
+      // Convert to smallest unit using precision-safe conversion (7 decimals for SAC tokens)
+      const tokenAmountSmallest = toStroopsBigInt(tokenAmount);
 
       // Get token info to calculate min XLM
       const tokenInfo = await this.getTokenInfo(tokenAddress);
@@ -1125,9 +1067,11 @@ export class SacFactoryService extends BaseContractService {
       const expectedXlm = this.calculateSellOutput(tokenInfo, tokenAmountSmallest);
 
       // Apply slippage tolerance
-      const minXlm = (expectedXlm * BigInt(100 - slippagePercent)) / BigInt(100);
+      // Apply slippage tolerance using basis points for precision (100 bps = 1%)
+    const slippageBps = BigInt(Math.floor(slippagePercent * 100));
+    const minXlm = (expectedXlm * (BigInt(10000) - slippageBps)) / BigInt(10000);
 
-      // Set deadline (5 minutes from now)
+      // Set deadline (5 minutes from now) - Date.now()/1000 is an integer so Math.floor is safe
       const deadline = BigInt(Math.floor(Date.now() / 1000) + 300);
 
       // Build and execute operation
@@ -1190,15 +1134,194 @@ export class SacFactoryService extends BaseContractService {
   }
 
   /**
-   * Apply trading fee (1% default)
+   * Apply trading fee (0.3% default = 0.05% protocol + 0.25% LP)
    *
    * @param amount - Amount before fee
-   * @param feeBps - Fee in basis points (100 = 1%)
+   * @param feeBps - Fee in basis points (30 = 0.3%)
    * @returns Amount after fee
    */
-  applyTradingFee(amount: bigint, feeBps: bigint = BigInt(100)): bigint {
+  applyTradingFee(amount: bigint, feeBps: bigint = BigInt(30)): bigint {
     const fee = (amount * feeBps) / BigInt(10000);
     return amount - fee;
+  }
+
+  // ========== Anti-Whale Debug Methods ==========
+
+  /**
+   * Get wallet's tracked holdings from the anti-whale module
+   *
+   * This returns the INTERNAL tracking used by the contract for anti-whale validation,
+   * which may differ from the actual token balance if there's desynchronization.
+   *
+   * @param walletAddress - Wallet address to check
+   * @returns Tracked holdings in token units (with 7 decimals)
+   */
+  async getWalletTrackedHoldings(walletAddress: string): Promise<bigint> {
+    try {
+      const result = await this.callReadOnly(
+        'get_wallet_holdings',
+        addressToScVal(walletAddress)
+      );
+
+      if (!result) return BigInt(0);
+
+      return BigInt(fromScVal(result) as string | number | bigint);
+    } catch (error) {
+      logger.error('Error fetching wallet tracked holdings:', error);
+      return BigInt(0);
+    }
+  }
+
+  /**
+   * Get anti-whale configuration
+   *
+   * @returns Anti-whale config
+   */
+  async getAntiWhaleConfig(): Promise<{
+    absolute_max_holdings_bps: number;
+    cooldown_seconds: number;
+    enabled: boolean;
+  }> {
+    try {
+      const result = await this.callReadOnly('get_anti_whale_config');
+
+      if (!result) {
+        return {
+          absolute_max_holdings_bps: 5000, // 50% default
+          cooldown_seconds: 10,
+          enabled: true,
+        };
+      }
+
+      const data = fromScVal(result) as {
+        absolute_max_holdings_bps: bigint;
+        cooldown_seconds: bigint;
+        enabled: boolean;
+      };
+
+      return {
+        absolute_max_holdings_bps: Number(data.absolute_max_holdings_bps),
+        cooldown_seconds: Number(data.cooldown_seconds),
+        enabled: data.enabled,
+      };
+    } catch (error) {
+      logger.error('Error fetching anti-whale config:', error);
+      return {
+        absolute_max_holdings_bps: 5000,
+        cooldown_seconds: 10,
+        enabled: true,
+      };
+    }
+  }
+
+  /**
+   * Check if anti-whale protection is enabled
+   *
+   * @returns true if enabled
+   */
+  async isAntiWhaleEnabled(): Promise<boolean> {
+    try {
+      const result = await this.callReadOnly('is_anti_whale_enabled');
+
+      if (!result) return true; // Assume enabled if we can't check
+
+      return Boolean(fromScVal(result));
+    } catch (error) {
+      logger.error('Error checking anti-whale status:', error);
+      return true;
+    }
+  }
+
+  /**
+   * Build operation to reset wallet holdings tracking (Owner only)
+   *
+   * This is useful for fixing desynchronization between internal tracking
+   * and actual token balances.
+   *
+   * @param adminAddress - Owner address
+   * @param walletAddress - Wallet to reset
+   * @param actualBalance - The actual token balance (in stroops with 7 decimals)
+   * @returns Transaction operation
+   */
+  buildResetWalletHoldingsOperation(
+    adminAddress: string,
+    walletAddress: string,
+    actualBalance: bigint
+  ): xdr.Operation {
+    return this.buildOperation(
+      'reset_wallet_holdings',
+      addressToScVal(adminAddress),
+      addressToScVal(walletAddress),
+      nativeToScVal(actualBalance, { type: 'i128' })
+    );
+  }
+
+  /**
+   * Build operation to clear wallet holdings tracking completely (Owner only)
+   *
+   * Sets tracked holdings to 0 and clears the last buy timestamp.
+   *
+   * @param adminAddress - Owner address
+   * @param walletAddress - Wallet to clear
+   * @returns Transaction operation
+   */
+  buildClearWalletHoldingsOperation(
+    adminAddress: string,
+    walletAddress: string
+  ): xdr.Operation {
+    return this.buildOperation(
+      'clear_wallet_holdings',
+      addressToScVal(adminAddress),
+      addressToScVal(walletAddress)
+    );
+  }
+
+  /**
+   * Prepare a reset wallet holdings transaction for signing
+   *
+   * @param adminAddress - Owner address
+   * @param walletAddress - Wallet to reset
+   * @param actualBalance - The actual token balance (in tokens, not stroops)
+   * @returns Prepared transaction XDR ready for signing
+   */
+  async prepareResetWalletHoldingsTransaction(
+    adminAddress: string,
+    walletAddress: string,
+    actualBalance: number
+  ): Promise<{ txXDR: string }> {
+    // Convert to stroops using precision-safe conversion (7 decimals)
+    const actualBalanceStroops = toStroopsBigInt(actualBalance);
+
+    const operation = this.buildResetWalletHoldingsOperation(
+      adminAddress,
+      walletAddress,
+      actualBalanceStroops
+    );
+
+    const prepared = await this.prepareTransaction(adminAddress, operation);
+
+    return { txXDR: prepared.txXDR };
+  }
+
+  /**
+   * Prepare a clear wallet holdings transaction for signing
+   *
+   * @param adminAddress - Owner address
+   * @param walletAddress - Wallet to clear
+   * @returns Prepared transaction XDR ready for signing
+   */
+  async prepareClearWalletHoldingsTransaction(
+    adminAddress: string,
+    walletAddress: string
+  ): Promise<{ txXDR: string }> {
+    const operation = this.buildClearWalletHoldingsOperation(
+      adminAddress,
+      walletAddress
+    );
+
+    const prepared = await this.prepareTransaction(adminAddress, operation);
+
+    return { txXDR: prepared.txXDR };
   }
 }
 

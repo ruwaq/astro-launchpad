@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { useLeaderboard } from '@/hooks/useApi';
 import { truncateAddress, formatCompactNumber } from '@/lib/stellar/utils';
+import type { LeaderboardEntry } from '@/lib/graphql/types';
 
 type LeaderboardType = 'TRADERS' | 'CREATORS' | 'LIQUIDITY_PROVIDERS' | 'VIRAL_TOKENS';
 type LeaderboardTimeframe = 'HOUR' | 'DAY' | 'WEEK' | 'MONTH' | 'ALL_TIME';
@@ -243,7 +244,7 @@ export default function LeaderboardPage() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {leaderboard.map((entry: any) => {
+              {leaderboard.map((entry: LeaderboardEntry) => {
                 const profitLoss = entry.profitLoss24h ? parseFloat(entry.profitLoss24h) : 0;
                 const isProfit = profitLoss >= 0;
 

@@ -30,6 +30,7 @@ interface TokenState {
   fetchTokenInfo: (address: string) => Promise<TokenInfo | null>;
   refreshToken: (address: string) => Promise<void>;
   clearError: (key: string) => void;
+  reset: () => void;
 }
 
 export const useTokenStore = create<TokenState>()(
@@ -133,6 +134,17 @@ export const useTokenStore = create<TokenState>()(
           const newErrors = new Map(state.errors);
           newErrors.delete(key);
           return { errors: newErrors };
+        });
+      },
+
+      // Reset store to initial state (called on wallet disconnect)
+      reset: () => {
+        set({
+          tokens: new Map(),
+          tokenCount: 0,
+          isLoadingTokens: false,
+          loadingTokens: new Set(),
+          errors: new Map(),
         });
       },
     }),

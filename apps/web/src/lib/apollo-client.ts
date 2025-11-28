@@ -7,7 +7,7 @@ import { ApolloClient, InMemoryCache, HttpLink, from } from '@apollo/client';
 import { onError } from '@apollo/client/link/error';
 
 const httpLink = new HttpLink({
-  uri: process.env.NEXT_PUBLIC_GRAPHQL_ENDPOINT || 'http://localhost:4000/graphql',
+  uri: process.env.NEXT_PUBLIC_GRAPHQL_ENDPOINT || 'http://localhost:4000',
   credentials: 'same-origin',
 });
 
@@ -47,11 +47,15 @@ export const apolloClient = new ApolloClient({
   }),
   defaultOptions: {
     watchQuery: {
+      // PERFORMANCE: Show cached data immediately, update in background
       fetchPolicy: 'cache-and-network',
+      nextFetchPolicy: 'cache-first', // Subsequent fetches use cache
       errorPolicy: 'all',
     },
     query: {
-      fetchPolicy: 'network-only',
+      // PERFORMANCE: Changed from 'network-only' to 'cache-first'
+      // Reads from cache if available, fetches from network otherwise
+      fetchPolicy: 'cache-first',
       errorPolicy: 'all',
     },
     mutate: {

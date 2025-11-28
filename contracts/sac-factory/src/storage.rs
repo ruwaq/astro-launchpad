@@ -29,6 +29,8 @@ pub enum InstanceKey {
     // DEX Bridge Integration
     BridgeAddress,         // AstroSwap Bridge address for graduation to DEX
     UseBridgeForGraduation, // Whether to use Bridge (true) or local AMM (false)
+    // Launchpad Token WASM (Pure Soroban tokens, not SAC)
+    TokenWasmHash,         // WASM hash for launchpad token contract deployment
 }
 
 /// Storage keys for Persistent storage (unbounded, per-entity)
@@ -128,6 +130,20 @@ pub fn set_min_market_cap_usd(env: &Env, min_market_cap: u128) {
 
 /// Default graduation threshold: 10,000 XLM in stroops
 const DEFAULT_GRADUATION_THRESHOLD: i128 = 100_000_000_000;
+
+// ========== Token WASM Hash (for pure Soroban token deployment) ==========
+
+pub fn has_token_wasm_hash(env: &Env) -> bool {
+    env.storage().instance().has(&InstanceKey::TokenWasmHash)
+}
+
+pub fn get_token_wasm_hash(env: &Env) -> soroban_sdk::BytesN<32> {
+    env.storage().instance().get(&InstanceKey::TokenWasmHash).unwrap()
+}
+
+pub fn set_token_wasm_hash(env: &Env, wasm_hash: &soroban_sdk::BytesN<32>) {
+    env.storage().instance().set(&InstanceKey::TokenWasmHash, wasm_hash);
+}
 
 pub fn get_graduation_threshold(env: &Env) -> i128 {
     env.storage()
