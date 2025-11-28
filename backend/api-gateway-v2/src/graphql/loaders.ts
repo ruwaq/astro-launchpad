@@ -18,8 +18,7 @@
  */
 
 import DataLoader from 'dataloader'
-import type { PrismaClientWithAdapter } from '../lib/prisma.js'
-import type { Token, User, Pool, Achievement } from '@astroshibapop/shared/prisma'
+import type { PrismaClientWithAdapter, Token, User, Pool, Achievement } from '../lib/prisma.js'
 
 /**
  * DataLoaders interface

@@ -17,8 +17,7 @@
  * - Result: 1 query for tokens + 1 batched query for users = 2 queries
  */
 import DataLoader from 'dataloader';
-import type { PrismaClientWithAdapter } from '../lib/prisma.js';
-import type { Token, User, Pool, Achievement } from '@astroshibapop/shared/prisma';
+import type { PrismaClientWithAdapter, Token, User, Pool, Achievement } from '../lib/prisma.js';
 /**
  * DataLoaders interface
  * All loaders available in GraphQL context
