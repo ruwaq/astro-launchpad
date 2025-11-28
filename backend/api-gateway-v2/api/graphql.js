@@ -1,71 +1,190 @@
 /**
- * Apollo GraphQL Server for Vercel using apollo-server-micro
- * Production-ready, serverless-optimized implementation
+ * Apollo GraphQL Server for Vercel
+ * Simplified implementation for serverless deployment
  */
-import { ApolloServer } from 'apollo-server-micro';
-import { send } from 'micro';
-import Cors from 'micro-cors';
-import { schema } from '../dist/src/graphql/schema.js';
-import { resolvers } from '../dist/src/graphql/resolvers/index.js';
-import { prisma } from '../dist/src/lib/prisma.js';
-import { createLoaders } from '../dist/src/graphql/loaders.js';
+import { ApolloServer } from '@apollo/server';
+import { startServerAndCreateNextHandler } from '@as-integrations/next';
+import { PrismaClient } from '@prisma/client';
+import gql from 'graphql-tag';
+
+// Global Prisma instance for serverless
+const globalForPrisma = globalThis;
+const prisma = globalForPrisma.prisma ?? new PrismaClient();
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
 
 const isProduction = process.env.NODE_ENV === 'production';
 
-const ALLOWED_ORIGINS = process.env.CORS_ORIGIN
-  ? process.env.CORS_ORIGIN.split(',').map(o => o.trim())
-  : ['https://astroshiba.io', 'https://app.astroshiba.io', 'https://www.astroshiba.io'];
+// GraphQL Schema
+const typeDefs = gql`
+  type Query {
+    health: HealthStatus!
+    tokens(first: Int, skip: Int, orderBy: TokenOrderBy): TokenConnection!
+    token(address: String!): Token
+    globalStats: GlobalStats!
+  }
 
-if (!isProduction) {
-  ALLOWED_ORIGINS.push('http://localhost:3000', 'http://localhost:4000');
-}
+  type HealthStatus {
+    status: String!
+    timestamp: String!
+    database: Boolean!
+  }
 
-const cors = Cors({
-  allowMethods: ['GET', 'POST', 'OPTIONS'],
-  allowHeaders: ['Content-Type', 'Authorization'],
-  origin: (origin) => {
-    if (!origin) return true;
-    return ALLOWED_ORIGINS.includes(origin) ? origin : false;
+  type Token {
+    id: ID!
+    address: String!
+    name: String!
+    symbol: String!
+    decimals: Int!
+    creator: String!
+    description: String
+    imageUrl: String
+    totalSupply: String!
+    marketCap: String!
+    price: String!
+    priceChange24h: Float
+    volume24h: String!
+    holders: Int!
+    isGraduated: Boolean!
+    createdAt: String!
+  }
+
+  type TokenConnection {
+    nodes: [Token!]!
+    totalCount: Int!
+    pageInfo: PageInfo!
+  }
+
+  type PageInfo {
+    hasNextPage: Boolean!
+    hasPreviousPage: Boolean!
+  }
+
+  type GlobalStats {
+    totalTokens: Int!
+    totalVolume: String!
+    totalUsers: Int!
+    totalTransactions: Int!
+  }
+
+  enum TokenOrderBy {
+    CREATED_AT_DESC
+    CREATED_AT_ASC
+    MARKET_CAP_DESC
+    VOLUME_24H_DESC
+  }
+`;
+
+// Resolvers
+const resolvers = {
+  Query: {
+    health: async () => {
+      let dbHealthy = false;
+      try {
+        await prisma.$queryRaw\`SELECT 1\`;
+        dbHealthy = true;
+      } catch (e) {
+        console.error('DB health check failed:', e);
+      }
+      return {
+        status: 'healthy',
+        timestamp: new Date().toISOString(),
+        database: dbHealthy,
+      };
+    },
+    tokens: async (_, { first = 20, skip = 0, orderBy = 'CREATED_AT_DESC' }) => {
+      const orderByMap = {
+        CREATED_AT_DESC: { createdAt: 'desc' },
+        CREATED_AT_ASC: { createdAt: 'asc' },
+        MARKET_CAP_DESC: { marketCap: 'desc' },
+        VOLUME_24H_DESC: { volume24h: 'desc' },
+      };
+
+      const [tokens, totalCount] = await Promise.all([
+        prisma.token.findMany({
+          take: first,
+          skip,
+          orderBy: orderByMap[orderBy] || { createdAt: 'desc' },
+        }),
+        prisma.token.count(),
+      ]);
+
+      return {
+        nodes: tokens.map(t => ({
+          ...t,
+          totalSupply: t.totalSupply?.toString() || '0',
+          marketCap: t.marketCap?.toString() || '0',
+          price: t.price?.toString() || '0',
+          volume24h: t.volume24h?.toString() || '0',
+          createdAt: t.createdAt?.toISOString() || new Date().toISOString(),
+        })),
+        totalCount,
+        pageInfo: {
+          hasNextPage: skip + first < totalCount,
+          hasPreviousPage: skip > 0,
+        },
+      };
+    },
+    token: async (_, { address }) => {
+      const token = await prisma.token.findUnique({ where: { address } });
+      if (!token) return null;
+      return {
+        ...token,
+        totalSupply: token.totalSupply?.toString() || '0',
+        marketCap: token.marketCap?.toString() || '0',
+        price: token.price?.toString() || '0',
+        volume24h: token.volume24h?.toString() || '0',
+        createdAt: token.createdAt?.toISOString() || new Date().toISOString(),
+      };
+    },
+    globalStats: async () => {
+      const [totalTokens, totalUsers, totalTransactions] = await Promise.all([
+        prisma.token.count(),
+        prisma.user.count(),
+        prisma.transaction.count(),
+      ]);
+
+      // Calculate total volume from transactions
+      const volumeResult = await prisma.transaction.aggregate({
+        _sum: { xlmAmount: true },
+      });
+
+      return {
+        totalTokens,
+        totalVolume: volumeResult._sum.xlmAmount?.toString() || '0',
+        totalUsers,
+        totalTransactions,
+      };
+    },
   },
+};
+
+// Apollo Server
+const server = new ApolloServer({
+  typeDefs,
+  resolvers,
+  introspection: !isProduction || process.env.GRAPHQL_INTROSPECTION === 'true',
 });
 
-let apolloServerHandler = null;
+const handler = startServerAndCreateNextHandler(server, {
+  context: async (req) => ({
+    prisma,
+  }),
+});
 
-async function getServerHandler() {
-  if (!apolloServerHandler) {
-    console.log('[Apollo] Initializing server...');
+export default async function graphqlHandler(req, res) {
+  // CORS headers
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
-    const apolloServer = new ApolloServer({
-      typeDefs: schema,
-      resolvers,
-      introspection: !isProduction || process.env.GRAPHQL_INTROSPECTION === 'true',
-      context: async () => ({
-        prisma,
-        loaders: createLoaders(prisma),
-      }),
-    });
-
-    await apolloServer.start();
-    apolloServerHandler = apolloServer.createHandler({ path: '/api/graphql' });
-
-    console.log('[Apollo] Server initialized (production mode:', isProduction, ')');
-  }
-  return apolloServerHandler;
-}
-
-export default cors(async (req, res) => {
   if (req.method === 'OPTIONS') {
-    return send(res, 200, 'ok');
+    res.status(200).end();
+    return;
   }
 
-  try {
-    const handler = await getServerHandler();
-    return handler(req, res);
-  } catch (error) {
-    console.error('[Apollo] Handler error:', error);
-    return send(res, 500, { error: 'Internal Server Error' });
-  }
-});
+  return handler(req, res);
+}
 
 export const config = {
   api: {
