@@ -6,8 +6,7 @@
 .env.development
 .DS_Store
 
-# Source files (we only need compiled output)
-src/
+# Test files only (keep src/ for build)
 tests/
 *.test.ts
 *.test.js
@@ -42,8 +41,8 @@ README_DEPLOY.md
 # Config files not needed in deployment
 .eslintrc*
 .prettierrc*
-tsconfig.json
 vitest.config.ts
+# Keep tsconfig.json for build!
 
 # Node modules will be reinstalled by Vercel
 # Don't ignore node_modules entirely as Vercel needs package.json
