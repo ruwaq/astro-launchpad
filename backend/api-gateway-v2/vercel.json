@@ -1,7 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "version": 2,
-  "installCommand": "corepack enable && pnpm install",
+  "installCommand": "corepack enable pnpm && pnpm install",
   "buildCommand": "echo 'Using pre-compiled JS files'",
   "cleanUrls": true,
   "trailingSlash": false,
