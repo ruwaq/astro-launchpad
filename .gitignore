@@ -74,3 +74,4 @@ temp/
 !/README.md
 /docs/
 .pnpm-store/
+.env.credentials

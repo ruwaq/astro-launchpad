@@ -33,7 +33,7 @@
   "rewrites": [
     {
       "source": "/graphql",
-      "destination": "https://your-api-url.vercel.app/graphql"
+      "destination": "https://api-gateway-v2.vercel.app/graphql"
     }
   ]
 }
