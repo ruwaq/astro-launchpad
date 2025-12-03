@@ -465,7 +465,7 @@ export default function TokenTradingPage({ params }: PageProps) {
                 tokenSymbol={formattedToken.symbol}
                 tokenName={formattedToken.name}
                 tokenImage={formattedToken.logoUrl || undefined}
-                disabled={isReadOnlyMode}
+                disabled={isReadOnlyMode || undefined}
                 onTradeSuccess={(type, amount) => {
                   console.log(`Trade success: ${type} ${amount}`);
                 }}
