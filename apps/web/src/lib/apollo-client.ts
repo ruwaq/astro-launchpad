@@ -6,8 +6,16 @@
 import { ApolloClient, InMemoryCache, HttpLink, from } from '@apollo/client';
 import { onError } from '@apollo/client/link/error';
 
+// GraphQL endpoint - uses relative path in production (handled by Vercel rewrites)
+// Falls back to environment variable or production API
+const GRAPHQL_URI =
+  process.env.NEXT_PUBLIC_GRAPHQL_ENDPOINT ||
+  (typeof window !== 'undefined' && window.location.hostname !== 'localhost'
+    ? '/graphql'
+    : 'http://localhost:4000');
+
 const httpLink = new HttpLink({
-  uri: process.env.NEXT_PUBLIC_GRAPHQL_ENDPOINT || 'http://localhost:4000',
+  uri: GRAPHQL_URI,
   credentials: 'same-origin',
 });
 

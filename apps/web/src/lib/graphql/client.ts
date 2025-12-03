@@ -11,7 +11,13 @@ import { onError } from '@apollo/client/link/error';
 // Configuration
 // ============================================================================
 
-const GRAPHQL_ENDPOINT = process.env.NEXT_PUBLIC_GRAPHQL_ENDPOINT || 'http://localhost:4000';
+// GraphQL endpoint - uses relative path in production (handled by Vercel rewrites)
+// Falls back to environment variable or production API
+const GRAPHQL_ENDPOINT =
+  process.env.NEXT_PUBLIC_GRAPHQL_ENDPOINT ||
+  (typeof window !== 'undefined' && window.location.hostname !== 'localhost'
+    ? '/graphql'
+    : 'http://localhost:4000');
 
 // ============================================================================
 // Authentication Headers Store
