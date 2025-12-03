@@ -143,14 +143,15 @@ const resolvers = {
         prisma.transaction.count(),
       ]);
 
-      // Calculate total volume from transactions
-      const volumeResult = await prisma.transaction.aggregate({
-        _sum: { xlmAmount: true },
-      });
+      // Calculate total volume from tokens (sum of volume24h)
+      const volumeResult = await prisma.$queryRaw`
+        SELECT COALESCE(SUM(CAST(NULLIF("volume24h", '') AS DECIMAL)), 0)::text as total
+        FROM "Token"
+      `;
 
       return {
         totalTokens,
-        totalVolume: volumeResult._sum.xlmAmount?.toString() || '0',
+        totalVolume: volumeResult[0]?.total || '0',
         totalUsers,
         totalTransactions,
       };
