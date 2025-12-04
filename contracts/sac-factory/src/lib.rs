@@ -11,7 +11,8 @@
 //!
 //! ## Key Features
 //! - 🚀 Launch in <30 seconds
-//! - 💰 Creation fee: 0.01 XLM (~$0.001)
+//! - 💰 Creation fee: 10 XLM (anti-spam)
+//! - 📊 Trading fee: 0.30% (0.05% protocol + 0.25% LP)
 //! - 🔒 Anti-rug: Liquidity locked forever
 //! - ⚡ Real SAC tokens (transferable, wallet-visible)
 //! - 🌟 Stellar exclusive: Multi-currency support
@@ -59,8 +60,8 @@ use storage::{TokenInfo, TokenStatus};
 // Note: GRADUATION_THRESHOLD is now configurable via storage
 // Default value is set in storage.rs: 10,000 XLM in stroops (100_000_000_000)
 
-/// Creation fee in stroops (0.01 XLM)
-const CREATION_FEE: i128 = 100_000; // 0.01 XLM
+// Note: CREATION_FEE is defined in fee_management.rs as DEFAULT_CREATION_FEE
+// Value: 100_000_000 stroops = 10 XLM
 
 /// Initial token supply (210 million tokens - Bitcoin's number)
 const INITIAL_SUPPLY: i128 = 210_000_000_0000000; // 210M with 7 decimals
@@ -416,13 +417,12 @@ impl SacFactory {
         // 6. Get price before trade (for slippage calculation)
         let price_before = token_info.bonding_curve.get_current_price();
 
-        // 7. Calculate tokens to receive from bonding curve
-        let tokens_gross = token_info.bonding_curve.calculate_buy(xlm_amount)?;
+        // 7. Apply dual-fee system to XLM INPUT (Uniswap V2 style)
+        // This maintains the k=x*y invariant by applying fees BEFORE the swap calculation
+        // Fee is taken from XLM input, not token output
+        let mut fee_breakdown = fee_management::apply_trading_fees(&env, xlm_amount)?;
 
-        // 8. Apply dual-fee system (protocol + LP fees)
-        let mut fee_breakdown = fee_management::apply_trading_fees(&env, tokens_gross)?;
-
-        // 8b. Apply whale tax if applicable (extra fee for large purchases)
+        // 7b. Apply whale tax if applicable (extra fee for large purchases)
         if anti_whale_result.extra_fee_bps > 0 {
             let whale_fee = fee_breakdown.net_amount
                 .checked_mul(anti_whale_result.extra_fee_bps)
@@ -436,8 +436,13 @@ impl SacFactory {
             fee_breakdown.protocol_fee = fee_breakdown.protocol_fee.saturating_add(whale_fee);
         }
 
-        // 9. Check slippage (using net amount after fees)
-        if fee_breakdown.net_amount < min_tokens {
+        // 8. Calculate tokens to receive using XLM AFTER fees
+        // This ensures k invariant is maintained: new_xlm * new_tokens = k
+        let xlm_for_swap = fee_breakdown.net_amount;
+        let tokens_out = token_info.bonding_curve.calculate_buy(xlm_for_swap)?;
+
+        // 9. Check slippage (user receives ALL calculated tokens, no fee on output)
+        if tokens_out < min_tokens {
             return Err(Error::SlippageExceeded);
         }
 
@@ -446,8 +451,9 @@ impl SacFactory {
         // This prevents reentrancy attacks
         // ============================================================
 
-        // 10. Update bonding curve state (with gross amount)
-        token_info.bonding_curve.execute_buy(xlm_amount, tokens_gross)?;
+        // 10. Update bonding curve state with NET XLM and actual tokens
+        // This maintains k invariant: (xlm_reserve + xlm_for_swap) * (tokens_remaining - tokens_out) = k
+        token_info.bonding_curve.execute_buy(xlm_for_swap, tokens_out)?;
 
         // 11. Get price after trade
         let price_after = token_info.bonding_curve.get_current_price();
@@ -472,7 +478,8 @@ impl SacFactory {
         storage::set_token_info(&env, &token, &token_info);
 
         // Record buy for anti-whale tracking (state update)
-        anti_whale::record_buy(&env, &buyer, fee_breakdown.net_amount);
+        // Track tokens received, not XLM spent
+        anti_whale::record_buy(&env, &buyer, tokens_out);
 
         // ============================================================
         // CEI PATTERN: INTERACTIONS - External calls AFTER state updates
@@ -484,13 +491,14 @@ impl SacFactory {
         #[cfg(not(test))]
         {
             // Check if this is a pure Soroban token (empty issuer) or SAC (has issuer)
+            // Mint ALL calculated tokens (fee was on XLM input, not token output)
             if token_info.issuer.len() == 0 {
                 // Pure Soroban token (V2) - use launchpad_token_client
-                launchpad_token_client::mint(&env, &token, &buyer, fee_breakdown.net_amount);
+                launchpad_token_client::mint(&env, &token, &buyer, tokens_out);
             } else {
                 // SAC token (V1) - use StellarAssetClient
                 let token_client = token::StellarAssetClient::new(&env, &token);
-                token_client.mint(&buyer, &fee_breakdown.net_amount);
+                token_client.mint(&buyer, &tokens_out);
             }
         }
 
@@ -509,33 +517,36 @@ impl SacFactory {
         }
 
         // 18. Emit events (both basic and detailed)
-        events::tokens_bought(&env, &buyer, &token, xlm_amount, fee_breakdown.net_amount);
+        // With Uniswap-style fees: user receives ALL calculated tokens, fee was on XLM input
+        events::tokens_bought(&env, &buyer, &token, xlm_amount, tokens_out);
         events::tokens_bought_detailed(
             &env,
             &buyer,
             &token,
-            xlm_amount,
-            tokens_gross,
-            fee_breakdown.total_fees,
-            fee_breakdown.net_amount,
+            xlm_amount,           // XLM user sent (gross)
+            tokens_out,           // Tokens user receives (no fee on output)
+            fee_breakdown.total_fees, // XLM fees taken
+            tokens_out,           // Net tokens = all tokens (fee was on XLM)
             price_before,
             price_after,
             slippage_bps,
         );
 
         // 20. Emit fee breakdown event for transparency
+        // Note: Fee is now on XLM input, not token output
         events::fee_breakdown_event(
             &env,
             "BUY",
             &token,
             &buyer,
-            fee_breakdown.gross_amount,
-            fee_breakdown.protocol_fee,
-            fee_breakdown.lp_fee,
-            fee_breakdown.net_amount,
+            fee_breakdown.gross_amount,  // XLM sent by user
+            fee_breakdown.protocol_fee,  // XLM to protocol
+            fee_breakdown.lp_fee,        // XLM to LP
+            xlm_for_swap,                // XLM used for swap after fees
         );
 
-        Ok(fee_breakdown.net_amount)
+        // Return tokens received (user gets ALL tokens, fee was on XLM input)
+        Ok(tokens_out)
     }
 
     /// Sell tokens back to bonding curve
