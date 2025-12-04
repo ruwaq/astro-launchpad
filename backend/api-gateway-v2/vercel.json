@@ -37,7 +37,7 @@
         },
         {
           "key": "Access-Control-Allow-Headers",
-          "value": "Content-Type, Authorization, X-Admin-Key, X-Request-ID"
+          "value": "Content-Type, Authorization, X-Admin-Key, X-Request-ID, X-Stellar-Address"
         },
         {
           "key": "Access-Control-Max-Age",

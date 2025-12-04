@@ -28,6 +28,7 @@ const typeDefs = gql`
     tokens(
       limit: Int = 20
       offset: Int = 0
+      after: String
       first: Int
       skip: Int
       orderBy: TokenOrderBy = CREATED_AT_DESC
@@ -342,8 +343,14 @@ const resolvers = {
     tokens: async (_, args) => {
       // Support both limit/offset and first/skip naming
       const limit = args.limit || args.first || 20;
-      const offset = args.offset || args.skip || 0;
+      let offset = args.offset || args.skip || 0;
       const { orderBy = 'CREATED_AT_DESC', search } = args;
+
+      // Handle cursor-based pagination (after parameter)
+      if (args.after) {
+        const cursorOffset = parseCursor(args.after);
+        offset = cursorOffset + 1;
+      }
 
       const orderByMap = {
         CREATED_AT_DESC: { createdAt: 'desc' },
@@ -700,6 +707,7 @@ const ALLOWED_ORIGINS = [
   'https://app.astroshiba.io',
   'https://www.astroshiba.io',
   'https://staging.astroshiba.io',
+  'https://astro-launchpad-topaz.vercel.app',
   // Development origins only in non-production
   ...(process.env.NODE_ENV !== 'production' ? [
     'http://localhost:3000',
@@ -730,7 +738,7 @@ export default async function graphqlHandler(req, res) {
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Allow-Origin', requestOrigin);
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Request-ID');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Request-ID, X-Stellar-Address');
     res.setHeader('Vary', 'Origin');
   }
 
