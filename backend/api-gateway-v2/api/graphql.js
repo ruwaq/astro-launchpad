@@ -8,6 +8,15 @@ import { ApolloServer } from '@apollo/server';
 import { startServerAndCreateNextHandler } from '@as-integrations/next';
 import { PrismaClient } from '@prisma/client';
 import gql from 'graphql-tag';
+import { SorobanRpc, Contract, Address, scValToNative, TransactionBuilder, Account } from '@stellar/stellar-sdk';
+
+// Stellar Configuration
+const CONTRACT_ID = process.env.TOKEN_FACTORY_CONTRACT_ID || 'CAETFO74SF5GSPA2SCUIR6P5XET6ASEMQPESLRWNWRDC37UX32HBKEMK';
+const RPC_URL = process.env.STELLAR_RPC_URL || 'https://soroban-testnet.stellar.org';
+const NETWORK_PASSPHRASE = process.env.STELLAR_NETWORK_PASSPHRASE || 'Test SDF Network ; September 2015';
+
+const sorobanServer = new SorobanRpc.Server(RPC_URL);
+const factoryContract = new Contract(CONTRACT_ID);
 
 // Global Prisma instance for serverless (connection pooling)
 const globalForPrisma = globalThis;
@@ -62,6 +71,11 @@ const typeDefs = gql`
       limit: Int = 100
       timeframe: LeaderboardTimeframe = DAY
     ): [LeaderboardEntry!]!
+  }
+
+  type Mutation {
+    # Sync a token from blockchain to database
+    syncToken(tokenAddress: String!): Token!
   }
 
   # ============================================================================
@@ -292,6 +306,47 @@ const typeDefs = gql`
 // ============================================================================
 // Helper Functions
 // ============================================================================
+
+/**
+ * Call contract read-only method
+ */
+async function callContractMethod(method, ...params) {
+  try {
+    const operation = factoryContract.call(method, ...params);
+    const simulationResponse = await sorobanServer.simulateTransaction(
+      new TransactionBuilder(
+        new Account('GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF', '0'),
+        { fee: '100', networkPassphrase: NETWORK_PASSPHRASE }
+      )
+        .addOperation(operation)
+        .setTimeout(30)
+        .build()
+    );
+
+    if (SorobanRpc.Api.isSimulationSuccess(simulationResponse)) {
+      if (simulationResponse.result?.retval) {
+        return scValToNative(simulationResponse.result.retval);
+      }
+    }
+    return null;
+  } catch (error) {
+    console.error(`Contract call ${method} failed:`, error.message);
+    return null;
+  }
+}
+
+/**
+ * Get token info from contract
+ */
+async function getTokenInfoFromContract(tokenAddress) {
+  try {
+    const address = Address.fromString(tokenAddress).toScVal();
+    return await callContractMethod('get_token_info', address);
+  } catch (error) {
+    console.error('Failed to get token info:', error.message);
+    return null;
+  }
+}
 
 /**
  * Transform database token to GraphQL Token type
@@ -773,6 +828,85 @@ const resolvers = {
       } catch (error) {
         console.error('Leaderboard error:', error);
         return [];
+      }
+    },
+  },
+
+  // Mutations
+  Mutation: {
+    syncToken: async (_, { tokenAddress }) => {
+      console.log(`[SyncToken] Syncing token: ${tokenAddress}`);
+
+      try {
+        // Check if token already exists in database
+        const existingToken = await prisma.token.findUnique({
+          where: { address: tokenAddress }
+        });
+
+        // Get token info from contract
+        const tokenInfo = await getTokenInfoFromContract(tokenAddress);
+
+        if (!tokenInfo) {
+          if (existingToken) {
+            return transformToken(existingToken);
+          }
+          throw new Error('Token not found in contract');
+        }
+
+        console.log(`[SyncToken] Token info: ${tokenInfo.name} (${tokenInfo.symbol})`);
+
+        // Prepare token data
+        const tokenData = {
+          address: tokenAddress,
+          creator: tokenInfo.creator,
+          name: tokenInfo.name,
+          symbol: tokenInfo.symbol,
+          decimals: 7,
+          totalSupply: tokenInfo.total_supply?.toString() || '1000000000000000',
+          metadataUri: tokenInfo.image_url || '',
+          imageUrl: tokenInfo.image_url || null,
+          description: tokenInfo.description || `${tokenInfo.name} token on Stellar`,
+          circulatingSupply: tokenInfo.circulating_supply?.toString() || '0',
+          xlmReserve: tokenInfo.xlm_reserve?.toString() || '0',
+          graduated: tokenInfo.graduated || false,
+          xlmRaised: tokenInfo.xlm_raised?.toString() || '0',
+          marketCap: tokenInfo.market_cap?.toString() || '0',
+          currentPrice: tokenInfo.current_price?.toString() || '0',
+          priceChange24h: 0,
+          volume24h: '0',
+          volume7d: '0',
+          holders: 1,
+          createdAt: tokenInfo.created_at ? new Date(Number(tokenInfo.created_at) * 1000) : new Date(),
+          updatedAt: new Date(),
+        };
+
+        // Upsert token
+        const token = await prisma.token.upsert({
+          where: { address: tokenAddress },
+          update: tokenData,
+          create: tokenData,
+        });
+
+        // Upsert creator as user
+        await prisma.user.upsert({
+          where: { address: tokenInfo.creator },
+          update: { updatedAt: new Date() },
+          create: {
+            address: tokenInfo.creator,
+            points: 0,
+            level: 1,
+            referrals: 0,
+            tokensCreatedCount: 1,
+            totalVolumeTraded: '0',
+            totalLiquidityProvided: '0',
+          },
+        });
+
+        console.log(`[SyncToken] Token synced successfully: ${tokenInfo.name}`);
+        return transformToken(token);
+      } catch (error) {
+        console.error('[SyncToken] Error:', error);
+        throw new Error(`Failed to sync token: ${error.message}`);
       }
     },
   },
