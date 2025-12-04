@@ -188,3 +188,11 @@ export const clearCache = async () => {
 export const refetchQueries = async () => {
   await apolloClient.refetchQueries({ include: 'active' });
 };
+
+/**
+ * Get the Apollo Client instance
+ * Use this for standalone queries outside of React components
+ */
+export function getGraphQLClient() {
+  return apolloClient;
+}
