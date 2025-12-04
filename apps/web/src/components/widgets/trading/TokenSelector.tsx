@@ -6,6 +6,7 @@ import Image from 'next/image';
 import FocusTrap from 'focus-trap-react';
 import type { TokenOption } from './types';
 import { STROOPS_PER_XLM } from './constants';
+import { getIpfsUrl } from '@/lib/utils/ipfs';
 
 interface TokenSelectorProps {
   tokens: TokenOption[];
@@ -70,15 +71,18 @@ export function TokenSelector({
           </>
         ) : selectedToken ? (
           <>
-            {selectedToken.imageUrl && (
-              <Image
-                src={selectedToken.imageUrl}
-                alt={selectedToken.symbol}
-                width={20}
-                height={20}
-                className="rounded-full"
-              />
-            )}
+            {(() => {
+              const imgUrl = getIpfsUrl(selectedToken.imageUrl);
+              return imgUrl ? (
+                <Image
+                  src={imgUrl}
+                  alt={selectedToken.symbol}
+                  width={20}
+                  height={20}
+                  className="rounded-full"
+                />
+              ) : null;
+            })()}
             <span className="font-semibold text-sm">{selectedToken.symbol}</span>
           </>
         ) : (
@@ -190,15 +194,22 @@ function TokenSection({ title, emoji, tokens, onSelect, variant }: TokenSectionP
                 : 'hover:bg-gray-50'
             }`}
           >
-            {token.imageUrl && (
-              <Image
-                src={token.imageUrl}
-                alt={token.symbol}
-                width={32}
-                height={32}
-                className="rounded-full"
-              />
-            )}
+            {(() => {
+              const imgUrl = getIpfsUrl(token.imageUrl);
+              return imgUrl ? (
+                <Image
+                  src={imgUrl}
+                  alt={token.symbol}
+                  width={32}
+                  height={32}
+                  className="rounded-full"
+                />
+              ) : (
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-brand-primary to-purple-600 flex items-center justify-center text-white text-xs font-semibold">
+                  {token.symbol?.charAt(0) || '?'}
+                </div>
+              );
+            })()}
             <div className="flex-1 text-left">
               <div className="font-semibold">{token.symbol}</div>
               <div className="text-xs text-gray-500">{token.name}</div>

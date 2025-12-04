@@ -5,6 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useTrendingTokens } from '@/hooks/useApi';
 import { formatCompactNumber } from '@/lib/stellar/utils';
+import { getIpfsUrl } from '@/lib/utils/ipfs';
 import type { Token } from '@/lib/graphql/types';
 
 export function TokensWidget() {
@@ -57,16 +58,22 @@ export function TokensWidget() {
                     {index + 1}
                   </div>
 
-                  {token.imageUrl && (
-                    <Image
-                      src={token.imageUrl}
-                      alt={token.symbol}
-                      width={40}
-                      height={40}
-                      className="rounded-full"
-                      unoptimized
-                    />
-                  )}
+                  {(() => {
+                    const imgUrl = getIpfsUrl(token.imageUrl);
+                    return imgUrl ? (
+                      <Image
+                        src={imgUrl}
+                        alt={token.symbol}
+                        width={40}
+                        height={40}
+                        className="rounded-full"
+                      />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-brand-primary to-purple-600 flex items-center justify-center text-white font-semibold">
+                        {token.symbol?.charAt(0) || '?'}
+                      </div>
+                    );
+                  })()}
 
                   <div>
                     <div className="font-medium text-gray-900">{token.symbol}</div>

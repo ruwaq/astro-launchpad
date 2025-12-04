@@ -34,19 +34,7 @@ import {
 import { useToken } from '@/hooks/useToken';
 import { usePrice } from '@/hooks/usePrice';
 import { stroopsToXlm, formatCompactNumber, GRADUATION_THRESHOLD_XLM } from '@/lib/stellar/utils';
-
-// Helper to convert ipfs:// URLs to HTTP gateway URLs
-const getImageUrl = (url: string | undefined | null): string | null => {
-  if (!url) return null;
-  if (url.startsWith('ipfs://')) {
-    const cid = url.replace('ipfs://', '');
-    const gateway = process.env.NEXT_PUBLIC_PINATA_GATEWAY;
-    return gateway
-      ? `https://${gateway}/ipfs/${cid}`
-      : `https://gateway.pinata.cloud/ipfs/${cid}`;
-  }
-  return url;
-};
+import { getIpfsUrl as getImageUrl } from '@/lib/utils/ipfs';
 
 // Token data from GraphQL query (compatible with Token type from lib/graphql/types)
 interface GraphQLToken {
