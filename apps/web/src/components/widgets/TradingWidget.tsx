@@ -227,11 +227,12 @@ export function TradingWidget() {
   };
 
   const handleSwitch = () => {
+    // SIMPLIFIED: Clear amounts when switching (don't swap - confuses users)
     setState((prev) => ({
       ...prev,
       type: prev.type === 'buy' ? 'sell' : 'buy',
-      inputAmount: prev.outputAmount,
-      outputAmount: prev.inputAmount,
+      inputAmount: '',
+      outputAmount: '',
     }));
   };
 
@@ -546,11 +547,7 @@ export function TradingWidget() {
           displayMode="output"
         />
 
-        <SlippageSelector
-          value={state.slippage}
-          onChange={(slippage) => setState((prev) => ({ ...prev, slippage }))}
-          disabled={!isConnected || state.isProcessing}
-        />
+        {/* SIMPLIFIED: Slippage is auto-set to 1% (hidden from users for simplicity) */}
 
         <SwapButton
           onClick={handleTrade}

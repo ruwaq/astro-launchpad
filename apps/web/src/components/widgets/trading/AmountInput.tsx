@@ -84,7 +84,7 @@ export function AmountInput({
           />
         </div>
 
-        {showQuickAmounts && tradeType === 'buy' && onQuickAmount && (
+        {showQuickAmounts && onQuickAmount && (
           <div className="flex gap-1">
             {QUICK_AMOUNTS.map((amount) => (
               <button
@@ -93,7 +93,7 @@ export function AmountInput({
                 disabled={disabled}
                 className="flex-1 py-1 px-2 bg-white rounded text-xs font-medium text-gray-600 hover:bg-gray-100 disabled:opacity-50"
               >
-                {amount} XLM
+                {amount}
               </button>
             ))}
           </div>

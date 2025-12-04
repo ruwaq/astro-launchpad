@@ -1,10 +1,10 @@
 /**
- * Minimalist Price Chart - Bonding Curve Progress
+ * Bonding Curve Progress Chart
  *
- * Ultra-simple: just a colored line showing price movement.
- * - Green when trending up
- * - Red when trending down
- * - Matches system white theme
+ * Shows graduation progress visually:
+ * - Progress bar toward $69k graduation (30k XLM)
+ * - Price line showing movement
+ * - Green when trending up / Red when trending down
  */
 
 'use client';
@@ -13,6 +13,7 @@ import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { sacFactoryService } from '@/lib/stellar/services/sac-factory.service';
 import { GRADUATION_THRESHOLD_XLM } from '@/lib/stellar/utils';
+import { TrendingUp, Target } from 'lucide-react';
 
 interface BondingCurveChartProps {
   tokenAddress: string;
@@ -97,15 +98,16 @@ export function BondingCurveChart({
     return () => clearInterval(interval);
   }, [checkForChanges]);
 
-  // Generate SVG path
+  // Generate SVG path (80px height for compact view)
   const { path, areaPath } = useMemo(() => {
     if (priceHistory.length < 2) {
       return { path: '', areaPath: '' };
     }
 
     const w = 400;
-    const h = 100;
+    const h = 80;
     const pad = 2;
+    const topPad = 15; // Space for graduation line label
 
     const values = priceHistory.map(p => p.value);
     const minV = Math.min(...values) * 0.9;
@@ -113,7 +115,7 @@ export function BondingCurveChart({
 
     const points = priceHistory.map((p, i) => {
       const x = pad + (i / (priceHistory.length - 1)) * (w - pad * 2);
-      const y = h - pad - ((p.value - minV) / (maxV - minV)) * (h - pad * 2);
+      const y = h - pad - ((p.value - minV) / (maxV - minV)) * (h - pad - topPad);
       return { x, y };
     });
 
@@ -125,19 +127,27 @@ export function BondingCurveChart({
 
   const trendColor = trend === 'up' ? '#22c55e' : trend === 'down' ? '#ef4444' : '#fa9427';
 
+  // Calculate graduation progress percentage
+  const graduationProgress = Math.min((xlmRaised / GRADUATION_THRESHOLD_XLM) * 100, 100);
+  const xlmRemaining = Math.max(GRADUATION_THRESHOLD_XLM - xlmRaised, 0);
+
   if (loading) {
     return (
       <div className="bg-white rounded-xl border border-ui-border shadow-sm overflow-hidden animate-pulse">
-        {/* Price Header Skeleton - matches actual structure */}
+        {/* Progress Header Skeleton */}
         <div className="px-4 pt-4 pb-2">
           <div className="flex items-baseline gap-2">
             <div className="h-8 bg-gray-200 rounded w-32" />
             <div className="h-4 bg-gray-200 rounded w-12" />
           </div>
         </div>
-        {/* Chart Skeleton - h-24 to match SVG */}
+        {/* Progress Bar Skeleton */}
+        <div className="px-4 pb-2">
+          <div className="h-3 bg-gray-200 rounded-full" />
+        </div>
+        {/* Chart Skeleton */}
         <div className="px-2 pb-4">
-          <div className="h-24 bg-gray-100 rounded" />
+          <div className="h-20 bg-gray-100 rounded" />
         </div>
       </div>
     );
@@ -145,36 +155,93 @@ export function BondingCurveChart({
 
   return (
     <div className="bg-white rounded-xl border border-ui-border shadow-sm overflow-hidden">
-      {/* Price Header */}
+      {/* Price & Progress Header */}
       <div className="px-4 pt-4 pb-2">
-        <div className="flex items-baseline gap-2">
-          <span className="text-2xl font-bold text-ui-text-primary">
-            {price.toFixed(8)}
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-baseline gap-2">
+            <span className="text-2xl font-bold text-ui-text-primary">
+              {price.toFixed(8)}
+            </span>
+            <span className="text-sm text-ui-text-secondary">XLM</span>
+            {trend !== 'neutral' && (
+              <motion.span
+                initial={{ opacity: 0, y: -5 }}
+                animate={{ opacity: 1, y: 0 }}
+                className={`text-xs font-medium px-2 py-0.5 rounded ${
+                  trend === 'up' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'
+                }`}
+              >
+                {trend === 'up' ? '↑' : '↓'}
+              </motion.span>
+            )}
+          </div>
+          <div className="flex items-center gap-1 text-xs text-ui-text-secondary">
+            <Target className="w-3 h-3" />
+            <span>{graduationProgress.toFixed(1)}%</span>
+          </div>
+        </div>
+
+        {/* Graduation Progress Bar */}
+        <div className="relative">
+          <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
+            <motion.div
+              className="h-full rounded-full"
+              style={{
+                background: graduationProgress >= 100
+                  ? 'linear-gradient(90deg, #22c55e, #16a34a)'
+                  : 'linear-gradient(90deg, #fa9427, #f97316)',
+              }}
+              initial={{ width: 0 }}
+              animate={{ width: `${graduationProgress}%` }}
+              transition={{ duration: 0.8, ease: 'easeOut' }}
+            />
+          </div>
+          {/* Graduation marker at 100% */}
+          <div
+            className="absolute top-0 right-0 h-3 w-0.5 bg-green-600 rounded-full"
+            title="Graduation: 30k XLM"
+          />
+        </div>
+
+        {/* XLM Stats */}
+        <div className="flex justify-between mt-2 text-xs">
+          <span className="text-ui-text-secondary">
+            <span className="font-medium text-ui-text-primary">{xlmRaised.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span> XLM raised
           </span>
-          <span className="text-sm text-ui-text-secondary">XLM</span>
-          {trend !== 'neutral' && (
-            <motion.span
-              initial={{ opacity: 0, y: -5 }}
-              animate={{ opacity: 1, y: 0 }}
-              className={`text-xs font-medium px-2 py-0.5 rounded ${
-                trend === 'up' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'
-              }`}
-            >
-              {trend === 'up' ? '↑' : '↓'}
-            </motion.span>
-          )}
+          <span className="text-ui-text-secondary">
+            <span className="font-medium text-green-600">{xlmRemaining.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span> to graduate
+          </span>
         </div>
       </div>
 
-      {/* Minimalist Chart */}
+      {/* Price Chart with Graduation Line */}
       <div className="px-2 pb-4">
-        <svg viewBox="0 0 400 100" className="w-full h-24" preserveAspectRatio="none">
+        <svg viewBox="0 0 400 80" className="w-full h-20" preserveAspectRatio="none">
           <defs>
             <linearGradient id="chartGradient" x1="0%" y1="0%" x2="0%" y2="100%">
               <stop offset="0%" stopColor={trendColor} stopOpacity="0.2" />
               <stop offset="100%" stopColor={trendColor} stopOpacity="0.02" />
             </linearGradient>
           </defs>
+
+          {/* Graduation threshold line */}
+          {xlmRaised < GRADUATION_THRESHOLD_XLM && priceHistory.length >= 2 && (
+            <>
+              <line
+                x1="0"
+                y1="10"
+                x2="400"
+                y2="10"
+                stroke="#22c55e"
+                strokeWidth="1"
+                strokeDasharray="4 2"
+                opacity="0.5"
+              />
+              <text x="395" y="8" fill="#22c55e" fontSize="8" textAnchor="end" opacity="0.7">
+                GRADUATE
+              </text>
+            </>
+          )}
 
           {/* Area fill */}
           {areaPath && (
@@ -195,23 +262,35 @@ export function BondingCurveChart({
 
           {/* Current point glow */}
           {priceHistory.length > 0 && path && (
-            <>
-              <circle
-                cx={2 + ((priceHistory.length - 1) / Math.max(priceHistory.length - 1, 1)) * 396}
-                cy={100 - 2 - ((priceHistory[priceHistory.length - 1].value - Math.min(...priceHistory.map(p => p.value)) * 0.9) / (Math.max(...priceHistory.map(p => p.value), GRADUATION_THRESHOLD_XLM) * 1.1 - Math.min(...priceHistory.map(p => p.value)) * 0.9)) * 96}
-                r="4"
-                fill={trendColor}
-              />
-            </>
+            <circle
+              cx={2 + ((priceHistory.length - 1) / Math.max(priceHistory.length - 1, 1)) * 396}
+              cy={80 - 2 - ((priceHistory[priceHistory.length - 1].value - Math.min(...priceHistory.map(p => p.value)) * 0.9) / (Math.max(...priceHistory.map(p => p.value), GRADUATION_THRESHOLD_XLM) * 1.1 - Math.min(...priceHistory.map(p => p.value)) * 0.9)) * 76}
+              r="4"
+              fill={trendColor}
+            />
           )}
 
-          {/* Empty state line */}
+          {/* Empty state - show progress indicator */}
           {priceHistory.length < 2 && (
-            <line x1="2" y1="50" x2="398" y2="50" stroke="#e5e7eb" strokeWidth="1" strokeDasharray="4 4" />
+            <>
+              <line x1="2" y1="70" x2="398" y2="70" stroke="#e5e7eb" strokeWidth="1" />
+              {/* Progress indicator on empty chart */}
+              <rect
+                x="2"
+                y="65"
+                width={Math.max(graduationProgress * 3.96, 4)}
+                height="10"
+                fill={trendColor}
+                opacity="0.3"
+                rx="2"
+              />
+              <text x="200" y="45" fill="#9ca3af" fontSize="10" textAnchor="middle">
+                Trading activity will appear here
+              </text>
+            </>
           )}
         </svg>
       </div>
-
     </div>
   );
 }
