@@ -11,6 +11,8 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { sacFactoryService, type TokenInfo } from '@/lib/stellar/services/sac-factory.service';
+import { getGraphQLClient } from '@/lib/graphql/client';
+import { gql } from '@apollo/client';
 
 interface TokenState {
   // Token data (from contract)
@@ -48,16 +50,41 @@ export const useTokenStore = create<TokenState>()(
         return get().loadingTokens.has(address);
       },
 
-      // Fetch total token count from contract
+      // Fetch total token count - from database first, fallback to contract
       fetchTokenCount: async () => {
         try {
+          // Try GraphQL/database first (more accurate - shows synced tokens)
+          const client = getGraphQLClient();
+          const { data } = await client.query({
+            query: gql`
+              query GetGlobalStats {
+                globalStats {
+                  totalTokens
+                }
+              }
+            `,
+            fetchPolicy: 'network-only',
+          });
+
+          if (data?.globalStats?.totalTokens !== undefined) {
+            set({ tokenCount: data.globalStats.totalTokens });
+            return;
+          }
+
+          // Fallback to contract if GraphQL fails
           const count = await sacFactoryService.getTokenCount();
           set({ tokenCount: count });
         } catch (error) {
           console.error('Error fetching token count:', error);
-          set((state) => ({
-            errors: new Map(state.errors).set('tokenCount', (error as Error).message),
-          }));
+          // Last resort: try contract directly
+          try {
+            const count = await sacFactoryService.getTokenCount();
+            set({ tokenCount: count });
+          } catch (contractError) {
+            set((state) => ({
+              errors: new Map(state.errors).set('tokenCount', (error as Error).message),
+            }));
+          }
         }
       },
 
