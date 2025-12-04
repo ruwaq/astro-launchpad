@@ -3,7 +3,7 @@
 // Force dynamic rendering to avoid build-time errors with contract service
 export const dynamic = 'force-dynamic';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
@@ -14,12 +14,20 @@ import { useWallet } from '@/contexts/WalletContext';
 import toast from 'react-hot-toast';
 import { useQuery, gql } from '@apollo/client';
 import type { Token, TokenEdge } from '@/lib/graphql/types';
-import { GRADUATION_THRESHOLD_XLM } from '@/lib/stellar/utils';
 import { useDebounce } from '@/hooks/useDebounce';
 import { SearchResultsAnnouncer } from '@/components/accessibility/LiveRegion';
 
 type SortOption = 'trending' | 'new' | 'marketCap' | 'volume' | 'graduation';
-type StatusFilter = 'all' | 'bonding' | 'graduated';
+type StatusFilter = 'ALL' | 'BONDING' | 'GRADUATED';
+
+// Map frontend sort options to GraphQL orderBy enum
+const sortToOrderBy: Record<SortOption, string> = {
+  new: 'CREATED_AT_DESC',
+  trending: 'VOLUME_DESC',
+  marketCap: 'MARKET_CAP_DESC',
+  volume: 'VOLUME_DESC',
+  graduation: 'GRADUATION_DESC',
+};
 
 // Animation variants for staggered children
 const containerVariants = {
@@ -37,49 +45,63 @@ const itemVariants = {
   visible: { opacity: 1, y: 0 },
 };
 
+// GraphQL query with server-side search, filter, and sort
+const GET_TOKENS = gql`
+  query GetAllTokens($limit: Int!, $after: String, $orderBy: TokenOrderBy!, $search: String, $status: TokenStatus) {
+    tokens(limit: $limit, after: $after, orderBy: $orderBy, search: $search, status: $status) {
+      edges {
+        cursor
+        node {
+          address
+          name
+          symbol
+          imageUrl
+          logoUrl
+          currentPrice
+          priceChange24h
+          volume24h
+          marketCap
+          circulatingSupply
+          xlmRaised
+          xlmReserve
+          graduated
+          createdAt
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        endCursor
+      }
+      totalCount
+    }
+  }
+`;
+
 export default function ExplorePage() {
-  const { address, isConnected, connect, isConnecting } = useWallet();
+  const { connect } = useWallet();
 
   // Pagination constants
   const TOKENS_PER_PAGE = 24;
 
-  // Fetch tokens from GraphQL API with pagination support
-  const { data: tokensData, loading: tokensLoading, error: tokensError, fetchMore } = useQuery(gql`
-    query GetAllTokens($limit: Int!, $after: String, $orderBy: TokenOrderBy!) {
-      tokens(limit: $limit, after: $after, orderBy: $orderBy) {
-        edges {
-          cursor
-          node {
-            address
-            name
-            symbol
-            imageUrl
-            logoUrl
-            currentPrice
-            priceChange24h
-            volume24h
-            marketCap
-            circulatingSupply
-            xlmRaised
-            xlmReserve
-            graduated
-            createdAt
-          }
-        }
-        pageInfo {
-          hasNextPage
-          hasPreviousPage
-          endCursor
-        }
-        totalCount
-      }
-    }
-  `, {
-    variables: {
-      limit: TOKENS_PER_PAGE,
-      after: null,
-      orderBy: 'CREATED_AT_DESC'
-    },
+  // State for filters (these trigger server-side filtering)
+  const [searchQuery, setSearchQuery] = useState('');
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
+  const [sortBy, setSortBy] = useState<SortOption>('new');
+
+  // Build query variables
+  const queryVariables = useMemo(() => ({
+    limit: TOKENS_PER_PAGE,
+    after: null as string | null,
+    orderBy: sortToOrderBy[sortBy],
+    search: debouncedSearchQuery || null,
+    status: statusFilter,
+  }), [sortBy, debouncedSearchQuery, statusFilter]);
+
+  // Fetch tokens from GraphQL API with server-side filtering
+  const { data: tokensData, loading: tokensLoading, error: tokensError, fetchMore, refetch } = useQuery(GET_TOKENS, {
+    variables: queryVariables,
     pollInterval: 30000,
     notifyOnNetworkStatusChange: true,
   });
@@ -87,7 +109,7 @@ export default function ExplorePage() {
   // Track if we're loading more
   const [loadingMore, setLoadingMore] = useState(false);
 
-  // Load more tokens handler
+  // Load more tokens handler - maintains current filters
   const handleLoadMore = useCallback(async () => {
     if (!tokensData?.tokens?.pageInfo?.hasNextPage || loadingMore) return;
 
@@ -95,6 +117,7 @@ export default function ExplorePage() {
     try {
       await fetchMore({
         variables: {
+          ...queryVariables,
           after: tokensData.tokens.pageInfo.endCursor,
         },
         updateQuery: (prev, { fetchMoreResult }) => {
@@ -116,66 +139,13 @@ export default function ExplorePage() {
     } finally {
       setLoadingMore(false);
     }
-  }, [tokensData, fetchMore, loadingMore]);
+  }, [tokensData, fetchMore, loadingMore, queryVariables]);
 
-  // State
-  const [tokens, setTokens] = useState<Token[]>([]);
-  const [filteredTokens, setFilteredTokens] = useState<Token[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
-  const debouncedSearchQuery = useDebounce(searchQuery, 300); // Debounce search for better performance
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
-  const [sortBy, setSortBy] = useState<SortOption>('new');
-
-  // Extract tokens from GraphQL response
-  useEffect(() => {
-    if (tokensData?.tokens?.edges) {
-      // Extract token data from edges[].node structure
-      const tokensList = tokensData.tokens.edges.map((edge: TokenEdge) => edge.node);
-      setTokens(tokensList);
-    }
+  // Extract tokens from GraphQL response (already filtered/sorted by server)
+  const tokens = useMemo(() => {
+    if (!tokensData?.tokens?.edges) return [];
+    return tokensData.tokens.edges.map((edge: TokenEdge) => edge.node);
   }, [tokensData]);
-
-  // Apply filters and search
-  useEffect(() => {
-    let result = [...tokens];
-
-    // Apply search (using debounced value for better performance)
-    if (debouncedSearchQuery) {
-      result = result.filter(token =>
-        token.name?.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
-        token.symbol?.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
-      );
-    }
-
-    // Apply status filter
-    if (statusFilter !== 'all') {
-      result = result.filter(token => {
-        if (statusFilter === 'bonding') return !token.graduated;
-        if (statusFilter === 'graduated') return token.graduated;
-        return true;
-      });
-    }
-
-    // Apply sort
-    result.sort((a, b) => {
-      switch (sortBy) {
-        case 'new':
-          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-        case 'marketCap':
-          return parseFloat(b.marketCap || '0') - parseFloat(a.marketCap || '0');
-        case 'volume':
-          return parseFloat(b.volume24h || '0') - parseFloat(a.volume24h || '0');
-        case 'graduation':
-          const progressA = (parseFloat(a.xlmRaised || '0') / GRADUATION_THRESHOLD_XLM) * 100;
-          const progressB = (parseFloat(b.xlmRaised || '0') / GRADUATION_THRESHOLD_XLM) * 100;
-          return progressB - progressA;
-        default:
-          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-      }
-    });
-
-    setFilteredTokens(result);
-  }, [tokens, debouncedSearchQuery, statusFilter, sortBy]);
 
   const handleConnect = async () => {
     try {
@@ -192,22 +162,25 @@ export default function ExplorePage() {
     const oneDay = 24 * 60 * 60 * 1000;
 
     // Sort by volume for trending rank
-    const byVolume = [...filteredTokens].sort(
-      (a, b) => parseFloat(b.volume24h || '0') - parseFloat(a.volume24h || '0')
+    const byVolume = [...tokens].sort(
+      (a: Token, b: Token) => parseFloat(b.volume24h || '0') - parseFloat(a.volume24h || '0')
     );
 
-    return filteredTokens.reduce((acc, token, index) => {
+    return tokens.reduce((acc: Record<string, { isNew: boolean; trendingRank: number }>, token: Token) => {
       const createdAt = new Date(token.createdAt).getTime();
       const isNew = now - createdAt < oneDay; // New if created within 24h
-      const trendingRank = byVolume.findIndex((t) => t.address === token.address) + 1;
+      const trendingRank = byVolume.findIndex((t: Token) => t.address === token.address) + 1;
 
       acc[token.address] = { isNew, trendingRank };
       return acc;
     }, {} as Record<string, { isNew: boolean; trendingRank: number }>);
-  }, [filteredTokens]);
+  }, [tokens]);
 
   // State for activity sidebar
   const [showActivity, setShowActivity] = useState(false);
+
+  // Total count from server
+  const totalCount = tokensData?.tokens?.totalCount || 0;
 
   return (
     <DashboardLayout>
@@ -276,30 +249,33 @@ export default function ExplorePage() {
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
                   className="px-4 py-3 border border-ui-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-primary bg-white"
+                  aria-label="Filter tokens by status"
                 >
-                  <option value="all">All Status</option>
-                  <option value="bonding">Bonding</option>
-                  <option value="graduated">Graduated</option>
+                  <option value="ALL">All Status</option>
+                  <option value="BONDING">Bonding</option>
+                  <option value="GRADUATED">Graduated</option>
                 </select>
               </div>
             </div>
 
             {/* Sort Tabs */}
-            <div className="flex items-center gap-4 mt-4 pt-4 border-t border-ui-border">
+            <div className="flex items-center gap-4 mt-4 pt-4 border-t border-ui-border" role="group" aria-label="Sort options">
               <span className="text-sm font-medium text-ui-text-secondary flex items-center gap-1">
-                <Filter className="h-4 w-4" />
+                <Filter className="h-4 w-4" aria-hidden="true" />
                 Sort:
               </span>
               <div className="flex flex-wrap gap-2">
                 {[
-                  { id: 'new', label: 'New', icon: <Sparkles className="h-3.5 w-3.5" /> },
-                  { id: 'trending', label: 'Trending', icon: <Flame className="h-3.5 w-3.5" /> },
-                  { id: 'marketCap', label: 'Market Cap', icon: <TrendingUp className="h-3.5 w-3.5" /> },
+                  { id: 'new', label: 'New', icon: <Sparkles className="h-3.5 w-3.5" aria-hidden="true" /> },
+                  { id: 'trending', label: 'Trending', icon: <Flame className="h-3.5 w-3.5" aria-hidden="true" /> },
+                  { id: 'marketCap', label: 'Market Cap', icon: <TrendingUp className="h-3.5 w-3.5" aria-hidden="true" /> },
                   { id: 'graduation', label: 'Graduation %', icon: null },
                 ].map((option) => (
                   <button
                     key={option.id}
                     onClick={() => setSortBy(option.id as SortOption)}
+                    aria-label={`Sort by ${option.label}`}
+                    aria-pressed={sortBy === option.id}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
                       sortBy === option.id
                         ? 'bg-brand-primary text-white shadow-md'
@@ -316,7 +292,7 @@ export default function ExplorePage() {
 
           {/* Screen reader announcement for search results */}
           <SearchResultsAnnouncer
-            count={filteredTokens.length}
+            count={tokens.length}
             isLoading={tokensLoading}
             searchTerm={debouncedSearchQuery}
           />
@@ -330,7 +306,7 @@ export default function ExplorePage() {
           )}
 
           {/* Content */}
-          {tokensLoading ? (
+          {tokensLoading && tokens.length === 0 ? (
             // Loading state with skeleton - matches main grid responsive classes
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4">
               {[...Array(6)].map((_, i) => (
@@ -357,7 +333,7 @@ export default function ExplorePage() {
                 </div>
               ))}
             </div>
-          ) : filteredTokens.length === 0 ? (
+          ) : tokens.length === 0 ? (
             // Empty state (no tokens found)
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
@@ -366,22 +342,24 @@ export default function ExplorePage() {
             >
               <div className="max-w-md mx-auto">
                 <div className="w-20 h-20 bg-gradient-to-br from-brand-primary/20 to-brand-blue/20 rounded-full flex items-center justify-center mx-auto mb-6">
-                  <TrendingUp className="h-10 w-10 text-brand-primary" />
+                  <TrendingUp className="h-10 w-10 text-brand-primary" aria-hidden="true" />
                 </div>
                 <h3 className="text-xl font-bold text-ui-text-primary mb-2">
-                  {tokens.length === 0 ? 'No tokens created yet' : 'No tokens match your filters'}
+                  {!debouncedSearchQuery && statusFilter === 'ALL'
+                    ? 'No tokens created yet'
+                    : 'No tokens match your filters'}
                 </h3>
                 <p className="text-ui-text-secondary mb-6">
-                  {tokens.length === 0
+                  {!debouncedSearchQuery && statusFilter === 'ALL'
                     ? 'Be the first to create a token on SAC Factory!'
                     : 'Try adjusting your search or filters'}
                 </p>
-                {tokens.length === 0 && (
+                {!debouncedSearchQuery && statusFilter === 'ALL' && (
                   <Link
                     href="/create"
                     className="inline-flex items-center gap-2 px-6 py-3 bg-brand-primary text-white rounded-lg hover:bg-brand-primary/90 transition-colors font-medium shadow-lg shadow-brand-primary/25"
                   >
-                    <Sparkles className="h-5 w-5" />
+                    <Sparkles className="h-5 w-5" aria-hidden="true" />
                     Create Token
                   </Link>
                 )}
@@ -395,9 +373,11 @@ export default function ExplorePage() {
                 initial="hidden"
                 animate="visible"
                 className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4"
+                role="list"
+                aria-label="Token list"
               >
                 <AnimatePresence mode="popLayout">
-                  {filteredTokens.map((token) => {
+                  {tokens.map((token: Token) => {
                     const metadata = getTokenMetadata[token.address] || { isNew: false, trendingRank: 0 };
                     return (
                       <motion.div
@@ -405,6 +385,7 @@ export default function ExplorePage() {
                         variants={itemVariants}
                         layout
                         exit={{ opacity: 0, scale: 0.9 }}
+                        role="listitem"
                       >
                         <TokenCardPremium
                           token={token}
@@ -428,19 +409,20 @@ export default function ExplorePage() {
                   <button
                     onClick={handleLoadMore}
                     disabled={loadingMore}
+                    aria-label={loadingMore ? 'Loading more tokens' : `Load more tokens, showing ${tokens.length} of ${totalCount}`}
                     className="inline-flex items-center gap-2 px-6 py-3 bg-white border border-ui-border rounded-xl font-medium text-ui-text-primary hover:bg-gray-50 hover:border-brand-primary transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
                   >
                     {loadingMore ? (
                       <>
-                        <Loader2 className="h-5 w-5 animate-spin" />
+                        <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
                         Loading...
                       </>
                     ) : (
                       <>
-                        <ChevronDown className="h-5 w-5" />
+                        <ChevronDown className="h-5 w-5" aria-hidden="true" />
                         Load More Tokens
                         <span className="text-sm text-ui-text-secondary ml-1">
-                          ({tokens.length} of {tokensData.tokens.totalCount})
+                          ({tokens.length} of {totalCount})
                         </span>
                       </>
                     )}

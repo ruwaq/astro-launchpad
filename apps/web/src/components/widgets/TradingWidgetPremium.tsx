@@ -42,6 +42,8 @@ import {
   TransactionStatus,
   TradeInfoPanel,
   DisabledTradingState,
+  UserBalanceDisplay,
+  PriceImpactWarning,
   parseContractError,
   extractSimulationError,
   SLIPPAGE_OPTIONS,
@@ -467,6 +469,16 @@ export function TradingWidgetPremium({
       />
 
       <div className="p-4 space-y-4">
+        {/* User Balance Display */}
+        <motion.div variants={itemVariants}>
+          <UserBalanceDisplay
+            userAddress={address}
+            tokenAddress={tokenAddress}
+            tokenSymbol={tokenSymbol}
+            isConnected={isConnected}
+          />
+        </motion.div>
+
         {/* Quick Buy Buttons */}
         <motion.div variants={itemVariants}>
           <QuickBuyButtons
@@ -488,7 +500,7 @@ export function TradingWidgetPremium({
                 setTradeType(type);
               }}
               disabled={isProcessing}
-              className={`flex-1 py-2.5 px-4 rounded-lg font-semibold transition-all ${
+              className={`flex-1 py-3 px-4 rounded-lg font-semibold transition-all min-h-[44px] ${
                 tradeType === type
                   ? type === 'buy'
                     ? 'bg-green-500 text-white shadow-sm'
@@ -561,6 +573,17 @@ export function TradingWidgetPremium({
               {tradeType === 'buy' ? tokenSymbol : 'XLM'}
             </span>
           </div>
+
+          {/* Price Impact Warning */}
+          {tokenInfo && inputAmount && outputAmount && (
+            <PriceImpactWarning
+              inputAmount={inputAmount}
+              outputAmount={outputAmount}
+              xlmReserve={(Number(BigInt(tokenInfo.bonding_curve.xlm_reserve)) / 10_000_000).toString()}
+              tokenReserve={(Number(BigInt(tokenInfo.bonding_curve.token_reserve)) / 10_000_000).toString()}
+              tradeType={tradeType}
+            />
+          )}
         </motion.div>
 
         {/* Slippage */}
@@ -578,7 +601,7 @@ export function TradingWidgetPremium({
                   setSlippage(s);
                 }}
                 disabled={isProcessing}
-                className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
+                className={`flex-1 py-3 rounded-lg text-sm font-medium transition-colors min-h-[44px] ${
                   slippage === s
                     ? 'bg-brand-primary text-white'
                     : 'bg-gray-100 text-gray-600 hover:bg-gray-200'

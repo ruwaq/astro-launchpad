@@ -128,6 +128,7 @@ const queryResolvers = {
       after?: string
       orderBy?: string
       search?: string
+      status?: string
     },
     context: GraphQLContext
   ) => {
@@ -137,7 +138,7 @@ const queryResolvers = {
       const search = validateSearchString(args.search, 100);
       const orderByKey = validateOrderBy(
         args.orderBy,
-        ['CREATED_AT_DESC', 'CREATED_AT_ASC', 'MARKET_CAP_DESC', 'VOLUME_DESC', 'HOLDERS_DESC'],
+        ['CREATED_AT_DESC', 'CREATED_AT_ASC', 'MARKET_CAP_DESC', 'VOLUME_DESC', 'HOLDERS_DESC', 'GRADUATION_DESC'],
         'CREATED_AT_DESC'
       );
 
@@ -159,14 +160,30 @@ const queryResolvers = {
         offset = validateOffset(args.offset);
       }
 
-      // Build where clause for search
-      const where = search
-        ? {
+      // Build where clause for search and status filter
+      const whereConditions: any[] = []
+
+      // Search filter
+      if (search) {
+        whereConditions.push({
           OR: [
             { name: { contains: search, mode: 'insensitive' as const } },
             { symbol: { contains: search, mode: 'insensitive' as const } },
           ],
+        })
+      }
+
+      // Status filter (bonding = not graduated, graduated = graduated)
+      if (args.status && args.status !== 'ALL') {
+        if (args.status === 'BONDING') {
+          whereConditions.push({ graduated: false })
+        } else if (args.status === 'GRADUATED') {
+          whereConditions.push({ graduated: true })
         }
+      }
+
+      const where = whereConditions.length > 0
+        ? { AND: whereConditions }
         : {}
 
       // Build orderBy
@@ -176,6 +193,7 @@ const queryResolvers = {
         MARKET_CAP_DESC: { marketCap: 'desc' },
         VOLUME_DESC: { volume24h: 'desc' },
         HOLDERS_DESC: { holders: 'desc' },
+        GRADUATION_DESC: { xlmRaised: 'desc' }, // Sort by XLM raised (graduation progress)
       }
       const orderBy = orderByMap[orderByKey]
 

@@ -5,6 +5,7 @@ export { SlippageSelector } from './SlippageSelector';
 export { TokenInfoCard } from './TokenInfoCard';
 export { SwapButton } from './SwapButton';
 export { PriceImpactWarning } from './PriceImpactWarning';
+export { UserBalanceDisplay } from './UserBalanceDisplay';
 export { ConnectWalletAlert, TestnetTokenAlert, NoLiquidityAlert } from './TradingAlerts';
 export { QuickBuyButtons, QUICK_BUY_AMOUNTS } from './QuickBuyButtons';
 export { TradingHeader } from './TradingHeader';
