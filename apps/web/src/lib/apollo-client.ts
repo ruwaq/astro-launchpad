@@ -12,10 +12,10 @@ import { ApolloClient, InMemoryCache, HttpLink, from } from '@apollo/client';
 import { onError } from '@apollo/client/link/error';
 import { RetryLink } from '@apollo/client/link/retry';
 
-// GraphQL endpoint - uses relative path in production (handled by Next.js rewrites)
-// Falls back to /graphql which is rewritten to production API by next.config.ts
-const GRAPHQL_URI =
-  process.env.NEXT_PUBLIC_GRAPHQL_ENDPOINT || '/graphql';
+// GraphQL endpoint - ALWAYS use relative path for client-side requests
+// Next.js rewrites in next.config.ts handle routing to the correct API
+// This prevents localhost URLs from being baked into production builds
+const GRAPHQL_URI = '/graphql';
 
 const httpLink = new HttpLink({
   uri: GRAPHQL_URI,

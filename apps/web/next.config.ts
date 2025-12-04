@@ -8,9 +8,12 @@ const nextConfig: NextConfig = {
     optimizePackageImports: ['@repo/ui'],
   },
 
-  // API rewrites - proxy /graphql to the API Gateway in production
+  // API rewrites - proxy /graphql to the API Gateway
+  // IMPORTANT: Always use production API URL for server-side rewrites
+  // Local development should use .env.local with NEXT_PUBLIC_API_GATEWAY_URL override if needed
   async rewrites() {
-    const apiUrl = process.env.NEXT_PUBLIC_GRAPHQL_ENDPOINT || 'https://api-gateway-v2.vercel.app/graphql';
+    // Use explicit production URL - don't rely on env vars that might be misconfigured
+    const apiUrl = process.env.NEXT_PUBLIC_API_GATEWAY_URL || 'https://api-gateway-v2.vercel.app/graphql';
 
     return [
       {
