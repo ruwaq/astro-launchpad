@@ -16,7 +16,6 @@
  */
 
 import { PrismaClient, Prisma } from '@astroshibapop/shared/prisma';
-// @ts-expect-error - Cross-package import (resolved at runtime)
 import { logger } from '../lib/logger.js';
 import type { FeeStats } from '@astroshibapop/shared/types';
 
