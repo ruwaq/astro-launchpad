@@ -50,7 +50,7 @@ export const MobileBottomNav = memo(function MobileBottomNav() {
 
   return (
     <nav
-      className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-ui-border shadow-lg safe-area-inset-bottom"
+      className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-ui-border shadow-lg pb-[env(safe-area-inset-bottom)]"
       role="navigation"
       aria-label="Mobile navigation"
     >
@@ -113,9 +113,6 @@ export const MobileBottomNav = memo(function MobileBottomNav() {
           );
         })}
       </div>
-
-      {/* Safe area padding for iOS */}
-      <div className="h-safe-area-inset-bottom bg-white" />
     </nav>
   );
 });

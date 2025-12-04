@@ -45,8 +45,8 @@ export function Navbar() {
 
   return (
     <header className="sticky top-0 z-50 bg-white border-b border-gray-200 shadow-sm">
-      <div className="px-6">
-        <div className="flex items-center justify-between h-16">
+      <div className="px-4 sm:px-6">
+        <div className="flex items-center justify-between h-14 sm:h-16">
           {/* Left: Empty space or page title can go here */}
           <div className="flex-1">
             {/* Page title or breadcrumbs can be added here later */}
@@ -57,10 +57,10 @@ export function Navbar() {
           {/* Notifications */}
           <button
             aria-label="Notifications"
-            className="relative p-2 text-ui-text-secondary hover:text-ui-text-primary"
+            className="relative p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center text-ui-text-secondary hover:text-ui-text-primary hover:bg-gray-100 rounded-lg transition-colors"
           >
             <Bell className="h-5 w-5" aria-hidden="true" />
-            <span className="absolute top-1 right-1 w-2 h-2 bg-brand-primary rounded-full" aria-hidden="true" />
+            <span className="absolute top-2 right-2 w-2 h-2 bg-brand-primary rounded-full" aria-hidden="true" />
             <span className="sr-only">You have new notifications</span>
           </button>
 
@@ -71,11 +71,14 @@ export function Navbar() {
               disabled={isConnecting}
               aria-label={isConnecting ? 'Connecting wallet' : 'Connect wallet'}
               aria-busy={isConnecting}
-              className="flex items-center gap-2 bg-gradient-to-r from-brand-primary to-brand-blue text-white px-6 py-2 rounded-lg font-medium hover:shadow-lg hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+              className="flex items-center justify-center gap-2 bg-gradient-to-r from-brand-primary to-brand-blue text-white px-4 sm:px-6 py-2.5 sm:py-2 rounded-lg font-medium hover:shadow-lg active:scale-95 sm:hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 min-h-[44px]"
             >
-              <Wallet className="h-4 w-4" aria-hidden="true" />
+              <Wallet className="h-5 w-5 sm:h-4 sm:w-4" aria-hidden="true" />
               <span className="hidden sm:inline">
                 {isConnecting ? 'Connecting...' : 'Connect Wallet'}
+              </span>
+              <span className="sm:hidden text-sm">
+                {isConnecting ? '...' : 'Connect'}
               </span>
             </button>
           ) : (
@@ -85,7 +88,7 @@ export function Navbar() {
                 aria-expanded={showDropdown}
                 aria-haspopup="true"
                 aria-label={`Wallet menu for ${formatAddress(address!)}`}
-                className="flex items-center gap-3 bg-green-50 border border-green-200 px-4 py-2 rounded-lg hover:bg-green-100 transition-colors"
+                className="flex items-center gap-2 sm:gap-3 bg-green-50 border border-green-200 px-3 sm:px-4 py-2 rounded-lg hover:bg-green-100 transition-colors min-h-[44px]"
               >
                 <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
                 <div className="flex flex-col items-start">
@@ -126,7 +129,7 @@ export function Navbar() {
                       role="menu"
                       aria-orientation="vertical"
                       aria-label="Wallet options"
-                      className="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 z-50"
+                      className="absolute right-0 mt-2 w-[calc(100vw-2rem)] sm:w-64 max-w-64 bg-white rounded-lg shadow-lg border border-gray-200 z-50"
                     >
                       <div className="p-4 border-b border-gray-200">
                         <p className="text-xs text-gray-600 mb-1">

@@ -84,7 +84,7 @@ export const QuickBuyButtons = memo(function QuickBuyButtons({
         </AnimatePresence>
       </div>
 
-      <div className="grid grid-cols-5 gap-2">
+      <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
         {QUICK_BUY_AMOUNTS.map((amount) => {
           const isSelected = selectedAmount === amount.toString() && tradeType === 'buy';
           const estimate = tokenEstimates[amount];
