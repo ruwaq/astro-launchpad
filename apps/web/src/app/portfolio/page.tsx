@@ -44,7 +44,7 @@ export default function PortfolioPage() {
           <div className="flex gap-4 overflow-x-auto">
             <button
               onClick={() => setActiveTab('holdings')}
-              className={`px-4 py-3 border-b-2 font-medium whitespace-nowrap transition-colors ${
+              className={`px-4 py-3 min-h-[44px] border-b-2 font-medium whitespace-nowrap transition-colors ${
                 activeTab === 'holdings'
                   ? 'border-brand-primary text-brand-primary'
                   : 'border-transparent text-ui-text-secondary hover:text-ui-text-primary'
@@ -54,7 +54,7 @@ export default function PortfolioPage() {
             </button>
             <button
               onClick={() => setActiveTab('created')}
-              className={`px-4 py-3 border-b-2 font-medium whitespace-nowrap transition-colors ${
+              className={`px-4 py-3 min-h-[44px] border-b-2 font-medium whitespace-nowrap transition-colors ${
                 activeTab === 'created'
                   ? 'border-brand-primary text-brand-primary'
                   : 'border-transparent text-ui-text-secondary hover:text-ui-text-primary'
@@ -64,7 +64,7 @@ export default function PortfolioPage() {
             </button>
             <button
               onClick={() => setActiveTab('history')}
-              className={`px-4 py-3 border-b-2 font-medium whitespace-nowrap transition-colors ${
+              className={`px-4 py-3 min-h-[44px] border-b-2 font-medium whitespace-nowrap transition-colors ${
                 activeTab === 'history'
                   ? 'border-brand-primary text-brand-primary'
                   : 'border-transparent text-ui-text-secondary hover:text-ui-text-primary'
@@ -91,7 +91,7 @@ export default function PortfolioPage() {
               <button
                 onClick={handleConnect}
                 disabled={isConnecting}
-                className="px-6 py-3 bg-brand-primary text-white rounded-lg hover:bg-brand-primary-600 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-6 py-3 min-h-[44px] bg-brand-primary text-white rounded-lg hover:bg-brand-primary-600 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isConnecting ? 'Connecting...' : 'Connect Wallet'}
               </button>
@@ -154,14 +154,14 @@ function PortfolioContent({ address, activeTab }: { address: string; activeTab: 
   return (
     <>
       {/* Wallet Info Card */}
-      <div className="bg-gradient-to-br from-brand-primary to-brand-blue text-white rounded-xl p-6 shadow-lg">
+      <div className="bg-gradient-to-br from-brand-primary to-brand-blue text-white rounded-xl p-4 sm:p-6 shadow-lg">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-sm opacity-90 mb-1">Wallet Address</p>
-            <p className="text-xl font-bold">{truncateAddress(address, 8)}</p>
+            <p className="text-lg sm:text-xl font-bold">{truncateAddress(address, 8)}</p>
           </div>
           <button
-            className="px-4 py-2 bg-white bg-opacity-20 hover:bg-opacity-30 rounded-lg transition-colors backdrop-blur-sm"
+            className="px-4 py-2.5 min-h-[44px] bg-white bg-opacity-20 hover:bg-opacity-30 rounded-lg transition-colors backdrop-blur-sm"
             onClick={() => {
               navigator.clipboard.writeText(address);
               toast.success('Address copied to clipboard!');
@@ -174,26 +174,26 @@ function PortfolioContent({ address, activeTab }: { address: string; activeTab: 
 
       {/* Portfolio Summary */}
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-ui-border">
+        <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-ui-border">
           <p className="text-sm font-medium text-ui-text-secondary mb-1">Total Volume</p>
-          <p className="text-2xl font-bold text-ui-text-primary">
+          <p className="text-xl sm:text-2xl font-bold text-ui-text-primary">
             ${formatCompactNumber(totalVolume)}
           </p>
         </div>
 
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-ui-border">
+        <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-ui-border">
           <p className="text-sm font-medium text-ui-text-secondary mb-1">Total Transactions</p>
-          <p className="text-2xl font-bold text-ui-text-primary">{totalTransactions}</p>
+          <p className="text-xl sm:text-2xl font-bold text-ui-text-primary">{totalTransactions}</p>
         </div>
 
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-ui-border">
+        <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-ui-border">
           <p className="text-sm font-medium text-ui-text-secondary mb-1">Buys</p>
-          <p className="text-2xl font-bold text-brand-green">{buyCount}</p>
+          <p className="text-xl sm:text-2xl font-bold text-brand-green">{buyCount}</p>
         </div>
 
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-ui-border">
+        <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-ui-border">
           <p className="text-sm font-medium text-ui-text-secondary mb-1">Sells</p>
-          <p className="text-2xl font-bold text-red-600">{sellCount}</p>
+          <p className="text-xl sm:text-2xl font-bold text-red-600">{sellCount}</p>
         </div>
       </div>
 

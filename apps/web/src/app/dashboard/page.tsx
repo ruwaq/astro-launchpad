@@ -22,11 +22,11 @@ function StatCard({ title, value, icon: Icon, trend }: {
   trend?: string;
 }) {
   return (
-    <div className="bg-white rounded-xl p-6 border border-ui-border shadow-sm hover:shadow-md transition-shadow">
+    <div className="bg-white rounded-xl p-4 sm:p-6 border border-ui-border shadow-sm hover:shadow-md transition-shadow">
       <div className="flex items-start justify-between">
         <div className="flex-1">
           <p className="text-sm font-medium text-ui-text-secondary">{title}</p>
-          <p className="text-3xl font-bold text-ui-text-primary mt-2">{value}</p>
+          <p className="text-2xl sm:text-3xl font-bold text-ui-text-primary mt-2">{value}</p>
           {trend && (
             <p className="text-sm text-brand-green mt-2 flex items-center gap-1">
               <TrendingUp className="h-4 w-4" />
@@ -119,7 +119,7 @@ export default function DashboardPage() {
                 <button
                   onClick={handleConnect}
                   disabled={isConnecting}
-                  className="mt-4 px-6 py-2 bg-brand-blue text-white rounded-lg hover:bg-brand-blue-600 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="mt-4 px-6 py-3 min-h-[44px] bg-brand-blue text-white rounded-lg hover:bg-brand-blue-600 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isConnecting ? 'Connecting...' : 'Connect Wallet'}
                 </button>
@@ -148,7 +148,7 @@ export default function DashboardPage() {
 
         {/* Features Grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-gradient-to-br from-brand-primary-50 to-white rounded-xl p-6 border border-brand-primary-100">
+          <div className="bg-gradient-to-br from-brand-primary-50 to-white rounded-xl p-4 sm:p-6 border border-brand-primary-100">
             <div className="w-12 h-12 bg-brand-primary rounded-lg flex items-center justify-center mb-4">
               <span className="text-2xl">⚡</span>
             </div>
@@ -160,7 +160,7 @@ export default function DashboardPage() {
             </p>
           </div>
 
-          <div className="bg-gradient-to-br from-brand-blue-50 to-white rounded-xl p-6 border border-brand-blue-100">
+          <div className="bg-gradient-to-br from-brand-blue-50 to-white rounded-xl p-4 sm:p-6 border border-brand-blue-100">
             <div className="w-12 h-12 bg-brand-blue rounded-lg flex items-center justify-center mb-4">
               <span className="text-2xl">🛡️</span>
             </div>
@@ -172,7 +172,7 @@ export default function DashboardPage() {
             </p>
           </div>
 
-          <div className="bg-gradient-to-br from-brand-green-50 to-white rounded-xl p-6 border border-brand-green-100">
+          <div className="bg-gradient-to-br from-brand-green-50 to-white rounded-xl p-4 sm:p-6 border border-brand-green-100">
             <div className="w-12 h-12 bg-brand-green rounded-lg flex items-center justify-center mb-4">
               <span className="text-2xl">🔒</span>
             </div>

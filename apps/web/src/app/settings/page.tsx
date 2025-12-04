@@ -14,7 +14,7 @@ export default function SettingsPage() {
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Page Header */}
         <div>
-          <h1 className="text-2xl lg:text-3xl font-bold text-ui-text-primary">
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-ui-text-primary">
             Settings
           </h1>
           <p className="text-ui-text-secondary mt-1">
@@ -23,7 +23,7 @@ export default function SettingsPage() {
         </div>
 
         {/* Network Settings */}
-        <div className="bg-white rounded-xl border border-ui-border p-6">
+        <div className="bg-white rounded-xl border border-ui-border p-4 sm:p-6">
           <div className="flex items-start gap-4">
             <div className="p-2 bg-brand-blue-50 rounded-lg">
               <Network className="h-6 w-6 text-brand-blue" />
@@ -48,7 +48,7 @@ export default function SettingsPage() {
         </div>
 
         {/* Wallet Settings */}
-        <div className="bg-white rounded-xl border border-ui-border p-6">
+        <div className="bg-white rounded-xl border border-ui-border p-4 sm:p-6">
           <div className="flex items-start gap-4">
             <div className="p-2 bg-brand-primary-50 rounded-lg">
               <Shield className="h-6 w-6 text-brand-primary" />
@@ -72,7 +72,7 @@ export default function SettingsPage() {
                   </div>
                   <button
                     onClick={disconnect}
-                    className="px-6 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors font-medium"
+                    className="px-6 py-3 min-h-[44px] bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors font-medium"
                   >
                     Disconnect Wallet
                   </button>
@@ -85,7 +85,7 @@ export default function SettingsPage() {
                   <button
                     onClick={connect}
                     disabled={isConnecting}
-                    className="px-6 py-2 bg-brand-primary text-white rounded-lg hover:bg-brand-primary-600 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-6 py-3 min-h-[44px] bg-brand-primary text-white rounded-lg hover:bg-brand-primary-600 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isConnecting ? 'Connecting...' : 'Connect Wallet'}
                   </button>
@@ -96,7 +96,7 @@ export default function SettingsPage() {
         </div>
 
         {/* Notifications */}
-        <div className="bg-white rounded-xl border border-ui-border p-6">
+        <div className="bg-white rounded-xl border border-ui-border p-4 sm:p-6">
           <div className="flex items-start gap-4">
             <div className="p-2 bg-brand-green-50 rounded-lg">
               <Bell className="h-6 w-6 text-brand-green" />
@@ -106,7 +106,7 @@ export default function SettingsPage() {
                 Notifications
               </h3>
               <div className="space-y-3">
-                <label className="flex items-center justify-between">
+                <label className="flex items-center justify-between min-h-[44px] py-2">
                   <span className="text-sm text-ui-text-primary">
                     Token graduation alerts
                   </span>
@@ -116,7 +116,7 @@ export default function SettingsPage() {
                     disabled
                   />
                 </label>
-                <label className="flex items-center justify-between">
+                <label className="flex items-center justify-between min-h-[44px] py-2">
                   <span className="text-sm text-ui-text-primary">
                     Price change notifications
                   </span>
@@ -126,7 +126,7 @@ export default function SettingsPage() {
                     disabled
                   />
                 </label>
-                <label className="flex items-center justify-between">
+                <label className="flex items-center justify-between min-h-[44px] py-2">
                   <span className="text-sm text-ui-text-primary">
                     New token launches
                   </span>
@@ -142,7 +142,7 @@ export default function SettingsPage() {
         </div>
 
         {/* App Info */}
-        <div className="bg-white rounded-xl border border-ui-border p-6">
+        <div className="bg-white rounded-xl border border-ui-border p-4 sm:p-6">
           <h3 className="font-semibold text-ui-text-primary mb-4">
             About Astro Shiba
           </h3>

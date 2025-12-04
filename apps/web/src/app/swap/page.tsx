@@ -316,7 +316,7 @@ export default function SwapPage() {
 
         <div className="max-w-lg mx-auto">
           {/* Swap Card */}
-          <div className="bg-white rounded-xl p-6 border border-ui-border shadow-sm">
+          <div className="bg-white rounded-xl p-4 sm:p-6 border border-ui-border shadow-sm">
             {/* Connection check */}
             {!isConnected ? (
               <div className="text-center py-8">
@@ -326,7 +326,7 @@ export default function SwapPage() {
                 <button
                   onClick={handleConnectWallet}
                   disabled={isConnecting}
-                  className="px-6 py-3 bg-brand-primary text-white rounded-lg hover:bg-brand-primary-600 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-6 py-3 min-h-[44px] bg-brand-primary text-white rounded-lg hover:bg-brand-primary-600 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isConnecting ? 'Connecting...' : 'Connect Wallet'}
                 </button>
@@ -388,7 +388,7 @@ export default function SwapPage() {
                 <div className="flex justify-center my-3">
                   <button
                     onClick={handleFlipDirection}
-                    className="p-2 bg-brand-primary-50 hover:bg-brand-primary-100 rounded-lg transition-colors"
+                    className="p-3 min-h-[44px] min-w-[44px] bg-brand-primary-50 hover:bg-brand-primary-100 rounded-lg transition-colors flex items-center justify-center"
                     disabled={!selectedTokenInfo}
                   >
                     <ArrowDownUp className="h-5 w-5 text-brand-primary" />
@@ -449,7 +449,7 @@ export default function SwapPage() {
                     {[0.5, 1.0, 2.0].map((value) => (
                       <button
                         key={value}
-                        className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        className={`flex-1 px-3 py-2.5 min-h-[44px] rounded-lg text-sm font-medium transition-colors ${
                           slippage === value
                             ? 'bg-brand-primary text-white'
                             : 'bg-gray-100 text-ui-text-secondary hover:bg-gray-200'
@@ -461,7 +461,7 @@ export default function SwapPage() {
                     ))}
                     <input
                       type="number"
-                      className="w-20 px-2 py-2 border border-ui-border rounded-lg text-sm"
+                      className="w-16 sm:w-20 px-2 py-2.5 min-h-[44px] border border-ui-border rounded-lg text-sm"
                       placeholder="Custom"
                       step="0.1"
                       min="0.1"
@@ -480,7 +480,7 @@ export default function SwapPage() {
                 <button
                   onClick={handleSwap}
                   disabled={!selectedToken || !inputAmount || !outputAmount || isSwapping || calculating}
-                  className={`w-full py-4 rounded-lg font-semibold text-lg transition-colors ${
+                  className={`w-full py-4 min-h-[52px] rounded-lg font-semibold text-lg transition-colors ${
                     !selectedToken || !inputAmount || !outputAmount || isSwapping || calculating
                       ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                       : 'bg-brand-primary text-white hover:bg-brand-primary-600'

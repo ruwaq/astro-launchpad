@@ -195,7 +195,7 @@ export default function ExplorePage() {
             className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4"
           >
             <div>
-              <h1 className="text-2xl lg:text-3xl font-bold text-ui-text-primary flex items-center gap-3">
+              <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-ui-text-primary flex items-center gap-3">
                 <Flame className="h-8 w-8 text-brand-primary" />
                 Explore Tokens
               </h1>
@@ -212,7 +212,7 @@ export default function ExplorePage() {
               </div>
               <button
                 onClick={() => setShowActivity(!showActivity)}
-                className={`hidden lg:flex items-center gap-2 px-4 py-2 rounded-xl border transition-colors ${
+                className={`hidden lg:flex items-center gap-2 px-4 py-2.5 min-h-[44px] rounded-xl border transition-colors ${
                   showActivity
                     ? 'bg-brand-primary text-white border-brand-primary'
                     : 'bg-white border-ui-border hover:border-brand-primary'
@@ -277,7 +277,7 @@ export default function ExplorePage() {
                     onClick={() => setSortBy(option.id as SortOption)}
                     aria-label={`Sort by ${option.label}`}
                     aria-pressed={sortBy === option.id}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                    className={`flex items-center gap-1.5 px-3 py-2 sm:py-1.5 min-h-[44px] sm:min-h-0 rounded-lg text-sm font-medium transition-all ${
                       sortBy === option.id
                         ? 'bg-brand-primary text-white shadow-md'
                         : 'bg-gray-100 text-ui-text-secondary hover:bg-gray-200'
@@ -421,7 +421,7 @@ export default function ExplorePage() {
                     onClick={handleLoadMore}
                     disabled={loadingMore}
                     aria-label={loadingMore ? 'Loading more tokens' : `Load more tokens, showing ${tokens.length} of ${totalCount}`}
-                    className="inline-flex items-center gap-2 px-6 py-3 bg-white border border-ui-border rounded-xl font-medium text-ui-text-primary hover:bg-gray-50 hover:border-brand-primary transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                    className="inline-flex items-center gap-2 px-6 py-3 min-h-[44px] bg-white border border-ui-border rounded-xl font-medium text-ui-text-primary hover:bg-gray-50 hover:border-brand-primary transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
                   >
                     {loadingMore ? (
                       <>
