@@ -366,11 +366,23 @@ export default function CreatePage() {
         triggerConfetti();
 
         // V2: No admin setup needed - factory is already the admin!
-        // Just sync the token to database
+        // Just sync the token to database with fallback data
         if (extractedTokenAddress) {
           try {
             logger.info('Syncing new token to database', { tokenAddress: extractedTokenAddress });
-            await syncToken({ variables: { tokenAddress: extractedTokenAddress } });
+            await syncToken({
+              variables: {
+                tokenAddress: extractedTokenAddress,
+                // Provide fallback data in case contract lookup fails
+                name,
+                symbol,
+                creator: address,
+                imageUrl,
+                description,
+                website,
+                telegram,
+              }
+            });
             logger.info('Token synced successfully');
             updateStep('sync', 'completed');
             toast.success('Token synced! It will appear in Explore.');
@@ -399,10 +411,22 @@ export default function CreatePage() {
               logger.info('Newest token address found', { tokenAddress: extractedTokenAddress });
 
               // V2: No admin setup needed - factory is already the admin!
-              // Just sync the token to database
+              // Just sync the token to database with fallback data
               logger.info('Syncing newest token to database');
               try {
-                await syncToken({ variables: { tokenAddress: extractedTokenAddress } });
+                await syncToken({
+                  variables: {
+                    tokenAddress: extractedTokenAddress,
+                    // Provide fallback data in case contract lookup fails
+                    name,
+                    symbol,
+                    creator: address,
+                    imageUrl,
+                    description,
+                    website,
+                    telegram,
+                  }
+                });
                 logger.info('Token synced successfully');
                 updateStep('sync', 'completed');
                 toast.success('Token synced! It will appear in Explore.');
