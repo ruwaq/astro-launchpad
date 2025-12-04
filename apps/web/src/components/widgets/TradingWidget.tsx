@@ -41,7 +41,6 @@ import {
   SlippageSelector,
   TokenInfoCard,
   SwapButton,
-  PriceImpactWarning,
   ConnectWalletAlert,
   TestnetTokenAlert,
   NoLiquidityAlert,
@@ -552,17 +551,6 @@ export function TradingWidget() {
           onChange={(slippage) => setState((prev) => ({ ...prev, slippage }))}
           disabled={!isConnected || state.isProcessing}
         />
-
-        {/* Price Impact Warning */}
-        {tokenInfo && state.inputAmount && state.outputAmount && tokenInfo.bonding_curve && (
-          <PriceImpactWarning
-            inputAmount={state.inputAmount}
-            outputAmount={state.outputAmount}
-            xlmReserve={tokenInfo.bonding_curve.xlm_reserve}
-            tokenReserve={tokenInfo.bonding_curve.token_reserve}
-            tradeType={state.type}
-          />
-        )}
 
         <SwapButton
           onClick={handleTrade}

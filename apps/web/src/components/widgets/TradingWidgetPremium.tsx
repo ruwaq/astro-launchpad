@@ -36,14 +36,13 @@ import { useTradingSounds, useHaptics } from '@/hooks/useTradingSounds';
 
 // Import modular components
 import {
-  PriceImpactWarning,
   QuickBuyButtons,
   QUICK_BUY_AMOUNTS,
   TradingHeader,
   TransactionStatus,
   TradeInfoPanel,
-  AntiWhaleDebug,
   DisabledTradingState,
+  GraduationProgress,
   parseContractError,
   extractSimulationError,
   SLIPPAGE_OPTIONS,
@@ -104,7 +103,6 @@ export function TradingWidgetPremium({
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [previousPrice, setPreviousPrice] = useState<bigint>(BigInt(0));
   const [priceFlash, setPriceFlash] = useState<'up' | 'down' | null>(null);
-  const [trackedHoldings, setTrackedHoldings] = useState<bigint>(BigInt(0));
 
   // RACE CONDITION FIX: Use ref-based lock for synchronous double-click prevention
   const isTransactionInProgressRef = useRef(false);
@@ -138,19 +136,10 @@ export function TradingWidgetPremium({
       }
 
       setTokenInfo(info || null);
-
-      if (address) {
-        try {
-          const holdings = await sacFactoryService.getWalletTrackedHoldings(address);
-          setTrackedHoldings(holdings);
-        } catch {
-          setTrackedHoldings(BigInt(0));
-        }
-      }
     } catch {
       setTokenInfo(null);
     }
-  }, [tokenAddress, tokenInfo, address]);
+  }, [tokenAddress, tokenInfo]);
 
   useEffect(() => {
     loadTokenInfo();
@@ -648,23 +637,11 @@ export function TradingWidgetPremium({
           />
         )}
 
-        {/* Price Impact Warning */}
-        {tokenInfo && inputAmount && outputAmount && tokenInfo.bonding_curve && (
-          <PriceImpactWarning
-            inputAmount={inputAmount}
-            outputAmount={outputAmount}
-            xlmReserve={tokenInfo.bonding_curve.xlm_reserve}
-            tokenReserve={tokenInfo.bonding_curve.token_reserve}
-            tradeType={tradeType}
-          />
-        )}
-
-        {/* Anti-whale Debug Info */}
-        {isConnected && tokenInfo && (
-          <AntiWhaleDebug
-            tokenInfo={tokenInfo}
-            tokenSymbol={tokenSymbol}
-            trackedHoldings={trackedHoldings}
+        {/* Graduation Progress - Bonding Curve Status */}
+        {tokenInfo && (
+          <GraduationProgress
+            xlmRaised={tokenInfo.xlm_raised}
+            isGraduated={tokenInfo.status === 'Graduated'}
           />
         )}
       </div>

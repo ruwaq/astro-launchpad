@@ -30,7 +30,7 @@ interface TradingInterfaceProps {
 
 type TradeType = 'buy' | 'sell';
 
-const PRESET_AMOUNTS = [1, 10, 100]; // XLM amounts
+const PRESET_AMOUNTS = [10, 50, 100, 500, 1000]; // XLM amounts (pump.fun style)
 
 export function TradingInterface({ tokenAddress, token }: TradingInterfaceProps) {
   const { address, isConnected, connect, signTransaction } = useWallet();
@@ -250,27 +250,20 @@ export function TradingInterface({ tokenAddress, token }: TradingInterfaceProps)
         <label className="block text-sm font-medium text-ui-text-primary mb-2">
           Quick {tradeType === 'buy' ? 'Buy' : 'Sell'}
         </label>
-        <div className="grid grid-cols-4 gap-2">
+        <div className="grid grid-cols-5 gap-2">
           {PRESET_AMOUNTS.map((xlm) => (
             <button
               key={xlm}
               onClick={() => handlePresetAmount(xlm)}
               disabled={!isConnected || isProcessing}
-              className={`py-3 px-4 rounded-lg font-semibold transition-all ${amount === xlm.toString()
+              className={`py-3 px-2 rounded-lg font-semibold transition-all text-sm ${amount === xlm.toString()
                   ? 'bg-brand-primary text-white shadow-md'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 } disabled:opacity-50 disabled:cursor-not-allowed`}
             >
-              {xlm} XLM
+              {xlm >= 1000 ? `${xlm/1000}K` : xlm}
             </button>
           ))}
-          <button
-            onClick={() => setAmount('')}
-            disabled={!isConnected || isProcessing}
-            className="py-3 px-4 rounded-lg font-semibold bg-gray-100 text-gray-700 hover:bg-gray-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Custom
-          </button>
         </div>
       </div>
 
