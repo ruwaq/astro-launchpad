@@ -22,8 +22,36 @@ const FEE_EVENT_TOPICS = {
   TREASURY_UPDATED: 'treasury_updated',
 };
 
+// Default fee values (must match contract's fee_management.rs)
+const DEFAULT_PROTOCOL_FEE_BPS = 5;
+const DEFAULT_LP_FEE_BPS = 25;
+const DEFAULT_CREATION_FEE = '100000000'; // 10 XLM in stroops
+
 export class FeeEventHandler {
   constructor(private prisma: PrismaClient) {}
+
+  /**
+   * Get current fee config for a contract, or return defaults
+   * This ensures fee updates preserve non-updated values
+   */
+  private async getCurrentFeeConfig(contractAddress: string): Promise<{
+    protocolFeeBps: number;
+    lpFeeBps: number;
+    creationFee: string;
+    treasuryAddress: string;
+  }> {
+    const currentConfig = await this.prisma.feeConfig.findFirst({
+      where: { contractAddress },
+      orderBy: { effectiveFrom: 'desc' },
+    });
+
+    return {
+      protocolFeeBps: currentConfig?.protocolFeeBps ?? DEFAULT_PROTOCOL_FEE_BPS,
+      lpFeeBps: currentConfig?.lpFeeBps ?? DEFAULT_LP_FEE_BPS,
+      creationFee: currentConfig?.creationFee ?? DEFAULT_CREATION_FEE,
+      treasuryAddress: currentConfig?.treasuryAddress ?? '',
+    };
+  }
 
   /**
    * Main entry point for fee event handling
@@ -183,36 +211,27 @@ export class FeeEventHandler {
 
   /**
    * Handle ProtocolFeeUpdated event
+   * Preserves current LP fee and creation fee values
    */
   private async handleProtocolFeeUpdated(event: any): Promise<void> {
     const data = this.parseProtocolFeeUpdatedEvent(event);
-    
+    const contractAddress = event.contractId || 'sac_factory';
+
     logger.info(`Protocol fee updated: ${data.oldFeeBps} -> ${data.newFeeBps} bps`, {
       updatedBy: data.updatedBy,
     });
 
-    // Update effectiveUntil for current config
-    await this.prisma.feeConfig.updateMany({
-      where: {
-        contractAddress: event.contractId, // Assuming event has contractId
-        effectiveFrom: { lte: new Date() } // Crude way to find current, ideally find latest
-      },
-      data: {
-        // Schema doesn't have effectiveUntil? Let's check.
-        // Schema: effectiveFrom DateTime
-        // No effectiveUntil in schema provided earlier.
-        // We'll just create a new record which becomes the latest effectiveFrom.
-      },
-    });
+    // Get current config to preserve non-updated values
+    const currentConfig = await this.getCurrentFeeConfig(contractAddress);
 
-    // Create new config
+    // Create new config with updated protocol fee, preserving other values
     await this.prisma.feeConfig.create({
       data: {
-        contractAddress: event.contractId || 'unknown_contract',
+        contractAddress,
         protocolFeeBps: parseInt(data.newFeeBps),
-        lpFeeBps: 25, // Default fallback
-        creationFee: '100000000', // Default fallback
-        treasuryAddress: data.updatedBy || 'unknown',
+        lpFeeBps: currentConfig.lpFeeBps,           // Preserve current LP fee
+        creationFee: currentConfig.creationFee,     // Preserve current creation fee
+        treasuryAddress: currentConfig.treasuryAddress || data.updatedBy,
         effectiveFrom: new Date(event.createdAt || Date.now()),
         updatedBy: data.updatedBy,
       },
@@ -221,17 +240,26 @@ export class FeeEventHandler {
 
   /**
    * Handle LpFeeUpdated event
+   * Preserves current protocol fee and creation fee values
    */
   private async handleLpFeeUpdated(event: any): Promise<void> {
     const data = this.parseLpFeeUpdatedEvent(event);
-    
+    const contractAddress = event.contractId || 'sac_factory';
+
+    logger.info(`LP fee updated: ${data.oldFeeBps} -> ${data.newFeeBps} bps`, {
+      updatedBy: data.updatedBy,
+    });
+
+    // Get current config to preserve non-updated values
+    const currentConfig = await this.getCurrentFeeConfig(contractAddress);
+
     await this.prisma.feeConfig.create({
       data: {
-        contractAddress: event.contractId || 'unknown_contract',
-        protocolFeeBps: 5,
+        contractAddress,
+        protocolFeeBps: currentConfig.protocolFeeBps, // Preserve current protocol fee
         lpFeeBps: parseInt(data.newFeeBps),
-        creationFee: '100000000',
-        treasuryAddress: data.updatedBy || 'unknown',
+        creationFee: currentConfig.creationFee,       // Preserve current creation fee
+        treasuryAddress: currentConfig.treasuryAddress || data.updatedBy,
         effectiveFrom: new Date(event.createdAt || Date.now()),
         updatedBy: data.updatedBy,
       },
@@ -240,17 +268,26 @@ export class FeeEventHandler {
 
   /**
    * Handle CreationFeeUpdated event
+   * Preserves current protocol fee and LP fee values
    */
   private async handleCreationFeeUpdated(event: any): Promise<void> {
     const data = this.parseCreationFeeUpdatedEvent(event);
-    
+    const contractAddress = event.contractId || 'sac_factory';
+
+    logger.info(`Creation fee updated: ${data.oldFee} -> ${data.newFee} stroops`, {
+      updatedBy: data.updatedBy,
+    });
+
+    // Get current config to preserve non-updated values
+    const currentConfig = await this.getCurrentFeeConfig(contractAddress);
+
     await this.prisma.feeConfig.create({
       data: {
-        contractAddress: event.contractId || 'unknown_contract',
-        protocolFeeBps: 5,
-        lpFeeBps: 25,
+        contractAddress,
+        protocolFeeBps: currentConfig.protocolFeeBps, // Preserve current protocol fee
+        lpFeeBps: currentConfig.lpFeeBps,             // Preserve current LP fee
         creationFee: data.newFee,
-        treasuryAddress: data.updatedBy || 'unknown',
+        treasuryAddress: currentConfig.treasuryAddress || data.updatedBy,
         effectiveFrom: new Date(event.createdAt || Date.now()),
         updatedBy: data.updatedBy,
       },
@@ -259,16 +296,25 @@ export class FeeEventHandler {
 
   /**
    * Handle TreasuryUpdated event
+   * Preserves all fee values, updates only treasury address
    */
   private async handleTreasuryUpdated(event: any): Promise<void> {
     const data = this.parseTreasuryUpdatedEvent(event);
-    
+    const contractAddress = event.contractId || 'sac_factory';
+
+    logger.info(`Treasury updated: ${data.oldTreasury} -> ${data.newTreasury}`, {
+      updatedBy: data.updatedBy,
+    });
+
+    // Get current config to preserve all fee values
+    const currentConfig = await this.getCurrentFeeConfig(contractAddress);
+
     await this.prisma.feeConfig.create({
       data: {
-        contractAddress: event.contractId || 'unknown_contract',
-        protocolFeeBps: 5,
-        lpFeeBps: 25,
-        creationFee: '100000000',
+        contractAddress,
+        protocolFeeBps: currentConfig.protocolFeeBps, // Preserve current protocol fee
+        lpFeeBps: currentConfig.lpFeeBps,             // Preserve current LP fee
+        creationFee: currentConfig.creationFee,       // Preserve current creation fee
         treasuryAddress: data.newTreasury,
         effectiveFrom: new Date(event.createdAt || Date.now()),
         updatedBy: data.updatedBy,
