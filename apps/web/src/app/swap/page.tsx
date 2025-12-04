@@ -109,14 +109,16 @@ export default function SwapPage() {
       if (direction === 'xlm-to-token') {
         // Buy tokens with XLM
         const xlmStroops = BigInt(xlmToStroops(inputAmount));
-        const tokensOut = sacFactoryService.calculateBuyOutput(selectedTokenInfo, xlmStroops);
-        setOutputAmount((Number(tokensOut) / 10000000).toFixed(6));
+        const tokensOutGross = sacFactoryService.calculateBuyOutput(selectedTokenInfo, xlmStroops);
+        // CRITICAL: Apply 0.3% trading fee to show NET amount user will receive
+        const tokensOutNet = sacFactoryService.applyTradingFee(tokensOutGross);
+        setOutputAmount((Number(tokensOutNet) / 10000000).toFixed(6));
 
-        // Calculate price impact
+        // Calculate price impact using GROSS tokens (matches contract behavior)
         const currentPrice = Number(selectedTokenInfo.bonding_curve.xlm_reserve) /
                            Number(selectedTokenInfo.bonding_curve.token_reserve);
         const newReserveXlm = Number(selectedTokenInfo.bonding_curve.xlm_reserve) + Number(xlmStroops);
-        const newReserveToken = Number(selectedTokenInfo.bonding_curve.token_reserve) - Number(tokensOut);
+        const newReserveToken = Number(selectedTokenInfo.bonding_curve.token_reserve) - Number(tokensOutGross);
         const newPrice = newReserveXlm / newReserveToken;
         const impact = ((newPrice - currentPrice) / currentPrice) * 100;
         setPriceImpact(impact);
@@ -124,13 +126,15 @@ export default function SwapPage() {
         // Sell tokens for XLM
         // SAFE: Use string-based conversion to avoid floating-point precision loss
         const tokenAmount = toStroopsBigInt(inputAmount);
-        const xlmOut = sacFactoryService.calculateSellOutput(selectedTokenInfo, tokenAmount);
-        setOutputAmount(stroopsToXlm(xlmOut.toString()));
+        const xlmOutGross = sacFactoryService.calculateSellOutput(selectedTokenInfo, tokenAmount);
+        // CRITICAL: Apply 0.3% trading fee to show NET amount user will receive
+        const xlmOutNet = sacFactoryService.applyTradingFee(xlmOutGross);
+        setOutputAmount(stroopsToXlm(xlmOutNet.toString()));
 
         // Calculate price impact
         const currentPrice = Number(selectedTokenInfo.bonding_curve.xlm_reserve) /
                            Number(selectedTokenInfo.bonding_curve.token_reserve);
-        const newReserveXlm = Number(selectedTokenInfo.bonding_curve.xlm_reserve) - Number(xlmOut);
+        const newReserveXlm = Number(selectedTokenInfo.bonding_curve.xlm_reserve) - Number(xlmOutGross);
         const newReserveToken = Number(selectedTokenInfo.bonding_curve.token_reserve) + Number(tokenAmount);
         const newPrice = newReserveXlm / newReserveToken;
         const impact = ((currentPrice - newPrice) / currentPrice) * 100;
