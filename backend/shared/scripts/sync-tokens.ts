@@ -22,8 +22,8 @@ import { SorobanRpc, Contract, Address, scValToNative } from '@stellar/stellar-s
 
 const prisma = new PrismaClient();
 
-// Configuration (V5 Contract - Nov 26, 2024)
-const CONTRACT_ID = process.env.TOKEN_FACTORY_CONTRACT_ID || 'CAETFO74SF5GSPA2SCUIR6P5XET6ASEMQPESLRWNWRDC37UX32HBKEMK';
+// Configuration (V7 Contract - Dec 3, 2024 - pump.fun style, 30k XLM graduation)
+const CONTRACT_ID = process.env.TOKEN_FACTORY_CONTRACT_ID || 'CBNQZ3NE5CUAZVDTI34FGMABOV26EOHGCVXU5F7KLRFSGMC33W7U225Z';
 const RPC_URL = process.env.STELLAR_RPC_URL || 'https://soroban-testnet.stellar.org';
 const NETWORK_PASSPHRASE = process.env.STELLAR_NETWORK_PASSPHRASE || 'Test SDF Network ; September 2015';
 

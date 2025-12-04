@@ -45,6 +45,7 @@ import {
   ConnectWalletAlert,
   TestnetTokenAlert,
   NoLiquidityAlert,
+  GraduationProgress,
   TESTNET_TOKENS,
   SIMULATED_PRICES,
   DEFAULT_SIMULATED_PRICE,
@@ -476,8 +477,8 @@ export function TradingWidget() {
   return (
     <div className="bg-white rounded-xl border border-ui-border shadow-sm">
       <div className="p-4 border-b border-ui-border">
-        <h3 className="font-bold text-ui-text-primary">Swap</h3>
-        <p className="text-sm text-ui-text-secondary">Trade tokens on bonding curve</p>
+        <h3 className="font-bold text-ui-text-primary">Trade</h3>
+        <p className="text-sm text-ui-text-secondary">Buy & sell tokens on bonding curve</p>
       </div>
 
       <div className="p-4 space-y-4">
@@ -575,6 +576,15 @@ export function TradingWidget() {
 
         {state.selectedToken && tokenInfo && (
           <TokenInfoCard selectedToken={state.selectedToken} tokenInfo={tokenInfo} />
+        )}
+
+        {/* Graduation Progress - Show bonding curve progress */}
+        {tokenInfo && (
+          <GraduationProgress
+            xlmRaised={tokenInfo.xlm_raised}
+            isGraduated={tokenInfo.status === 'Graduated'}
+            className="mt-4"
+          />
         )}
       </div>
     </div>

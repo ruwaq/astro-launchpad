@@ -21,6 +21,7 @@ import toast from 'react-hot-toast';
 import confetti from 'canvas-confetti';
 import type { TokenGraphQLData } from '@/lib/stellar/types';
 import { logger } from '@/lib/logger';
+import { GraduationProgress } from '@/components/widgets/trading/GraduationProgress';
 
 interface TradingInterfaceProps {
   tokenAddress: string;
@@ -345,13 +346,13 @@ export function TradingInterface({ tokenAddress, token }: TradingInterfaceProps)
         )}
       </button>
 
-      {/* Warning for graduated tokens */}
-      {token.graduated && (
-        <div className="mt-4 bg-green-50 border border-green-200 rounded-lg p-3">
-          <p className="text-xs text-green-800">
-            🎓 This token has graduated to AMM. Trades execute on Stellar DEX.
-          </p>
-        </div>
+      {/* Graduation Progress - Bonding Curve Status */}
+      {token.xlmRaised && (
+        <GraduationProgress
+          xlmRaised={token.xlmRaised}
+          isGraduated={token.graduated ?? false}
+          className="mt-4"
+        />
       )}
     </div>
   );

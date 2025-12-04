@@ -44,7 +44,7 @@ export function SwapButton({
     if (!isConnected) return 'Connect Wallet';
     if (!selectedToken) return 'Select a token';
     if (isTestnetOnly) return 'Demo Only (Simulated Prices)';
-    return `Swap ${tradeType === 'buy' ? 'XLM' : selectedToken.symbol}`;
+    return `${tradeType === 'buy' ? 'Buy' : 'Sell'} ${selectedToken.symbol}`;
   };
 
   const getAriaLabel = () => {

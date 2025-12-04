@@ -14,11 +14,12 @@
  */
 
 // =============================================================================
-// HARDCODED FALLBACKS (V5 - November 27, 2024)
+// HARDCODED FALLBACKS (V7 - December 3, 2024)
 // These are used when environment variables are not set
+// V7: Pump.fun style - anti-whale disabled, graduation at 30,000 XLM
 // =============================================================================
 const FALLBACK_CONTRACT_IDS = {
-  tokenFactory: 'CAETFO74SF5GSPA2SCUIR6P5XET6ASEMQPESLRWNWRDC37UX32HBKEMK',
+  tokenFactory: 'CBNQZ3NE5CUAZVDTI34FGMABOV26EOHGCVXU5F7KLRFSGMC33W7U225Z',
   astroToken: 'CBCX43B5YHWW5PGGRDFWRE3TCFMLOI3WU4WYOVNAUFFEGCKZFPLVJ5DP',
   dexFactory: 'CDC22YEAGFSW7AO5I2FQAAJ7PMHMN5Q76ER6BT7XALZ4UQCFEKA2G2WT',
   dexRouter: 'CCBNY4JPDHS45KXK34HI4VSYE7P2YKOZEHFVXQ4UZMYHVHOAS7DLPWUM',

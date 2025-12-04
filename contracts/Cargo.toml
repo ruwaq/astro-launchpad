@@ -11,6 +11,8 @@ members = [
 exclude = [
     "sac-factory",
     "launchpad-token",
+    "amm-pair",
+    "astro-token",
 ]
 
 [workspace.package]

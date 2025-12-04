@@ -128,8 +128,10 @@ pub fn set_min_market_cap_usd(env: &Env, min_market_cap: u128) {
         .set(&InstanceKey::MinMarketCapUsd, &min_market_cap);
 }
 
-/// Default graduation threshold: 10,000 XLM in stroops
-const DEFAULT_GRADUATION_THRESHOLD: i128 = 100_000_000_000;
+/// Default graduation threshold: 30,000 XLM in stroops
+/// 30,000 XLM = 300_000_000_000 stroops (30000 * 10^7)
+/// Market cap = xlm_raised * 2, so 30,000 XLM raised → 60,000 XLM market cap
+const DEFAULT_GRADUATION_THRESHOLD: i128 = 300_000_000_000;
 
 // ========== Token WASM Hash (for pure Soroban token deployment) ==========
 

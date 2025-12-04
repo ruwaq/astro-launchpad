@@ -10,6 +10,7 @@ export { QuickBuyButtons, QUICK_BUY_AMOUNTS } from './QuickBuyButtons';
 export { TradingHeader } from './TradingHeader';
 export { TransactionStatus, STATUS_MESSAGES, type TransactionStatusType } from './TransactionStatus';
 export { TradeInfoPanel } from './TradeInfoPanel';
+export { GraduationProgress } from './GraduationProgress';
 export { AntiWhaleDebug } from './AntiWhaleDebug';
 export { DisabledTradingState } from './DisabledTradingState';
 export { parseContractError, extractSimulationError, CONTRACT_ERROR_MESSAGES } from './error-utils';

@@ -1,28 +1,30 @@
-//! Anti-Whale Protection Module v2
+//! Anti-Whale Protection Module v3 (Pump.fun Style)
 //!
-//! Progressive fee system to discourage token concentration during bonding curve phase.
-//! Instead of hard limits, uses exponential fees that increase with holdings.
+//! **DISABLED BY DEFAULT** - Following pump.fun's proven model.
 //!
-//! ## Key Features
-//! - **No hard block** until 40% - anyone can accumulate up to 40%
-//! - **Exponential fees** - the more you hold, the more you pay
-//! - **Only during bonding** - no restrictions after graduation to DEX
-//! - **Configurable tiers** - admin can adjust fee structure
+//! ## Philosophy
 //!
-//! ## Default Fee Tiers (Holdings % -> Extra Fee)
+//! The bonding curve IS the anti-whale mechanism:
+//! - Price rises exponentially with volume
+//! - Early buyers naturally get lower prices
+//! - Late buyers pay premium prices
+//! - This creates natural distribution incentives
 //!
-//! NOTA: La bonding curve YA es anti-whale (precio sube con volumen).
-//! Estos fees son solo un pequeño desincentivo adicional, no un bloqueo.
-//! MAX FEE: 1% (para no ahuyentar ballenas que ayudan a graduacion)
+//! ## Why Disabled?
 //!
-//! | Holdings | Extra Fee | Razon |
-//! |----------|-----------|-------|
-//! | 0-10%    | 0%        | Zona libre - incentivar early adopters |
-//! | 10-20%   | +0.1%     | Fee minimo |
-//! | 20-30%   | +0.25%    | Fee bajo |
-//! | 30-40%   | +0.5%     | Fee moderado |
-//! | 40-50%   | +1%       | Fee maximo (cap) |
-//! | 50%+     | BLOCKED   | Hard cap - nadie puede tener >50% |
+//! Hard limits and fees are counterproductive:
+//! - Block legitimate early buyers (esp. token creators!)
+//! - Reduce liquidity and slow graduation
+//! - Add friction without real security benefit
+//! - Pump.fun succeeded WITHOUT these restrictions
+//!
+//! ## Optional Features (Admin-Enabled)
+//!
+//! If admin chooses to enable via `set_anti_whale_config()`:
+//! - `absolute_max_holdings_bps`: Max % of supply per wallet (default: 100%)
+//! - `tier_thresholds/fees`: Progressive fees by tier
+//! - `cooldown_seconds`: Time between buys (default: 0)
+//! - `enabled`: Toggle all protections on/off
 
 use soroban_sdk::{contracttype, Address, Env, Vec};
 use crate::errors::Error;
@@ -79,35 +81,24 @@ pub struct AntiWhaleResult {
     pub reason: Option<&'static str>,
 }
 
-/// Initialize anti-whale configuration with gentle fee defaults
+/// Initialize anti-whale configuration - DISABLED BY DEFAULT
 ///
-/// Philosophy: The bonding curve already increases price with volume (natural anti-whale).
-/// These fees are just a small additional disincentive, NOT a blocker.
-/// We want whales to participate (helps graduation), just not dominate completely.
+/// Philosophy: Like pump.fun, the bonding curve IS the anti-whale mechanism.
+/// Price rises exponentially with volume, naturally discouraging manipulation.
+/// Hard limits and fees are counterproductive - they block legitimate early buyers.
+///
+/// The admin can enable anti-whale later if needed via set_anti_whale_config().
 pub fn initialize_anti_whale(env: &Env) {
-    // Create default tier thresholds (in basis points)
-    // Note: 0-10% is FREE (no extra fees) to encourage early adoption
-    let mut thresholds = Vec::new(env);
-    thresholds.push_back(1000);  // 10% - start of light fees
-    thresholds.push_back(2000);  // 20%
-    thresholds.push_back(3000);  // 30%
-    thresholds.push_back(4000);  // 40%
-
-    // Create default fees for each tier (VERY GENTLE - max 1%)
-    // These are intentionally LOW - the bonding curve handles most anti-whale
-    // Max fee capped at 1% to not scare away whales who help graduation
-    let mut fees = Vec::new(env);
-    fees.push_back(10);    // 0.1% extra at 10%+
-    fees.push_back(25);    // 0.25% extra at 20%+
-    fees.push_back(50);    // 0.5% extra at 30%+
-    fees.push_back(100);   // 1% extra at 40%+ (MAX CAP)
+    // Empty tier arrays - no progressive fees by default (like pump.fun)
+    let thresholds = Vec::new(env);
+    let fees = Vec::new(env);
 
     let config = AntiWhaleConfig {
-        absolute_max_holdings_bps: 5000,  // 50% absolute max (generous - let whales help graduation)
+        absolute_max_holdings_bps: 10000,  // 100% - effectively no limit (pump.fun style)
         tier_thresholds: thresholds,
         tier_fees: fees,
-        cooldown_seconds: 10,  // 10 seconds between buys (reduced from 15)
-        enabled: true,
+        cooldown_seconds: 0,  // No cooldown (pump.fun style)
+        enabled: false,  // DISABLED by default - bonding curve is the anti-whale
     };
 
     env.storage().instance().set(&AntiWhaleKey::Config, &config);
@@ -119,13 +110,13 @@ pub fn get_config(env: &Env) -> AntiWhaleConfig {
         .instance()
         .get(&AntiWhaleKey::Config)
         .unwrap_or_else(|| {
-            // Return a minimal default if not initialized
+            // Return pump.fun-style defaults: disabled, no limits
             AntiWhaleConfig {
-                absolute_max_holdings_bps: 5000,  // 50% max
+                absolute_max_holdings_bps: 10000,  // 100% - no limit
                 tier_thresholds: Vec::new(env),
                 tier_fees: Vec::new(env),
-                cooldown_seconds: 10,
-                enabled: true,
+                cooldown_seconds: 0,  // No cooldown
+                enabled: false,  // Disabled by default
             }
         })
 }
