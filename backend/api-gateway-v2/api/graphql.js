@@ -8,15 +8,25 @@ import { ApolloServer } from '@apollo/server';
 import { startServerAndCreateNextHandler } from '@as-integrations/next';
 import { PrismaClient } from '@prisma/client';
 import gql from 'graphql-tag';
-import { SorobanRpc, Contract, Address, scValToNative, TransactionBuilder, Account } from '@stellar/stellar-sdk';
 
-// Stellar Configuration
+// Stellar Configuration (lazy loaded)
 const CONTRACT_ID = process.env.TOKEN_FACTORY_CONTRACT_ID || 'CAETFO74SF5GSPA2SCUIR6P5XET6ASEMQPESLRWNWRDC37UX32HBKEMK';
 const RPC_URL = process.env.STELLAR_RPC_URL || 'https://soroban-testnet.stellar.org';
 const NETWORK_PASSPHRASE = process.env.STELLAR_NETWORK_PASSPHRASE || 'Test SDF Network ; September 2015';
 
-const sorobanServer = new SorobanRpc.Server(RPC_URL);
-const factoryContract = new Contract(CONTRACT_ID);
+// Lazy load Stellar SDK to avoid serverless cold start issues
+let stellarSdk = null;
+let sorobanServer = null;
+let factoryContract = null;
+
+async function getStellarSDK() {
+  if (!stellarSdk) {
+    stellarSdk = await import('@stellar/stellar-sdk');
+    sorobanServer = new stellarSdk.SorobanRpc.Server(RPC_URL);
+    factoryContract = new stellarSdk.Contract(CONTRACT_ID);
+  }
+  return stellarSdk;
+}
 
 // Global Prisma instance for serverless (connection pooling)
 const globalForPrisma = globalThis;
@@ -312,6 +322,9 @@ const typeDefs = gql`
  */
 async function callContractMethod(method, ...params) {
   try {
+    const sdk = await getStellarSDK();
+    const { SorobanRpc, TransactionBuilder, Account, scValToNative } = sdk;
+
     const operation = factoryContract.call(method, ...params);
     const simulationResponse = await sorobanServer.simulateTransaction(
       new TransactionBuilder(
@@ -340,6 +353,8 @@ async function callContractMethod(method, ...params) {
  */
 async function getTokenInfoFromContract(tokenAddress) {
   try {
+    const sdk = await getStellarSDK();
+    const { Address } = sdk;
     const address = Address.fromString(tokenAddress).toScVal();
     return await callContractMethod('get_token_info', address);
   } catch (error) {
