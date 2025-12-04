@@ -125,6 +125,7 @@ const queryResolvers = {
     args: {
       limit?: number
       offset?: number
+      after?: string
       orderBy?: string
       search?: string
     },
@@ -133,13 +134,30 @@ const queryResolvers = {
     try {
       // Validate and sanitize inputs
       const limit = validateLimit(args.limit, 100, 20);
-      const offset = validateOffset(args.offset);
       const search = validateSearchString(args.search, 100);
       const orderByKey = validateOrderBy(
         args.orderBy,
         ['CREATED_AT_DESC', 'CREATED_AT_ASC', 'MARKET_CAP_DESC', 'VOLUME_DESC', 'HOLDERS_DESC'],
         'CREATED_AT_DESC'
       );
+
+      // Handle cursor-based pagination (after) or offset-based pagination
+      let offset = 0;
+      if (args.after) {
+        try {
+          // Decode cursor (base64 encoded offset)
+          const decodedCursor = Buffer.from(args.after, 'base64').toString('utf-8');
+          const cursorOffset = parseInt(decodedCursor, 10);
+          if (!isNaN(cursorOffset)) {
+            offset = cursorOffset + 1; // Start after the cursor position
+          }
+        } catch {
+          // Invalid cursor, start from beginning
+          offset = 0;
+        }
+      } else {
+        offset = validateOffset(args.offset);
+      }
 
       // Build where clause for search
       const where = search

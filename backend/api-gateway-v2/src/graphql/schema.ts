@@ -16,6 +16,7 @@ export const schema = `#graphql
     tokens(
       limit: Int = 20
       offset: Int = 0
+      after: String
       orderBy: TokenOrderBy = CREATED_AT_DESC
       search: String
     ): TokenConnection!
