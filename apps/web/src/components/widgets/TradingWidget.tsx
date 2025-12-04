@@ -15,6 +15,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { ArrowDown } from 'lucide-react';
 import { useWallet } from '@/contexts/WalletContext';
+import { tradingLogger } from '@/lib/logger';
 import { sacFactoryService, toStroopsBigInt, type TokenInfo } from '@/lib/stellar/services/sac-factory.service';
 import { stellarClient, getClientDeadline } from '@/lib/stellar/client';
 import { TransactionBuilder, rpc } from '@stellar/stellar-sdk';
@@ -240,7 +241,7 @@ export function TradingWidget() {
     // RACE CONDITION FIX: Prevent double-clicks and concurrent transactions
     // This prevents sequence number conflicts on Stellar
     if (state.isProcessing) {
-      console.warn('[TradingWidget] Transaction already in progress, ignoring click');
+      tradingLogger.warn('Transaction already in progress, ignoring click');
       return;
     }
 

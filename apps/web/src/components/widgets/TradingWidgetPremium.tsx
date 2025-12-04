@@ -25,6 +25,7 @@ import {
   Wallet,
 } from 'lucide-react';
 import { useWallet } from '@/contexts/WalletContext';
+import { tradingLogger } from '@/lib/logger';
 import { sacFactoryService, toStroopsBigInt, type TokenInfo } from '@/lib/stellar/services/sac-factory.service';
 import { stellarClient, getClientDeadline } from '@/lib/stellar/client';
 import { TransactionBuilder, rpc } from '@stellar/stellar-sdk';
@@ -224,11 +225,11 @@ export function TradingWidgetPremium({
   // Execute trade
   const handleTrade = async () => {
     if (isTransactionInProgressRef.current) {
-      console.warn('[TradingWidgetPremium] Transaction already in progress (ref lock), ignoring click');
+      tradingLogger.warn('Transaction already in progress (ref lock), ignoring click');
       return;
     }
     if (txStatus !== 'idle') {
-      console.warn('[TradingWidgetPremium] Transaction already in progress (state), ignoring click');
+      tradingLogger.warn('Transaction already in progress (state), ignoring click');
       return;
     }
 
@@ -329,7 +330,7 @@ export function TradingWidgetPremium({
 
       if ('error' in simulated && simulated.error) {
         const errorMsg = extractSimulationError(simulated);
-        console.error('Simulation error details:', JSON.stringify(simulated, null, 2));
+        tradingLogger.error('Simulation error', simulated, { details: 'full simulation response' });
         throw new Error(errorMsg);
       }
 
@@ -338,7 +339,7 @@ export function TradingWidgetPremium({
       }
 
       if (!rpc.Api.isSimulationSuccess(simulated)) {
-        console.error('Simulation failed:', simulated);
+        tradingLogger.error('Simulation failed', simulated);
         throw new Error('Transaction simulation failed');
       }
 

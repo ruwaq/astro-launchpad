@@ -8,6 +8,7 @@ import toast from 'react-hot-toast';
 import FocusTrap from 'focus-trap-react';
 import { LanguageSelector } from '@/components/LanguageSelector';
 import { useLocale } from '@/i18n/useLocale';
+import { formatAddress } from '@/lib/utils/format';
 
 export function Navbar() {
   const { address, isConnected, isConnecting, connect, disconnect } = useWallet();
@@ -41,10 +42,6 @@ export function Navbar() {
   const handleDisconnectCancel = useCallback(() => {
     setShowDisconnectConfirm(false);
   }, []);
-
-  const formatAddress = (addr: string) => {
-    return `${addr.slice(0, 4)}...${addr.slice(-4)}`;
-  };
 
   return (
     <header className="sticky top-0 z-50 bg-white border-b border-gray-200 shadow-sm">

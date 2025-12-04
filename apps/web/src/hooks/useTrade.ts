@@ -10,6 +10,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { TransactionBuilder, rpc } from '@stellar/stellar-sdk';
 import { useWallet } from '@/contexts/WalletContext';
+import { tradingLogger } from '@/lib/logger';
 import { sacFactoryService, toStroopsBigInt, type TokenInfo } from '@/lib/stellar/services/sac-factory.service';
 import { stellarClient, getClientDeadline } from '@/lib/stellar/client';
 import { getNetworkConfig } from '@/lib/config/network';
@@ -99,11 +100,11 @@ export function useTrade({
   }): Promise<boolean> => {
     // RACE CONDITION FIX: Use ref-based lock
     if (isTransactionInProgressRef.current) {
-      console.warn('[useTrade] Transaction already in progress (ref lock), ignoring');
+      tradingLogger.warn('Transaction already in progress (ref lock), ignoring');
       return false;
     }
     if (txStatus !== 'idle') {
-      console.warn('[useTrade] Transaction already in progress (state), ignoring');
+      tradingLogger.warn('Transaction already in progress (state), ignoring');
       return false;
     }
 
