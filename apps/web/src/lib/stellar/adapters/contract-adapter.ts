@@ -127,27 +127,35 @@ export function adaptBondingCurve(
  * Adapt raw token status to normalized enum
  *
  * Soroban returns enums as objects: { Bonding: undefined } or { Graduated: undefined }
+ * Database may store as string: 'Bonding' or 'Graduated'
  * We normalize to simple string enum.
  *
- * @param status - Raw status from contract
+ * @param status - Raw status from contract or database
  * @returns Normalized TokenStatus
  */
 export function adaptTokenStatus(
   status: TokenStatus | { [key: string]: undefined } | undefined
 ): TokenStatus {
+  // Null/undefined - default to Bonding (most common case for new tokens)
   if (!status) {
-    logger.debug('[Adapter] Status is null/undefined, defaulting to Bonding');
     return 'Bonding' as TokenStatus;
   }
 
-  // Already a string
+  // Already a string (from database)
   if (typeof status === 'string') {
-    return status === 'Graduated' ? ('Graduated' as TokenStatus) : ('Bonding' as TokenStatus);
+    const normalized = status.toLowerCase();
+    if (normalized === 'graduated') {
+      return 'Graduated' as TokenStatus;
+    }
+    // Any other string value defaults to Bonding
+    return 'Bonding' as TokenStatus;
   }
 
   // Soroban enum format: { Bonding: undefined } or { Graduated: undefined }
   if (typeof status === 'object') {
     const keys = Object.keys(status);
+
+    // Check for known status keys
     if (keys.includes('Graduated')) {
       return 'Graduated' as TokenStatus;
     }
@@ -158,9 +166,12 @@ export function adaptTokenStatus(
       logger.warn('[Adapter] Token graduation failed, treating as Bonding');
       return 'Bonding' as TokenStatus;
     }
+
+    // Empty object or unknown keys - default to Bonding silently
+    // This is common for newly created tokens or database tokens
   }
 
-  logger.warn('[Adapter] Unknown status format, defaulting to Bonding', { status });
+  // Default to Bonding for any unrecognized format
   return 'Bonding' as TokenStatus;
 }
 

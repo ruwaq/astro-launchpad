@@ -1,109 +1,42 @@
 /**
  * Trading Sounds Hook
  *
- * Provides audio feedback for trading actions using use-sound library.
- * All sounds are optional and respect user preferences.
- * Falls back silently if sound files are not available.
+ * Provides audio feedback for trading actions.
+ * Currently disabled - sounds will be enabled when audio files are added.
+ *
+ * To enable sounds:
+ * 1. Add MP3 files to /public/sounds/ directory
+ * 2. Set SOUNDS_ENABLED to true
  */
 
 'use client';
 
-import useSound from 'use-sound';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback } from 'react';
 
-// Sound file paths (relative to public folder)
-// Using free sounds from mixkit.co or similar
-const SOUNDS = {
-  buy: '/sounds/buy-success.mp3',
-  sell: '/sounds/sell-success.mp3',
-  notification: '/sounds/notification.mp3',
-  milestone: '/sounds/milestone.mp3',
-  error: '/sounds/error.mp3',
-  click: '/sounds/click.mp3',
-  whoosh: '/sounds/whoosh.mp3',
-} as const;
+// Feature flag - sounds disabled until audio files are added
+const SOUNDS_ENABLED = false;
 
 interface UseTradingSoundsOptions {
   volume?: number;
   enabled?: boolean;
 }
 
-export function useTradingSounds(options: UseTradingSoundsOptions = {}) {
-  const { volume = 0.5, enabled = true } = options;
+export function useTradingSounds(_options: UseTradingSoundsOptions = {}) {
+  // No-op functions until sound files are added
+  // This prevents 404 errors from the use-sound library trying to load missing files
 
-  // Initialize sounds with lazy loading
-  const [playBuySound] = useSound(SOUNDS.buy, {
-    volume: volume * 0.7,
-    interrupt: true,
-  });
-
-  const [playSellSound] = useSound(SOUNDS.sell, {
-    volume: volume * 0.6,
-    interrupt: true,
-  });
-
-  const [playNotificationSound] = useSound(SOUNDS.notification, {
-    volume: volume * 0.4,
-    interrupt: false,
-  });
-
-  const [playMilestoneSound] = useSound(SOUNDS.milestone, {
-    volume: volume * 0.8,
-    interrupt: true,
-  });
-
-  const [playErrorSound] = useSound(SOUNDS.error, {
-    volume: volume * 0.5,
-    interrupt: true,
-  });
-
-  const [playClickSound] = useSound(SOUNDS.click, {
-    volume: volume * 0.3,
-    interrupt: true,
-  });
-
-  const [playWhooshSound] = useSound(SOUNDS.whoosh, {
-    volume: volume * 0.4,
-    interrupt: true,
-  });
-
-  // Wrapped functions that check if sounds are enabled
-  const playBuy = useCallback(() => {
-    if (enabled) playBuySound();
-  }, [enabled, playBuySound]);
-
-  const playSell = useCallback(() => {
-    if (enabled) playSellSound();
-  }, [enabled, playSellSound]);
-
-  const playNotification = useCallback(() => {
-    if (enabled) playNotificationSound();
-  }, [enabled, playNotificationSound]);
-
-  const playMilestone = useCallback(() => {
-    if (enabled) playMilestoneSound();
-  }, [enabled, playMilestoneSound]);
-
-  const playError = useCallback(() => {
-    if (enabled) playErrorSound();
-  }, [enabled, playErrorSound]);
-
-  const playClick = useCallback(() => {
-    if (enabled) playClickSound();
-  }, [enabled, playClickSound]);
-
-  const playWhoosh = useCallback(() => {
-    if (enabled) playWhooshSound();
-  }, [enabled, playWhooshSound]);
+  const noop = useCallback(() => {
+    // Sound playback disabled - enable when audio files are available
+  }, []);
 
   return {
-    playBuy,       // Success sound for buy transactions
-    playSell,      // Success sound for sell transactions
-    playNotification, // Soft ping for new events
-    playMilestone, // Celebration sound for achievements
-    playError,     // Error feedback
-    playClick,     // UI interaction feedback
-    playWhoosh,    // Transition sound
+    playBuy: noop,       // Success sound for buy transactions
+    playSell: noop,      // Success sound for sell transactions
+    playNotification: noop, // Soft ping for new events
+    playMilestone: noop, // Celebration sound for achievements
+    playError: noop,     // Error feedback
+    playClick: noop,     // UI interaction feedback
+    playWhoosh: noop,    // Transition sound
   };
 }
 

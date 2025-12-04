@@ -96,6 +96,14 @@ const typeDefs = gql`
       website: String
       telegram: String
     ): Token!
+
+    # Delete a token (admin only - requires x-admin-key header)
+    deleteToken(tokenAddress: String!): DeleteResult!
+  }
+
+  type DeleteResult {
+    success: Boolean!
+    message: String
   }
 
   # ============================================================================
@@ -859,6 +867,41 @@ const resolvers = {
 
   // Mutations
   Mutation: {
+    deleteToken: async (_, { tokenAddress }, context) => {
+      const adminKey = context.req?.headers?.['x-admin-key'];
+      const expectedKey = process.env.ADMIN_SECRET_KEY;
+
+      // SECURITY: Require admin key for deletion
+      if (!expectedKey || adminKey !== expectedKey) {
+        console.log('[DeleteToken] Unauthorized deletion attempt');
+        return {
+          success: false,
+          message: 'Unauthorized - admin key required',
+        };
+      }
+
+      console.log(`[DeleteToken] Deleting token: ${tokenAddress}`);
+
+      try {
+        // Delete token from database
+        await prisma.token.delete({
+          where: { address: tokenAddress },
+        });
+
+        console.log(`[DeleteToken] Successfully deleted: ${tokenAddress}`);
+        return {
+          success: true,
+          message: `Token ${tokenAddress} deleted successfully`,
+        };
+      } catch (error) {
+        console.error('[DeleteToken] Error:', error);
+        return {
+          success: false,
+          message: `Failed to delete token: ${error.message}`,
+        };
+      }
+    },
+
     syncToken: async (_, args) => {
       const { tokenAddress, name, symbol, creator, imageUrl, description, website, telegram } = args;
       console.log(`[SyncToken] Syncing token: ${tokenAddress}`);
@@ -1005,6 +1048,7 @@ const server = new ApolloServer({
 const handler = startServerAndCreateNextHandler(server, {
   context: async (req) => ({
     prisma,
+    req,  // Pass request for header access in mutations
   }),
 });
 
