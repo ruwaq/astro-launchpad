@@ -20,6 +20,7 @@ export interface RateLimitConfig {
   windowMs: number      // Time window in milliseconds
   maxRequests: number   // Maximum requests in window
   keyPrefix: string     // Cache key prefix for this limiter
+  failOpen?: boolean    // If true, allow requests when rate limiting fails (default: true for queries, false for admin)
 }
 
 /**
@@ -34,48 +35,67 @@ export interface RateLimitResult {
 
 /**
  * Default rate limit configurations
+ *
+ * SECURITY NOTE: failOpen determines behavior when Redis/cache is unavailable:
+ * - true: Allow requests (maintain availability at cost of security)
+ * - false: Block requests (maintain security at cost of availability)
+ *
+ * Sensitive operations (admin, auth, sync) use failOpen=false for security.
+ * General queries use failOpen=true for availability.
  */
 export const RATE_LIMITS = {
   // Global: 100 requests per minute per IP
+  // Fail open to maintain availability for general traffic
   GLOBAL: {
     windowMs: 60 * 1000,
     maxRequests: 100,
     keyPrefix: 'ratelimit:global',
+    failOpen: true,
   },
 
   // Queries: 200 requests per minute per IP (more lenient)
+  // Fail open to maintain availability for read operations
   QUERIES: {
     windowMs: 60 * 1000,
     maxRequests: 200,
     keyPrefix: 'ratelimit:queries',
+    failOpen: true,
   },
 
   // Mutations: 30 requests per minute per IP (stricter)
+  // Fail closed - mutations modify state
   MUTATIONS: {
     windowMs: 60 * 1000,
     maxRequests: 30,
     keyPrefix: 'ratelimit:mutations',
+    failOpen: false,
   },
 
   // Admin: 10 requests per minute per IP (very strict)
+  // SECURITY: Fail closed - admin operations are privileged
   ADMIN: {
     windowMs: 60 * 1000,
     maxRequests: 10,
     keyPrefix: 'ratelimit:admin',
+    failOpen: false,
   },
 
   // Sync Token: 5 requests per minute per IP (expensive operation)
+  // SECURITY: Fail closed - prevents DoS on RPC nodes
   SYNC_TOKEN: {
     windowMs: 60 * 1000,
     maxRequests: 5,
     keyPrefix: 'ratelimit:sync',
+    failOpen: false,
   },
 
   // Auth attempts: 5 attempts per 5 minutes (prevent brute force)
+  // SECURITY: Fail closed - critical for preventing brute force attacks
   AUTH_ATTEMPTS: {
     windowMs: 5 * 60 * 1000,
     maxRequests: 5,
     keyPrefix: 'ratelimit:auth',
+    failOpen: false,
   },
 } as const
 
@@ -153,14 +173,27 @@ export async function checkRateLimit(
       resetAt,
     }
   } catch (error) {
-    // If rate limiting fails, allow the request (fail open)
-    // This prevents rate limiting issues from blocking all traffic
-    logger.error({ error, identifier }, 'Rate limit check failed, allowing request')
+    // Determine fail behavior based on configuration
+    // Default to fail-open if not specified (backward compatibility)
+    const shouldFailOpen = config.failOpen !== false
 
-    return {
-      allowed: true,
-      remaining: config.maxRequests,
-      resetAt: now + config.windowMs,
+    if (shouldFailOpen) {
+      // Fail open: allow request when rate limiting fails (for general queries)
+      logger.warn({ error, identifier, keyPrefix: config.keyPrefix }, 'Rate limit check failed, allowing request (fail-open)')
+      return {
+        allowed: true,
+        remaining: config.maxRequests,
+        resetAt: now + config.windowMs,
+      }
+    } else {
+      // Fail closed: block request when rate limiting fails (for sensitive operations)
+      logger.error({ error, identifier, keyPrefix: config.keyPrefix }, 'Rate limit check failed, blocking request (fail-closed)')
+      return {
+        allowed: false,
+        remaining: 0,
+        resetAt: now + config.windowMs,
+        retryAfter: 60, // Tell client to retry in 60 seconds
+      }
     }
   }
 }

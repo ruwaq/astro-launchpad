@@ -45,8 +45,9 @@ const envSchema = z.object({
   // GraphQL
   GRAPHQL_MAX_DEPTH: z.coerce.number().int().positive().default(10),
   GRAPHQL_MAX_COMPLEXITY: z.coerce.number().int().positive().default(1000),
-  GRAPHQL_INTROSPECTION: z.coerce.boolean().default(true),
-  GRAPHQL_PLAYGROUND: z.coerce.boolean().default(true),
+  // SECURITY: Default to false - set to true only in development environments
+  GRAPHQL_INTROSPECTION: z.coerce.boolean().default(false),
+  GRAPHQL_PLAYGROUND: z.coerce.boolean().default(false),
 
   // Logging
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),

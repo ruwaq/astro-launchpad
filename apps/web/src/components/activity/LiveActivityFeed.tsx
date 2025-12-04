@@ -173,6 +173,7 @@ export const LiveActivityFeed = memo(function LiveActivityFeed({
   const [newTxIds, setNewTxIds] = useState<Set<string>>(new Set());
   const feedRef = useRef<HTMLDivElement>(null);
   const lastTxIdRef = useRef<string | null>(null);
+  const highlightTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Build query variables
   const queryVariables = {
@@ -244,8 +245,11 @@ export const LiveActivityFeed = memo(function LiveActivityFeed({
           }
         }
 
-        // Remove highlight after duration
-        setTimeout(() => {
+        // Remove highlight after duration - FIX: Store timeout ref for cleanup
+        if (highlightTimeoutRef.current) {
+          clearTimeout(highlightTimeoutRef.current);
+        }
+        highlightTimeoutRef.current = setTimeout(() => {
           setNewTxIds(prev => {
             const next = new Set(prev);
             newTransactions.forEach(t => next.delete(t.id));
@@ -260,6 +264,15 @@ export const LiveActivityFeed = memo(function LiveActivityFeed({
       lastTxIdRef.current = apiTransactions[0].id;
     }
   }, [txData, soundEnabled, playNotification, playMilestone]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // FIX: Cleanup timeout on unmount to prevent memory leak
+  useEffect(() => {
+    return () => {
+      if (highlightTimeoutRef.current) {
+        clearTimeout(highlightTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Format relative time
   const formatRelativeTime = (timestamp: number): string => {

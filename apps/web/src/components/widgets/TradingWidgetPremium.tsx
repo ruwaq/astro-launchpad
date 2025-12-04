@@ -34,6 +34,7 @@ import { getNetworkConfig } from '@/lib/config/network';
 import toast from 'react-hot-toast';
 import confetti from 'canvas-confetti';
 import { useTradingSounds, useHaptics } from '@/hooks/useTradingSounds';
+import { sanitizeNumericInput } from '@/lib/utils/format';
 
 // Import modular components
 import {
@@ -108,6 +109,8 @@ export function TradingWidgetPremium({
 
   // RACE CONDITION FIX: Use ref-based lock for synchronous double-click prevention
   const isTransactionInProgressRef = useRef(false);
+  // FIX: Track price flash timeout to prevent memory leaks
+  const priceFlashTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Helper to calculate price from reserves
   const calculatePriceFromReserves = (bc: { xlm_reserve: string; token_reserve: string }): bigint => {
@@ -126,12 +129,17 @@ export function TradingWidgetPremium({
         const oldPrice = calculatePriceFromReserves(tokenInfo.bonding_curve);
         const newPrice = calculatePriceFromReserves(info.bonding_curve);
 
+        // FIX: Clear previous timeout before creating new one to prevent memory leaks
+        if (priceFlashTimeoutRef.current) {
+          clearTimeout(priceFlashTimeoutRef.current);
+        }
+
         if (newPrice > oldPrice) {
           setPriceFlash('up');
-          setTimeout(() => setPriceFlash(null), 500);
+          priceFlashTimeoutRef.current = setTimeout(() => setPriceFlash(null), 500);
         } else if (newPrice < oldPrice) {
           setPriceFlash('down');
-          setTimeout(() => setPriceFlash(null), 500);
+          priceFlashTimeoutRef.current = setTimeout(() => setPriceFlash(null), 500);
         }
 
         setPreviousPrice(oldPrice);
@@ -146,7 +154,13 @@ export function TradingWidgetPremium({
   useEffect(() => {
     loadTokenInfo();
     const interval = setInterval(loadTokenInfo, 30000);
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      // FIX: Cleanup price flash timeout on unmount to prevent memory leaks
+      if (priceFlashTimeoutRef.current) {
+        clearTimeout(priceFlashTimeoutRef.current);
+      }
+    };
   }, [loadTokenInfo]);
 
   // Calculate output
@@ -375,9 +389,28 @@ export function TradingWidgetPremium({
           }
         } catch (err) {
           const error = err as { message?: string };
+          // SDK version incompatibility - verify via Horizon API instead of assuming success
           if (error.message?.includes('Bad union switch')) {
-            success = true;
-            break;
+            tradingLogger.warn('SDK version incompatibility detected, verifying via Horizon API');
+            try {
+              const horizonUrl = process.env.NEXT_PUBLIC_STELLAR_NETWORK === 'mainnet'
+                ? 'https://horizon.stellar.org'
+                : 'https://horizon-testnet.stellar.org';
+              const horizonResponse = await fetch(`${horizonUrl}/transactions/${sendResponse.hash}`);
+              if (horizonResponse.ok) {
+                const txData = await horizonResponse.json();
+                if (txData.successful === true) {
+                  success = true;
+                  tradingLogger.info('Transaction verified successful via Horizon');
+                  break;
+                } else {
+                  throw new Error('Transaction failed on chain');
+                }
+              }
+              // If Horizon doesn't have it yet, continue polling
+            } catch (horizonErr) {
+              tradingLogger.warn('Horizon fallback check failed, continuing to poll');
+            }
           }
         }
 
@@ -533,7 +566,7 @@ export function TradingWidgetPremium({
             <input
               type="number"
               value={inputAmount}
-              onChange={(e) => setInputAmount(e.target.value)}
+              onChange={(e) => setInputAmount(sanitizeNumericInput(e.target.value))}
               placeholder="0.00"
               disabled={!isConnected || isProcessing}
               className="w-full p-4 pr-16 text-2xl font-bold bg-gray-50 border border-ui-border rounded-xl focus:ring-2 focus:ring-brand-primary focus:border-transparent disabled:opacity-50"

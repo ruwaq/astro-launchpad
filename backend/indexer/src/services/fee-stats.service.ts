@@ -29,6 +29,12 @@ const TIME_WINDOWS = {
 } as const;
 
 /**
+ * Marker for global stats record in FeeStats table
+ * Using a constant string instead of null/undefined for Prisma unique constraint compatibility
+ */
+export const GLOBAL_STATS_MARKER = 'GLOBAL';
+
+/**
  * Fee statistics configuration
  */
 interface FeeStatsConfig {
@@ -107,9 +113,9 @@ export class FeeStatsService {
    */
   async getGlobalStats(): Promise<FeeStats | null> {
     try {
-      const stats = await this.prisma.feeStats.findFirst({
+      const stats = await this.prisma.feeStats.findUnique({
         where: {
-          tokenAddress: null,
+          tokenAddress: GLOBAL_STATS_MARKER,
         },
       });
 
@@ -152,6 +158,9 @@ export class FeeStatsService {
         return this.getEmptyRevenue();
       }
 
+      // Calculate transaction counts for 7d and 30d from Transaction table
+      const [transactions7d, transactions30d] = await this.getTransactionCounts();
+
       return {
         protocolFees: {
           total: stats.totalProtocolFees,
@@ -180,13 +189,46 @@ export class FeeStatsService {
         transactionCount: {
           total: stats.totalTransactions,
           day: stats.transactions24h,
-          week: 0, // TODO: Add to schema if needed
-          month: 0, // TODO: Add to schema if needed
+          week: transactions7d,
+          month: transactions30d,
         },
       };
     } catch (error) {
       logger.error('Error calculating revenue breakdown:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Get transaction counts for 7d and 30d periods
+   * @returns [transactions7d, transactions30d]
+   */
+  private async getTransactionCounts(): Promise<[number, number]> {
+    try {
+      const now = new Date();
+      const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+      // Run both counts in parallel for efficiency
+      const [count7d, count30d] = await Promise.all([
+        this.prisma.transaction.count({
+          where: {
+            timestamp: { gte: sevenDaysAgo },
+            status: 'SUCCESS',
+          },
+        }),
+        this.prisma.transaction.count({
+          where: {
+            timestamp: { gte: thirtyDaysAgo },
+            status: 'SUCCESS',
+          },
+        }),
+      ]);
+
+      return [count7d, count30d];
+    } catch (error) {
+      logger.warn('Error fetching transaction counts, using 0:', error);
+      return [0, 0];
     }
   }
 
@@ -447,26 +489,60 @@ export class FeeStatsService {
   // ========== Private Helper Methods ==========
 
   /**
-   * Helper to aggregate fees using Raw SQL (because amount is String/BigInt)
+   * Helper to aggregate fees using Raw SQL with Prisma.sql for type safety
+   * Uses parameterized queries to prevent SQL injection
    */
-  private async aggregateFees(
-    whereClause: string,
-    params: any[]
+  private async aggregateFeesSecure(
+    filter: { type: 'all' } | { type: 'since'; timestamp: Date } | { type: 'token'; tokenAddress: string } | { type: 'tokenSince'; tokenAddress: string; timestamp: Date }
   ): Promise<FeeAggregation> {
-    // We have to construct WHERE clause manually because
-    // queryRaw doesn't accept Prisma.FeeCollectionWhereInput directly in SQL string
-    // For simplicity in this specific refactor, we'll handle time windows manually.
+    let result: any[];
 
-    const result: any[] = await this.prisma.$queryRawUnsafe(
-      `SELECT 
-        COALESCE(SUM(CAST(NULLIF("protocolFee", '') AS BIGINT)), 0) as "protocolFees",
-        COALESCE(SUM(CAST(NULLIF("lpFee", '') AS BIGINT)), 0) as "lpFees",
-        COALESCE(SUM(CASE WHEN "type" = 'CREATION_FEE' THEN CAST("amount" AS BIGINT) ELSE 0 END), 0) as "creationFees",
-        COUNT(*) as "count"
-      FROM "FeeCollection"
-      ${whereClause}`,
-      ...params
-    );
+    // Use type-safe Prisma.sql template literals for all queries
+    switch (filter.type) {
+      case 'all':
+        result = await this.prisma.$queryRaw<any[]>`
+          SELECT
+            COALESCE(SUM(CAST(NULLIF("protocolFee", '') AS BIGINT)), 0) as "protocolFees",
+            COALESCE(SUM(CAST(NULLIF("lpFee", '') AS BIGINT)), 0) as "lpFees",
+            COALESCE(SUM(CASE WHEN "type" = 'CREATION_FEE' THEN CAST("amount" AS BIGINT) ELSE 0 END), 0) as "creationFees",
+            COUNT(*) as "count"
+          FROM "FeeCollection"
+        `;
+        break;
+      case 'since':
+        result = await this.prisma.$queryRaw<any[]>`
+          SELECT
+            COALESCE(SUM(CAST(NULLIF("protocolFee", '') AS BIGINT)), 0) as "protocolFees",
+            COALESCE(SUM(CAST(NULLIF("lpFee", '') AS BIGINT)), 0) as "lpFees",
+            COALESCE(SUM(CASE WHEN "type" = 'CREATION_FEE' THEN CAST("amount" AS BIGINT) ELSE 0 END), 0) as "creationFees",
+            COUNT(*) as "count"
+          FROM "FeeCollection"
+          WHERE "timestamp" >= ${filter.timestamp}
+        `;
+        break;
+      case 'token':
+        result = await this.prisma.$queryRaw<any[]>`
+          SELECT
+            COALESCE(SUM(CAST(NULLIF("protocolFee", '') AS BIGINT)), 0) as "protocolFees",
+            COALESCE(SUM(CAST(NULLIF("lpFee", '') AS BIGINT)), 0) as "lpFees",
+            COALESCE(SUM(CASE WHEN "type" = 'CREATION_FEE' THEN CAST("amount" AS BIGINT) ELSE 0 END), 0) as "creationFees",
+            COUNT(*) as "count"
+          FROM "FeeCollection"
+          WHERE "tokenAddress" = ${filter.tokenAddress}
+        `;
+        break;
+      case 'tokenSince':
+        result = await this.prisma.$queryRaw<any[]>`
+          SELECT
+            COALESCE(SUM(CAST(NULLIF("protocolFee", '') AS BIGINT)), 0) as "protocolFees",
+            COALESCE(SUM(CAST(NULLIF("lpFee", '') AS BIGINT)), 0) as "lpFees",
+            COALESCE(SUM(CASE WHEN "type" = 'CREATION_FEE' THEN CAST("amount" AS BIGINT) ELSE 0 END), 0) as "creationFees",
+            COUNT(*) as "count"
+          FROM "FeeCollection"
+          WHERE "tokenAddress" = ${filter.tokenAddress} AND "timestamp" >= ${filter.timestamp}
+        `;
+        break;
+    }
 
     if (!result || result.length === 0) {
       return { protocolFees: 0n, lpFees: 0n, creationFees: 0n, count: 0n };
@@ -490,88 +566,52 @@ export class FeeStatsService {
     const thirtyDaysAgo = new Date(now.getTime() - TIME_WINDOWS.MONTH);
 
     // All Time
-    const all = await this.aggregateFees('WHERE 1=1', []);
+    const all = await this.aggregateFeesSecure({ type: 'all' });
     // 24h
-    const day = await this.aggregateFees('WHERE "timestamp" >= $1', [oneDayAgo]);
+    const day = await this.aggregateFeesSecure({ type: 'since', timestamp: oneDayAgo });
     // 7d
-    const week = await this.aggregateFees('WHERE "timestamp" >= $1', [sevenDaysAgo]);
+    const week = await this.aggregateFeesSecure({ type: 'since', timestamp: sevenDaysAgo });
     // 30d
-    const month = await this.aggregateFees('WHERE "timestamp" >= $1', [thirtyDaysAgo]);
+    const month = await this.aggregateFeesSecure({ type: 'since', timestamp: thirtyDaysAgo });
 
     const totalFees = (all.protocolFees + all.lpFees + all.creationFees).toString();
     const totalFees24h = (day.protocolFees + day.lpFees + day.creationFees).toString();
     const totalFees7d = (week.protocolFees + week.lpFees + week.creationFees).toString();
     const totalFees30d = (month.protocolFees + month.lpFees + month.creationFees).toString();
 
-    // Update or create global stats
+    // Prepare stats data
+    const statsData = {
+      totalProtocolFees: all.protocolFees.toString(),
+      protocolFees24h: day.protocolFees.toString(),
+      protocolFees7d: week.protocolFees.toString(),
+      protocolFees30d: month.protocolFees.toString(),
+
+      totalLpFees: all.lpFees.toString(),
+      lpFees24h: day.lpFees.toString(),
+      lpFees7d: week.lpFees.toString(),
+      lpFees30d: month.lpFees.toString(),
+
+      totalCreationFees: all.creationFees.toString(),
+      creationFees24h: day.creationFees.toString(),
+      creationFees7d: week.creationFees.toString(),
+      creationFees30d: month.creationFees.toString(),
+
+      totalFees,
+      totalFees24h,
+      totalFees7d,
+      totalFees30d,
+
+      totalTransactions: Number(all.count),
+      transactions24h: Number(day.count),
+    };
+
+    // Use GLOBAL_STATS_MARKER instead of null for Prisma unique constraint compatibility
     await this.prisma.feeStats.upsert({
-      where: { tokenAddress: undefined }, // undefined for global stats (nullable unique field)
-      // Actually, Prisma unique constraints on nullable fields work differently.
-      // Assuming `tokenAddress` is unique, `null` is only unique if index is unique.
-      // In schema: tokenAddress String? @unique
-      // Yes, Postgres allows multiple NULLs in unique column unless standard SQL.
-      // BUT Prisma treats it as unique. We'll see.
-      // For findFirst it worked. For upsert, we need a valid unique identifier.
-      // If findUnique fails on null, we use update/create manually.
-      // Let's try simpler approach: findFirst -> update OR create.
-      update: {
-        totalProtocolFees: all.protocolFees.toString(),
-        protocolFees24h: day.protocolFees.toString(),
-        protocolFees7d: week.protocolFees.toString(),
-        protocolFees30d: month.protocolFees.toString(),
-
-        totalLpFees: all.lpFees.toString(),
-        lpFees24h: day.lpFees.toString(),
-        lpFees7d: week.lpFees.toString(),
-        lpFees30d: month.lpFees.toString(),
-
-        totalCreationFees: all.creationFees.toString(),
-        creationFees24h: day.creationFees.toString(),
-        creationFees7d: week.creationFees.toString(),
-        creationFees30d: month.creationFees.toString(),
-
-        totalFees,
-        totalFees24h,
-        totalFees7d,
-        totalFees30d,
-
-        totalTransactions: Number(all.count),
-        transactions24h: Number(day.count),
-      },
+      where: { tokenAddress: GLOBAL_STATS_MARKER },
+      update: statsData,
       create: {
-        // tokenAddress: null, // This is tricky with unique constraint
-        // Workaround: We use a special string or check schema.
-        // Schema says: tokenAddress String? @unique
-        // We'll try passing null/undefined. If it fails, we need schema migration.
-        // Ideally, use a constant like "GLOBAL".
-        // But for now, let's stick to null.
-        // Actually, upsert needs a 'where' that matches exactly one record.
-        // where: { tokenAddress: null } might not be valid TS for Prisma Client.
-        // Let's use updateMany / create if not exists pattern manually to avoid TS error.
-        tokenAddress: undefined,
-
-        totalProtocolFees: all.protocolFees.toString(),
-        protocolFees24h: day.protocolFees.toString(),
-        protocolFees7d: week.protocolFees.toString(),
-        protocolFees30d: month.protocolFees.toString(),
-
-        totalLpFees: all.lpFees.toString(),
-        lpFees24h: day.lpFees.toString(),
-        lpFees7d: week.lpFees.toString(),
-        lpFees30d: month.lpFees.toString(),
-
-        totalCreationFees: all.creationFees.toString(),
-        creationFees24h: day.creationFees.toString(),
-        creationFees7d: week.creationFees.toString(),
-        creationFees30d: month.creationFees.toString(),
-
-        totalFees,
-        totalFees24h,
-        totalFees7d,
-        totalFees30d,
-
-        totalTransactions: Number(all.count),
-        transactions24h: Number(day.count),
+        tokenAddress: GLOBAL_STATS_MARKER,
+        ...statsData,
       },
     });
   }
@@ -586,13 +626,13 @@ export class FeeStatsService {
     const thirtyDaysAgo = new Date(now.getTime() - TIME_WINDOWS.MONTH);
 
     // All Time
-    const all = await this.aggregateFees('WHERE "tokenAddress" = $1', [tokenAddress]);
+    const all = await this.aggregateFeesSecure({ type: 'token', tokenAddress });
     // 24h
-    const day = await this.aggregateFees('WHERE "tokenAddress" = $1 AND "timestamp" >= $2', [tokenAddress, oneDayAgo]);
+    const day = await this.aggregateFeesSecure({ type: 'tokenSince', tokenAddress, timestamp: oneDayAgo });
     // 7d
-    const week = await this.aggregateFees('WHERE "tokenAddress" = $1 AND "timestamp" >= $2', [tokenAddress, sevenDaysAgo]);
+    const week = await this.aggregateFeesSecure({ type: 'tokenSince', tokenAddress, timestamp: sevenDaysAgo });
     // 30d
-    const month = await this.aggregateFees('WHERE "tokenAddress" = $1 AND "timestamp" >= $2', [tokenAddress, thirtyDaysAgo]);
+    const month = await this.aggregateFeesSecure({ type: 'tokenSince', tokenAddress, timestamp: thirtyDaysAgo });
 
     const totalFees = (all.protocolFees + all.lpFees + all.creationFees).toString();
     const totalFees24h = (day.protocolFees + day.lpFees + day.creationFees).toString();

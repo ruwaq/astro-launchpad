@@ -114,9 +114,12 @@ export function GraduationProgressAnimated({
   const [prevProgress, setPrevProgress] = useState(0);
   const [showAstroDetails, setShowAstroDetails] = useState(false);
 
-  const raised = parseFloat(xlmRaised.toString());
-  const percentComplete = Math.min((raised / threshold) * 100, 100);
-  const remaining = Math.max(threshold - raised, 0);
+  // FIX: Defensive checks for NaN/Infinity from malformed data
+  const parsedRaised = parseFloat(xlmRaised?.toString() ?? '0');
+  const raised = isNaN(parsedRaised) || !isFinite(parsedRaised) ? 0 : Math.max(0, parsedRaised);
+  const safeThreshold = threshold > 0 ? threshold : GRADUATION_THRESHOLD_XLM;
+  const percentComplete = Math.min((raised / safeThreshold) * 100, 100);
+  const remaining = Math.max(safeThreshold - raised, 0);
 
   // Calculate ASTRO allocation
   const liquidityBps = astroConfig?.liquidityBps ?? 1000;

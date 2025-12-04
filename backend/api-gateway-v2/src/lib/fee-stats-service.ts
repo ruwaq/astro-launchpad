@@ -460,22 +460,60 @@ export class FeeStatsService {
   // ========== Private Helper Methods ==========
 
   /**
-   * Helper to aggregate fees using Raw SQL (because amount is String/BigInt)
+   * Helper to aggregate fees using Raw SQL with Prisma.sql for type safety
+   * Uses parameterized queries to prevent SQL injection
    */
-  private async aggregateFees(
-    whereClause: string,
-    params: any[]
+  private async aggregateFeesSecure(
+    filter: { type: 'all' } | { type: 'since'; timestamp: Date } | { type: 'token'; tokenAddress: string } | { type: 'tokenSince'; tokenAddress: string; timestamp: Date }
   ): Promise<FeeAggregation> {
-    const result: any[] = await this.prisma.$queryRawUnsafe(
-      `SELECT
-        COALESCE(SUM(CAST(NULLIF("protocolFee", '') AS BIGINT)), 0) as "protocolFees",
-        COALESCE(SUM(CAST(NULLIF("lpFee", '') AS BIGINT)), 0) as "lpFees",
-        COALESCE(SUM(CASE WHEN "type" = 'CREATION_FEE' THEN CAST("amount" AS BIGINT) ELSE 0 END), 0) as "creationFees",
-        COUNT(*) as "count"
-      FROM "FeeCollection"
-      ${whereClause}`,
-      ...params
-    );
+    let result: any[];
+
+    // Use type-safe Prisma.sql template literals for all queries
+    switch (filter.type) {
+      case 'all':
+        result = await this.prisma.$queryRaw<any[]>`
+          SELECT
+            COALESCE(SUM(CAST(NULLIF("protocolFee", '') AS BIGINT)), 0) as "protocolFees",
+            COALESCE(SUM(CAST(NULLIF("lpFee", '') AS BIGINT)), 0) as "lpFees",
+            COALESCE(SUM(CASE WHEN "type" = 'CREATION_FEE' THEN CAST("amount" AS BIGINT) ELSE 0 END), 0) as "creationFees",
+            COUNT(*) as "count"
+          FROM "FeeCollection"
+        `;
+        break;
+      case 'since':
+        result = await this.prisma.$queryRaw<any[]>`
+          SELECT
+            COALESCE(SUM(CAST(NULLIF("protocolFee", '') AS BIGINT)), 0) as "protocolFees",
+            COALESCE(SUM(CAST(NULLIF("lpFee", '') AS BIGINT)), 0) as "lpFees",
+            COALESCE(SUM(CASE WHEN "type" = 'CREATION_FEE' THEN CAST("amount" AS BIGINT) ELSE 0 END), 0) as "creationFees",
+            COUNT(*) as "count"
+          FROM "FeeCollection"
+          WHERE "timestamp" >= ${filter.timestamp}
+        `;
+        break;
+      case 'token':
+        result = await this.prisma.$queryRaw<any[]>`
+          SELECT
+            COALESCE(SUM(CAST(NULLIF("protocolFee", '') AS BIGINT)), 0) as "protocolFees",
+            COALESCE(SUM(CAST(NULLIF("lpFee", '') AS BIGINT)), 0) as "lpFees",
+            COALESCE(SUM(CASE WHEN "type" = 'CREATION_FEE' THEN CAST("amount" AS BIGINT) ELSE 0 END), 0) as "creationFees",
+            COUNT(*) as "count"
+          FROM "FeeCollection"
+          WHERE "tokenAddress" = ${filter.tokenAddress}
+        `;
+        break;
+      case 'tokenSince':
+        result = await this.prisma.$queryRaw<any[]>`
+          SELECT
+            COALESCE(SUM(CAST(NULLIF("protocolFee", '') AS BIGINT)), 0) as "protocolFees",
+            COALESCE(SUM(CAST(NULLIF("lpFee", '') AS BIGINT)), 0) as "lpFees",
+            COALESCE(SUM(CASE WHEN "type" = 'CREATION_FEE' THEN CAST("amount" AS BIGINT) ELSE 0 END), 0) as "creationFees",
+            COUNT(*) as "count"
+          FROM "FeeCollection"
+          WHERE "tokenAddress" = ${filter.tokenAddress} AND "timestamp" >= ${filter.timestamp}
+        `;
+        break;
+    }
 
     if (!result || result.length === 0) {
       return { protocolFees: 0n, lpFees: 0n, creationFees: 0n, count: 0n };
@@ -498,10 +536,10 @@ export class FeeStatsService {
     const sevenDaysAgo = new Date(now.getTime() - TIME_WINDOWS.WEEK);
     const thirtyDaysAgo = new Date(now.getTime() - TIME_WINDOWS.MONTH);
 
-    const all = await this.aggregateFees('WHERE 1=1', []);
-    const day = await this.aggregateFees('WHERE "timestamp" >= $1', [oneDayAgo]);
-    const week = await this.aggregateFees('WHERE "timestamp" >= $1', [sevenDaysAgo]);
-    const month = await this.aggregateFees('WHERE "timestamp" >= $1', [thirtyDaysAgo]);
+    const all = await this.aggregateFeesSecure({ type: 'all' });
+    const day = await this.aggregateFeesSecure({ type: 'since', timestamp: oneDayAgo });
+    const week = await this.aggregateFeesSecure({ type: 'since', timestamp: sevenDaysAgo });
+    const month = await this.aggregateFeesSecure({ type: 'since', timestamp: thirtyDaysAgo });
 
     const totalFees = (all.protocolFees + all.lpFees + all.creationFees).toString();
     const totalFees24h = (day.protocolFees + day.lpFees + day.creationFees).toString();
@@ -572,10 +610,10 @@ export class FeeStatsService {
     const sevenDaysAgo = new Date(now.getTime() - TIME_WINDOWS.WEEK);
     const thirtyDaysAgo = new Date(now.getTime() - TIME_WINDOWS.MONTH);
 
-    const all = await this.aggregateFees('WHERE "tokenAddress" = $1', [tokenAddress]);
-    const day = await this.aggregateFees('WHERE "tokenAddress" = $1 AND "timestamp" >= $2', [tokenAddress, oneDayAgo]);
-    const week = await this.aggregateFees('WHERE "tokenAddress" = $1 AND "timestamp" >= $2', [tokenAddress, sevenDaysAgo]);
-    const month = await this.aggregateFees('WHERE "tokenAddress" = $1 AND "timestamp" >= $2', [tokenAddress, thirtyDaysAgo]);
+    const all = await this.aggregateFeesSecure({ type: 'token', tokenAddress });
+    const day = await this.aggregateFeesSecure({ type: 'tokenSince', tokenAddress, timestamp: oneDayAgo });
+    const week = await this.aggregateFeesSecure({ type: 'tokenSince', tokenAddress, timestamp: sevenDaysAgo });
+    const month = await this.aggregateFeesSecure({ type: 'tokenSince', tokenAddress, timestamp: thirtyDaysAgo });
 
     const totalFees = (all.protocolFees + all.lpFees + all.creationFees).toString();
     const totalFees24h = (day.protocolFees + day.lpFees + day.creationFees).toString();

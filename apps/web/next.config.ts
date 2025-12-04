@@ -75,6 +75,36 @@ const nextConfig: NextConfig = {
             key: 'Permissions-Policy',
             value: 'camera=(), microphone=(), geolocation=()',
           },
+          // Content Security Policy - Critical for XSS prevention
+          {
+            key: 'Content-Security-Policy',
+            value: [
+              // Default fallback: block everything not explicitly allowed
+              "default-src 'self'",
+              // Scripts: self + inline (needed for Next.js) + eval (needed for dev)
+              process.env.NODE_ENV === 'production'
+                ? "script-src 'self' 'unsafe-inline'"
+                : "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+              // Styles: self + inline (for styled-components/emotion)
+              "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+              // Images: self + data URIs + IPFS gateways + Stellar + any HTTPS (for token logos)
+              "img-src 'self' data: blob: https://gateway.pinata.cloud https://*.pinata.cloud https://ipfs.io https://cloudflare-ipfs.com https://stellar.org https://*.stellar.org https://ui-avatars.com https:",
+              // Fonts: self + Google Fonts
+              "font-src 'self' https://fonts.gstatic.com",
+              // API connections: self + API gateway + Stellar RPC + Sentry
+              "connect-src 'self' https://api-gateway-v2.vercel.app https://soroban-testnet.stellar.org https://soroban.stellar.org https://*.sentry.io wss://*.stellar.org",
+              // Frames: block all (no iframes)
+              "frame-ancestors 'none'",
+              // Form actions: self only
+              "form-action 'self'",
+              // Base URI: self only
+              "base-uri 'self'",
+              // Object/embed: none (legacy Flash prevention)
+              "object-src 'none'",
+              // Upgrade insecure requests in production
+              process.env.NODE_ENV === 'production' ? 'upgrade-insecure-requests' : '',
+            ].filter(Boolean).join('; '),
+          },
         ],
       },
       // Service worker headers

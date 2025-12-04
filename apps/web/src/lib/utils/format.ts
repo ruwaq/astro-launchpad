@@ -108,3 +108,90 @@ export function truncateText(
   if (text.length <= maxLength) return text;
   return `${text.slice(0, maxLength - 3)}...`;
 }
+
+// ============================================
+// Input Sanitization Utilities (XSS Prevention)
+// ============================================
+
+/**
+ * Sanitize numeric input for trading amounts
+ * Only allows digits, decimal point, and optional leading minus
+ * Prevents XSS by stripping all non-numeric characters
+ * @param input - Raw user input
+ * @param options - Sanitization options
+ * @returns Sanitized numeric string
+ */
+export function sanitizeNumericInput(
+  input: string,
+  options: {
+    allowNegative?: boolean;
+    maxDecimals?: number;
+    maxLength?: number;
+  } = {}
+): string {
+  const { allowNegative = false, maxDecimals = 7, maxLength = 20 } = options;
+
+  // Remove all non-numeric characters except decimal point and minus
+  let sanitized = input.replace(/[^\d.-]/g, '');
+
+  // Handle negative sign
+  if (!allowNegative) {
+    sanitized = sanitized.replace(/-/g, '');
+  } else {
+    // Keep only leading minus
+    const hasLeadingMinus = sanitized.startsWith('-');
+    sanitized = sanitized.replace(/-/g, '');
+    if (hasLeadingMinus) {
+      sanitized = '-' + sanitized;
+    }
+  }
+
+  // Handle multiple decimal points - keep only first
+  const parts = sanitized.split('.');
+  if (parts.length > 2) {
+    sanitized = parts[0] + '.' + parts.slice(1).join('');
+  }
+
+  // Limit decimal places
+  if (parts.length === 2 && parts[1].length > maxDecimals) {
+    sanitized = parts[0] + '.' + parts[1].slice(0, maxDecimals);
+  }
+
+  // Limit total length
+  if (sanitized.length > maxLength) {
+    sanitized = sanitized.slice(0, maxLength);
+  }
+
+  return sanitized;
+}
+
+/**
+ * Sanitize text input to prevent XSS
+ * Escapes HTML special characters
+ * @param input - Raw user input
+ * @returns Sanitized text safe for display
+ */
+export function sanitizeTextInput(input: string): string {
+  return input
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+/**
+ * Parse and validate a numeric input safely
+ * @param input - User input string
+ * @param fallback - Fallback value if parsing fails
+ * @returns Parsed number or fallback
+ */
+export function safeParseFloat(
+  input: string | null | undefined,
+  fallback = 0
+): number {
+  if (!input) return fallback;
+  const sanitized = sanitizeNumericInput(input);
+  const parsed = parseFloat(sanitized);
+  return isNaN(parsed) ? fallback : parsed;
+}

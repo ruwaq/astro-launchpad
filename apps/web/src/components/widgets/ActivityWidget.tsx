@@ -7,7 +7,10 @@ import type { Transaction, TransactionEdge } from '@/lib/graphql/types';
 export function ActivityWidget() {
   const { data, loading } = useRecentTransactions(10);
 
-  const transactions: Transaction[] = data?.transactions.edges.map((edge: TransactionEdge) => edge.node) || [];
+  // FIX: Safe edge/node extraction with null checks
+  const transactions: Transaction[] = data?.transactions?.edges
+    ?.filter((edge: TransactionEdge | null) => edge?.node)
+    ?.map((edge: TransactionEdge) => edge.node) || [];
 
   if (loading) {
     return (
@@ -89,14 +92,14 @@ export function ActivityWidget() {
                       )}
                     </div>
                     <div className="text-xs text-gray-500">
-                      {truncateAddress(tx.user, 6)} · {getTimeAgo(timestamp)}
+                      {tx.user ? truncateAddress(tx.user, 6) : 'Unknown'} · {getTimeAgo(timestamp)}
                     </div>
                   </div>
                 </div>
 
                 <div className="text-right">
                   <div className="font-medium text-gray-900">
-                    ${formatCompactNumber(parseFloat(tx.amountUSD))}
+                    ${formatCompactNumber(parseFloat(tx.amountUSD || '0'))}
                   </div>
                   <a
                     href={`https://testnet.stellarchain.io/transactions/${tx.txHash}`}

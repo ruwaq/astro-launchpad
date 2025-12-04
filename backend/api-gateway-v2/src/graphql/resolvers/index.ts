@@ -90,6 +90,7 @@ const queryResolvers = {
     const address = validateStellarAddress(args.address, 'token address');
 
     // PERFORMANCE: Select only fields needed by frontend
+    // FIX: Added xlmRaised which is used by frontend for graduation progress
     return context.prisma.token.findUnique({
       where: { address },
       select: {
@@ -108,6 +109,7 @@ const queryResolvers = {
         marketCap: true,
         holders: true,
         xlmReserve: true,
+        xlmRaised: true,  // FIX: Added for graduation progress display
         graduated: true,
         creator: true,
         website: true,
@@ -521,6 +523,7 @@ const queryResolvers = {
               volume24h: (result.total_volume || 0).toString(),
               trades24h: Number(result.trades_count) || 0,
               profitLoss24h: (result.profit_loss || 0).toString(),
+              // Would need UserActivitySnapshot to calculate volume/rank changes
               volumeChange24h: 0,
               rankChange24h: 0,
             }))
@@ -575,6 +578,7 @@ const queryResolvers = {
               profitLoss24h: '0',
               tokensCreated: Number(result.tokens_created) || 0,
               totalVolumeGenerated: (result.total_volume_generated || 0).toString(),
+              // Would need CreatorActivitySnapshot to calculate volume/rank changes
               volumeChange24h: 0,
               rankChange24h: 0,
             }))
@@ -640,7 +644,9 @@ const queryResolvers = {
               trades24h: 0,
               profitLoss24h: '0',
               totalLiquidity: (result.net_liquidity || 0).toString(),
-              feesEarned24h: '0', // TODO: Calculate from pool fees
+              // Would need to join with FeeCollection: SUM(lpFee) WHERE provider = user AND timestamp > 24h ago
+              feesEarned24h: '0',
+              // Would need PoolSnapshot table to calculate volume change
               volumeChange24h: 0,
               rankChange24h: 0,
             }))
@@ -1087,7 +1093,12 @@ const fieldResolvers = {
     bondingCurve: (parent: any) => parent.address,
     initialPrice: (parent: any) => parent.currentPrice || '0',
     holders24h: (parent: any) => parent.holders || 0,
-    holdersChange24h: (parent: any) => 0, // TODO: Calculate from historical data
+    // Without a TokenSnapshot table, we can't calculate historical changes
+    // For now, return 0. To implement: add TokenSnapshot model with daily snapshots
+    holdersChange24h: (parent: any) => {
+      // Would need: SELECT holders FROM TokenSnapshot WHERE tokenAddress = parent.address AND date = now - 24h
+      return 0;
+    },
     website: (parent: any) => parent.website || null,
     twitter: (parent: any) => parent.twitter || null,
     telegram: (parent: any) => parent.telegram || null,
@@ -1119,7 +1130,13 @@ const fieldResolvers = {
   Pool: {
     // Alias fields for frontend compatibility
     liquidity: (parent: any) => parent.totalSupply || parent.tvl || '0',
-    volumeChange24h: (parent: any) => 0, // TODO: Calculate from historical data
+    // Without a PoolSnapshot table, we can't calculate historical volume changes
+    // For now, return 0. To implement: add PoolSnapshot model with daily volume snapshots
+    volumeChange24h: (parent: any) => {
+      // Would need: SELECT volume FROM PoolSnapshot WHERE poolAddress = parent.address AND date = now - 24h
+      // Then calculate: ((current - previous) / previous) * 100
+      return 0;
+    },
     apy: (parent: any) => parent.apr || 0,
     fee: (parent: any) => '0.3', // Default 0.3% fee
 

@@ -60,6 +60,7 @@ const queryResolvers = {
         // Validate token address
         const address = validateStellarAddress(args.address, 'token address');
         // PERFORMANCE: Select only fields needed by frontend
+        // FIX: Added xlmRaised which is used by frontend for graduation progress
         return context.prisma.token.findUnique({
             where: { address },
             select: {
@@ -78,6 +79,7 @@ const queryResolvers = {
                 marketCap: true,
                 holders: true,
                 xlmReserve: true,
+                xlmRaised: true, // FIX: Added for graduation progress display
                 graduated: true,
                 creator: true,
                 website: true,

@@ -14,7 +14,7 @@
 
 import { PrismaClient } from '@astroshibapop/shared/prisma';
 import { logger } from '../lib/logger.js';
-import { FeeStatsService } from './fee-stats.service.js';
+import { FeeStatsService, GLOBAL_STATS_MARKER } from './fee-stats.service.js';
 
 interface InitOptions {
   backfill?: boolean;
@@ -67,8 +67,8 @@ export class FeeStatsInitializer {
   private async initializeGlobalStats(): Promise<void> {
     logger.info('📊 Step 1: Initializing global fee stats...');
 
-    const existing = await this.prisma.feeStats.findFirst({
-      where: { tokenAddress: null },
+    const existing = await this.prisma.feeStats.findUnique({
+      where: { tokenAddress: GLOBAL_STATS_MARKER },
     });
 
     if (existing) {
@@ -78,7 +78,7 @@ export class FeeStatsInitializer {
 
     await this.prisma.feeStats.create({
       data: {
-        tokenAddress: null,
+        tokenAddress: GLOBAL_STATS_MARKER,
         totalProtocolFees: '0',
         protocolFees24h: '0',
         protocolFees7d: '0',
@@ -181,8 +181,8 @@ export class FeeStatsInitializer {
     logger.info('🔍 Step 4: Validating setup...');
 
     // Check global stats
-    const globalStats = await this.prisma.feeStats.findFirst({
-      where: { tokenAddress: null },
+    const globalStats = await this.prisma.feeStats.findUnique({
+      where: { tokenAddress: GLOBAL_STATS_MARKER },
     });
 
     if (!globalStats) {

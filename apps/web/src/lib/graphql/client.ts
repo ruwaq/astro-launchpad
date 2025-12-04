@@ -99,15 +99,17 @@ const cache = new InMemoryCache({
     Query: {
       fields: {
         tokens: {
-          keyArgs: ['orderBy', 'where'],
+          // FIX: Match actual query parameters to prevent cache collisions
+          keyArgs: ['orderBy', 'search', 'where'],
           merge(existing, incoming, { args }) {
-            // Pagination merge strategy
+            // Pagination merge strategy for cursor-based pagination
             if (!existing) return incoming;
-            if (!args?.after) return incoming;
+            // Only merge if we're paginating (offset > 0 or cursor exists)
+            if (!args?.offset && !args?.after) return incoming;
 
             return {
               ...incoming,
-              edges: [...existing.edges, ...incoming.edges],
+              edges: [...(existing.edges || []), ...(incoming.edges || [])],
             };
           },
         },
@@ -115,25 +117,31 @@ const cache = new InMemoryCache({
           keyArgs: ['orderBy', 'where'],
           merge(existing, incoming, { args }) {
             if (!existing) return incoming;
-            if (!args?.after) return incoming;
+            if (!args?.offset && !args?.after) return incoming;
 
             return {
               ...incoming,
-              edges: [...existing.edges, ...incoming.edges],
+              edges: [...(existing.edges || []), ...(incoming.edges || [])],
             };
           },
         },
         transactions: {
-          keyArgs: ['orderBy', 'where'],
+          // FIX: Match actual query parameters - address, tokenAddress, type
+          keyArgs: ['address', 'tokenAddress', 'type', 'orderBy'],
           merge(existing, incoming, { args }) {
             if (!existing) return incoming;
-            if (!args?.after) return incoming;
+            // Only merge on pagination
+            if (!args?.offset && !args?.after) return incoming;
 
             return {
               ...incoming,
-              edges: [...existing.edges, ...incoming.edges],
+              edges: [...(existing.edges || []), ...(incoming.edges || [])],
             };
           },
+        },
+        // Add token single query
+        token: {
+          keyArgs: ['address'],
         },
       },
     },

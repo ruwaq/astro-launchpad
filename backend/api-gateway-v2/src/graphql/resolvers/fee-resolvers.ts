@@ -87,8 +87,7 @@ export const feeQueryResolvers = {
 
       return stats;
     } catch (error) {
-      // @ts-ignore - Pino logger signature
-      logger.error('Error fetching global fee stats:', error);
+      logger.error({ error }, 'Error fetching global fee stats');
       throw new GraphQLError('Failed to fetch global fee statistics', {
         extensions: {
           code: 'INTERNAL_SERVER_ERROR',
@@ -125,11 +124,7 @@ export const feeQueryResolvers = {
     } catch (error) {
       if (error instanceof GraphQLError) throw error;
 
-      // @ts-ignore - Pino logger signature
-      logger.error('Error fetching token fee stats:', {
-        tokenAddress: args.tokenAddress,
-        error,
-      });
+      logger.error({ error, tokenAddress: args.tokenAddress }, 'Error fetching token fee stats');
       throw new GraphQLError('Failed to fetch token fee statistics', {
         extensions: {
           code: 'INTERNAL_SERVER_ERROR',
@@ -154,8 +149,7 @@ export const feeQueryResolvers = {
         transactionCount: revenue.transactionCount,
       };
     } catch (error) {
-      // @ts-ignore - Pino logger signature
-      logger.error('Error fetching revenue breakdown:', error);
+      logger.error({ error }, 'Error fetching revenue breakdown');
       throw new GraphQLError('Failed to fetch revenue breakdown', {
         extensions: {
           code: 'INTERNAL_SERVER_ERROR',
@@ -190,8 +184,7 @@ export const feeQueryResolvers = {
     } catch (error) {
       if (error instanceof GraphQLError) throw error;
 
-      // @ts-ignore - Pino logger signature
-      logger.error('Error fetching top tokens by fees:', error);
+      logger.error({ error }, 'Error fetching top tokens by fees');
       throw new GraphQLError('Failed to fetch top tokens', {
         extensions: {
           code: 'INTERNAL_SERVER_ERROR',
@@ -250,8 +243,7 @@ export const feeQueryResolvers = {
     } catch (error) {
       if (error instanceof GraphQLError) throw error;
 
-      // @ts-ignore - Pino logger signature
-      logger.error('Error fetching fee collection history:', error);
+      logger.error({ error }, 'Error fetching fee collection history');
       throw new GraphQLError('Failed to fetch fee collection history', {
         extensions: {
           code: 'INTERNAL_SERVER_ERROR',
@@ -275,8 +267,7 @@ export const feeQueryResolvers = {
         timestamp: new Date(),
       };
     } catch (error) {
-      // @ts-ignore - Pino logger signature
-      logger.error('Error fetching fee dashboard:', error);
+      logger.error({ error }, 'Error fetching fee dashboard');
       throw new GraphQLError('Failed to fetch fee dashboard', {
         extensions: {
           code: 'INTERNAL_SERVER_ERROR',
@@ -299,8 +290,7 @@ export const feeQueryResolvers = {
 
       return avg;
     } catch (error) {
-      // @ts-ignore - Pino logger signature
-      logger.error('Error fetching average fee:', error);
+      logger.error({ error }, 'Error fetching average fee');
       throw new GraphQLError('Failed to fetch average fee', {
         extensions: {
           code: 'INTERNAL_SERVER_ERROR',
@@ -346,8 +336,7 @@ export const feeQueryResolvers = {
     } catch (error) {
       if (error instanceof GraphQLError) throw error;
 
-      // @ts-ignore - Pino logger signature
-      logger.error('Error fetching fee config:', error);
+      logger.error({ error }, 'Error fetching fee config');
       throw new GraphQLError('Failed to fetch fee configuration', {
         extensions: {
           code: 'INTERNAL_SERVER_ERROR',
@@ -379,8 +368,7 @@ export const feeMutationResolvers = {
         includeGlobalStats: args.includeGlobalStats,
       });
 
-      // @ts-ignore - Pino logger signature
-      logger.info('Fee stats recalculated', result);
+      logger.info({ result }, 'Fee stats recalculated');
 
       return {
         success: result.success,
@@ -390,8 +378,7 @@ export const feeMutationResolvers = {
     } catch (error) {
       if (error instanceof GraphQLError) throw error;
 
-      // @ts-ignore - Pino logger signature
-      logger.error('Error recalculating fee stats:', error);
+      logger.error({ error }, 'Error recalculating fee stats');
       throw new GraphQLError('Failed to recalculate fee statistics', {
         extensions: {
           code: 'INTERNAL_SERVER_ERROR',
@@ -422,8 +409,7 @@ export const feeMutationResolvers = {
         message: 'Successfully reset expired time windows',
       };
     } catch (error) {
-      // @ts-ignore - Pino logger signature
-      logger.error('Error resetting time windows:', error);
+      logger.error({ error }, 'Error resetting time windows');
       throw new GraphQLError('Failed to reset time windows', {
         extensions: {
           code: 'INTERNAL_SERVER_ERROR',

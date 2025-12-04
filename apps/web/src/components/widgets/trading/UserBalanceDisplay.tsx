@@ -7,7 +7,7 @@
 
 'use client';
 
-import { memo, useState, useEffect } from 'react';
+import { memo, useState, useEffect, useRef, useCallback } from 'react';
 import { Wallet, RefreshCw, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { stellarClient } from '@/lib/stellar/client';
@@ -31,7 +31,10 @@ export const UserBalanceDisplay = memo(function UserBalanceDisplay({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchBalances = async () => {
+  // FIX: Add isMounted ref to prevent state updates on unmounted component
+  const isMountedRef = useRef(true);
+
+  const fetchBalances = useCallback(async () => {
     if (!userAddress || !isConnected) {
       setXlmBalance(null);
       setTokenBalance(null);
@@ -46,6 +49,9 @@ export const UserBalanceDisplay = memo(function UserBalanceDisplay({
       const horizon = stellarClient.getHorizon();
       const server = horizon.getServer();
       const account = await server.loadAccount(userAddress);
+
+      // FIX: Check if still mounted after async operation
+      if (!isMountedRef.current) return;
 
       // Find XLM balance (native asset)
       const xlmBalanceEntry = account.balances.find(
@@ -67,30 +73,42 @@ export const UserBalanceDisplay = memo(function UserBalanceDisplay({
                         b.contract_id === tokenAddress
           );
 
-          if (tokenBalanceEntry) {
-            setTokenBalance(tokenBalanceEntry.balance);
-          } else {
-            setTokenBalance('0');
+          if (isMountedRef.current) {
+            if (tokenBalanceEntry) {
+              setTokenBalance(tokenBalanceEntry.balance);
+            } else {
+              setTokenBalance('0');
+            }
           }
         } catch {
           // Token balance might not be available yet
-          setTokenBalance('0');
+          if (isMountedRef.current) {
+            setTokenBalance('0');
+          }
         }
       }
     } catch (err) {
       console.error('Failed to fetch balances:', err);
-      setError('Failed to load balances');
+      if (isMountedRef.current) {
+        setError('Failed to load balances');
+      }
     } finally {
-      setIsLoading(false);
+      if (isMountedRef.current) {
+        setIsLoading(false);
+      }
     }
-  };
+  }, [userAddress, tokenAddress, isConnected]);
 
   useEffect(() => {
+    isMountedRef.current = true;
     fetchBalances();
     // Refresh every 30 seconds
     const interval = setInterval(fetchBalances, 30000);
-    return () => clearInterval(interval);
-  }, [userAddress, tokenAddress, isConnected]);
+    return () => {
+      isMountedRef.current = false;
+      clearInterval(interval);
+    };
+  }, [fetchBalances]);
 
   if (!isConnected) {
     return null;

@@ -13,12 +13,27 @@ build
 .next
 out
 
-# Environment
+# Environment - SECURITY: Never commit secrets
+# Use .env.example as template (safe to commit)
 .env
+.env.*
+!.env.example
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
+
+# Credentials & Secrets - NEVER commit these
+.env.credentials
+*-credentials*
+*.credentials
+.secrets
+.secrets.*
+*secret*.json
+*.pem
+*.key
+*.p12
+*.pfx
 
 # IDE
 .vscode/*
@@ -74,4 +89,3 @@ temp/
 !/README.md
 /docs/
 .pnpm-store/
-.env.credentials

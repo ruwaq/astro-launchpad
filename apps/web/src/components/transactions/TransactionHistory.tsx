@@ -13,7 +13,10 @@ interface TransactionHistoryProps {
 export function TransactionHistory({ userAddress, limit = 20 }: TransactionHistoryProps) {
   const { data, loading, error } = useUserTransactions(userAddress, limit);
 
-  const transactions: Transaction[] = data?.transactions.edges.map((edge: TransactionEdge) => edge.node) || [];
+  // FIX: Safe edge/node extraction with null checks
+  const transactions: Transaction[] = data?.transactions?.edges
+    ?.filter((edge: TransactionEdge | null) => edge?.node)
+    ?.map((edge: TransactionEdge) => edge.node) || [];
 
   if (loading) {
     return (
@@ -110,16 +113,16 @@ export function TransactionHistory({ userAddress, limit = 20 }: TransactionHisto
                           {tx.token.logoUrl && (
                             <Image
                               src={tx.token.logoUrl}
-                              alt={tx.token.symbol}
+                              alt={tx.token.symbol || 'Token'}
                               width={24}
                               height={24}
                               className="w-6 h-6 rounded-full mr-2 object-cover"
                               unoptimized
                             />
                           )}
-                          <span className="font-medium">{tx.token.symbol}</span>
+                          <span className="font-medium">{tx.token.symbol || 'Unknown'}</span>
                         </div>
-                      ) : tx.pool ? (
+                      ) : tx.pool?.address ? (
                         <span className="text-sm text-gray-600">
                           {truncateAddress(tx.pool.address, 6)}
                         </span>
@@ -128,10 +131,10 @@ export function TransactionHistory({ userAddress, limit = 20 }: TransactionHisto
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-900">
-                      {formatCompactNumber(parseFloat(tx.amount0))}
+                      {formatCompactNumber(parseFloat(tx.amount0 || '0'))}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium text-gray-900">
-                      ${formatCompactNumber(parseFloat(tx.amountUSD))}
+                      ${formatCompactNumber(parseFloat(tx.amountUSD || '0'))}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-xs text-gray-500">
                       {getTimeAgo(timestamp)}

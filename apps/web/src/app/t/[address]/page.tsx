@@ -19,11 +19,11 @@
 // Force dynamic rendering to avoid build-time errors with contract service
 export const dynamic = 'force-dynamic';
 
-import { use, useState, useEffect } from 'react';
+import { use, useState, useEffect, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { TradingWidgetPremium } from '@/components/widgets/TradingWidgetPremium';
-import { BondingCurveChart } from '@/components/charts/BondingCurveChart';
+import { TradingViewChart } from '@/components/charts/TradingViewChart';
 import { LiveActivityFeed } from '@/components/activity/LiveActivityFeed';
 import { TokenHeader } from '@/components/token/TokenHeader';
 import { GraduationProgressAnimated } from '@/components/token/GraduationProgressAnimated';
@@ -80,79 +80,111 @@ export default function TokenTradingPage({ params }: PageProps) {
   const [error, setError] = useState<string | null>(null);
   const [dataSource, setDataSource] = useState<DataSource>('none');
 
-  useEffect(() => {
-    const fetchToken = async () => {
+  // FIX: Use ref to track dataSource for polling to avoid race condition
+  const dataSourceRef = useRef<DataSource>('none');
+  const isMountedRef = useRef(true);
+
+  const fetchToken = useCallback(async (isInitialFetch = false) => {
+    if (isInitialFetch) {
       setLoading(true);
       setError(null);
+    }
+
+    try {
+      // STEP 1: Try to get token from Stellar contract (primary source)
+      const results = await Promise.allSettled([
+        sacFactoryService.getTokenInfo(address),
+        sacFactoryService.getAstroConfig(),
+      ]);
+
+      // FIX: Check if still mounted after async operation
+      if (!isMountedRef.current) return;
+
+      const [tokenResult, configResult] = results;
+
+      // Handle token info from contract
+      if (tokenResult.status === 'fulfilled' && tokenResult.value) {
+        // SUCCESS: Token found on chain
+        setToken(tokenResult.value);
+        setDataSource('contract');
+        dataSourceRef.current = 'contract';
+
+        // Handle ASTRO config (optional)
+        if (configResult.status === 'fulfilled') {
+          setAstroConfig(configResult.value);
+        }
+        if (isInitialFetch) setLoading(false);
+        return;
+      }
+
+      // STEP 2: Contract failed - try GraphQL fallback
+      console.warn('Token not found in contract, trying GraphQL fallback...');
 
       try {
-        // STEP 1: Try to get token from Stellar contract (primary source)
-        const results = await Promise.allSettled([
-          sacFactoryService.getTokenInfo(address),
-          sacFactoryService.getAstroConfig(),
-        ]);
+        const { data } = await apolloClient.query({
+          query: GET_TOKEN_BY_ADDRESS,
+          variables: { address },
+          fetchPolicy: 'network-only', // Always fetch fresh data
+        });
 
-        const [tokenResult, configResult] = results;
+        if (!isMountedRef.current) return;
 
-        // Handle token info from contract
-        if (tokenResult.status === 'fulfilled' && tokenResult.value) {
-          // SUCCESS: Token found on chain
-          setToken(tokenResult.value);
-          setDataSource('contract');
-
-          // Handle ASTRO config (optional)
-          if (configResult.status === 'fulfilled') {
-            setAstroConfig(configResult.value);
-          }
+        if (data?.token) {
+          // SUCCESS: Token found in database (but not on chain)
+          setGraphqlToken(data.token);
+          setDataSource('graphql');
+          dataSourceRef.current = 'graphql';
+          console.warn('Token loaded from GraphQL (not on Stellar contract)');
+          if (isInitialFetch) setLoading(false);
           return;
         }
+      } catch (graphqlError) {
+        console.error('GraphQL fallback also failed:', graphqlError);
+      }
 
-        // STEP 2: Contract failed - try GraphQL fallback
-        console.warn('Token not found in contract, trying GraphQL fallback...');
-
-        try {
-          const { data } = await apolloClient.query({
-            query: GET_TOKEN_BY_ADDRESS,
-            variables: { address },
-            fetchPolicy: 'network-only', // Always fetch fresh data
-          });
-
-          if (data?.token) {
-            // SUCCESS: Token found in database (but not on chain)
-            setGraphqlToken(data.token);
-            setDataSource('graphql');
-            console.warn('Token loaded from GraphQL (not on Stellar contract)');
-            return;
-          }
-        } catch (graphqlError) {
-          console.error('GraphQL fallback also failed:', graphqlError);
-        }
-
-        // STEP 3: Both sources failed
+      // STEP 3: Both sources failed
+      if (isMountedRef.current) {
         setDataSource('none');
+        dataSourceRef.current = 'none';
         setError('Token not found in contract or database');
+      }
 
-      } catch (err: any) {
-        console.error('Unexpected error fetching token:', err);
+    } catch (err: any) {
+      console.error('Unexpected error fetching token:', err);
+      if (isMountedRef.current) {
         setError(err.message || 'Failed to load token data');
         setDataSource('none');
-      } finally {
+        dataSourceRef.current = 'none';
+      }
+    } finally {
+      if (isMountedRef.current && isInitialFetch) {
         setLoading(false);
       }
+    }
+  }, [address]);
+
+  // FIX: Separate effect for initial fetch (no dataSource dependency)
+  useEffect(() => {
+    isMountedRef.current = true;
+    fetchToken(true);
+
+    return () => {
+      isMountedRef.current = false;
     };
+  }, [fetchToken]);
 
-    fetchToken();
-
+  // FIX: Separate effect for polling (uses ref, not state)
+  useEffect(() => {
     // PERFORMANCE: Only poll if we have contract data (live trading)
     // GraphQL fallback data is read-only, no need to poll
     const interval = setInterval(() => {
-      if (dataSource === 'contract') {
-        fetchToken();
+      if (dataSourceRef.current === 'contract') {
+        fetchToken(false);
       }
     }, 60000);
 
     return () => clearInterval(interval);
-  }, [address, dataSource]);
+  }, [fetchToken]);
 
   // Loading state - Skeleton matches final layout to prevent CLS
   if (loading && !token && !graphqlToken) {
@@ -458,11 +490,14 @@ export default function TokenTradingPage({ params }: PageProps) {
               </WidgetErrorBoundary>
             </div>
 
-            {/* Bonding Curve Visualization - Wrapped with ErrorBoundary */}
+            {/* TradingView Chart - Real-time price chart */}
             <div className="order-2 lg:order-1">
               {!isReadOnlyMode ? (
                 <CardErrorBoundary>
-                  <BondingCurveChart tokenAddress={address} />
+                  <TradingViewChart
+                    tokenAddress={address}
+                    symbol={formattedToken.symbol}
+                  />
                 </CardErrorBoundary>
               ) : (
                 <div className="bg-gray-100 rounded-xl border border-ui-border p-6 lg:p-8 text-center">

@@ -16,6 +16,7 @@ import { stellarClient, getClientDeadline } from '@/lib/stellar/client';
 import { getNetworkConfig } from '@/lib/config/network';
 import { ensureTrustlineExists } from '@/lib/stellar/utils/trustline';
 import { parseContractError, extractSimulationError } from '@/components/widgets/trading/error-utils';
+import { useRateLimit, RATE_LIMIT_CONFIGS } from '@/hooks/useRateLimit';
 import toast from 'react-hot-toast';
 import confetti from 'canvas-confetti';
 
@@ -80,6 +81,15 @@ export function useTrade({
   // RACE CONDITION FIX: Use ref-based lock for synchronous double-click prevention
   const isTransactionInProgressRef = useRef(false);
 
+  // SECURITY: Rate limit trade operations to prevent abuse
+  const { checkAndRecord: checkRateLimit, getRemainingActions } = useRateLimit({
+    ...RATE_LIMIT_CONFIGS.trade,
+    onRateLimited: () => {
+      toast.error('Too many trades. Please wait a moment before trying again.');
+      tradingLogger.warn('Trade rate limited', { address });
+    },
+  });
+
   const isProcessing = ['preparing', 'signing', 'submitting', 'confirming'].includes(txStatus);
 
   const resetStatus = useCallback(() => {
@@ -110,6 +120,12 @@ export function useTrade({
 
     // Acquire lock IMMEDIATELY
     isTransactionInProgressRef.current = true;
+
+    // SECURITY: Check rate limit before proceeding
+    if (!checkRateLimit()) {
+      isTransactionInProgressRef.current = false;
+      return false;
+    }
 
     if (!address || !isConnected) {
       toast.error('Connect your wallet first');
@@ -248,9 +264,28 @@ export function useTrade({
           }
         } catch (err) {
           const error = err as { message?: string };
+          // SDK version incompatibility - verify via Horizon API instead of assuming success
           if (error.message?.includes('Bad union switch')) {
-            success = true;
-            break;
+            tradingLogger.warn('SDK version incompatibility detected, verifying via Horizon API');
+            try {
+              const horizonUrl = process.env.NEXT_PUBLIC_STELLAR_NETWORK === 'mainnet'
+                ? 'https://horizon.stellar.org'
+                : 'https://horizon-testnet.stellar.org';
+              const horizonResponse = await fetch(`${horizonUrl}/transactions/${sendResponse.hash}`);
+              if (horizonResponse.ok) {
+                const txData = await horizonResponse.json();
+                if (txData.successful === true) {
+                  success = true;
+                  tradingLogger.info('Transaction verified successful via Horizon');
+                  break;
+                } else {
+                  throw new Error('Transaction failed on chain');
+                }
+              }
+              // If Horizon doesn't have it yet, continue polling
+            } catch (horizonErr) {
+              tradingLogger.warn('Horizon fallback check failed, continuing to poll');
+            }
           }
         }
 
@@ -335,6 +370,7 @@ export function useTrade({
     playError,
     playMilestone,
     haptics,
+    checkRateLimit,
   ]);
 
   return {

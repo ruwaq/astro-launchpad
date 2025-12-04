@@ -800,7 +800,7 @@ export default function CreatePage() {
                   Token Created!
                 </>
               ) : (
-                'Create Token (0.01 XLM Fee)'
+                'Create Token (0.1 XLM Fee)'
               )}
             </button>
           </div>

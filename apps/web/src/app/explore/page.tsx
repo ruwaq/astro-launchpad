@@ -208,7 +208,7 @@ export default function ExplorePage() {
             <div className="flex gap-3">
               <div className="bg-white rounded-xl px-4 py-2 border border-ui-border">
                 <p className="text-xs text-ui-text-secondary">Total Tokens</p>
-                <p className="text-lg font-bold text-ui-text-primary">{tokens.length}</p>
+                <p className="text-lg font-bold text-ui-text-primary">{totalCount}</p>
               </div>
               <button
                 onClick={() => setShowActivity(!showActivity)}

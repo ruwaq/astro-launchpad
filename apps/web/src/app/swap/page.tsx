@@ -6,22 +6,39 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect, useCallback } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { useWallet } from '@/contexts/WalletContext';
+import { useTokens } from '@/hooks/useApi';
 import { sacFactoryService, toStroopsBigInt, TokenInfo } from '@/lib/stellar/services/sac-factory.service';
-import { xlmToStroops, stroopsToXlm, formatCompactNumber } from '@/lib/stellar/utils';
+import { xlmToStroops, stroopsToXlm } from '@/lib/stellar/utils';
+import { sanitizeNumericInput } from '@/lib/utils/format';
 import { getClientDeadline } from '@/lib/stellar/client';
 import { getNetworkConfig } from '@/lib/config/network';
-import { rpc, TransactionBuilder, Networks, Operation } from '@stellar/stellar-sdk';
+import { rpc, TransactionBuilder } from '@stellar/stellar-sdk';
 import toast from 'react-hot-toast';
-import { ArrowDownUp, Loader2, Info, TrendingUp } from 'lucide-react';
+import { ArrowDownUp, Loader2, Info, TrendingUp, Search, ChevronDown } from 'lucide-react';
 
 type SwapDirection = 'xlm-to-token' | 'token-to-xlm';
+
+// Token from GraphQL response
+interface TokenFromAPI {
+  address: string;
+  name: string;
+  symbol: string;
+  imageUrl?: string | null;
+  graduated?: boolean;
+}
 
 export default function SwapPage() {
   const { address, isConnected, connect, isConnecting, signTransaction } = useWallet();
 
+  // Fetch tokens from GraphQL API (FIXED: was previously broken)
+  const { data: tokensData, loading: loadingTokens } = useTokens({ first: 50 });
+
+  // Extract tokens from GraphQL connection pattern (edges/nodes)
+  const availableTokens: TokenFromAPI[] = (tokensData?.tokens?.edges || []).map(
+    (edge: { node: TokenFromAPI }) => edge.node
+  );
+
   // State
-  const [tokens, setTokens] = useState<TokenInfo[]>([]);
-  const [loadingTokens, setLoadingTokens] = useState(false);
   const [selectedToken, setSelectedToken] = useState<string>('');
   const [selectedTokenInfo, setSelectedTokenInfo] = useState<TokenInfo | null>(null);
   const [direction, setDirection] = useState<SwapDirection>('xlm-to-token');
@@ -31,13 +48,19 @@ export default function SwapPage() {
   const [isSwapping, setIsSwapping] = useState(false);
   const [priceImpact, setPriceImpact] = useState<number>(0);
   const [calculating, setCalculating] = useState(false);
+  const [showTokenSelector, setShowTokenSelector] = useState(false);
+  const [tokenSearch, setTokenSearch] = useState('');
 
-  // Fetch available tokens on mount
-  useEffect(() => {
-    if (isConnected) {
-      fetchTokens();
-    }
-  }, [isConnected]);
+  // Filter tokens based on search
+  const filteredTokens = availableTokens.filter(
+    (t) =>
+      t.name.toLowerCase().includes(tokenSearch.toLowerCase()) ||
+      t.symbol.toLowerCase().includes(tokenSearch.toLowerCase()) ||
+      t.address.toLowerCase().includes(tokenSearch.toLowerCase())
+  );
+
+  // Get selected token details from available tokens
+  const selectedTokenData = availableTokens.find((t) => t.address === selectedToken);
 
   // Fetch token info when selected
   useEffect(() => {
@@ -57,32 +80,6 @@ export default function SwapPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inputAmount, selectedTokenInfo, direction]);
-
-  const fetchTokens = async () => {
-    setLoadingTokens(true);
-    try {
-      const count = await sacFactoryService.getTokenCount();
-      if (count === 0) {
-        setTokens([]);
-        return;
-      }
-
-      // For demo, fetch first 20 tokens
-      // In production, implement pagination or search
-      const tokenPromises: Promise<TokenInfo | null>[] = [];
-
-      // Fetch tokens by getting creator tokens from a known set
-      // For now, we'll just show tokens we can find
-      // This could be improved with an indexer or event listener
-
-      setTokens([]);
-    } catch (error: any) {
-      console.error('Error fetching tokens:', error);
-      toast.error('Failed to load tokens');
-    } finally {
-      setLoadingTokens(false);
-    }
-  };
 
   const fetchTokenInfo = useCallback(async () => {
     if (!selectedToken) return;
@@ -337,32 +334,132 @@ export default function SwapPage() {
               </div>
             ) : (
               <>
-                {/* Token Selection */}
+                {/* Token Selection - FIXED: Now uses GraphQL data */}
                 <div className="mb-4">
                   <label className="block text-sm font-medium text-ui-text-secondary mb-2">
                     Select Token
                   </label>
-                  <input
-                    type="text"
-                    placeholder="Enter token address..."
-                    className="w-full px-4 py-3 border border-ui-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-primary"
-                    value={selectedToken}
-                    onChange={(e) => setSelectedToken(e.target.value)}
-                  />
-                  {selectedTokenInfo && (
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setShowTokenSelector(!showTokenSelector)}
+                      className="w-full px-4 py-3 border border-ui-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-primary bg-white flex items-center justify-between min-h-[48px]"
+                    >
+                      {selectedTokenData ? (
+                        <div className="flex items-center gap-3">
+                          {selectedTokenData.imageUrl ? (
+                            <img
+                              src={selectedTokenData.imageUrl}
+                              alt={selectedTokenData.symbol}
+                              className="w-8 h-8 rounded-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-8 h-8 bg-gradient-to-br from-brand-primary to-brand-blue rounded-full flex items-center justify-center text-white font-bold text-sm">
+                              {selectedTokenData.symbol.charAt(0)}
+                            </div>
+                          )}
+                          <div className="text-left">
+                            <p className="font-semibold text-ui-text-primary">{selectedTokenData.name}</p>
+                            <p className="text-xs text-ui-text-secondary">${selectedTokenData.symbol}</p>
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="text-ui-text-secondary">
+                          {loadingTokens ? 'Loading tokens...' : 'Select a token'}
+                        </span>
+                      )}
+                      <ChevronDown className={`h-5 w-5 text-gray-400 transition-transform ${showTokenSelector ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    {/* Token Selector Dropdown */}
+                    {showTokenSelector && (
+                      <div className="absolute z-50 w-full mt-2 bg-white border border-ui-border rounded-lg shadow-lg max-h-80 overflow-hidden">
+                        {/* Search Input */}
+                        <div className="p-3 border-b border-ui-border">
+                          <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                            <input
+                              type="text"
+                              placeholder="Search by name, symbol, or address..."
+                              className="w-full pl-9 pr-4 py-2 text-sm border border-ui-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                              value={tokenSearch}
+                              onChange={(e) => setTokenSearch(e.target.value)}
+                              autoFocus
+                            />
+                          </div>
+                        </div>
+
+                        {/* Token List */}
+                        <div className="max-h-60 overflow-y-auto">
+                          {filteredTokens.length === 0 ? (
+                            <div className="p-4 text-center text-ui-text-secondary text-sm">
+                              {loadingTokens ? 'Loading...' : 'No tokens found'}
+                            </div>
+                          ) : (
+                            filteredTokens.map((token) => (
+                              <button
+                                key={token.address}
+                                type="button"
+                                onClick={() => {
+                                  setSelectedToken(token.address);
+                                  setShowTokenSelector(false);
+                                  setTokenSearch('');
+                                }}
+                                className={`w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50 transition-colors ${
+                                  selectedToken === token.address ? 'bg-brand-primary-50' : ''
+                                }`}
+                              >
+                                {token.imageUrl ? (
+                                  <img
+                                    src={token.imageUrl}
+                                    alt={token.symbol}
+                                    className="w-8 h-8 rounded-full object-cover"
+                                  />
+                                ) : (
+                                  <div className="w-8 h-8 bg-gradient-to-br from-brand-primary to-brand-blue rounded-full flex items-center justify-center text-white font-bold text-sm">
+                                    {token.symbol.charAt(0)}
+                                  </div>
+                                )}
+                                <div className="flex-1 text-left">
+                                  <p className="font-medium text-ui-text-primary">{token.name}</p>
+                                  <p className="text-xs text-ui-text-secondary">${token.symbol}</p>
+                                </div>
+                                {token.graduated && (
+                                  <span className="px-2 py-0.5 text-xs bg-green-100 text-green-700 rounded-full">
+                                    Graduated
+                                  </span>
+                                )}
+                              </button>
+                            ))
+                          )}
+                        </div>
+
+                        {/* Manual Address Entry */}
+                        <div className="p-3 border-t border-ui-border">
+                          <input
+                            type="text"
+                            placeholder="Or paste token address (C...)"
+                            className="w-full px-3 py-2 text-sm border border-ui-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && e.currentTarget.value.startsWith('C')) {
+                                setSelectedToken(e.currentTarget.value);
+                                setShowTokenSelector(false);
+                              }
+                            }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Selected Token Info */}
+                  {selectedTokenInfo && !showTokenSelector && (
                     <div className="mt-2 p-3 bg-brand-primary-50 rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-gradient-to-br from-brand-primary to-brand-blue rounded-lg flex items-center justify-center text-white font-bold">
-                          {selectedTokenInfo.symbol.charAt(0)}
-                        </div>
-                        <div>
-                          <p className="font-semibold text-ui-text-primary">
-                            {selectedTokenInfo.name}
-                          </p>
-                          <p className="text-sm text-ui-text-secondary">
-                            ${selectedTokenInfo.symbol}
-                          </p>
-                        </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-ui-text-secondary">Contract:</span>
+                        <span className="text-xs font-mono text-ui-text-primary">
+                          {selectedToken.slice(0, 8)}...{selectedToken.slice(-8)}
+                        </span>
                       </div>
                     </div>
                   )}
@@ -379,7 +476,7 @@ export default function SwapPage() {
                       placeholder="0.0"
                       className="w-full px-4 py-4 pr-20 border border-ui-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-primary text-lg"
                       value={inputAmount}
-                      onChange={(e) => setInputAmount(e.target.value)}
+                      onChange={(e) => setInputAmount(sanitizeNumericInput(e.target.value))}
                       disabled={!selectedTokenInfo}
                     />
                     <div className="absolute right-4 top-1/2 transform -translate-y-1/2 font-semibold text-ui-text-primary">

@@ -140,16 +140,17 @@ export default function PortfolioPage() {
 
 function PortfolioContent({ address, activeTab }: { address: string; activeTab: TabType }) {
   const { data: txData } = useUserTransactions(address, 50);
-  const transactions = txData?.transactions.edges || [];
+  // FIXED: Extract nodes from GraphQL connection pattern (same fix as swap page)
+  const transactions = txData?.transactions?.edges?.map((edge: any) => edge.node) || [];
 
   // Calculate portfolio stats
   const totalTransactions = transactions.length;
-  const totalVolume = transactions.reduce((sum: number, { node }: any) => {
-    return sum + parseFloat(node.amountUSD || '0');
+  const totalVolume = transactions.reduce((sum: number, tx: any) => {
+    return sum + parseFloat(tx?.amountUSD || '0');
   }, 0);
 
-  const buyCount = transactions.filter(({ node }: any) => node.type === 'BUY').length;
-  const sellCount = transactions.filter(({ node }: any) => node.type === 'SELL').length;
+  const buyCount = transactions.filter((tx: any) => tx?.type === 'BUY').length;
+  const sellCount = transactions.filter((tx: any) => tx?.type === 'SELL').length;
 
   return (
     <>
@@ -211,9 +212,9 @@ function HoldingsTab({ address, transactions }: { address: string; transactions:
   // In production, this should query SAC token balances directly
   const tokenAddresses = new Set<string>();
 
-  transactions.forEach(({ node }: any) => {
-    if (node.tokenAddress) {
-      tokenAddresses.add(node.tokenAddress);
+  transactions.forEach((tx: any) => {
+    if (tx?.tokenAddress) {
+      tokenAddresses.add(tx.tokenAddress);
     }
   });
 
