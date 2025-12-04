@@ -486,6 +486,8 @@ export function TradingWidgetPremium({
             tradeType={tradeType}
             disabled={!isConnected || isProcessing}
             onSelect={handleQuickBuy}
+            currentPrice={parseFloat(currentPrice)}
+            tokenSymbol={tokenSymbol}
           />
         </motion.div>
 

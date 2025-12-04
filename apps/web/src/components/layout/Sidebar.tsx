@@ -2,8 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, PlusCircle, Compass, Wallet, Settings, Trophy, X, Menu } from 'lucide-react';
-import { useState } from 'react';
+import { Home, PlusCircle, Compass, Wallet, Settings, Trophy } from 'lucide-react';
 import Image from 'next/image';
 
 const navigation = [
@@ -17,42 +16,17 @@ const navigation = [
 
 export function Sidebar() {
   const pathname = usePathname();
-  const [mobileOpen, setMobileOpen] = useState(false);
 
+  // On mobile, navigation is handled by MobileBottomNav
+  // This sidebar is only visible on desktop (lg+)
   return (
     <>
-      {/* Mobile menu button */}
-      <button
-        onClick={() => setMobileOpen(!mobileOpen)}
-        aria-expanded={mobileOpen}
-        aria-controls="main-navigation"
-        aria-label={mobileOpen ? 'Close navigation menu' : 'Open navigation menu'}
-        className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-brand-primary text-white rounded-lg shadow-lg"
-      >
-        {mobileOpen ? <X className="h-6 w-6" aria-hidden="true" /> : <Menu className="h-6 w-6" aria-hidden="true" />}
-      </button>
-
-      {/* Overlay for mobile */}
-      {mobileOpen && (
-        <div
-          role="presentation"
-          aria-hidden="true"
-          className="lg:hidden fixed inset-0 bg-black/50 z-40"
-          onClick={() => setMobileOpen(false)}
-        />
-      )}
-
-      {/* Sidebar */}
+      {/* Sidebar - Desktop only */}
       <aside
         id="main-navigation"
         role="navigation"
         aria-label="Main navigation"
-        className={`
-          fixed inset-y-0 left-0 z-40 w-64 bg-white border-r border-ui-border
-          transform transition-transform duration-200 ease-in-out
-          lg:translate-x-0 lg:static lg:inset-auto
-          ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}
-        `}
+        className="hidden lg:block w-64 bg-white border-r border-ui-border"
       >
         <div className="flex flex-col h-full">
           {/* Logo */}
@@ -86,7 +60,6 @@ export function Sidebar() {
                 <Link
                   key={item.name}
                   href={item.href}
-                  onClick={() => setMobileOpen(false)}
                   className={`
                     flex items-center gap-3 px-4 py-3 rounded-lg
                     transition-colors duration-150
