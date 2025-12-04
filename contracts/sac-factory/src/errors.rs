@@ -77,6 +77,9 @@ pub enum Error {
     AntiWhaleMaxHoldingsExceeded = 141,
     AntiWhaleCooldownActive = 142,
 
+    // Trade Validation
+    AmountBelowMinimum = 145,
+
     // Emergency Recovery
     TokenNotFailedGraduation = 150,
     RecoveryNotAllowed = 151,

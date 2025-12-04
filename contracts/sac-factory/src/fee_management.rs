@@ -289,6 +289,9 @@ pub fn set_treasury(
 
 /// Calculate fee breakdown for a given amount
 ///
+/// Uses ROUND UP for fees (Uniswap V2 best practice)
+/// This ensures protocol always receives at least 1 stroop per trade
+///
 /// This is a pure calculation function with no side effects
 pub fn calculate_fee_breakdown(
     gross_amount: i128,
@@ -299,18 +302,23 @@ pub fn calculate_fee_breakdown(
         return Err(Error::InvalidAmount);
     }
 
-    // Calculate protocol fee
-    let protocol_fee = math::apply_bps(gross_amount, protocol_fee_bps)?;
+    // Validate minimum trade amount to prevent dust attacks
+    if gross_amount < math::MIN_TRADE_AMOUNT {
+        return Err(Error::AmountBelowMinimum);
+    }
 
-    // Calculate LP fee
-    let lp_fee = math::apply_bps(gross_amount, lp_fee_bps)?;
+    // Calculate protocol fee with ROUND UP (ensure protocol always gets fee)
+    let protocol_fee = math::apply_bps_round_up(gross_amount, protocol_fee_bps)?;
+
+    // Calculate LP fee with ROUND UP (ensure liquidity always grows)
+    let lp_fee = math::apply_bps_round_up(gross_amount, lp_fee_bps)?;
 
     // Calculate total fees
     let total_fees = protocol_fee
         .checked_add(lp_fee)
         .ok_or(Error::Overflow)?;
 
-    // Calculate net amount
+    // Calculate net amount (rounds DOWN implicitly, protecting the pool)
     let net_amount = gross_amount
         .checked_sub(total_fees)
         .ok_or(Error::Underflow)?;
@@ -500,10 +508,10 @@ mod tests {
             DEFAULT_LP_FEE_BPS,
         ).unwrap();
 
-        // Protocol fee: 0.05% of 100M = 50,000
+        // Protocol fee: 0.05% of 100M = 50,000 (exact, no rounding)
         assert_eq!(breakdown.protocol_fee, 50_000);
 
-        // LP fee: 0.25% of 100M = 250,000
+        // LP fee: 0.25% of 100M = 250,000 (exact, no rounding)
         assert_eq!(breakdown.lp_fee, 250_000);
 
         // Total fees: 300,000
@@ -514,23 +522,47 @@ mod tests {
     }
 
     #[test]
-    fn test_fee_breakdown_precision() {
-        // Test with small amounts to verify precision
-        let amount = 1_000i128;
+    fn test_fee_breakdown_with_round_up() {
+        // Test at minimum trade amount (0.1 XLM = 1,000,000 stroops)
+        let amount = 1_000_000i128;
 
         let breakdown = calculate_fee_breakdown(amount, 5, 25).unwrap();
 
-        // Protocol fee: 0.05% of 1000 = 0.5 → rounds down to 0
-        assert_eq!(breakdown.protocol_fee, 0);
+        // Protocol fee: ceil(1M * 5 / 10000) = ceil(500) = 500 (exact)
+        // Formula: (1,000,000 * 5 + 9999) / 10000 = 5,009,999 / 10000 = 500
+        assert_eq!(breakdown.protocol_fee, 500);
 
-        // LP fee: 0.25% of 1000 = 2.5 → rounds down to 2
-        assert_eq!(breakdown.lp_fee, 2);
+        // LP fee: ceil(1M * 25 / 10000) = ceil(2500) = 2500 (exact)
+        // Formula: (1,000,000 * 25 + 9999) / 10000 = 25,009,999 / 10000 = 2500
+        assert_eq!(breakdown.lp_fee, 2500);
 
-        // Total fees: 2
-        assert_eq!(breakdown.total_fees, 2);
+        // Total fees: 3000 (0.3% of 1M)
+        assert_eq!(breakdown.total_fees, 3000);
 
-        // Net: 998
-        assert_eq!(breakdown.net_amount, 998);
+        // Net: 997,000
+        assert_eq!(breakdown.net_amount, 997_000);
+    }
+
+    #[test]
+    fn test_fee_breakdown_round_up_guarantees_non_zero() {
+        // Test that round up ensures fees are never 0 for valid trades
+        let amount = 2_000_000i128; // 0.2 XLM - just above minimum
+
+        let breakdown = calculate_fee_breakdown(amount, 5, 25).unwrap();
+
+        // With round up, both fees should be non-zero
+        assert!(breakdown.protocol_fee > 0, "Protocol fee should be > 0");
+        assert!(breakdown.lp_fee > 0, "LP fee should be > 0");
+    }
+
+    #[test]
+    fn test_amount_below_minimum_fails() {
+        // Amount below minimum (0.1 XLM) should fail
+        let amount = 500_000i128; // 0.05 XLM
+
+        let result = calculate_fee_breakdown(amount, 5, 25);
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), Error::AmountBelowMinimum);
     }
 
     #[test]

@@ -2,8 +2,17 @@
 //!
 //! Provides overflow-protected arithmetic operations for all contract calculations.
 //! All operations return Result<i128, Error> for consistent error handling.
+//!
+//! ## Rounding Philosophy (Uniswap V2 Best Practice)
+//! - Fees: Round UP to ensure protocol always receives at least 1 stroop
+//! - Token output: Round DOWN to protect liquidity pool
+//! - XLM output: Round DOWN to protect liquidity pool
 
 use crate::errors::Error;
+
+/// Minimum trade amount: 0.1 XLM = 1,000,000 stroops
+/// This prevents dust attacks and ensures fees don't round to 0
+pub const MIN_TRADE_AMOUNT: i128 = 1_000_000;
 
 /// Safe addition with overflow protection
 pub fn safe_add(a: i128, b: i128) -> Result<i128, Error> {
@@ -38,6 +47,7 @@ pub fn mul_div(a: i128, b: i128, c: i128) -> Result<i128, Error> {
 }
 
 /// Calculate percentage in basis points (1% = 100 bps)
+/// Rounds DOWN (standard behavior)
 ///
 /// # Arguments
 /// * `amount` - The base amount
@@ -47,6 +57,28 @@ pub fn mul_div(a: i128, b: i128, c: i128) -> Result<i128, Error> {
 /// The percentage of the amount
 pub fn apply_bps(amount: i128, bps: i128) -> Result<i128, Error> {
     mul_div(amount, bps, 10_000)
+}
+
+/// Calculate percentage in basis points with ROUND UP
+/// Used for fee calculations to ensure protocol always receives at least 1 stroop
+///
+/// Formula: ceil((amount * bps) / 10000) = (amount * bps + 9999) / 10000
+///
+/// # Arguments
+/// * `amount` - The base amount
+/// * `bps` - Basis points (e.g., 100 for 1%, 10000 for 100%)
+///
+/// # Returns
+/// The percentage of the amount, rounded up
+pub fn apply_bps_round_up(amount: i128, bps: i128) -> Result<i128, Error> {
+    if bps == 0 {
+        return Ok(0);
+    }
+
+    let numerator = safe_mul(amount, bps)?;
+    // Add (denominator - 1) before dividing to round up
+    let numerator_adjusted = safe_add(numerator, 9_999)?;
+    safe_div(numerator_adjusted, 10_000)
 }
 
 /// Calculate slippage in basis points
@@ -126,6 +158,47 @@ mod tests {
         assert_eq!(apply_bps(1000, 100).unwrap(), 10);
         // 50% of 1000 = 500
         assert_eq!(apply_bps(1000, 5000).unwrap(), 500);
+    }
+
+    #[test]
+    fn test_apply_bps_round_up() {
+        // 0.05% of 1000 = 0.5 → rounds UP to 1
+        assert_eq!(apply_bps_round_up(1000, 5).unwrap(), 1);
+        // 0.25% of 1000 = 2.5 → rounds UP to 3
+        assert_eq!(apply_bps_round_up(1000, 25).unwrap(), 3);
+        // 0% of anything = 0
+        assert_eq!(apply_bps_round_up(1000, 0).unwrap(), 0);
+        // Exact division still works: 1% of 1000 = 10
+        assert_eq!(apply_bps_round_up(1000, 100).unwrap(), 10);
+        // Small amount: 0.05% of 100 = 0.005 → rounds UP to 1
+        assert_eq!(apply_bps_round_up(100, 5).unwrap(), 1);
+    }
+
+    #[test]
+    fn test_apply_bps_round_up_vs_down() {
+        // Compare round up vs round down for small amounts
+        let amount = 1000i128;
+        let protocol_fee_bps = 5i128; // 0.05%
+
+        // Round down: 1000 * 5 / 10000 = 0
+        let fee_down = apply_bps(amount, protocol_fee_bps).unwrap();
+        // Round up: (1000 * 5 + 9999) / 10000 = 1
+        let fee_up = apply_bps_round_up(amount, protocol_fee_bps).unwrap();
+
+        assert_eq!(fee_down, 0);
+        assert_eq!(fee_up, 1);
+        assert!(fee_up >= fee_down, "Round up should always be >= round down");
+    }
+
+    #[test]
+    fn test_min_trade_amount_constant() {
+        // Verify MIN_TRADE_AMOUNT is 0.1 XLM
+        assert_eq!(MIN_TRADE_AMOUNT, 1_000_000);
+        // At 0.1 XLM, fees should be non-zero with round up
+        let protocol_fee = apply_bps_round_up(MIN_TRADE_AMOUNT, 5).unwrap();
+        let lp_fee = apply_bps_round_up(MIN_TRADE_AMOUNT, 25).unwrap();
+        assert!(protocol_fee > 0, "Protocol fee should be > 0 at min trade");
+        assert!(lp_fee > 0, "LP fee should be > 0 at min trade");
     }
 
     #[test]

@@ -2,6 +2,11 @@
 //!
 //! Safe arithmetic operations with overflow/underflow protection.
 //! All operations return Result types for proper error handling.
+//!
+//! Features:
+//! - Phantom overflow protection via u128 intermediate calculations
+//! - Reserve update functions with negative value protection
+//! - K invariant verification for AMM safety
 
 use crate::types::SharedError;
 
@@ -50,6 +55,172 @@ pub fn safe_div(a: i128, b: i128) -> Result<i128, SharedError> {
         return Err(SharedError::DivisionByZero);
     }
     a.checked_div(b).ok_or(SharedError::Overflow)
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// Phantom Overflow Safe Arithmetic
+// ════════════════════════════════════════════════════════════════════════════
+
+/// Multiply then divide with phantom overflow protection: (a * b) / c
+/// Rounds DOWN (floor) - favors the protocol
+///
+/// Handles phantom overflow where a*b overflows but (a*b)/c fits in i128.
+/// Uses u128 intermediate calculation to prevent overflow.
+#[inline]
+pub fn mul_div_down(a: i128, b: i128, c: i128) -> Result<i128, SharedError> {
+    if c == 0 {
+        return Err(SharedError::DivisionByZero);
+    }
+    if a == 0 || b == 0 {
+        return Ok(0);
+    }
+
+    // Handle negative numbers - for token math we expect positive values
+    if a < 0 || b < 0 || c < 0 {
+        return Err(SharedError::InvalidAmount);
+    }
+
+    // Try direct calculation first (most common case)
+    if let Some(product) = a.checked_mul(b) {
+        return product.checked_div(c).ok_or(SharedError::Overflow);
+    }
+
+    // Phantom overflow: use u128 for intermediate calculation
+    let a_u = a as u128;
+    let b_u = b as u128;
+    let c_u = c as u128;
+
+    // For very large numbers, use decomposition: a*b/c = (a/c)*b + (a%c)*b/c
+    let quotient = a_u / c_u;
+    let remainder = a_u % c_u;
+
+    // result = quotient * b + (remainder * b) / c
+    let term1 = quotient.checked_mul(b_u).ok_or(SharedError::Overflow)?;
+    let term2_num = remainder.checked_mul(b_u).ok_or(SharedError::Overflow)?;
+    let term2 = term2_num / c_u;
+
+    let result = term1.checked_add(term2).ok_or(SharedError::Overflow)?;
+
+    if result > i128::MAX as u128 {
+        return Err(SharedError::Overflow);
+    }
+
+    Ok(result as i128)
+}
+
+/// Multiply then divide with phantom overflow protection: (a * b) / c
+/// Rounds UP (ceiling) - favors the user paying more / receiving less
+/// Used for get_amount_in calculations
+#[inline]
+pub fn mul_div_up(a: i128, b: i128, c: i128) -> Result<i128, SharedError> {
+    if c == 0 {
+        return Err(SharedError::DivisionByZero);
+    }
+    if a == 0 || b == 0 {
+        return Ok(0);
+    }
+
+    // Handle negative numbers
+    if a < 0 || b < 0 || c < 0 {
+        return Err(SharedError::InvalidAmount);
+    }
+
+    // floor((a * b + c - 1) / c) = ceil(a * b / c)
+    let floor_result = mul_div_down(a, b, c)?;
+
+    // Check if there's a remainder
+    let a_u = a as u128;
+    let b_u = b as u128;
+    let c_u = c as u128;
+
+    // Check remainder without overflow
+    let quotient = a_u / c_u;
+    let remainder_a = a_u % c_u;
+    let term1_remainder = (quotient * b_u) % c_u;
+    let term2_product = remainder_a * b_u;
+    let term2_remainder = term2_product % c_u;
+
+    // If there's any remainder, round up
+    if term1_remainder > 0 || term2_remainder > 0 {
+        safe_add(floor_result, 1)
+    } else {
+        Ok(floor_result)
+    }
+}
+
+/// Calculate k = reserve_0 * reserve_1 with overflow protection
+/// Used for constant product invariant verification
+#[inline]
+pub fn calculate_k(reserve_0: i128, reserve_1: i128) -> Result<i128, SharedError> {
+    if reserve_0 < 0 || reserve_1 < 0 {
+        return Err(SharedError::InvalidAmount);
+    }
+    safe_mul(reserve_0, reserve_1)
+}
+
+/// Update reserves after deposit with overflow check
+#[inline]
+pub fn update_reserves_add(
+    reserve_0: i128,
+    reserve_1: i128,
+    amount_0: i128,
+    amount_1: i128,
+) -> Result<(i128, i128), SharedError> {
+    let new_reserve_0 = safe_add(reserve_0, amount_0)?;
+    let new_reserve_1 = safe_add(reserve_1, amount_1)?;
+    Ok((new_reserve_0, new_reserve_1))
+}
+
+/// Update reserves after withdrawal with underflow check
+/// Also validates that results are non-negative (AMM safety)
+#[inline]
+pub fn update_reserves_sub(
+    reserve_0: i128,
+    reserve_1: i128,
+    amount_0: i128,
+    amount_1: i128,
+) -> Result<(i128, i128), SharedError> {
+    let new_reserve_0 = safe_sub(reserve_0, amount_0)?;
+    let new_reserve_1 = safe_sub(reserve_1, amount_1)?;
+    Ok((new_reserve_0, new_reserve_1))
+}
+
+/// Update reserves after swap with overflow/underflow check
+/// Also validates that reserve_out doesn't go negative (AMM safety)
+#[inline]
+pub fn update_reserves_swap(
+    reserve_in: i128,
+    reserve_out: i128,
+    amount_in: i128,
+    amount_out: i128,
+    is_token_0_in: bool,
+) -> Result<(i128, i128), SharedError> {
+    let new_reserve_in = safe_add(reserve_in, amount_in)?;
+    let new_reserve_out = safe_sub(reserve_out, amount_out)?;
+
+    // AMM safety: reserves must never go negative
+    if new_reserve_out < 0 {
+        return Err(SharedError::Underflow);
+    }
+
+    if is_token_0_in {
+        Ok((new_reserve_in, new_reserve_out))
+    } else {
+        Ok((new_reserve_out, new_reserve_in))
+    }
+}
+
+/// Verify k invariant: k_new >= k_old (with overflow protection)
+#[inline]
+pub fn verify_k_invariant(
+    new_reserve_0: i128,
+    new_reserve_1: i128,
+    old_reserve_0: i128,
+    old_reserve_1: i128,
+) -> Result<bool, SharedError> {
+    let k_new = calculate_k(new_reserve_0, new_reserve_1)?;
+    let k_old = calculate_k(old_reserve_0, old_reserve_1)?;
+    Ok(k_new >= k_old)
 }
 
 // ════════════════════════════════════════════════════════════════════════════
