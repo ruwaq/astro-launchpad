@@ -10,6 +10,12 @@ import { memo } from 'react';
 import { motion } from 'framer-motion';
 import type { TokenInfo } from '@/lib/stellar/services/sac-factory.service';
 import { stroopsToXlm, formatCompactNumber } from '@/lib/stellar/utils';
+import {
+  formatFeeBps,
+  DEFAULT_PROTOCOL_FEE_BPS,
+  DEFAULT_LP_FEE_BPS,
+  DEFAULT_TOTAL_FEE_BPS,
+} from '@/lib/stellar/utils/bonding-curve.utils';
 import type { TradeType } from './types';
 
 const itemVariants = {
@@ -55,7 +61,9 @@ export const TradeInfoPanel = memo(function TradeInfoPanel({
       </div>
       <div>
         <p className="text-ui-text-secondary">Fee</p>
-        <p className="font-semibold">0.3% (0.05% + 0.25%)</p>
+        <p className="font-semibold">
+          {formatFeeBps(DEFAULT_TOTAL_FEE_BPS)} ({formatFeeBps(DEFAULT_PROTOCOL_FEE_BPS)} + {formatFeeBps(DEFAULT_LP_FEE_BPS)})
+        </p>
       </div>
       <div>
         <p className="text-ui-text-secondary">Min Output</p>

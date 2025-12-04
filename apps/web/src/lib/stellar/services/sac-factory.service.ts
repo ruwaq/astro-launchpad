@@ -36,6 +36,24 @@ import {
 import {
   calculateBuyOutput as calculateBuyOutputUtil,
   calculateSellOutput as calculateSellOutputUtil,
+  calculateBuyOutputWithFees,
+  calculateSellOutputWithFees,
+  calculateFeeBreakdown,
+  formatFeeBps,
+  DEFAULT_PROTOCOL_FEE_BPS,
+  DEFAULT_LP_FEE_BPS,
+  DEFAULT_TOTAL_FEE_BPS,
+  type FeeBreakdown,
+} from '../utils/bonding-curve.utils';
+
+// Re-export fee utilities for convenience
+export {
+  calculateFeeBreakdown,
+  formatFeeBps,
+  DEFAULT_PROTOCOL_FEE_BPS,
+  DEFAULT_LP_FEE_BPS,
+  DEFAULT_TOTAL_FEE_BPS,
+  type FeeBreakdown,
 } from '../utils/bonding-curve.utils';
 
 /**
@@ -77,12 +95,25 @@ export interface TokenInfo {
 }
 
 /**
- * Fee Configuration
+ * Fee Configuration - Dual Fee Model
+ *
+ * Matches contract's FeeConfig struct:
+ * - Protocol fee (0.05%) → Treasury (team revenue)
+ * - LP fee (0.25%) → Bonding curve (liquidity provision)
+ * - Creation fee (10 XLM) → Treasury (anti-spam)
  */
 export interface FeeConfig {
   creation_fee: string;
-  trading_fee_bps: string;
+  protocol_fee_bps: string; // 0.05% = 5 bps
+  lp_fee_bps: string;       // 0.25% = 25 bps
   treasury: string;
+}
+
+/**
+ * Get total trading fee in basis points
+ */
+export function getTotalTradingFeeBps(config: FeeConfig): number {
+  return Number(config.protocol_fee_bps) + Number(config.lp_fee_bps);
 }
 
 /**
@@ -380,7 +411,7 @@ export class SacFactoryService extends BaseContractService {
   /**
    * Get fee configuration
    *
-   * @returns Fee configuration
+   * @returns Fee configuration with dual-fee breakdown
    */
   async getFeeConfig(): Promise<FeeConfig> {
     try {
@@ -388,28 +419,32 @@ export class SacFactoryService extends BaseContractService {
 
       if (!result) {
         return {
-          creation_fee: '100000', // 0.01 XLM default
-          trading_fee_bps: '30', // 0.3% default (0.05% protocol + 0.25% LP)
+          creation_fee: '100000000', // 10 XLM in stroops
+          protocol_fee_bps: '5',     // 0.05%
+          lp_fee_bps: '25',          // 0.25%
           treasury: '',
         };
       }
 
       const data = fromScVal(result) as {
         creation_fee: bigint;
-        trading_fee_bps: bigint;
+        protocol_fee_bps: bigint;
+        lp_fee_bps: bigint;
         treasury: StellarAddress;
       };
 
       return {
         creation_fee: data.creation_fee.toString(),
-        trading_fee_bps: data.trading_fee_bps.toString(),
+        protocol_fee_bps: data.protocol_fee_bps.toString(),
+        lp_fee_bps: data.lp_fee_bps.toString(),
         treasury: data.treasury.toString(),
       };
     } catch (error) {
       logger.error('Error fetching fee config:', error);
       return {
-        creation_fee: '100000',
-        trading_fee_bps: '30', // 0.3% default (0.05% protocol + 0.25% LP)
+        creation_fee: '100000000', // 10 XLM in stroops
+        protocol_fee_bps: '5',     // 0.05%
+        lp_fee_bps: '25',          // 0.25%
         treasury: '',
       };
     }
@@ -1096,13 +1131,16 @@ export class SacFactoryService extends BaseContractService {
   // ========== Helper Methods ==========
 
   /**
-   * Calculate buy output (for display purposes)
+   * Calculate buy output (GROSS - before fees)
    *
    * Uses bonding curve formula: tokens_out = token_reserve - (k / (xlm_reserve + xlm_in))
    *
+   * ⚠️ WARNING: This returns tokens BEFORE fees are applied.
+   * For user-facing displays, use calculateBuyOutputNet() instead.
+   *
    * @param tokenInfo - Token information with bonding curve state
    * @param xlmAmount - Amount of XLM to spend
-   * @returns Estimated tokens to receive (before fees)
+   * @returns Estimated tokens to receive (GROSS - before fees)
    */
   calculateBuyOutput(tokenInfo: TokenInfo, xlmAmount: bigint): bigint {
     try {
@@ -1115,13 +1153,51 @@ export class SacFactoryService extends BaseContractService {
   }
 
   /**
-   * Calculate sell output (for display purposes)
+   * Calculate buy output (NET - after fees)
+   *
+   * This shows what the user will ACTUALLY receive.
+   * Fee is deducted from XLM INPUT before bonding curve calculation.
+   *
+   * @param tokenInfo - Token information with bonding curve state
+   * @param xlmAmount - Gross XLM amount to spend
+   * @returns Estimated tokens to receive (NET - after fees) and fee breakdown
+   */
+  calculateBuyOutputNet(
+    tokenInfo: TokenInfo,
+    xlmAmount: bigint
+  ): { tokensOut: bigint; feeBreakdown: FeeBreakdown } {
+    try {
+      const result = calculateBuyOutputWithFees(tokenInfo.bonding_curve, xlmAmount);
+      return {
+        tokensOut: result.amountOut,
+        feeBreakdown: result.feeBreakdown,
+      };
+    } catch (error) {
+      logger.error('Error calculating buy output with fees:', error);
+      return {
+        tokensOut: BigInt(0),
+        feeBreakdown: {
+          grossAmount: xlmAmount,
+          protocolFee: BigInt(0),
+          lpFee: BigInt(0),
+          totalFees: BigInt(0),
+          netAmount: xlmAmount,
+        },
+      };
+    }
+  }
+
+  /**
+   * Calculate sell output (GROSS - before fees)
    *
    * Uses bonding curve formula: xlm_out = xlm_reserve - (k / (token_reserve + tokens_in))
    *
+   * ⚠️ WARNING: This returns XLM BEFORE fees are applied.
+   * For user-facing displays, use calculateSellOutputNet() instead.
+   *
    * @param tokenInfo - Token information with bonding curve state
    * @param tokenAmount - Amount of tokens to sell
-   * @returns Estimated XLM to receive
+   * @returns Estimated XLM to receive (GROSS - before fees)
    */
   calculateSellOutput(tokenInfo: TokenInfo, tokenAmount: bigint): bigint {
     try {
@@ -1134,15 +1210,61 @@ export class SacFactoryService extends BaseContractService {
   }
 
   /**
+   * Calculate sell output (NET - after fees)
+   *
+   * This shows what the user will ACTUALLY receive.
+   * Fee is deducted from XLM OUTPUT after bonding curve calculation.
+   *
+   * @param tokenInfo - Token information with bonding curve state
+   * @param tokenAmount - Amount of tokens to sell
+   * @returns Estimated XLM to receive (NET - after fees) and fee breakdown
+   */
+  calculateSellOutputNet(
+    tokenInfo: TokenInfo,
+    tokenAmount: bigint
+  ): { xlmOut: bigint; feeBreakdown: FeeBreakdown } {
+    try {
+      const result = calculateSellOutputWithFees(tokenInfo.bonding_curve, tokenAmount);
+      return {
+        xlmOut: result.amountOut,
+        feeBreakdown: result.feeBreakdown,
+      };
+    } catch (error) {
+      logger.error('Error calculating sell output with fees:', error);
+      return {
+        xlmOut: BigInt(0),
+        feeBreakdown: {
+          grossAmount: BigInt(0),
+          protocolFee: BigInt(0),
+          lpFee: BigInt(0),
+          totalFees: BigInt(0),
+          netAmount: BigInt(0),
+        },
+      };
+    }
+  }
+
+  /**
    * Apply trading fee (0.3% default = 0.05% protocol + 0.25% LP)
    *
+   * @deprecated Use calculateFeeBreakdown() for detailed fee info
    * @param amount - Amount before fee
    * @param feeBps - Fee in basis points (30 = 0.3%)
    * @returns Amount after fee
    */
-  applyTradingFee(amount: bigint, feeBps: bigint = BigInt(30)): bigint {
+  applyTradingFee(amount: bigint, feeBps: bigint = DEFAULT_TOTAL_FEE_BPS): bigint {
     const fee = (amount * feeBps) / BigInt(10000);
     return amount - fee;
+  }
+
+  /**
+   * Get fee breakdown for an amount
+   *
+   * @param amount - Amount in stroops
+   * @returns Detailed fee breakdown with protocol fee, LP fee, and net amount
+   */
+  getFeeBreakdown(amount: bigint): FeeBreakdown {
+    return calculateFeeBreakdown(amount);
   }
 
   // ========== Anti-Whale Debug Methods ==========

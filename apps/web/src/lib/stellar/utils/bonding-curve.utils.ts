@@ -4,11 +4,28 @@
  * Centralized calculations for constant product bonding curves.
  * Formula: x * y = k (where x = xlm_reserve, y = token_reserve)
  *
+ * Fee Model (Uniswap V2 style):
+ * - Protocol fee: 0.05% (5 bps) → Treasury
+ * - LP fee: 0.25% (25 bps) → Bonding curve
+ * - Total: 0.30% (30 bps)
+ *
+ * Fee Application:
+ * - BUY: Fee deducted from XLM INPUT before swap calculation
+ * - SELL: Fee deducted from XLM OUTPUT after swap calculation
+ *
  * Pattern: Pure functions for mathematical operations (DRY principle)
  * All functions handle BigInt for precision and overflow safety
  */
 
 import type { NormalizedBondingCurve } from '../adapters/contract-adapter';
+
+/**
+ * Default fee configuration (matches contract defaults)
+ */
+export const DEFAULT_PROTOCOL_FEE_BPS = 5n;   // 0.05%
+export const DEFAULT_LP_FEE_BPS = 25n;        // 0.25%
+export const DEFAULT_TOTAL_FEE_BPS = 30n;     // 0.30%
+export const BPS_PRECISION = 10000n;
 
 /**
  * Bonding curve calculation result
@@ -322,4 +339,121 @@ export function calculateRequiredTokensForXlm(
   const newXlmReserve = xlmReserve - desiredXlm;
   const newTokenReserve = k / newXlmReserve;
   return newTokenReserve - tokenReserve;
+}
+
+// ============================================================================
+// Fee-Aware Calculations (for accurate user-facing estimates)
+// ============================================================================
+
+/**
+ * Fee breakdown result
+ */
+export interface FeeBreakdown {
+  grossAmount: bigint;
+  protocolFee: bigint;
+  lpFee: bigint;
+  totalFees: bigint;
+  netAmount: bigint;
+}
+
+/**
+ * Calculate fee breakdown for a given amount
+ *
+ * @param amount - Gross amount (XLM in stroops)
+ * @param protocolFeeBps - Protocol fee in basis points (default 5)
+ * @param lpFeeBps - LP fee in basis points (default 25)
+ * @returns Detailed fee breakdown
+ */
+export function calculateFeeBreakdown(
+  amount: bigint,
+  protocolFeeBps: bigint = DEFAULT_PROTOCOL_FEE_BPS,
+  lpFeeBps: bigint = DEFAULT_LP_FEE_BPS
+): FeeBreakdown {
+  const protocolFee = (amount * protocolFeeBps) / BPS_PRECISION;
+  const lpFee = (amount * lpFeeBps) / BPS_PRECISION;
+  const totalFees = protocolFee + lpFee;
+  const netAmount = amount - totalFees;
+
+  return {
+    grossAmount: amount,
+    protocolFee,
+    lpFee,
+    totalFees,
+    netAmount,
+  };
+}
+
+/**
+ * Calculate buy output WITH fees applied (user-facing estimate)
+ *
+ * This shows what the user will ACTUALLY receive after fees.
+ * Fee is deducted from XLM INPUT before bonding curve calculation.
+ *
+ * @param curve - Current bonding curve state
+ * @param xlmAmount - Gross XLM amount to spend (in stroops)
+ * @param protocolFeeBps - Protocol fee in basis points (default 5)
+ * @param lpFeeBps - LP fee in basis points (default 25)
+ * @returns Tokens to receive (after fees applied to input)
+ */
+export function calculateBuyOutputWithFees(
+  curve: NormalizedBondingCurve,
+  xlmAmount: bigint,
+  protocolFeeBps: bigint = DEFAULT_PROTOCOL_FEE_BPS,
+  lpFeeBps: bigint = DEFAULT_LP_FEE_BPS
+): BondingCurveOutput & { feeBreakdown: FeeBreakdown } {
+  // Step 1: Calculate fee breakdown on XLM input
+  const feeBreakdown = calculateFeeBreakdown(xlmAmount, protocolFeeBps, lpFeeBps);
+
+  // Step 2: Calculate tokens using NET XLM (after fees)
+  const result = calculateBuyOutput(curve, feeBreakdown.netAmount);
+
+  return {
+    ...result,
+    feeBreakdown,
+  };
+}
+
+/**
+ * Calculate sell output WITH fees applied (user-facing estimate)
+ *
+ * This shows what the user will ACTUALLY receive after fees.
+ * Fee is deducted from XLM OUTPUT after bonding curve calculation.
+ *
+ * @param curve - Current bonding curve state
+ * @param tokenAmount - Token amount to sell
+ * @param protocolFeeBps - Protocol fee in basis points (default 5)
+ * @param lpFeeBps - LP fee in basis points (default 25)
+ * @returns XLM to receive (after fees applied to output)
+ */
+export function calculateSellOutputWithFees(
+  curve: NormalizedBondingCurve,
+  tokenAmount: bigint,
+  protocolFeeBps: bigint = DEFAULT_PROTOCOL_FEE_BPS,
+  lpFeeBps: bigint = DEFAULT_LP_FEE_BPS
+): BondingCurveOutput & { feeBreakdown: FeeBreakdown } {
+  // Step 1: Calculate gross XLM from bonding curve
+  const result = calculateSellOutput(curve, tokenAmount);
+
+  // Step 2: Calculate fee breakdown on XLM output
+  const feeBreakdown = calculateFeeBreakdown(result.amountOut, protocolFeeBps, lpFeeBps);
+
+  return {
+    amountOut: feeBreakdown.netAmount,
+    priceImpact: result.priceImpact,
+    effectivePrice: tokenAmount > 0n
+      ? (feeBreakdown.netAmount * BigInt(10_000_000)) / tokenAmount
+      : 0n,
+    feeBreakdown,
+  };
+}
+
+/**
+ * Format fee for display (human readable)
+ *
+ * @param feeBps - Fee in basis points
+ * @returns Formatted string (e.g., "0.30%")
+ */
+export function formatFeeBps(feeBps: bigint | number): string {
+  const bps = typeof feeBps === 'bigint' ? Number(feeBps) : feeBps;
+  return `${(bps / 100).toFixed(2)}%`;
 }
