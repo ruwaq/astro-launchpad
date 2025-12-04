@@ -203,19 +203,41 @@ cargo test                   # Contract tests
 | `qenti-fi-web` | QentiFi | DeFi platform |
 | `nahui-gallery-frontend` | NahuiGallery | NFT gallery |
 
+### Vercel Configuration (NunaLabs)
+
+| Config | Value |
+|--------|-------|
+| Team ID | `team_WWWCdgHNWlHrbpK6IBj761Dr` |
+| Team Name | `nunalabs-projects` |
+| Account | `nunartistas@gmail.com` |
+| GitHub Repo ID | `1104872053` |
+| Free Plan Limit | 100 deployments/day |
+
 ### Deploy Commands
 
 ```bash
-# Frontend (Next.js) - auto-deploys on push to main
+# Auto-deploy: Push to main triggers Vercel deployment
 git push origin main
 
-# Manual deploy if needed
-cd apps/web && vercel --prod
+# Manual deploy via API (NO CLI - use API only)
+# astro-launchpad (frontend)
+curl -X POST "https://api.vercel.com/v13/deployments?teamId=team_WWWCdgHNWlHrbpK6IBj761Dr" \
+  -H "Authorization: Bearer $VERCEL_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"astro-launchpad","gitSource":{"type":"github","repoId":1104872053,"ref":"main"},"target":"production","projectSettings":{"rootDirectory":"apps/web"}}'
 
-# Backend API - auto-deploys on push to main
-# Manual deploy if needed
-cd backend/api-gateway-v2 && vercel --prod
+# api-gateway-v2 (backend)
+curl -X POST "https://api.vercel.com/v13/deployments?teamId=team_WWWCdgHNWlHrbpK6IBj761Dr" \
+  -H "Authorization: Bearer $VERCEL_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"api-gateway-v2","gitSource":{"type":"github","repoId":1104872053,"ref":"main"},"target":"production","projectSettings":{"rootDirectory":"backend/api-gateway-v2"}}'
+
+# Check deployment status
+curl -s -H "Authorization: Bearer $VERCEL_TOKEN" \
+  "https://api.vercel.com/v6/deployments?projectId=prj_mmcv6JicsAxUBbltv3PIzGDlRJAQ&teamId=team_WWWCdgHNWlHrbpK6IBj761Dr&limit=1" | jq '.deployments[0] | {state, url}'
 ```
+
+> **Note**: Vercel CLI removed. Always use API for deployments.
 
 ### Contracts (Stellar)
 ```bash
