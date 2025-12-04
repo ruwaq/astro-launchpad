@@ -9,6 +9,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { TokenCardPremium } from '@/components/token/TokenCardPremium';
 import { LiveActivityFeed } from '@/components/activity/LiveActivityFeed';
+import { KingOfTheHill } from '@/components/explore/KingOfTheHill';
 import { Search, TrendingUp, Loader2, Flame, Sparkles, Activity, Filter, ChevronDown } from 'lucide-react';
 import { useWallet } from '@/contexts/WalletContext';
 import toast from 'react-hot-toast';
@@ -296,6 +297,16 @@ export default function ExplorePage() {
             isLoading={tokensLoading}
             searchTerm={debouncedSearchQuery}
           />
+
+          {/* King of the Hill - Featured Top Token (only show when not searching) */}
+          {!debouncedSearchQuery && statusFilter === 'ALL' && tokens.length > 0 && (
+            <KingOfTheHill
+              token={[...tokens].sort((a: Token, b: Token) =>
+                parseFloat(b.volume24h || '0') - parseFloat(a.volume24h || '0')
+              )[0]}
+              isLoading={tokensLoading}
+            />
+          )}
 
           {/* GraphQL Error Display - only show if there's an error */}
           {tokensError && (
