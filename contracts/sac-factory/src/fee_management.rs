@@ -13,7 +13,7 @@
 
 use soroban_sdk::{contracttype, Address, Env};
 use crate::errors::Error;
-use crate::math;
+use astro_core_shared::math as core_math;
 use crate::access_control::Role;
 use crate::events;
 
@@ -303,15 +303,16 @@ pub fn calculate_fee_breakdown(
     }
 
     // Validate minimum trade amount to prevent dust attacks
-    if gross_amount < math::MIN_TRADE_AMOUNT {
+    if gross_amount < core_math::MIN_TRADE_AMOUNT {
         return Err(Error::AmountBelowMinimum);
     }
 
     // Calculate protocol fee with ROUND UP (ensure protocol always gets fee)
-    let protocol_fee = math::apply_bps_round_up(gross_amount, protocol_fee_bps)?;
+    // Convert i128 bps to u32 for astro-core-shared compatibility
+    let protocol_fee = core_math::apply_bps_round_up(gross_amount, protocol_fee_bps as u32)?;
 
     // Calculate LP fee with ROUND UP (ensure liquidity always grows)
-    let lp_fee = math::apply_bps_round_up(gross_amount, lp_fee_bps)?;
+    let lp_fee = core_math::apply_bps_round_up(gross_amount, lp_fee_bps as u32)?;
 
     // Calculate total fees
     let total_fees = protocol_fee

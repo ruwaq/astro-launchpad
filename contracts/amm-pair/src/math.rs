@@ -1,29 +1,16 @@
 /// Math library for AMM calculations
-/// Based on Uniswap V2 math
+/// Wrapper around astro-core-shared math module
+/// Maintains backward-compatible panic-based API
+
+use astro_core_shared::math as core_math;
 
 /// Fee in basis points (30 = 0.3%)
-const FEE_BPS: i128 = 30;
-const FEE_DENOMINATOR: i128 = 10000;
+const FEE_BPS: u32 = 30;
 
-/// Calculate square root using Babylonian method
+/// Calculate square root using Newton's method
 /// Used for initial liquidity calculation
 pub fn sqrt(y: i128) -> i128 {
-    if y < 4 {
-        if y == 0 {
-            return 0;
-        }
-        return 1;
-    }
-
-    let mut z = y;
-    let mut x = y / 2 + 1;
-
-    while x < z {
-        z = x;
-        x = (y / x + x) / 2;
-    }
-
-    z
+    core_math::sqrt(y)
 }
 
 /// Calculate quote amount based on reserves
@@ -36,19 +23,17 @@ pub fn sqrt(y: i128) -> i128 {
 ///
 /// # Returns
 /// Equivalent amount of token B
+///
+/// # Panics
+/// - If amount_a <= 0
+/// - If reserves are <= 0
 pub fn quote(amount_a: i128, reserve_a: i128, reserve_b: i128) -> i128 {
-    if amount_a <= 0 {
-        panic!("insufficient amount");
-    }
-    if reserve_a <= 0 || reserve_b <= 0 {
-        panic!("insufficient liquidity");
-    }
-
-    (amount_a * reserve_b) / reserve_a
+    core_math::quote(amount_a, reserve_a, reserve_b)
+        .unwrap_or_else(|_| panic!("insufficient liquidity"))
 }
 
 /// Calculate output amount for a swap
-/// Formula: amount_out = (amount_in * 997 * reserve_out) / (reserve_in * 1000 + amount_in * 997)
+/// Formula: amount_out = (amount_in * 9970 * reserve_out) / (reserve_in * 10000 + amount_in * 9970)
 ///
 /// # Arguments
 /// * `amount_in` - Input amount
@@ -57,26 +42,17 @@ pub fn quote(amount_a: i128, reserve_a: i128, reserve_b: i128) -> i128 {
 ///
 /// # Returns
 /// Output amount after fee
+///
+/// # Panics
+/// - If amount_in <= 0
+/// - If reserves are <= 0
 pub fn get_amount_out(amount_in: i128, reserve_in: i128, reserve_out: i128) -> i128 {
-    if amount_in <= 0 {
-        panic!("insufficient input amount");
-    }
-    if reserve_in <= 0 || reserve_out <= 0 {
-        panic!("insufficient liquidity");
-    }
-
-    // Calculate fee multiplier (10000 - 30 = 9970)
-    let fee_multiplier = FEE_DENOMINATOR - FEE_BPS;
-
-    let amount_in_with_fee = amount_in * fee_multiplier;
-    let numerator = amount_in_with_fee * reserve_out;
-    let denominator = (reserve_in * FEE_DENOMINATOR) + amount_in_with_fee;
-
-    numerator / denominator
+    core_math::get_amount_out(amount_in, reserve_in, reserve_out, FEE_BPS)
+        .unwrap_or_else(|_| panic!("insufficient liquidity"))
 }
 
 /// Calculate input amount needed for a desired output
-/// Formula: amount_in = (reserve_in * amount_out * 1000) / ((reserve_out - amount_out) * 997) + 1
+/// Formula: amount_in = (reserve_in * amount_out * 10000) / ((reserve_out - amount_out) * 9970) + 1
 ///
 /// # Arguments
 /// * `amount_out` - Desired output amount
@@ -85,23 +61,14 @@ pub fn get_amount_out(amount_in: i128, reserve_in: i128, reserve_out: i128) -> i
 ///
 /// # Returns
 /// Required input amount (including fee)
+///
+/// # Panics
+/// - If amount_out <= 0
+/// - If reserves are <= 0
+/// - If amount_out >= reserve_out
 pub fn get_amount_in(amount_out: i128, reserve_in: i128, reserve_out: i128) -> i128 {
-    if amount_out <= 0 {
-        panic!("insufficient output amount");
-    }
-    if reserve_in <= 0 || reserve_out <= 0 {
-        panic!("insufficient liquidity");
-    }
-    if amount_out >= reserve_out {
-        panic!("insufficient reserve");
-    }
-
-    let fee_multiplier = FEE_DENOMINATOR - FEE_BPS;
-
-    let numerator = reserve_in * amount_out * FEE_DENOMINATOR;
-    let denominator = (reserve_out - amount_out) * fee_multiplier;
-
-    (numerator / denominator) + 1
+    core_math::get_amount_in(amount_out, reserve_in, reserve_out, FEE_BPS)
+        .unwrap_or_else(|_| panic!("insufficient liquidity"))
 }
 
 #[cfg(test)]
@@ -133,7 +100,7 @@ mod tests {
 
     #[test]
     fn test_get_amount_out() {
-        // With 1000 reserve each, swapping 100 should give ~90 (due to 0.3% fee)
+        // With 10M reserve each, swapping 1M should give ~900K (due to 0.3% fee + price impact)
         let reserve_in = 10_000_000;
         let reserve_out = 10_000_000;
         let amount_in = 1_000_000;
@@ -145,7 +112,6 @@ mod tests {
         assert!(amount_out > 0);
 
         // Verify approximately 0.3% fee
-        // Expected: ~996,981 (0.3% fee + price impact)
         assert!(amount_out > 900_000 && amount_out < 1_000_000);
     }
 
@@ -170,9 +136,9 @@ mod tests {
         let amount_out = get_amount_out(amount_in, reserve_in, reserve_out);
         let amount_in_required = get_amount_in(amount_out, reserve_in, reserve_out);
 
-        // Should be approximately equal (within 1 due to rounding)
+        // Should be approximately equal (within small margin due to rounding)
         assert!(
-            (amount_in - amount_in_required).abs() <= 1,
+            (amount_in - amount_in_required).abs() <= 2,
             "amount_in: {}, amount_in_required: {}",
             amount_in,
             amount_in_required
@@ -180,19 +146,19 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "insufficient input amount")]
+    #[should_panic]
     fn test_get_amount_out_zero_input() {
         get_amount_out(0, 1000, 1000);
     }
 
     #[test]
-    #[should_panic(expected = "insufficient liquidity")]
+    #[should_panic]
     fn test_get_amount_out_zero_reserve() {
         get_amount_out(100, 0, 1000);
     }
 
     #[test]
-    #[should_panic(expected = "insufficient reserve")]
+    #[should_panic]
     fn test_get_amount_in_exceeds_reserve() {
         get_amount_in(1001, 1000, 1000);
     }

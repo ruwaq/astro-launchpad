@@ -28,7 +28,8 @@ mod bonding_curve;
 mod storage;
 mod errors;
 mod events;
-mod math;
+// mod math; // Replaced by astro-core-shared
+use astro_core_shared::math as core_math;
 mod access_control;
 mod fee_management;
 mod state_management;
@@ -465,13 +466,13 @@ impl SacFactory {
         let price_after = token_info.bonding_curve.get_current_price();
 
         // 12. Calculate actual slippage
-        let slippage_bps = math::calculate_slippage_bps(price_before, price_after)?;
+        let slippage_bps = core_math::calculate_slippage_bps(price_before, price_after)?;
 
         // 13. Update total XLM raised
-        token_info.xlm_raised = math::safe_add(token_info.xlm_raised, xlm_amount)?;
+        token_info.xlm_raised = core_math::safe_add(token_info.xlm_raised, xlm_amount)?;
 
         // 14. Update market cap (XLM raised * 2 for constant product)
-        token_info.market_cap = math::safe_mul(token_info.xlm_raised, 2)?;
+        token_info.market_cap = core_math::safe_mul(token_info.xlm_raised, 2)?;
 
         // 15. Check for auto-graduation (using configurable threshold)
         let graduation_threshold = storage::get_graduation_threshold(&env);
@@ -633,10 +634,10 @@ impl SacFactory {
         )?;
 
         // 9. Update total XLM raised (using safe math)
-        token_info.xlm_raised = math::safe_sub(token_info.xlm_raised, xlm_gross)?;
+        token_info.xlm_raised = core_math::safe_sub(token_info.xlm_raised, xlm_gross)?;
 
         // 10. Update market cap
-        token_info.market_cap = math::safe_mul(token_info.xlm_raised, 2)?;
+        token_info.market_cap = core_math::safe_mul(token_info.xlm_raised, 2)?;
 
         // 11. Save state BEFORE any external calls
         storage::set_token_info(&env, &token, &token_info);

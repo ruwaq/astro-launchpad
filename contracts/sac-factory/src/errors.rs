@@ -89,3 +89,17 @@ pub enum Error {
     BridgeGraduationFailed = 161,
     BridgeCallFailed = 162,
 }
+
+// Convert astro-core SharedError to local Error
+impl From<astro_core_shared::SharedError> for Error {
+    fn from(e: astro_core_shared::SharedError) -> Self {
+        match e {
+            astro_core_shared::SharedError::Overflow => Error::Overflow,
+            astro_core_shared::SharedError::Underflow => Error::Underflow,
+            astro_core_shared::SharedError::DivisionByZero => Error::DivisionByZero,
+            astro_core_shared::SharedError::InvalidAmount => Error::InvalidAmount,
+            astro_core_shared::SharedError::InsufficientBalance => Error::InsufficientBalance,
+            _ => Error::InvalidState,
+        }
+    }
+}
