@@ -4,6 +4,7 @@ import Image from 'next/image';
 import { usePools, useTopPools } from '@/hooks/useApi';
 import { useWallet as useWalletContext } from '@/contexts/WalletContext';
 import { formatCompactNumber, truncateAddress, getTimeAgo } from '@/lib/stellar/utils';
+import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import toast from 'react-hot-toast';
 import type { Pool, PoolEdge } from '@/lib/graphql/types';
 
@@ -17,31 +18,36 @@ export default function PoolsPage() {
 
   if (loading) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="animate-pulse space-y-4">
-          <div className="h-8 bg-gray-200 rounded w-1/4"></div>
-          <div className="h-64 bg-gray-200 rounded"></div>
+      <DashboardLayout>
+        <div className="max-w-7xl mx-auto">
+          <div className="animate-pulse space-y-4">
+            <div className="h-8 bg-gray-200 rounded w-1/4"></div>
+            <div className="h-64 bg-gray-200 rounded"></div>
+          </div>
         </div>
-      </div>
+      </DashboardLayout>
     );
   }
 
   if (error) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="text-red-800">Error loading pools. Please try again later.</p>
+      <DashboardLayout>
+        <div className="max-w-7xl mx-auto">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+            <p className="text-red-800">Error loading pools. Please try again later.</p>
+          </div>
         </div>
-      </div>
+      </DashboardLayout>
     );
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2">Liquidity Pools</h1>
-        <p className="text-gray-600">Provide liquidity and earn trading fees</p>
-      </div>
+    <DashboardLayout>
+      <div className="max-w-7xl mx-auto space-y-6">
+        <div>
+          <h1 className="text-2xl lg:text-3xl font-bold mb-2">Liquidity Pools</h1>
+          <p className="text-gray-600">Provide liquidity and earn trading fees</p>
+        </div>
 
       {/* Top Pools Highlight */}
       {topPools.length > 0 && (
@@ -225,6 +231,7 @@ export default function PoolsPage() {
           </ol>
         </div>
       </div>
-    </div>
+      </div>
+    </DashboardLayout>
   );
 }

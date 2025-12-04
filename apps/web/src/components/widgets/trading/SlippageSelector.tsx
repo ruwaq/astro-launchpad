@@ -50,13 +50,13 @@ export function SlippageSelector({ value, onChange, disabled }: SlippageSelector
           )}
         </div>
       </div>
-      <div className="flex gap-2">
+      <div className="flex gap-1.5 sm:gap-2">
         {SLIPPAGE_OPTIONS.map((percent) => (
           <button
             key={percent}
             onClick={() => onChange(percent)}
             disabled={disabled}
-            className={`flex-1 py-1.5 px-2 rounded text-xs font-medium transition-all ${
+            className={`flex-1 py-2.5 sm:py-2 px-2 rounded-lg text-xs font-medium transition-all min-h-[40px] flex items-center justify-center ${
               value === percent
                 ? 'bg-brand-primary text-white'
                 : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
