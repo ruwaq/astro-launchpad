@@ -16,6 +16,7 @@
     "@apollo/client": "^3.14.0",
     "@creit.tech/stellar-wallets-kit": "^1.9.5",
     "@repo/ui": "workspace:*",
+    "@sentry/nextjs": "^10.29.0",
     "@simplewebauthn/browser": "^13.2.2",
     "@simplewebauthn/server": "^13.2.2",
     "@simplewebauthn/types": "^12.0.0",

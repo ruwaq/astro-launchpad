@@ -1,6 +1,18 @@
 // Load environment variables from .env file FIRST (before any other imports)
 import 'dotenv/config';
 
+// Initialize Sentry BEFORE other imports for error tracking
+import * as Sentry from '@sentry/node';
+
+if (process.env.SENTRY_DSN) {
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    environment: process.env.NODE_ENV || 'development',
+    tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 1.0,
+    enabled: process.env.NODE_ENV === 'production',
+  });
+}
+
 import http from 'node:http';
 import { ApolloServer } from '@apollo/server';
 import { startStandaloneServer } from '@apollo/server/standalone';

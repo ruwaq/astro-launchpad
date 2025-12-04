@@ -1,4 +1,5 @@
 import type { NextConfig } from 'next';
+import { withSentryConfig } from '@sentry/nextjs';
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
@@ -164,4 +165,21 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// Wrap with Sentry for error monitoring
+export default withSentryConfig(nextConfig, {
+  // Sentry organization and project
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+
+  // Only upload source maps in production builds
+  silent: !process.env.CI,
+
+  // Upload source maps for better stack traces
+  widenClientFileUpload: true,
+
+  // Automatically tree-shake Sentry logger statements
+  disableLogger: true,
+
+  // Tunnel through Next.js to avoid ad blockers
+  tunnelRoute: '/monitoring-tunnel',
+});

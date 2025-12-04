@@ -28,7 +28,7 @@ import { LiveActivityFeed } from '@/components/activity/LiveActivityFeed';
 import { TokenHeader } from '@/components/token/TokenHeader';
 import { GraduationProgressAnimated } from '@/components/token/GraduationProgressAnimated';
 import { Loader2, AlertCircle, Users, DollarSign, TrendingUp, Activity, AlertTriangle, Database, Wifi } from 'lucide-react';
-import { TradingErrorBoundary, ChartErrorBoundary } from '@/components/ErrorBoundary';
+import { WidgetErrorBoundary, CardErrorBoundary } from '@/components/ErrorBoundary';
 import { sacFactoryService } from '@/lib/stellar/services/sac-factory.service';
 import type { TokenInfo, AstroConfig } from '@/lib/stellar/services/sac-factory.service';
 import { stroopsToXlm, formatStroopsDisplay, formatCompactNumber, GRADUATION_THRESHOLD_XLM } from '@/lib/stellar/utils';
@@ -444,7 +444,7 @@ export default function TokenTradingPage({ params }: PageProps) {
           >
             {/* Premium Trading Widget - MOBILE FIRST: Action before chart */}
             <div className="order-1 lg:order-2">
-              <TradingErrorBoundary tokenSymbol={formattedToken.symbol}>
+              <WidgetErrorBoundary>
                 <TradingWidgetPremium
                   tokenAddress={address}
                   tokenSymbol={formattedToken.symbol}
@@ -455,15 +455,15 @@ export default function TokenTradingPage({ params }: PageProps) {
                     console.log(`Trade success: ${type} ${amount}`);
                   }}
                 />
-              </TradingErrorBoundary>
+              </WidgetErrorBoundary>
             </div>
 
             {/* Bonding Curve Visualization - Wrapped with ErrorBoundary */}
             <div className="order-2 lg:order-1">
               {!isReadOnlyMode ? (
-                <ChartErrorBoundary>
+                <CardErrorBoundary>
                   <BondingCurveChart tokenAddress={address} />
-                </ChartErrorBoundary>
+                </CardErrorBoundary>
               ) : (
                 <div className="bg-gray-100 rounded-xl border border-ui-border p-6 lg:p-8 text-center">
                   <div className="text-gray-400 mb-2">
