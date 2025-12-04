@@ -10,7 +10,7 @@ import { sacFactoryService, toStroopsBigInt, TokenInfo } from '@/lib/stellar/ser
 import { xlmToStroops, stroopsToXlm, formatCompactNumber } from '@/lib/stellar/utils';
 import { getClientDeadline } from '@/lib/stellar/client';
 import { getNetworkConfig } from '@/lib/config/network';
-import { SorobanRpc, TransactionBuilder, Networks, Operation } from '@stellar/stellar-sdk';
+import { rpc, TransactionBuilder, Networks, Operation } from '@stellar/stellar-sdk';
 import toast from 'react-hot-toast';
 import { ArrowDownUp, Loader2, Info, TrendingUp } from 'lucide-react';
 
@@ -159,7 +159,7 @@ export default function SwapPage() {
 
     try {
       const config = getNetworkConfig();
-      const server = new SorobanRpc.Server(config.rpcUrl);
+      const server = new rpc.Server(config.rpcUrl);
 
       // Get account
       const account = await server.getAccount(address);
@@ -219,12 +219,12 @@ export default function SwapPage() {
       // Simulate
       const simulated = await server.simulateTransaction(transaction);
 
-      if (SorobanRpc.Api.isSimulationError(simulated)) {
+      if (rpc.Api.isSimulationError(simulated)) {
         throw new Error('Transaction simulation failed');
       }
 
       // Prepare transaction
-      const preparedTx = SorobanRpc.assembleTransaction(transaction, simulated).build();
+      const preparedTx = rpc.assembleTransaction(transaction, simulated).build();
 
       toast.dismiss();
       toast.loading('Waiting for signature...');

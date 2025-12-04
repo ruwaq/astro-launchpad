@@ -8,7 +8,7 @@ import { useWallet } from '@/contexts/WalletContext';
 import { useSyncToken } from '@/hooks/useApi';
 import { sacFactoryService } from '@/lib/stellar/services/sac-factory.service';
 import { stellarClient } from '@/lib/stellar/client';
-import { TransactionBuilder, SorobanRpc, Address } from '@stellar/stellar-sdk';
+import { TransactionBuilder, rpc, Address } from '@stellar/stellar-sdk';
 import { getNetworkConfig } from '@/lib/config/network';
 import toast from 'react-hot-toast';
 import nextDynamic from 'next/dynamic';
@@ -254,7 +254,7 @@ export default function CreatePage() {
       }
 
       // Prepare transaction with simulation results
-      const preparedTx = SorobanRpc.assembleTransaction(
+      const preparedTx = rpc.assembleTransaction(
         transaction,
         simulated
       ).build();

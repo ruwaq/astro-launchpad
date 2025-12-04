@@ -17,7 +17,7 @@ import { ArrowDown } from 'lucide-react';
 import { useWallet } from '@/contexts/WalletContext';
 import { sacFactoryService, toStroopsBigInt, type TokenInfo } from '@/lib/stellar/services/sac-factory.service';
 import { stellarClient, getClientDeadline } from '@/lib/stellar/client';
-import { TransactionBuilder, SorobanRpc } from '@stellar/stellar-sdk';
+import { TransactionBuilder, rpc } from '@stellar/stellar-sdk';
 import { ensureTrustlineExists } from '@/lib/stellar/utils/trustline';
 import { getNetworkConfig } from '@/lib/config/network';
 import toast from 'react-hot-toast';
@@ -334,7 +334,7 @@ export function TradingWidget() {
           throw new Error('Simulation returned empty response. Network may be congested.');
         }
 
-        if (SorobanRpc.Api.isSimulationError(simulated)) {
+        if (rpc.Api.isSimulationError(simulated)) {
           // Extract meaningful error message from simulation
           const errorMsg = simulated.error || 'Unknown simulation error';
 
@@ -375,7 +375,7 @@ export function TradingWidget() {
           throw new Error(`Transaction failed: ${errorMsg}`);
         }
 
-        const preparedTx = SorobanRpc.assembleTransaction(transaction, simulated).build();
+        const preparedTx = rpc.assembleTransaction(transaction, simulated).build();
 
         toast.loading('Please sign in your wallet...', { id: loadingToast });
         const signedXDR = await signTransaction(preparedTx.toXDR());

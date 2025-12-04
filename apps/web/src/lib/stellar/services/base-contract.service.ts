@@ -5,14 +5,14 @@
  * Provides common functionality for contract interactions.
  */
 
-import { Contract, SorobanRpc, xdr, TransactionBuilder, Account } from '@stellar/stellar-sdk';
+import { Contract, rpc, xdr, TransactionBuilder, Account } from '@stellar/stellar-sdk';
 import { stellarClient } from '../client';
 import { getNetworkConfig } from '../config';
 import type { ContractCallResult } from '../types';
 
 export interface PreparedTransaction {
   txXDR: string;
-  simulationResult: SorobanRpc.Api.SimulateTransactionResponse;
+  simulationResult: rpc.Api.SimulateTransactionResponse;
 }
 
 export abstract class BaseContractService {
@@ -80,9 +80,9 @@ export abstract class BaseContractService {
 
       const simulationResponse = await Promise.race([simulationPromise, timeoutPromise]);
 
-      if (SorobanRpc.Api.isSimulationSuccess(simulationResponse)) {
+      if (rpc.Api.isSimulationSuccess(simulationResponse)) {
         return simulationResponse.result?.retval ?? null;
-      } else if (SorobanRpc.Api.isSimulationError(simulationResponse)) {
+      } else if (rpc.Api.isSimulationError(simulationResponse)) {
         throw new Error(
           `Simulation failed: ${simulationResponse.error}`
         );
@@ -134,15 +134,15 @@ export abstract class BaseContractService {
     // Simulate the transaction
     const simulationResult = await server.simulateTransaction(transaction);
 
-    if (!SorobanRpc.Api.isSimulationSuccess(simulationResult)) {
-      if (SorobanRpc.Api.isSimulationError(simulationResult)) {
+    if (!rpc.Api.isSimulationSuccess(simulationResult)) {
+      if (rpc.Api.isSimulationError(simulationResult)) {
         throw new Error(`Simulation failed: ${simulationResult.error}`);
       }
       throw new Error('Simulation failed with unknown error');
     }
 
     // Assemble the transaction with simulation results (auth, resource limits)
-    const preparedTxBuilder = SorobanRpc.assembleTransaction(transaction, simulationResult);
+    const preparedTxBuilder = rpc.assembleTransaction(transaction, simulationResult);
     const preparedTx = preparedTxBuilder.build();
 
     return {
@@ -159,7 +159,7 @@ export abstract class BaseContractService {
    */
   protected async submitSignedTransaction(
     signedTxXDR: string
-  ): Promise<{ hash: string; result: SorobanRpc.Api.GetSuccessfulTransactionResponse }> {
+  ): Promise<{ hash: string; result: rpc.Api.GetSuccessfulTransactionResponse }> {
     const soroban = stellarClient.getSoroban();
     const server = soroban.getServer();
     const config = getNetworkConfig();
@@ -182,20 +182,20 @@ export abstract class BaseContractService {
     const maxAttempts = 30;
     let attempts = 0;
 
-    while (getResult.status === SorobanRpc.Api.GetTransactionStatus.NOT_FOUND && attempts < maxAttempts) {
+    while (getResult.status === rpc.Api.GetTransactionStatus.NOT_FOUND && attempts < maxAttempts) {
       await new Promise((resolve) => setTimeout(resolve, 1000));
       getResult = await server.getTransaction(hash);
       attempts++;
     }
 
-    if (getResult.status === SorobanRpc.Api.GetTransactionStatus.SUCCESS) {
+    if (getResult.status === rpc.Api.GetTransactionStatus.SUCCESS) {
       return {
         hash,
-        result: getResult as SorobanRpc.Api.GetSuccessfulTransactionResponse,
+        result: getResult as rpc.Api.GetSuccessfulTransactionResponse,
       };
     }
 
-    if (getResult.status === SorobanRpc.Api.GetTransactionStatus.FAILED) {
+    if (getResult.status === rpc.Api.GetTransactionStatus.FAILED) {
       throw new Error(`Transaction failed: ${(getResult as any).resultXdr || 'Unknown error'}`);
     }
 

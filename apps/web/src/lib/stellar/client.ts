@@ -7,7 +7,7 @@
  * PRODUCTION: All RPC calls have timeouts to prevent hanging requests
  */
 
-import { SorobanRpc, Horizon, Transaction, FeeBumpTransaction } from '@stellar/stellar-sdk';
+import { rpc, Horizon, Transaction, FeeBumpTransaction } from '@stellar/stellar-sdk';
 import { getNetworkConfig, NETWORK } from './config';
 import type { StellarTransaction } from './types';
 
@@ -124,11 +124,11 @@ export async function withRetry<T>(
  * Used for interacting with smart contracts
  */
 class SorobanClient {
-  private server: SorobanRpc.Server;
+  private server: rpc.Server;
   private config = getNetworkConfig();
 
   constructor() {
-    this.server = new SorobanRpc.Server(this.config.rpcUrl, {
+    this.server = new rpc.Server(this.config.rpcUrl, {
       allowHttp: NETWORK === 'testnet',
     });
   }
@@ -136,7 +136,7 @@ class SorobanClient {
   /**
    * Get the Soroban RPC server instance
    */
-  getServer(): SorobanRpc.Server {
+  getServer(): rpc.Server {
     return this.server;
   }
 
@@ -151,7 +151,7 @@ class SorobanClient {
    * Get health status of the Soroban RPC endpoint
    * TIMEOUT: 10 seconds
    */
-  async getHealth(): Promise<SorobanRpc.Api.GetHealthResponse> {
+  async getHealth(): Promise<rpc.Api.GetHealthResponse> {
     return withTimeout(
       this.server.getHealth(),
       RPC_TIMEOUTS.HEALTH,
@@ -163,7 +163,7 @@ class SorobanClient {
    * Get current ledger information
    * TIMEOUT: 10 seconds
    */
-  async getLatestLedger(): Promise<SorobanRpc.Api.GetLatestLedgerResponse> {
+  async getLatestLedger(): Promise<rpc.Api.GetLatestLedgerResponse> {
     return withTimeout(
       this.server.getLatestLedger(),
       RPC_TIMEOUTS.HEALTH,
@@ -177,7 +177,7 @@ class SorobanClient {
    */
   async simulateTransaction(
     transaction: StellarTransaction
-  ): Promise<SorobanRpc.Api.SimulateTransactionResponse> {
+  ): Promise<rpc.Api.SimulateTransactionResponse> {
     return withTimeout(
       this.server.simulateTransaction(transaction),
       RPC_TIMEOUTS.SIMULATE,
@@ -191,7 +191,7 @@ class SorobanClient {
    */
   async sendTransaction(
     transaction: StellarTransaction
-  ): Promise<SorobanRpc.Api.SendTransactionResponse> {
+  ): Promise<rpc.Api.SendTransactionResponse> {
     return withTimeout(
       this.server.sendTransaction(transaction),
       RPC_TIMEOUTS.SEND,
@@ -205,7 +205,7 @@ class SorobanClient {
    */
   async getTransaction(
     hash: string
-  ): Promise<SorobanRpc.Api.GetTransactionResponse> {
+  ): Promise<rpc.Api.GetTransactionResponse> {
     return withTimeout(
       this.server.getTransaction(hash),
       RPC_TIMEOUTS.DEFAULT,
@@ -312,7 +312,7 @@ class StellarClient {
    * Check overall network health
    */
   async checkHealth(): Promise<{
-    soroban: SorobanRpc.Api.GetHealthResponse;
+    soroban: rpc.Api.GetHealthResponse;
     horizon: boolean;
   }> {
     const [sorobanHealth, horizonHealth] = await Promise.all([

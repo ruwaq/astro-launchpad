@@ -4,7 +4,7 @@
  * Parses and handles Soroban contract errors for user-friendly messages
  */
 
-import { SorobanRpc } from '@stellar/stellar-sdk';
+import { rpc } from '@stellar/stellar-sdk';
 
 // Contract error codes mapping (from sac-factory/src/errors.rs)
 export const CONTRACT_ERROR_MESSAGES: Record<number, string> = {
@@ -61,7 +61,7 @@ export function parseContractError(error: { message?: string } | string): string
 /**
  * Extract meaningful error from Soroban simulation response
  */
-export function extractSimulationError(simulated: SorobanRpc.Api.SimulateTransactionResponse): string {
+export function extractSimulationError(simulated: rpc.Api.SimulateTransactionResponse): string {
   // Check for error field (string or object)
   if ('error' in simulated && simulated.error) {
     const error = simulated.error;
@@ -93,7 +93,7 @@ export function extractSimulationError(simulated: SorobanRpc.Api.SimulateTransac
   }
 
   // Check for simulation error response type
-  if (SorobanRpc.Api.isSimulationError(simulated)) {
+  if (rpc.Api.isSimulationError(simulated)) {
     return parseContractError(simulated.error || 'Simulation failed');
   }
 

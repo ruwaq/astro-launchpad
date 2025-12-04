@@ -27,7 +27,7 @@ import {
 import { useWallet } from '@/contexts/WalletContext';
 import { sacFactoryService, toStroopsBigInt, type TokenInfo } from '@/lib/stellar/services/sac-factory.service';
 import { stellarClient, getClientDeadline } from '@/lib/stellar/client';
-import { TransactionBuilder, SorobanRpc } from '@stellar/stellar-sdk';
+import { TransactionBuilder, rpc } from '@stellar/stellar-sdk';
 import { ensureTrustlineExists } from '@/lib/stellar/utils/trustline';
 import { getNetworkConfig } from '@/lib/config/network';
 import toast from 'react-hot-toast';
@@ -343,16 +343,16 @@ export function TradingWidgetPremium({
         throw new Error(errorMsg);
       }
 
-      if (SorobanRpc.Api.isSimulationRestore(simulated)) {
+      if (rpc.Api.isSimulationRestore(simulated)) {
         throw new Error('Transaction needs state restoration. Please try again.');
       }
 
-      if (!SorobanRpc.Api.isSimulationSuccess(simulated)) {
+      if (!rpc.Api.isSimulationSuccess(simulated)) {
         console.error('Simulation failed:', simulated);
         throw new Error('Transaction simulation failed');
       }
 
-      const preparedTx = SorobanRpc.assembleTransaction(transaction, simulated).build();
+      const preparedTx = rpc.assembleTransaction(transaction, simulated).build();
 
       // Sign
       setTxStatus('signing');
