@@ -55,6 +55,13 @@ const typeDefs = gql`
 
     # Global Stats
     globalStats: GlobalStats!
+
+    # Leaderboard
+    leaderboard(
+      type: LeaderboardType = TRADERS
+      limit: Int = 100
+      timeframe: LeaderboardTimeframe = DAY
+    ): [LeaderboardEntry!]!
   }
 
   # ============================================================================
@@ -228,6 +235,24 @@ const typeDefs = gql`
   }
 
   # ============================================================================
+  # Leaderboard Types
+  # ============================================================================
+  type LeaderboardEntry {
+    rank: Int!
+    address: String!
+    user: User
+    volume24h: String!
+    trades24h: Int!
+    profitLoss24h: String!
+    tokensCreated: Int
+    totalVolumeGenerated: String
+    totalLiquidity: String
+    feesEarned24h: String
+    volumeChange24h: Float
+    rankChange24h: Int
+  }
+
+  # ============================================================================
   # Enums
   # ============================================================================
   enum TokenOrderBy {
@@ -246,6 +271,21 @@ const typeDefs = gql`
     LIQUIDITY_ADDED
     LIQUIDITY_REMOVED
     SWAP
+  }
+
+  enum LeaderboardType {
+    CREATORS
+    TRADERS
+    LIQUIDITY_PROVIDERS
+    VIRAL_TOKENS
+  }
+
+  enum LeaderboardTimeframe {
+    HOUR
+    DAY
+    WEEK
+    MONTH
+    ALL_TIME
   }
 `;
 
@@ -646,6 +686,94 @@ const resolvers = {
         totalTVL,
         totalTransactions,
       };
+    },
+
+    // ========================================================================
+    // Leaderboard
+    // ========================================================================
+    leaderboard: async (_, args) => {
+      const { type = 'TRADERS', limit = 100, timeframe = 'DAY' } = args;
+
+      // Calculate date range based on timeframe
+      const now = new Date();
+      let startDate;
+      switch (timeframe) {
+        case 'HOUR':
+          startDate = new Date(now.getTime() - 60 * 60 * 1000);
+          break;
+        case 'DAY':
+          startDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+          break;
+        case 'WEEK':
+          startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          break;
+        case 'MONTH':
+          startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+          break;
+        default:
+          startDate = new Date(0); // ALL_TIME
+      }
+
+      try {
+        let users = [];
+
+        if (type === 'CREATORS') {
+          // Top token creators
+          users = await prisma.user.findMany({
+            where: {
+              tokensCreatedCount: { gt: 0 },
+            },
+            orderBy: { tokensCreatedCount: 'desc' },
+            take: limit,
+          });
+        } else if (type === 'TRADERS') {
+          // Top traders by volume
+          users = await prisma.user.findMany({
+            where: {
+              totalVolumeTraded: { not: null },
+            },
+            orderBy: { totalVolumeTraded: 'desc' },
+            take: limit,
+          });
+        } else if (type === 'LIQUIDITY_PROVIDERS') {
+          // Top liquidity providers
+          users = await prisma.user.findMany({
+            where: {
+              totalLiquidityProvided: { not: null },
+            },
+            orderBy: { totalLiquidityProvided: 'desc' },
+            take: limit,
+          });
+        }
+
+        return users.map((user, index) => ({
+          rank: index + 1,
+          address: user.address,
+          user: {
+            id: user.id,
+            address: user.address,
+            points: user.points || 0,
+            level: user.level || 1,
+            referrals: user.referrals || 0,
+            tokensCreatedCount: user.tokensCreatedCount || 0,
+            totalVolumeTraded: user.totalVolumeTraded?.toString() || '0',
+            totalLiquidityProvided: user.totalLiquidityProvided?.toString() || '0',
+            createdAt: user.createdAt?.toISOString(),
+          },
+          volume24h: user.totalVolumeTraded?.toString() || '0',
+          trades24h: 0, // Would need transaction count
+          profitLoss24h: '0',
+          tokensCreated: user.tokensCreatedCount || 0,
+          totalVolumeGenerated: user.totalVolumeTraded?.toString() || '0',
+          totalLiquidity: user.totalLiquidityProvided?.toString() || '0',
+          feesEarned24h: '0',
+          volumeChange24h: 0,
+          rankChange24h: 0,
+        }));
+      } catch (error) {
+        console.error('Leaderboard error:', error);
+        return [];
+      }
     },
   },
 
