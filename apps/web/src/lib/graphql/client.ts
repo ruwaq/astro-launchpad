@@ -11,13 +11,10 @@ import { onError } from '@apollo/client/link/error';
 // Configuration
 // ============================================================================
 
-// GraphQL endpoint - uses relative path in production (handled by Vercel rewrites)
-// Falls back to environment variable or production API
+// GraphQL endpoint - uses relative path in production (handled by Next.js rewrites)
+// Falls back to /graphql which is rewritten to production API by next.config.ts
 const GRAPHQL_ENDPOINT =
-  process.env.NEXT_PUBLIC_GRAPHQL_ENDPOINT ||
-  (typeof window !== 'undefined' && window.location.hostname !== 'localhost'
-    ? '/graphql'
-    : 'http://localhost:4000');
+  process.env.NEXT_PUBLIC_GRAPHQL_ENDPOINT || '/graphql';
 
 // ============================================================================
 // Authentication Headers Store

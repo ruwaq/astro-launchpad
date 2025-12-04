@@ -103,15 +103,10 @@ export function isTestnet(): boolean {
 
 /**
  * Get API URL
- * Uses relative path in production (handled by Vercel rewrites)
+ * Uses relative path in production (handled by Next.js rewrites)
  */
 export function getApiUrl(): string {
-  return (
-    process.env.NEXT_PUBLIC_API_URL ||
-    (typeof window !== 'undefined' && window.location.hostname !== 'localhost'
-      ? ''
-      : 'http://localhost:4000')
-  );
+  return process.env.NEXT_PUBLIC_API_URL || '';
 }
 
 /**

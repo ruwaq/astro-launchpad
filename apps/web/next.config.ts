@@ -8,6 +8,18 @@ const nextConfig: NextConfig = {
     optimizePackageImports: ['@repo/ui'],
   },
 
+  // API rewrites - proxy /graphql to the API Gateway in production
+  async rewrites() {
+    const apiUrl = process.env.NEXT_PUBLIC_GRAPHQL_ENDPOINT || 'https://api-gateway-v2.vercel.app/graphql';
+
+    return [
+      {
+        source: '/graphql',
+        destination: apiUrl,
+      },
+    ];
+  },
+
   // Webpack configuration to handle native modules (sodium-native)
   // This prevents Fast Refresh from doing full reloads
   webpack: (config, { isServer }) => {
