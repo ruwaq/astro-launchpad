@@ -1,0 +1,63 @@
+{
+  "common": {
+    "connect": "Conectar Wallet",
+    "disconnect": "Desconectar",
+    "loading": "Cargando...",
+    "error": "Error",
+    "success": "Éxito",
+    "cancel": "Cancelar",
+    "confirm": "Confirmar",
+    "back": "Atrás",
+    "next": "Siguiente",
+    "save": "Guardar",
+    "copy": "Copiar",
+    "copied": "¡Copiado!"
+  },
+  "nav": {
+    "home": "Inicio",
+    "tokens": "Tokens",
+    "create": "Crear Token",
+    "portfolio": "Portafolio",
+    "leaderboard": "Ranking"
+  },
+  "trading": {
+    "buy": "Comprar",
+    "sell": "Vender",
+    "amount": "Cantidad",
+    "youPay": "Pagas",
+    "youReceive": "Recibes",
+    "price": "Precio",
+    "balance": "Saldo",
+    "slippage": "Deslizamiento",
+    "priceImpact": "Impacto en Precio",
+    "insufficientBalance": "Saldo insuficiente",
+    "enterAmount": "Ingresa cantidad",
+    "connectToTrade": "Conecta tu wallet para operar",
+    "processing": "Procesando...",
+    "transactionSuccess": "¡Transacción exitosa!",
+    "transactionFailed": "Transacción fallida"
+  },
+  "token": {
+    "create": "Crear Token",
+    "name": "Nombre del Token",
+    "symbol": "Símbolo",
+    "description": "Descripción",
+    "image": "Imagen del Token",
+    "website": "Sitio Web",
+    "twitter": "Twitter",
+    "telegram": "Telegram",
+    "marketCap": "Cap. de Mercado",
+    "volume24h": "Volumen 24h",
+    "holders": "Holders",
+    "graduated": "Graduado",
+    "progress": "Progreso",
+    "toGraduate": "para graduar"
+  },
+  "errors": {
+    "walletNotConnected": "Por favor conecta tu wallet",
+    "networkError": "Error de red. Intenta de nuevo.",
+    "transactionRejected": "Transacción rechazada por el usuario",
+    "insufficientFunds": "Fondos insuficientes",
+    "unknown": "Ocurrió un error inesperado"
+  }
+}

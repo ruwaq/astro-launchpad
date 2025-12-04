@@ -1,0 +1,63 @@
+{
+  "common": {
+    "connect": "Connect Wallet",
+    "disconnect": "Disconnect",
+    "loading": "Loading...",
+    "error": "Error",
+    "success": "Success",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "back": "Back",
+    "next": "Next",
+    "save": "Save",
+    "copy": "Copy",
+    "copied": "Copied!"
+  },
+  "nav": {
+    "home": "Home",
+    "tokens": "Tokens",
+    "create": "Create Token",
+    "portfolio": "Portfolio",
+    "leaderboard": "Leaderboard"
+  },
+  "trading": {
+    "buy": "Buy",
+    "sell": "Sell",
+    "amount": "Amount",
+    "youPay": "You Pay",
+    "youReceive": "You Receive",
+    "price": "Price",
+    "balance": "Balance",
+    "slippage": "Slippage",
+    "priceImpact": "Price Impact",
+    "insufficientBalance": "Insufficient balance",
+    "enterAmount": "Enter amount",
+    "connectToTrade": "Connect wallet to trade",
+    "processing": "Processing...",
+    "transactionSuccess": "Transaction successful!",
+    "transactionFailed": "Transaction failed"
+  },
+  "token": {
+    "create": "Create Token",
+    "name": "Token Name",
+    "symbol": "Symbol",
+    "description": "Description",
+    "image": "Token Image",
+    "website": "Website",
+    "twitter": "Twitter",
+    "telegram": "Telegram",
+    "marketCap": "Market Cap",
+    "volume24h": "24h Volume",
+    "holders": "Holders",
+    "graduated": "Graduated",
+    "progress": "Progress",
+    "toGraduate": "to graduate"
+  },
+  "errors": {
+    "walletNotConnected": "Please connect your wallet",
+    "networkError": "Network error. Please try again.",
+    "transactionRejected": "Transaction rejected by user",
+    "insufficientFunds": "Insufficient funds",
+    "unknown": "An unexpected error occurred"
+  }
+}
