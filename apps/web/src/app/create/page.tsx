@@ -620,7 +620,7 @@ export default function CreatePage() {
                     aria-describedby="token-name-hint"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    className="w-full px-4 py-3 border border-ui-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent"
+                    className="w-full px-4 py-3.5 sm:py-3 min-h-[48px] border border-ui-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent text-base sm:text-sm"
                     disabled={!isConnected || isProcessing}
                   />
                   <p id="token-name-hint" className="text-xs text-gray-500 mt-1">Max 32 characters ({name.length}/32)</p>
@@ -639,7 +639,7 @@ export default function CreatePage() {
                     aria-describedby="token-symbol-hint"
                     value={symbol}
                     onChange={(e) => setSymbol(e.target.value.toUpperCase())}
-                    className="w-full px-4 py-3 border border-ui-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent"
+                    className="w-full px-4 py-3.5 sm:py-3 min-h-[48px] border border-ui-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent text-base sm:text-sm"
                     disabled={!isConnected || isProcessing}
                   />
                   <p id="token-symbol-hint" className="text-xs text-gray-500 mt-1">1-12 uppercase alphanumeric ({symbol.length}/12)</p>
@@ -681,7 +681,7 @@ export default function CreatePage() {
                   placeholder="Tell the community about your token..."
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  className="w-full px-4 py-3 border border-ui-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent"
+                  className="w-full px-4 py-3.5 sm:py-3 border border-ui-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent text-base sm:text-sm"
                   disabled={!isConnected || isProcessing}
                 />
                 <p id="token-description-hint" className="text-xs text-gray-500 mt-1">{description.length}/500 characters</p>
@@ -704,7 +704,7 @@ export default function CreatePage() {
                     placeholder="https://yourtoken.com"
                     value={website}
                     onChange={(e) => setWebsite(e.target.value)}
-                    className="w-full px-4 py-3 border border-ui-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent"
+                    className="w-full px-4 py-3.5 sm:py-3 min-h-[48px] border border-ui-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent text-base sm:text-sm"
                     disabled={!isConnected || isProcessing}
                   />
                 </div>
@@ -718,7 +718,7 @@ export default function CreatePage() {
                     placeholder="https://t.me/yourtoken"
                     value={telegram}
                     onChange={(e) => setTelegram(e.target.value)}
-                    className="w-full px-4 py-3 border border-ui-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent"
+                    className="w-full px-4 py-3.5 sm:py-3 min-h-[48px] border border-ui-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent text-base sm:text-sm"
                     disabled={!isConnected || isProcessing}
                   />
                 </div>

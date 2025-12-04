@@ -33,10 +33,10 @@ export function TokenHeader({ token }: TokenHeaderProps) {
   const addressShort = `${token.address.slice(0, 6)}...${token.address.slice(-4)}`;
 
   return (
-    <div className="bg-white rounded-xl border border-ui-border p-6">
-      <div className="flex items-start gap-4">
+    <div className="bg-white rounded-xl border border-ui-border p-4 sm:p-6">
+      <div className="flex flex-col sm:flex-row items-start gap-4">
         {/* Token Logo */}
-        <div className="flex-shrink-0">
+        <div className="flex-shrink-0 mx-auto sm:mx-0">
           {(() => {
             const imageUrl = getImageUrl(token.logoUrl || token.imageUrl);
             return imageUrl ? (
@@ -45,7 +45,7 @@ export function TokenHeader({ token }: TokenHeaderProps) {
                 alt={token.name}
                 width={80}
                 height={80}
-                className="w-20 h-20 rounded-full border-2 border-ui-border object-cover"
+                className="w-16 h-16 sm:w-20 sm:h-20 rounded-full border-2 border-ui-border object-cover"
                 unoptimized
                 onError={(e) => {
                   // Hide image on error, fallback will show
@@ -55,20 +55,20 @@ export function TokenHeader({ token }: TokenHeaderProps) {
               />
             ) : null;
           })()}
-          <div className={`w-20 h-20 rounded-full bg-gradient-to-br from-brand-primary to-purple-600 flex items-center justify-center text-white text-2xl font-bold ${getImageUrl(token.logoUrl || token.imageUrl) ? 'hidden' : ''}`}>
+          <div className={`w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gradient-to-br from-brand-primary to-purple-600 flex items-center justify-center text-white text-xl sm:text-2xl font-bold ${getImageUrl(token.logoUrl || token.imageUrl) ? 'hidden' : ''}`}>
             {token.symbol?.charAt(0) || '?'}
           </div>
         </div>
 
         {/* Token Info */}
-        <div className="flex-1">
-          <div className="flex items-start justify-between">
+        <div className="flex-1 w-full text-center sm:text-left">
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
             <div>
-              <h1 className="text-3xl font-bold text-ui-text-primary mb-1">
+              <h1 className="text-2xl sm:text-3xl font-bold text-ui-text-primary mb-1">
                 {token.name}
               </h1>
-              <div className="flex items-center gap-2">
-                <span className="text-lg text-ui-text-secondary font-semibold">
+              <div className="flex items-center justify-center sm:justify-start gap-2 flex-wrap">
+                <span className="text-base sm:text-lg text-ui-text-secondary font-semibold">
                   ${token.symbol}
                 </span>
                 {token.graduated && (
@@ -81,13 +81,13 @@ export function TokenHeader({ token }: TokenHeaderProps) {
 
             {/* Social Links */}
             {(token.twitter || token.telegram || token.website) && (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center justify-center sm:justify-start gap-2">
                 {token.website && (
                   <a
                     href={token.website}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors"
+                    className="p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors"
                     title="Website"
                   >
                     <ExternalLink className="h-4 w-4 text-ui-text-secondary" />
@@ -98,7 +98,7 @@ export function TokenHeader({ token }: TokenHeaderProps) {
                     href={`https://twitter.com/${token.twitter}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors"
+                    className="p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors"
                     title="Twitter"
                   >
                     <svg
@@ -115,7 +115,7 @@ export function TokenHeader({ token }: TokenHeaderProps) {
                     href={`https://t.me/${token.telegram}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors"
+                    className="p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors"
                     title="Telegram"
                   >
                     <svg
@@ -132,38 +132,40 @@ export function TokenHeader({ token }: TokenHeaderProps) {
           </div>
 
           {/* Contract Address */}
-          <div className="mt-4 flex items-center gap-2">
+          <div className="mt-4 flex flex-col sm:flex-row items-center gap-2">
             <span className="text-sm text-ui-text-secondary">Contract:</span>
-            <code className="text-sm font-mono text-ui-text-primary bg-gray-100 px-2 py-1 rounded">
-              {addressShort}
-            </code>
-            <button
-              onClick={handleCopyAddress}
-              className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
-              title="Copy address"
-            >
-              {copied ? (
-                <Check className="h-4 w-4 text-green-600" />
-              ) : (
-                <Copy className="h-4 w-4 text-ui-text-secondary" />
-              )}
-            </button>
-            <a
-              href={`https://stellar.expert/explorer/testnet/contract/${token.address}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
-              title="View on Stellar Expert"
-            >
-              <ExternalLink className="h-4 w-4 text-ui-text-secondary" />
-            </a>
+            <div className="flex items-center gap-1">
+              <code className="text-xs sm:text-sm font-mono text-ui-text-primary bg-gray-100 px-2 py-1 rounded truncate max-w-[180px] sm:max-w-none">
+                {addressShort}
+              </code>
+              <button
+                onClick={handleCopyAddress}
+                className="p-2 min-h-[40px] min-w-[40px] flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors"
+                title="Copy address"
+              >
+                {copied ? (
+                  <Check className="h-4 w-4 text-green-600" />
+                ) : (
+                  <Copy className="h-4 w-4 text-ui-text-secondary" />
+                )}
+              </button>
+              <a
+                href={`https://stellar.expert/explorer/testnet/contract/${token.address}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="p-2 min-h-[40px] min-w-[40px] flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors"
+                title="View on Stellar Expert"
+              >
+                <ExternalLink className="h-4 w-4 text-ui-text-secondary" />
+              </a>
+            </div>
           </div>
 
           {/* Creator */}
           {token.creator && (
-            <div className="mt-2 flex items-center gap-2">
+            <div className="mt-2 flex flex-col sm:flex-row items-center gap-1 sm:gap-2">
               <span className="text-sm text-ui-text-secondary">Creator:</span>
-              <code className="text-sm font-mono text-ui-text-primary">
+              <code className="text-xs sm:text-sm font-mono text-ui-text-primary">
                 {`${token.creator.slice(0, 6)}...${token.creator.slice(-4)}`}
               </code>
             </div>

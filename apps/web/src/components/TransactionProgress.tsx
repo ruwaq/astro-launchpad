@@ -45,9 +45,9 @@ export function TransactionProgress({
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: -20, scale: 0.95 }}
           transition={{ duration: 0.2 }}
-          className="fixed bottom-6 right-6 z-50"
+          className="fixed bottom-20 sm:bottom-6 left-4 right-4 sm:left-auto sm:right-6 z-50"
         >
-          <div className="bg-gray-900/95 backdrop-blur-sm border border-gray-800 rounded-xl p-4 shadow-2xl min-w-[280px]">
+          <div className="bg-gray-900/95 backdrop-blur-sm border border-gray-800 rounded-xl p-4 shadow-2xl w-full sm:min-w-[280px] sm:w-auto">
             {/* Header */}
             <div className="flex items-center gap-2 mb-3 pb-2 border-b border-gray-800">
               <Loader2 className="w-4 h-4 text-primary animate-spin" />

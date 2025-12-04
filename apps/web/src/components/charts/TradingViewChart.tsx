@@ -179,7 +179,7 @@ export function TradingViewChart({ tokenAddress, symbol = 'TOKEN' }: TradingView
         horzLines: { color: 'rgba(100, 116, 139, 0.1)' },
       },
       width: chartContainerRef.current.clientWidth,
-      height: 300,
+      height: window.innerWidth < 640 ? 220 : 300,
       rightPriceScale: {
         borderColor: 'rgba(100, 116, 139, 0.2)',
         scaleMargins: { top: 0.1, bottom: 0.1 },
@@ -213,6 +213,7 @@ export function TradingViewChart({ tokenAddress, symbol = 'TOKEN' }: TradingView
       if (chartContainerRef.current && chartRef.current) {
         chartRef.current.applyOptions({
           width: chartContainerRef.current.clientWidth,
+          height: window.innerWidth < 640 ? 220 : 300,
         });
       }
     };
@@ -292,7 +293,7 @@ export function TradingViewChart({ tokenAddress, symbol = 'TOKEN' }: TradingView
 
   if (loading && chartData.line.length === 0) {
     return (
-      <div className="flex items-center justify-center h-[400px] bg-white rounded-xl border border-ui-border">
+      <div className="flex items-center justify-center h-[280px] sm:h-[400px] bg-white rounded-xl border border-ui-border">
         <div className="text-center">
           <Loader2 className="h-10 w-10 animate-spin text-brand-primary mx-auto mb-3" />
           <p className="text-ui-text-secondary text-sm">Loading chart data...</p>
@@ -407,7 +408,7 @@ export function TradingViewChart({ tokenAddress, symbol = 'TOKEN' }: TradingView
       {/* Chart Container */}
       <div className="relative">
         {chartData.line.length === 0 ? (
-          <div className="h-[300px] flex items-center justify-center bg-gradient-to-b from-gray-50 to-white">
+          <div className="h-[220px] sm:h-[300px] flex items-center justify-center bg-gradient-to-b from-gray-50 to-white">
             <div className="text-center">
               <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <BarChart2 className="h-8 w-8 text-gray-400" />
@@ -417,7 +418,7 @@ export function TradingViewChart({ tokenAddress, symbol = 'TOKEN' }: TradingView
             </div>
           </div>
         ) : (
-          <div ref={chartContainerRef} className="w-full" style={{ height: '300px' }} />
+          <div ref={chartContainerRef} className="w-full h-[220px] sm:h-[300px]" />
         )}
 
         {/* Live indicator */}

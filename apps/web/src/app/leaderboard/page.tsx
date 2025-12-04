@@ -62,18 +62,18 @@ export default function LeaderboardPage() {
 
       {/* Filter Controls */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
-        <div className="flex flex-wrap gap-4 items-center">
+        <div className="flex flex-col sm:flex-row flex-wrap gap-4">
           {/* Type Filter */}
-          <div>
+          <div className="flex-1">
             <label className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2 block">
               Leaderboard Type
             </label>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               {(Object.keys(typeLabels) as LeaderboardType[]).map((type) => (
                 <button
                   key={type}
                   onClick={() => setSelectedType(type)}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  className={`px-3 sm:px-4 py-2.5 min-h-[44px] rounded-lg text-xs sm:text-sm font-medium transition-colors ${
                     selectedType === type
                       ? 'bg-brand-primary text-white'
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -90,12 +90,12 @@ export default function LeaderboardPage() {
             <label className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2 block">
               Timeframe
             </label>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-1.5 sm:gap-2">
               {(Object.keys(timeframeLabels) as LeaderboardTimeframe[]).map((timeframe) => (
                 <button
                   key={timeframe}
                   onClick={() => setSelectedTimeframe(timeframe)}
-                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  className={`px-2.5 sm:px-3 py-2.5 min-h-[44px] rounded-lg text-xs sm:text-sm font-medium transition-colors ${
                     selectedTimeframe === timeframe
                       ? 'bg-brand-primary text-white'
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -132,64 +132,94 @@ export default function LeaderboardPage() {
       {!loading && leaderboard.length > 0 && (
         <div>
 
-      {/* Top 3 Podium */}
+      {/* Top 3 Podium - Hidden on very small screens, shown on sm+ */}
       {leaderboard.length >= 3 && (
-        <div className="mb-8 flex justify-center items-end gap-4">
-          {/* 2nd Place */}
-          <div className="flex flex-col items-center">
-            <div className="w-24 h-24 bg-gradient-to-br from-gray-400 to-gray-600 rounded-full flex items-center justify-center mb-2">
-              <span className="text-3xl font-bold text-white">2</span>
-            </div>
-            <div className="bg-white rounded-lg p-4 w-48 text-center shadow-lg border-2 border-gray-400">
-              <div className="font-semibold text-gray-900 mb-1">
-                {truncateAddress(leaderboard[1].address, 6)}
-              </div>
-              <div className="text-sm text-gray-600 mb-2">
-                ${formatCompactNumber(parseFloat(leaderboard[1].volume24h))}
-              </div>
-              <div className="text-xs text-gray-500">
-                {leaderboard[1].trades24h} trades
-              </div>
-            </div>
+        <div className="mb-8">
+          {/* Mobile: Vertical stack */}
+          <div className="sm:hidden space-y-3">
+            {[0, 1, 2].map((idx) => {
+              const entry = leaderboard[idx];
+              const colors = idx === 0
+                ? 'border-yellow-400 bg-yellow-50'
+                : idx === 1
+                ? 'border-gray-400 bg-gray-50'
+                : 'border-orange-400 bg-orange-50';
+              const badge = idx === 0 ? '🥇' : idx === 1 ? '🥈' : '🥉';
+
+              return (
+                <div key={entry.address} className={`flex items-center gap-4 p-4 rounded-xl border-2 ${colors}`}>
+                  <span className="text-2xl">{badge}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold text-gray-900 truncate">
+                      {truncateAddress(entry.address, 6)}
+                    </div>
+                    <div className="text-sm text-gray-600">
+                      ${formatCompactNumber(parseFloat(entry.volume24h))} • {entry.trades24h} trades
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
 
-          {/* 1st Place */}
-          <div className="flex flex-col items-center -mt-8">
-            <div className="w-32 h-32 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-full flex items-center justify-center mb-2 shadow-xl">
-              <span className="text-4xl font-bold text-white">1</span>
-            </div>
-            <div className="bg-white rounded-lg p-6 w-56 text-center shadow-xl border-4 border-yellow-400">
-              <div className="font-bold text-gray-900 mb-1 text-lg">
-                {truncateAddress(leaderboard[0].address, 6)}
+          {/* Desktop: Podium layout */}
+          <div className="hidden sm:flex justify-center items-end gap-3 md:gap-4">
+            {/* 2nd Place */}
+            <div className="flex flex-col items-center">
+              <div className="w-16 h-16 md:w-24 md:h-24 bg-gradient-to-br from-gray-400 to-gray-600 rounded-full flex items-center justify-center mb-2">
+                <span className="text-2xl md:text-3xl font-bold text-white">2</span>
               </div>
-              <div className="text-base text-gray-600 mb-2 font-semibold">
-                ${formatCompactNumber(parseFloat(leaderboard[0].volume24h))}
-              </div>
-              <div className="text-sm text-gray-500">
-                {leaderboard[0].trades24h} trades
-              </div>
-              <div className={`text-xs mt-2 ${
-                parseFloat(leaderboard[0].profitLoss24h) >= 0 ? 'text-green-600' : 'text-red-600'
-              }`}>
-                P/L: ${formatCompactNumber(parseFloat(leaderboard[0].profitLoss24h))}
+              <div className="bg-white rounded-lg p-3 md:p-4 w-32 md:w-48 text-center shadow-lg border-2 border-gray-400">
+                <div className="font-semibold text-gray-900 mb-1 text-sm md:text-base truncate">
+                  {truncateAddress(leaderboard[1].address, 6)}
+                </div>
+                <div className="text-xs md:text-sm text-gray-600 mb-1 md:mb-2">
+                  ${formatCompactNumber(parseFloat(leaderboard[1].volume24h))}
+                </div>
+                <div className="text-xs text-gray-500">
+                  {leaderboard[1].trades24h} trades
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* 3rd Place */}
-          <div className="flex flex-col items-center">
-            <div className="w-24 h-24 bg-gradient-to-br from-orange-400 to-orange-600 rounded-full flex items-center justify-center mb-2">
-              <span className="text-3xl font-bold text-white">3</span>
+            {/* 1st Place */}
+            <div className="flex flex-col items-center -mt-4 md:-mt-8">
+              <div className="w-20 h-20 md:w-32 md:h-32 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-full flex items-center justify-center mb-2 shadow-xl">
+                <span className="text-3xl md:text-4xl font-bold text-white">1</span>
+              </div>
+              <div className="bg-white rounded-lg p-4 md:p-6 w-36 md:w-56 text-center shadow-xl border-4 border-yellow-400">
+                <div className="font-bold text-gray-900 mb-1 text-sm md:text-lg truncate">
+                  {truncateAddress(leaderboard[0].address, 6)}
+                </div>
+                <div className="text-sm md:text-base text-gray-600 mb-1 md:mb-2 font-semibold">
+                  ${formatCompactNumber(parseFloat(leaderboard[0].volume24h))}
+                </div>
+                <div className="text-xs md:text-sm text-gray-500">
+                  {leaderboard[0].trades24h} trades
+                </div>
+                <div className={`text-xs mt-1 md:mt-2 ${
+                  parseFloat(leaderboard[0].profitLoss24h) >= 0 ? 'text-green-600' : 'text-red-600'
+                }`}>
+                  P/L: ${formatCompactNumber(parseFloat(leaderboard[0].profitLoss24h))}
+                </div>
+              </div>
             </div>
-            <div className="bg-white rounded-lg p-4 w-48 text-center shadow-lg border-2 border-orange-400">
-              <div className="font-semibold text-gray-900 mb-1">
-                {truncateAddress(leaderboard[2].address, 6)}
+
+            {/* 3rd Place */}
+            <div className="flex flex-col items-center">
+              <div className="w-16 h-16 md:w-24 md:h-24 bg-gradient-to-br from-orange-400 to-orange-600 rounded-full flex items-center justify-center mb-2">
+                <span className="text-2xl md:text-3xl font-bold text-white">3</span>
               </div>
-              <div className="text-sm text-gray-600 mb-2">
-                ${formatCompactNumber(parseFloat(leaderboard[2].volume24h))}
-              </div>
-              <div className="text-xs text-gray-500">
-                {leaderboard[2].trades24h} trades
+              <div className="bg-white rounded-lg p-3 md:p-4 w-32 md:w-48 text-center shadow-lg border-2 border-orange-400">
+                <div className="font-semibold text-gray-900 mb-1 text-sm md:text-base truncate">
+                  {truncateAddress(leaderboard[2].address, 6)}
+                </div>
+                <div className="text-xs md:text-sm text-gray-600 mb-1 md:mb-2">
+                  ${formatCompactNumber(parseFloat(leaderboard[2].volume24h))}
+                </div>
+                <div className="text-xs text-gray-500">
+                  {leaderboard[2].trades24h} trades
+                </div>
               </div>
             </div>
           </div>
@@ -199,45 +229,45 @@ export default function LeaderboardPage() {
       {/* Full Leaderboard Table */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full min-w-[480px]">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Rank
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Address
                 </th>
                 {selectedType === 'TRADERS' && (
                   <>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-3 sm:px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Volume
                     </th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-3 sm:px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Trades
                     </th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-3 sm:px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                       P/L
                     </th>
                   </>
                 )}
                 {selectedType === 'CREATORS' && (
                   <>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Tokens Created
+                    <th className="px-3 sm:px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Tokens
                     </th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Total Volume
+                    <th className="px-3 sm:px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Volume
                     </th>
                   </>
                 )}
                 {selectedType === 'LIQUIDITY_PROVIDERS' && (
                   <>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Total Liquidity
+                    <th className="px-3 sm:px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Liquidity
                     </th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Fees Earned
+                    <th className="px-3 sm:px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Fees
                     </th>
                   </>
                 )}
@@ -250,9 +280,9 @@ export default function LeaderboardPage() {
 
                 return (
                   <tr key={entry.address} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
                       <div className="flex items-center">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
+                        <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center font-bold text-xs sm:text-sm ${
                           entry.rank === 1
                             ? 'bg-yellow-100 text-yellow-800'
                             : entry.rank === 2
@@ -265,28 +295,28 @@ export default function LeaderboardPage() {
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">
-                        {truncateAddress(entry.address, 8)}
+                    <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
+                      <div className="text-xs sm:text-sm font-medium text-gray-900">
+                        {truncateAddress(entry.address, 6)}
                       </div>
                       {entry.user && entry.user.level > 1 && (
                         <div className="text-xs text-gray-500">
-                          Level {entry.user.level} • {entry.user.points} pts
+                          Lvl {entry.user.level}
                         </div>
                       )}
                     </td>
                     {selectedType === 'TRADERS' && (
                       <>
-                        <td className="px-6 py-4 whitespace-nowrap text-right">
-                          <div className="text-sm font-medium text-gray-900">
+                        <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-right">
+                          <div className="text-xs sm:text-sm font-medium text-gray-900">
                             ${formatCompactNumber(parseFloat(entry.volume24h || '0'))}
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-500">
+                        <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-right text-xs sm:text-sm text-gray-500">
                           {entry.trades24h || 0}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right">
-                          <div className={`text-sm font-medium ${isProfit ? 'text-green-600' : 'text-red-600'}`}>
+                        <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-right">
+                          <div className={`text-xs sm:text-sm font-medium ${isProfit ? 'text-green-600' : 'text-red-600'}`}>
                             {isProfit ? '+' : ''}${formatCompactNumber(Math.abs(profitLoss))}
                           </div>
                         </td>
@@ -294,13 +324,13 @@ export default function LeaderboardPage() {
                     )}
                     {selectedType === 'CREATORS' && (
                       <>
-                        <td className="px-6 py-4 whitespace-nowrap text-right">
-                          <div className="text-sm font-medium text-gray-900">
+                        <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-right">
+                          <div className="text-xs sm:text-sm font-medium text-gray-900">
                             {entry.tokensCreated || 0}
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right">
-                          <div className="text-sm font-medium text-gray-900">
+                        <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-right">
+                          <div className="text-xs sm:text-sm font-medium text-gray-900">
                             ${formatCompactNumber(parseFloat(entry.totalVolumeGenerated || '0'))}
                           </div>
                         </td>
@@ -308,13 +338,13 @@ export default function LeaderboardPage() {
                     )}
                     {selectedType === 'LIQUIDITY_PROVIDERS' && (
                       <>
-                        <td className="px-6 py-4 whitespace-nowrap text-right">
-                          <div className="text-sm font-medium text-gray-900">
+                        <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-right">
+                          <div className="text-xs sm:text-sm font-medium text-gray-900">
                             ${formatCompactNumber(parseFloat(entry.totalLiquidity || '0'))}
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right">
-                          <div className="text-sm font-medium text-green-600">
+                        <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-right">
+                          <div className="text-xs sm:text-sm font-medium text-green-600">
                             ${formatCompactNumber(parseFloat(entry.feesEarned24h || '0'))}
                           </div>
                         </td>

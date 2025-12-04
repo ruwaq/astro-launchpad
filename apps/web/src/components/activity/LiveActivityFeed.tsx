@@ -400,7 +400,7 @@ export const LiveActivityFeed = memo(function LiveActivityFeed({
       {/* Activity Feed */}
       <div
         ref={feedRef}
-        className={`overflow-y-auto ${compact ? 'max-h-64' : 'max-h-96'}`}
+        className={`overflow-y-auto ${compact ? 'max-h-48 sm:max-h-64' : 'max-h-64 sm:max-h-96'}`}
         onMouseEnter={() => autoScroll && setIsPaused(true)}
         onMouseLeave={() => autoScroll && setIsPaused(false)}
       >
