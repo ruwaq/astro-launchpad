@@ -292,7 +292,7 @@ export const TokenCardPremium = memo(function TokenCardPremium({
       >
         <div className="p-4">
           {/* Badges Row */}
-          <div className="absolute top-2 right-2 flex gap-1 z-10">
+          <div className="absolute top-1.5 right-1.5 sm:top-2 sm:right-2 flex gap-0.5 sm:gap-1 z-10">
             <AnimatePresence>
               {trendingRank && trendingRank <= 10 && (
                 <motion.div
@@ -398,14 +398,14 @@ export const TokenCardPremium = memo(function TokenCardPremium({
             <motion.div
               variants={priceVariants}
               animate={priceAnimation}
-              className="text-2xl font-bold text-ui-text-primary"
+              className="text-xl sm:text-2xl font-bold text-ui-text-primary"
             >
-              {formattedPrice} <span className="text-sm font-normal text-ui-text-secondary">XLM</span>
+              {formattedPrice} <span className="text-xs sm:text-sm font-normal text-ui-text-secondary">XLM</span>
             </motion.div>
           </div>
 
-          {/* Stats Grid - responsive: stack on very small mobile, 3 cols on sm+ */}
-          <div className="grid grid-cols-1 xs:grid-cols-3 sm:grid-cols-3 gap-2 mt-3">
+          {/* Stats Grid - always 3 columns */}
+          <div className="grid grid-cols-3 gap-1.5 sm:gap-2 mt-3">
             <div className="text-center p-2 bg-gray-50 rounded-lg">
               <p className="text-xs text-ui-text-secondary">Market Cap</p>
               <p className="font-semibold text-sm truncate">${formattedMarketCap}</p>
@@ -473,7 +473,7 @@ export const TokenCardPremium = memo(function TokenCardPremium({
               className="flex gap-2 mt-4 pt-4 border-t border-ui-border opacity-0 group-hover:opacity-100 transition-opacity duration-200"
             >
               <button
-                className="flex-1 flex items-center justify-center gap-2 bg-brand-primary text-white font-semibold py-2 px-4 rounded-lg hover:bg-brand-primary/90 transition-colors"
+                className="flex-1 flex items-center justify-center gap-2 bg-brand-primary text-white font-semibold py-2.5 sm:py-2 px-4 min-h-[44px] rounded-lg hover:bg-brand-primary/90 transition-colors"
                 onClick={(e) => {
                   e.preventDefault();
                   // Handle quick buy
@@ -483,7 +483,7 @@ export const TokenCardPremium = memo(function TokenCardPremium({
                 Quick Buy
               </button>
               <button
-                className="p-2 rounded-lg border border-ui-border hover:bg-gray-50 transition-colors"
+                className="p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg border border-ui-border hover:bg-gray-50 transition-colors"
                 onClick={(e) => {
                   e.preventDefault();
                   setIsLiked(!isLiked);
@@ -492,7 +492,7 @@ export const TokenCardPremium = memo(function TokenCardPremium({
                 <Heart className={`h-4 w-4 ${isLiked ? 'fill-red-500 text-red-500' : 'text-gray-400'}`} />
               </button>
               <button
-                className="p-2 rounded-lg border border-ui-border hover:bg-gray-50 transition-colors"
+                className="p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg border border-ui-border hover:bg-gray-50 transition-colors"
                 onClick={(e) => {
                   e.preventDefault();
                   // Handle share
