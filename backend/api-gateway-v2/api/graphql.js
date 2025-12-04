@@ -85,7 +85,17 @@ const typeDefs = gql`
 
   type Mutation {
     # Sync a token from blockchain to database
-    syncToken(tokenAddress: String!): Token!
+    # Accepts optional token data for when contract lookup fails (newly created tokens)
+    syncToken(
+      tokenAddress: String!
+      name: String
+      symbol: String
+      creator: String
+      imageUrl: String
+      description: String
+      website: String
+      telegram: String
+    ): Token!
   }
 
   # ============================================================================
@@ -849,7 +859,8 @@ const resolvers = {
 
   // Mutations
   Mutation: {
-    syncToken: async (_, { tokenAddress }) => {
+    syncToken: async (_, args) => {
+      const { tokenAddress, name, symbol, creator, imageUrl, description, website, telegram } = args;
       console.log(`[SyncToken] Syncing token: ${tokenAddress}`);
 
       try {
@@ -858,40 +869,56 @@ const resolvers = {
           where: { address: tokenAddress }
         });
 
-        // Get token info from contract
-        const tokenInfo = await getTokenInfoFromContract(tokenAddress);
-
-        if (!tokenInfo) {
-          if (existingToken) {
-            return transformToken(existingToken);
-          }
-          throw new Error('Token not found in contract');
+        // Try to get token info from contract
+        let tokenInfo = null;
+        try {
+          tokenInfo = await getTokenInfoFromContract(tokenAddress);
+        } catch (contractError) {
+          console.log(`[SyncToken] Contract lookup failed: ${contractError.message}`);
         }
 
-        console.log(`[SyncToken] Token info: ${tokenInfo.name} (${tokenInfo.symbol})`);
+        // If no contract info and no provided data, check for existing or fail
+        if (!tokenInfo && !name && !symbol) {
+          if (existingToken) {
+            console.log(`[SyncToken] Returning existing token: ${existingToken.name}`);
+            return transformToken(existingToken);
+          }
+          throw new Error('Token not found in contract and no fallback data provided');
+        }
+
+        // Use contract info if available, otherwise use provided args
+        const tokenName = tokenInfo?.name || name || 'Unknown Token';
+        const tokenSymbol = tokenInfo?.symbol || symbol || 'UNK';
+        const tokenCreator = tokenInfo?.creator || creator || 'Unknown';
+        const tokenImageUrl = tokenInfo?.image_url || imageUrl || null;
+        const tokenDescription = tokenInfo?.description || description || `${tokenName} token on Stellar`;
+
+        console.log(`[SyncToken] Token info: ${tokenName} (${tokenSymbol}) - source: ${tokenInfo ? 'contract' : 'provided'}`);
 
         // Prepare token data
         const tokenData = {
           address: tokenAddress,
-          creator: tokenInfo.creator,
-          name: tokenInfo.name,
-          symbol: tokenInfo.symbol,
+          creator: tokenCreator,
+          name: tokenName,
+          symbol: tokenSymbol,
           decimals: 7,
-          totalSupply: tokenInfo.total_supply?.toString() || '1000000000000000',
-          metadataUri: tokenInfo.image_url || '',
-          imageUrl: tokenInfo.image_url || null,
-          description: tokenInfo.description || `${tokenInfo.name} token on Stellar`,
-          circulatingSupply: tokenInfo.circulating_supply?.toString() || '0',
-          xlmReserve: tokenInfo.xlm_reserve?.toString() || '0',
-          graduated: tokenInfo.graduated || false,
-          xlmRaised: tokenInfo.xlm_raised?.toString() || '0',
-          marketCap: tokenInfo.market_cap?.toString() || '0',
-          currentPrice: tokenInfo.current_price?.toString() || '0',
+          totalSupply: tokenInfo?.total_supply?.toString() || '1000000000000000',
+          metadataUri: tokenImageUrl || '',
+          imageUrl: tokenImageUrl,
+          description: tokenDescription,
+          website: website || null,
+          telegram: telegram || null,
+          circulatingSupply: tokenInfo?.circulating_supply?.toString() || '0',
+          xlmReserve: tokenInfo?.xlm_reserve?.toString() || '0',
+          graduated: tokenInfo?.graduated || false,
+          xlmRaised: tokenInfo?.xlm_raised?.toString() || '0',
+          marketCap: tokenInfo?.market_cap?.toString() || '0',
+          currentPrice: tokenInfo?.current_price?.toString() || '0',
           priceChange24h: 0,
           volume24h: '0',
           volume7d: '0',
           holders: 1,
-          createdAt: tokenInfo.created_at ? new Date(Number(tokenInfo.created_at) * 1000) : new Date(),
+          createdAt: tokenInfo?.created_at ? new Date(Number(tokenInfo.created_at) * 1000) : new Date(),
           updatedAt: new Date(),
         };
 
@@ -903,21 +930,26 @@ const resolvers = {
         });
 
         // Upsert creator as user
-        await prisma.user.upsert({
-          where: { address: tokenInfo.creator },
-          update: { updatedAt: new Date() },
-          create: {
-            address: tokenInfo.creator,
-            points: 0,
-            level: 1,
-            referrals: 0,
-            tokensCreatedCount: 1,
-            totalVolumeTraded: '0',
-            totalLiquidityProvided: '0',
-          },
-        });
+        if (tokenCreator && tokenCreator !== 'Unknown') {
+          await prisma.user.upsert({
+            where: { address: tokenCreator },
+            update: {
+              updatedAt: new Date(),
+              tokensCreatedCount: { increment: existingToken ? 0 : 1 }
+            },
+            create: {
+              address: tokenCreator,
+              points: 0,
+              level: 1,
+              referrals: 0,
+              tokensCreatedCount: 1,
+              totalVolumeTraded: '0',
+              totalLiquidityProvided: '0',
+            },
+          });
+        }
 
-        console.log(`[SyncToken] Token synced successfully: ${tokenInfo.name}`);
+        console.log(`[SyncToken] Token synced successfully: ${tokenName}`);
         return transformToken(token);
       } catch (error) {
         console.error('[SyncToken] Error:', error);
