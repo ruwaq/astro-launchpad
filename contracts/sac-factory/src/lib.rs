@@ -451,9 +451,15 @@ impl SacFactory {
         // This prevents reentrancy attacks
         // ============================================================
 
-        // 10. Update bonding curve state with NET XLM and actual tokens
-        // This maintains k invariant: (xlm_reserve + xlm_for_swap) * (tokens_remaining - tokens_out) = k
-        token_info.bonding_curve.execute_buy(xlm_for_swap, tokens_out)?;
+        // 10. Update bonding curve state with LP fee accumulation (Uniswap V2 style)
+        // - xlm_for_swap is used for token calculation
+        // - LP fee is added to reserves (provides liquidity)
+        // - k grows over time as fees accumulate
+        token_info.bonding_curve.execute_buy_with_lp_fee(
+            xlm_for_swap,
+            tokens_out,
+            fee_breakdown.lp_fee,
+        )?;
 
         // 11. Get price after trade
         let price_after = token_info.bonding_curve.get_current_price();
@@ -616,8 +622,15 @@ impl SacFactory {
         // This prevents reentrancy attacks
         // ============================================================
 
-        // 8. Update bonding curve state (using gross amount for reserves)
-        token_info.bonding_curve.execute_sell(xlm_gross, token_amount)?;
+        // 8. Update bonding curve state with LP fee retention (Uniswap V2 style)
+        // - xlm_gross is total calculated, but LP fee stays in reserves
+        // - Only (gross - lp_fee) is removed from reserves
+        // - k grows over time as fees accumulate
+        token_info.bonding_curve.execute_sell_with_lp_fee(
+            xlm_gross,
+            token_amount,
+            fee_breakdown.lp_fee,
+        )?;
 
         // 9. Update total XLM raised (using safe math)
         token_info.xlm_raised = math::safe_sub(token_info.xlm_raised, xlm_gross)?;
