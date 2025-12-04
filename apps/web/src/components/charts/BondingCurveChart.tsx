@@ -12,7 +12,7 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { sacFactoryService } from '@/lib/stellar/services/sac-factory.service';
-import { formatCompactNumber, GRADUATION_THRESHOLD_XLM } from '@/lib/stellar/utils';
+import { GRADUATION_THRESHOLD_XLM } from '@/lib/stellar/utils';
 
 interface BondingCurveChartProps {
   tokenAddress: string;
@@ -123,7 +123,6 @@ export function BondingCurveChart({
     return { path, areaPath };
   }, [priceHistory]);
 
-  const progressPercent = Math.min((xlmRaised / GRADUATION_THRESHOLD_XLM) * 100, 100);
   const trendColor = trend === 'up' ? '#22c55e' : trend === 'down' ? '#ef4444' : '#fa9427';
 
   if (loading) {
@@ -137,16 +136,8 @@ export function BondingCurveChart({
           </div>
         </div>
         {/* Chart Skeleton - h-24 to match SVG */}
-        <div className="px-2">
+        <div className="px-2 pb-4">
           <div className="h-24 bg-gray-100 rounded" />
-        </div>
-        {/* Progress Bar Skeleton */}
-        <div className="p-4">
-          <div className="flex justify-between mb-1">
-            <div className="h-3 bg-gray-200 rounded w-24" />
-            <div className="h-3 bg-gray-200 rounded w-16" />
-          </div>
-          <div className="h-2 bg-gray-200 rounded-full" />
         </div>
       </div>
     );
@@ -176,7 +167,7 @@ export function BondingCurveChart({
       </div>
 
       {/* Minimalist Chart */}
-      <div className="px-2">
+      <div className="px-2 pb-4">
         <svg viewBox="0 0 400 100" className="w-full h-24" preserveAspectRatio="none">
           <defs>
             <linearGradient id="chartGradient" x1="0%" y1="0%" x2="0%" y2="100%">
@@ -221,22 +212,6 @@ export function BondingCurveChart({
         </svg>
       </div>
 
-      {/* Progress bar - ultra minimal */}
-      <div className="px-4 pb-4 pt-2">
-        <div className="flex items-center justify-between text-xs text-ui-text-secondary mb-1">
-          <span>{formatCompactNumber(xlmRaised)} XLM</span>
-          <span>{progressPercent.toFixed(0)}%</span>
-        </div>
-        <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-          <motion.div
-            className="h-full rounded-full"
-            style={{ backgroundColor: trendColor }}
-            initial={{ width: 0 }}
-            animate={{ width: `${progressPercent}%` }}
-            transition={{ duration: 0.3 }}
-          />
-        </div>
-      </div>
     </div>
   );
 }

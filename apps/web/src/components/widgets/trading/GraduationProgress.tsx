@@ -10,10 +10,7 @@
 import { memo, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Rocket, Trophy, TrendingUp } from 'lucide-react';
-import { stroopsToXlm } from '@/lib/stellar/utils';
-
-// Graduation threshold: 30,000 XLM
-const GRADUATION_THRESHOLD_XLM = 30_000;
+import { stroopsToXlm, GRADUATION_THRESHOLD_XLM } from '@/lib/stellar/utils';
 
 interface GraduationProgressProps {
   xlmRaised: string; // In stroops (from contract/backend)

@@ -42,7 +42,6 @@ import {
   TransactionStatus,
   TradeInfoPanel,
   DisabledTradingState,
-  GraduationProgress,
   parseContractError,
   extractSimulationError,
   SLIPPAGE_OPTIONS,
@@ -634,14 +633,6 @@ export function TradingWidgetPremium({
             outputAmount={outputAmount}
             slippage={slippage}
             tradeType={tradeType}
-          />
-        )}
-
-        {/* Graduation Progress - Bonding Curve Status */}
-        {tokenInfo && (
-          <GraduationProgress
-            xlmRaised={tokenInfo.xlm_raised}
-            isGraduated={tokenInfo.status === 'Graduated'}
           />
         )}
       </div>
