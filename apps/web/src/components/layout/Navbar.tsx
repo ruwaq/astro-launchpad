@@ -3,12 +3,15 @@
 import { Bell, Wallet, LogOut, AlertTriangle } from 'lucide-react';
 import { useWallet } from '@/contexts/WalletContext';
 import { useBalance } from '@/hooks/useBalance';
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import FocusTrap from 'focus-trap-react';
+import { LanguageSelector } from '@/components/LanguageSelector';
+import { useLocale } from '@/i18n/useLocale';
 
 export function Navbar() {
   const { address, isConnected, isConnecting, connect, disconnect } = useWallet();
+  const { t } = useLocale();
   const { balance, isLoading: isLoadingBalance } = useBalance(address);
   const [showDropdown, setShowDropdown] = useState(false);
   const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false);
@@ -16,7 +19,7 @@ export function Navbar() {
   const handleConnect = async () => {
     try {
       await connect();
-      toast.success('Wallet connected successfully!');
+      toast.success(t('common.walletConnected'));
     } catch (error: any) {
       // Stellar Wallets Kit handles wallet selection modal
       // User will see available wallets in the modal
@@ -32,8 +35,8 @@ export function Navbar() {
   const handleDisconnectConfirm = useCallback(() => {
     disconnect();
     setShowDisconnectConfirm(false);
-    toast.success('Wallet disconnected');
-  }, [disconnect]);
+    toast.success(t('common.walletDisconnected'));
+  }, [disconnect, t]);
 
   const handleDisconnectCancel = useCallback(() => {
     setShowDisconnectConfirm(false);
@@ -54,14 +57,17 @@ export function Navbar() {
 
           {/* Right: User Actions */}
           <div className="flex items-center gap-4">
+          {/* Language Selector */}
+          <LanguageSelector />
+
           {/* Notifications */}
           <button
-            aria-label="Notifications"
+            aria-label={t('common.notifications')}
             className="relative p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center text-ui-text-secondary hover:text-ui-text-primary hover:bg-gray-100 rounded-lg transition-colors"
           >
             <Bell className="h-5 w-5" aria-hidden="true" />
             <span className="absolute top-2 right-2 w-2 h-2 bg-brand-primary rounded-full" aria-hidden="true" />
-            <span className="sr-only">You have new notifications</span>
+            <span className="sr-only">{t('common.newNotifications')}</span>
           </button>
 
           {/* Wallet Connection */}
@@ -69,16 +75,16 @@ export function Navbar() {
             <button
               onClick={handleConnect}
               disabled={isConnecting}
-              aria-label={isConnecting ? 'Connecting wallet' : 'Connect wallet'}
+              aria-label={isConnecting ? t('common.connecting') : t('common.connect')}
               aria-busy={isConnecting}
               className="flex items-center justify-center gap-2 bg-gradient-to-r from-brand-primary to-brand-blue text-white px-4 sm:px-6 py-2.5 sm:py-2 rounded-lg font-medium hover:shadow-lg active:scale-95 sm:hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 min-h-[44px]"
             >
               <Wallet className="h-5 w-5 sm:h-4 sm:w-4" aria-hidden="true" />
               <span className="hidden sm:inline">
-                {isConnecting ? 'Connecting...' : 'Connect Wallet'}
+                {isConnecting ? t('common.connecting') : t('common.connect')}
               </span>
               <span className="sm:hidden text-sm">
-                {isConnecting ? '...' : 'Connect'}
+                {isConnecting ? '...' : t('common.connect').split(' ')[0]}
               </span>
             </button>
           ) : (
@@ -133,13 +139,13 @@ export function Navbar() {
                     >
                       <div className="p-4 border-b border-gray-200">
                         <p className="text-xs text-gray-600 mb-1">
-                          Connected Wallet
+                          {t('common.connectedWallet')}
                         </p>
                         <p className="font-mono text-sm text-gray-900 break-all mb-3">
                           {address}
                         </p>
                         <div className="flex items-center justify-between bg-green-50 px-3 py-2 rounded-lg">
-                          <span className="text-xs text-gray-600">Balance</span>
+                          <span className="text-xs text-gray-600">{t('trading.balance')}</span>
                           <span className="font-bold text-sm text-gray-900">
                             {isLoadingBalance ? (
                               <span className="inline-block w-20 h-4 bg-gray-200 animate-pulse rounded" />
@@ -152,11 +158,11 @@ export function Navbar() {
                       <button
                         onClick={handleDisconnectClick}
                         role="menuitem"
-                        aria-label="Disconnect wallet"
+                        aria-label={t('common.disconnect')}
                         className="w-full flex items-center gap-2 px-4 py-3 text-left text-gray-900 hover:bg-gray-50 transition-colors"
                       >
                         <LogOut className="h-4 w-4 text-gray-600" aria-hidden="true" />
-                        <span>Disconnect</span>
+                        <span>{t('common.disconnect')}</span>
                       </button>
                     </div>
                   </div>
@@ -194,24 +200,24 @@ export function Navbar() {
                   <AlertTriangle className="w-5 h-5 text-amber-600" />
                 </div>
                 <h3 id="disconnect-dialog-title" className="font-bold text-lg">
-                  Disconnect Wallet?
+                  {t('common.disconnectWallet')}
                 </h3>
               </div>
               <p className="text-gray-600 mb-6">
-                Are you sure you want to disconnect your wallet? You will need to reconnect to access your portfolio and make transactions.
+                {t('common.disconnectConfirmMessage')}
               </p>
               <div className="flex gap-3">
                 <button
                   onClick={handleDisconnectCancel}
                   className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
                 >
-                  Cancel
+                  {t('common.cancel')}
                 </button>
                 <button
                   onClick={handleDisconnectConfirm}
                   className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors"
                 >
-                  Disconnect
+                  {t('common.disconnect')}
                 </button>
               </div>
             </div>

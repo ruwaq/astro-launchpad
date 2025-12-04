@@ -1,7 +1,13 @@
 {
   "common": {
     "connect": "Connect Wallet",
+    "connecting": "Connecting...",
     "disconnect": "Disconnect",
+    "disconnectWallet": "Disconnect Wallet?",
+    "disconnectConfirmMessage": "Are you sure you want to disconnect your wallet? You will need to reconnect to access your portfolio and make transactions.",
+    "connectedWallet": "Connected Wallet",
+    "walletConnected": "Wallet connected successfully!",
+    "walletDisconnected": "Wallet disconnected",
     "loading": "Loading...",
     "error": "Error",
     "success": "Success",
@@ -11,7 +17,11 @@
     "next": "Next",
     "save": "Save",
     "copy": "Copy",
-    "copied": "Copied!"
+    "copied": "Copied!",
+    "notifications": "Notifications",
+    "newNotifications": "You have new notifications",
+    "dashboard": "Dashboard",
+    "explore": "Explore"
   },
   "nav": {
     "home": "Home",

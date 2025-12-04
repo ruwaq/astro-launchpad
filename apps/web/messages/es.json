@@ -1,7 +1,13 @@
 {
   "common": {
     "connect": "Conectar Wallet",
+    "connecting": "Conectando...",
     "disconnect": "Desconectar",
+    "disconnectWallet": "¿Desconectar Wallet?",
+    "disconnectConfirmMessage": "¿Estás seguro de que quieres desconectar tu wallet? Necesitarás reconectarte para acceder a tu portafolio y realizar transacciones.",
+    "connectedWallet": "Wallet Conectada",
+    "walletConnected": "¡Wallet conectada exitosamente!",
+    "walletDisconnected": "Wallet desconectada",
     "loading": "Cargando...",
     "error": "Error",
     "success": "Éxito",
@@ -11,7 +17,11 @@
     "next": "Siguiente",
     "save": "Guardar",
     "copy": "Copiar",
-    "copied": "¡Copiado!"
+    "copied": "¡Copiado!",
+    "notifications": "Notificaciones",
+    "newNotifications": "Tienes nuevas notificaciones",
+    "dashboard": "Panel",
+    "explore": "Explorar"
   },
   "nav": {
     "home": "Inicio",
