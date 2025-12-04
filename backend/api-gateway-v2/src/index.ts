@@ -126,7 +126,7 @@ async function startServer() {
                 return formattedError;
             },
             includeStacktraceInErrorResponses: !isProduction,
-            // SECURITY: Disable introspection in production
+            // SECURITY: Enable introspection for Apollo Explorer/Playground (controlled by env)
             introspection: env.GRAPHQL_INTROSPECTION,
             // Security: Query depth and complexity limits
             validationRules,
@@ -135,6 +135,11 @@ async function startServer() {
                 createRateLimitPlugin(),  // Global rate limiting per IP
             ],
         });
+
+        // Log introspection status for developers
+        if (env.GRAPHQL_INTROSPECTION) {
+            logger.info('📚 GraphQL Introspection ENABLED - Apollo Explorer available at endpoint');
+        }
 
         // Store server reference for graceful shutdown
         serverInstance = server;

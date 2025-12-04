@@ -9,7 +9,7 @@
 
 'use client';
 
-import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
+import { useEffect, useState, useMemo, useRef, useCallback, memo } from 'react';
 import { motion } from 'framer-motion';
 import { sacFactoryService } from '@/lib/stellar/services/sac-factory.service';
 import { GRADUATION_THRESHOLD_XLM } from '@/lib/stellar/utils';
@@ -28,7 +28,7 @@ interface PricePoint {
   type: 'up' | 'down' | 'neutral';
 }
 
-export function BondingCurveChart({
+export const BondingCurveChart = memo(function BondingCurveChart({
   tokenAddress,
   compact = false,
 }: BondingCurveChartProps) {
@@ -293,6 +293,8 @@ export function BondingCurveChart({
       </div>
     </div>
   );
-}
+});
+
+BondingCurveChart.displayName = 'BondingCurveChart';
 
 export default BondingCurveChart;

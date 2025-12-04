@@ -1,5 +1,6 @@
 'use client';
 
+import { memo } from 'react';
 import { Loader2 } from 'lucide-react';
 import { QUICK_AMOUNTS } from './constants';
 import { TokenSelector } from './TokenSelector';
@@ -24,7 +25,7 @@ interface AmountInputProps {
   onQuickAmount?: (amount: number) => void;
 }
 
-export function AmountInput({
+export const AmountInput = memo(function AmountInput({
   label,
   value,
   onChange,
@@ -101,4 +102,6 @@ export function AmountInput({
       </div>
     </div>
   );
-}
+});
+
+AmountInput.displayName = 'AmountInput';

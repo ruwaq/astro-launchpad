@@ -1,6 +1,6 @@
 'use client';
 
-import { ReactNode } from 'react';
+import { ReactNode, memo } from 'react';
 
 interface MetricCardProps {
   title: string;
@@ -12,7 +12,7 @@ interface MetricCardProps {
   suffix?: string;
 }
 
-export function MetricCard({
+export const MetricCard = memo(function MetricCard({
   title,
   value,
   change,
@@ -67,4 +67,6 @@ export function MetricCard({
       </div>
     </div>
   );
-}
+});
+
+MetricCard.displayName = 'MetricCard';
