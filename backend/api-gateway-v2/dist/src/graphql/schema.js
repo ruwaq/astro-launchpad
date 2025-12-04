@@ -15,8 +15,10 @@ export const schema = `#graphql
     tokens(
       limit: Int = 20
       offset: Int = 0
+      after: String
       orderBy: TokenOrderBy = CREATED_AT_DESC
       search: String
+      status: TokenStatus
     ): TokenConnection!
     trendingTokens(limit: Int = 10): [Token!]!
 
@@ -287,6 +289,13 @@ export const schema = `#graphql
     MARKET_CAP_DESC
     VOLUME_DESC
     HOLDERS_DESC
+    GRADUATION_DESC
+  }
+
+  enum TokenStatus {
+    ALL
+    BONDING
+    GRADUATED
   }
 
   enum LeaderboardType {

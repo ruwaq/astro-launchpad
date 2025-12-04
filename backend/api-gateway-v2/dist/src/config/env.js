@@ -28,7 +28,8 @@ const envSchema = z.object({
     API_HOST: z.string().default('0.0.0.0'),
     // CORS - restrict to specific origins in production
     // Format: comma-separated list of allowed origins, e.g., "https://app.astroshiba.io,https://staging.astroshiba.io"
-    CORS_ORIGIN: z.string().default('https://astroshiba.io,https://app.astroshiba.io,http://localhost:3000'),
+    // SECURITY: localhost origins should only be added in development via environment variable
+    CORS_ORIGIN: z.string().default('https://astroshiba.io,https://app.astroshiba.io,https://www.astroshiba.io'),
     // Admin addresses (comma-separated list of Stellar addresses with admin privileges)
     ADMIN_ADDRESSES: z.string().optional(),
     // Admin API Key (required in production for admin mutations)

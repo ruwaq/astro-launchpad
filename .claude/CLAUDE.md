@@ -1,6 +1,7 @@
-# CLAUDE.md - Astro Shiba Project Guide
+# CLAUDE.md - Astro Launchpad
 
-> **Mantra: Código Robusto, Escalable, Modular**
+> ## Mantra
+> **Código profesional, escalable, mantenible, robusto y fluido - top mundial para interacción con usuarios reales, siempre con tecnología de calidad e implementaciones avanzadas. Siempre terminar todas las tareas sin parar.**
 
 ## Project Overview
 
@@ -67,33 +68,44 @@ stellar contract deploy --network testnet
 
 ## Claude Code Agents
 
-Este proyecto incluye 11 agentes especializados para asegurar código de calidad:
+### Agentes Locales (astro-launchpad/.claude/agents/)
 
-### Backend & Contracts
-1. **Code Quality** - Patrones TypeScript/React
-2. **Security Auditor** - Vulnerabilidades y OWASP
-3. **Contract Validator** - Soroban/Stellar validation
-4. **Test Generator** - Unit/integration tests
-5. **Deploy Guardian** - Pre-deployment checks
-6. **Performance** - Optimization analysis
+| Agent | Model | Purpose |
+|-------|-------|---------|
+| `bonding-curve-specialist` | opus | Bonding curve math validation |
+| `graduation-validator` | opus | $69k graduation flow |
+| `graphql-auditor` | haiku | Apollo/GraphQL security |
+| `next-app-architect` | haiku | Next.js 15 patterns |
 
-### Frontend & UI/UX
-7. **UI Architect** - Component architecture
-8. **UX Enhancer** - User experience flows
-9. **Accessibility** - WCAG 2.1 AA compliance
-10. **Animation Wizard** - Framer Motion animations
-11. **Design System** - Token consistency
+### Agentes Heredados (Root .claude/agents/)
+
+| Agent | Model | Purpose |
+|-------|-------|---------|
+| `security-auditor` | sonnet | OWASP, Web3 vulnerabilities |
+| `code-quality` | haiku | TypeScript/React patterns |
+| `test-generator` | sonnet | Unit/integration tests |
+| `indexer-specialist` | haiku | Blockchain event processing |
+| `prisma-specialist` | haiku | Database/ORM operations |
+| `frontend-architect` | sonnet | React architecture |
+| `ux-flow-tester` | sonnet | User flow testing |
+| `continuous-improver` | sonnet | Auto-documentation updates |
+
+## Skills Disponibles
+
+| Skill | Location | Purpose |
+|-------|----------|---------|
+| `next-15-patterns` | Local | Server/Client components |
+| `typescript-patterns` | Root | TS/React best practices |
+| `defi-patterns` | Root | AMM, bonding curves |
+| `auto-documentation` | Root | Doc generation |
 
 ## Slash Commands
 
 | Command | Purpose |
 |---------|---------|
-| `/primetime` | Full production validation (all 11 agents) |
-| `/ux-audit` | UX-focused audit |
-| `/ui-refactor` | Component architecture refactor |
-| `/polish` | Final polish for production |
+| `/primetime` | Full ecosystem validation |
+| `/ecosystem-check` | Quick consistency validation |
 | `/security-check` | Security audit |
-| `/test-coverage` | Test coverage analysis |
 
 ## Architecture Patterns
 

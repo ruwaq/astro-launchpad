@@ -93,17 +93,49 @@ const queryResolvers = {
         try {
             // Validate and sanitize inputs
             const limit = validateLimit(args.limit, 100, 20);
-            const offset = validateOffset(args.offset);
             const search = validateSearchString(args.search, 100);
-            const orderByKey = validateOrderBy(args.orderBy, ['CREATED_AT_DESC', 'CREATED_AT_ASC', 'MARKET_CAP_DESC', 'VOLUME_DESC', 'HOLDERS_DESC'], 'CREATED_AT_DESC');
-            // Build where clause for search
-            const where = search
-                ? {
+            const orderByKey = validateOrderBy(args.orderBy, ['CREATED_AT_DESC', 'CREATED_AT_ASC', 'MARKET_CAP_DESC', 'VOLUME_DESC', 'HOLDERS_DESC', 'GRADUATION_DESC'], 'CREATED_AT_DESC');
+            // Handle cursor-based pagination (after) or offset-based pagination
+            let offset = 0;
+            if (args.after) {
+                try {
+                    // Decode cursor (base64 encoded offset)
+                    const decodedCursor = Buffer.from(args.after, 'base64').toString('utf-8');
+                    const cursorOffset = parseInt(decodedCursor, 10);
+                    if (!isNaN(cursorOffset)) {
+                        offset = cursorOffset + 1; // Start after the cursor position
+                    }
+                }
+                catch {
+                    // Invalid cursor, start from beginning
+                    offset = 0;
+                }
+            }
+            else {
+                offset = validateOffset(args.offset);
+            }
+            // Build where clause for search and status filter
+            const whereConditions = [];
+            // Search filter
+            if (search) {
+                whereConditions.push({
                     OR: [
                         { name: { contains: search, mode: 'insensitive' } },
                         { symbol: { contains: search, mode: 'insensitive' } },
                     ],
+                });
+            }
+            // Status filter (bonding = not graduated, graduated = graduated)
+            if (args.status && args.status !== 'ALL') {
+                if (args.status === 'BONDING') {
+                    whereConditions.push({ graduated: false });
                 }
+                else if (args.status === 'GRADUATED') {
+                    whereConditions.push({ graduated: true });
+                }
+            }
+            const where = whereConditions.length > 0
+                ? { AND: whereConditions }
                 : {};
             // Build orderBy
             const orderByMap = {
@@ -112,6 +144,7 @@ const queryResolvers = {
                 MARKET_CAP_DESC: { marketCap: 'desc' },
                 VOLUME_DESC: { volume24h: 'desc' },
                 HOLDERS_DESC: { holders: 'desc' },
+                GRADUATION_DESC: { xlmRaised: 'desc' }, // Sort by XLM raised (graduation progress)
             };
             const orderBy = orderByMap[orderByKey];
             // PERFORMANCE: Select only fields needed for token list

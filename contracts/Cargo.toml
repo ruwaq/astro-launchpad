@@ -22,8 +22,8 @@ authors = ["Astro Team"]
 license = "MIT"
 
 [workspace.dependencies]
-soroban-sdk = "22.0.0"
-astro-core-shared = { git = "https://github.com/nunalabs/astro-core", tag = "v1.0.2" }
+soroban-sdk = "23.2.1"
+astro-core-shared = { git = "https://github.com/nunalabs/astro-core", tag = "v1.2.0" }
 
 [profile.release]
 opt-level = "z"
