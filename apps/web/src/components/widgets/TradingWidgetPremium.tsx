@@ -454,7 +454,7 @@ export function TradingWidgetPremium({
       variants={containerVariants}
       initial="hidden"
       animate="visible"
-      className="bg-white rounded-2xl border border-ui-border shadow-lg overflow-hidden"
+      className="bg-white rounded-xl lg:rounded-2xl border border-ui-border shadow-lg overflow-hidden"
     >
       {/* Header */}
       <TradingHeader
@@ -468,7 +468,7 @@ export function TradingWidgetPremium({
         onToggleSound={() => setSoundEnabled(!soundEnabled)}
       />
 
-      <div className="p-4 space-y-4">
+      <div className="p-3 lg:p-4 space-y-3 lg:space-y-4">
         {/* User Balance Display */}
         <motion.div variants={itemVariants}>
           <UserBalanceDisplay

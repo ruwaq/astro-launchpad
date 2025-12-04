@@ -434,43 +434,47 @@ export default function TokenTradingPage({ params }: PageProps) {
         </motion.div>
 
         {/* Main Trading Area */}
-        <div className="grid lg:grid-cols-3 gap-6">
+        <div className="grid lg:grid-cols-3 gap-4 lg:gap-6">
           {/* Left: Chart + Trading Widget */}
           <motion.div
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.1 }}
-            className="lg:col-span-2 space-y-6"
+            className="lg:col-span-2 flex flex-col gap-4 lg:gap-6"
           >
-            {/* Bonding Curve Visualization - Wrapped with ErrorBoundary */}
-            {!isReadOnlyMode ? (
-              <ChartErrorBoundary>
-                <BondingCurveChart tokenAddress={address} />
-              </ChartErrorBoundary>
-            ) : (
-              <div className="bg-gray-100 rounded-xl border border-ui-border p-8 text-center">
-                <div className="text-gray-400 mb-2">
-                  <TrendingUp className="h-12 w-12 mx-auto opacity-50" />
-                </div>
-                <p className="text-sm text-ui-text-secondary">
-                  Chart unavailable in read-only mode
-                </p>
-              </div>
-            )}
+            {/* Premium Trading Widget - MOBILE FIRST: Action before chart */}
+            <div className="order-1 lg:order-2">
+              <TradingErrorBoundary tokenSymbol={formattedToken.symbol}>
+                <TradingWidgetPremium
+                  tokenAddress={address}
+                  tokenSymbol={formattedToken.symbol}
+                  tokenName={formattedToken.name}
+                  tokenImage={formattedToken.logoUrl || undefined}
+                  disabled={isReadOnlyMode || undefined}
+                  onTradeSuccess={(type, amount) => {
+                    console.log(`Trade success: ${type} ${amount}`);
+                  }}
+                />
+              </TradingErrorBoundary>
+            </div>
 
-            {/* Premium Trading Widget - Wrapped with ErrorBoundary */}
-            <TradingErrorBoundary tokenSymbol={formattedToken.symbol}>
-              <TradingWidgetPremium
-                tokenAddress={address}
-                tokenSymbol={formattedToken.symbol}
-                tokenName={formattedToken.name}
-                tokenImage={formattedToken.logoUrl || undefined}
-                disabled={isReadOnlyMode || undefined}
-                onTradeSuccess={(type, amount) => {
-                  console.log(`Trade success: ${type} ${amount}`);
-                }}
-              />
-            </TradingErrorBoundary>
+            {/* Bonding Curve Visualization - Wrapped with ErrorBoundary */}
+            <div className="order-2 lg:order-1">
+              {!isReadOnlyMode ? (
+                <ChartErrorBoundary>
+                  <BondingCurveChart tokenAddress={address} />
+                </ChartErrorBoundary>
+              ) : (
+                <div className="bg-gray-100 rounded-xl border border-ui-border p-6 lg:p-8 text-center">
+                  <div className="text-gray-400 mb-2">
+                    <TrendingUp className="h-10 w-10 lg:h-12 lg:w-12 mx-auto opacity-50" />
+                  </div>
+                  <p className="text-sm text-ui-text-secondary">
+                    Chart unavailable in read-only mode
+                  </p>
+                </div>
+              )}
+            </div>
           </motion.div>
 
           {/* Right: Stats + Activity Feed */}
@@ -478,7 +482,7 @@ export default function TokenTradingPage({ params }: PageProps) {
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.2 }}
-            className="space-y-6"
+            className="space-y-4 lg:space-y-6"
           >
             {/* Animated Graduation Progress - Real XLM raised */}
             <GraduationProgressAnimated
