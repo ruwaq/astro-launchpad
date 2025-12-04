@@ -15,8 +15,8 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { ArrowDown } from 'lucide-react';
 import { useWallet } from '@/contexts/WalletContext';
-import { sacFactoryService, type TokenInfo } from '@/lib/stellar/services/sac-factory.service';
-import { stellarClient } from '@/lib/stellar/client';
+import { sacFactoryService, toStroopsBigInt, type TokenInfo } from '@/lib/stellar/services/sac-factory.service';
+import { stellarClient, getClientDeadline } from '@/lib/stellar/client';
 import { TransactionBuilder, SorobanRpc } from '@stellar/stellar-sdk';
 import { ensureTrustlineExists } from '@/lib/stellar/utils/trustline';
 import { getNetworkConfig } from '@/lib/config/network';
@@ -41,6 +41,7 @@ import {
   SlippageSelector,
   TokenInfoCard,
   SwapButton,
+  PriceImpactWarning,
   ConnectWalletAlert,
   TestnetTokenAlert,
   NoLiquidityAlert,
@@ -72,8 +73,8 @@ const GET_TOKENS_QUERY = gql`
         }
       }
       pageInfo {
-        total
         hasNextPage
+        hasPreviousPage
       }
       totalCount
     }
@@ -153,10 +154,12 @@ export function TradingWidget() {
         let output: bigint;
 
         if (state.type === 'buy') {
-          const xlmAmountStroops = BigInt(Math.floor(inputAmount * 10_000_000));
+          // SAFE: Use string-based conversion to avoid floating-point precision loss
+          const xlmAmountStroops = toStroopsBigInt(inputAmount);
           output = sacFactoryService.calculateBuyOutput(tokenInfo, xlmAmountStroops);
         } else {
-          const tokenAmountSmallest = BigInt(Math.floor(inputAmount * 10_000_000));
+          // SAFE: Use string-based conversion to avoid floating-point precision loss
+          const tokenAmountSmallest = toStroopsBigInt(inputAmount);
           output = sacFactoryService.calculateSellOutput(tokenInfo, tokenAmountSmallest);
         }
 
@@ -233,6 +236,13 @@ export function TradingWidget() {
   };
 
   const handleTrade = async () => {
+    // RACE CONDITION FIX: Prevent double-clicks and concurrent transactions
+    // This prevents sequence number conflicts on Stellar
+    if (state.isProcessing) {
+      console.warn('[TradingWidget] Transaction already in progress, ignoring click');
+      return;
+    }
+
     if (!address || !isConnected) {
       toast.error('Please connect your wallet first');
       return;
@@ -248,6 +258,7 @@ export function TradingWidget() {
       return;
     }
 
+    // Set processing state IMMEDIATELY to prevent race conditions
     setState((prev) => ({ ...prev, isProcessing: true }));
 
     try {
@@ -261,13 +272,15 @@ export function TradingWidget() {
       if (tokenInfo) {
         const soroban = stellarClient.getSoroban();
         const server = soroban.getServer();
-        const deadline = BigInt(Math.floor(Date.now() / 1000) + 300);
+        // SAFE: Use getClientDeadline for consistent deadline calculation
+        const deadline = getClientDeadline(300);
 
         let operation;
 
         if (state.type === 'buy') {
-          const xlmAmountStroops = BigInt(Math.floor(inputAmount * 10_000_000));
-          const minTokens = BigInt(Math.floor(minOutput * 10_000_000));
+          // SAFE: Use string-based conversion to avoid floating-point precision loss
+          const xlmAmountStroops = toStroopsBigInt(inputAmount);
+          const minTokens = toStroopsBigInt(minOutput);
 
           if (tokenInfo?.issuer && tokenInfo.issuer.startsWith('G')) {
             loadingToast = toast.loading('Setting up trustline for token...');
@@ -283,8 +296,9 @@ export function TradingWidget() {
             deadline
           );
         } else {
-          const tokenAmountSmallest = BigInt(Math.floor(inputAmount * 10_000_000));
-          const minXlm = BigInt(Math.floor(minOutput * 10_000_000));
+          // SAFE: Use string-based conversion to avoid floating-point precision loss
+          const tokenAmountSmallest = toStroopsBigInt(inputAmount);
+          const minXlm = toStroopsBigInt(minOutput);
 
           operation = sacFactoryService.buildSellOperation(
             address,
@@ -537,6 +551,17 @@ export function TradingWidget() {
           onChange={(slippage) => setState((prev) => ({ ...prev, slippage }))}
           disabled={!isConnected || state.isProcessing}
         />
+
+        {/* Price Impact Warning */}
+        {tokenInfo && state.inputAmount && state.outputAmount && tokenInfo.bonding_curve && (
+          <PriceImpactWarning
+            inputAmount={state.inputAmount}
+            outputAmount={state.outputAmount}
+            xlmReserve={tokenInfo.bonding_curve.xlm_reserve}
+            tokenReserve={tokenInfo.bonding_curve.token_reserve}
+            tradeType={state.type}
+          />
+        )}
 
         <SwapButton
           onClick={handleTrade}

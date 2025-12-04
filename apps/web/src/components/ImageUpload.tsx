@@ -258,6 +258,14 @@ export function ImageUpload({ value, onChange, disabled }: ImageUploadProps) {
     }
   };
 
+  // ACCESSIBILITY: Handle keyboard activation for the upload area
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      handleClick();
+    }
+  };
+
   return (
     <div className="space-y-2">
       <input
@@ -285,15 +293,20 @@ export function ImageUpload({ value, onChange, disabled }: ImageUploadProps) {
         </div>
       </div>
 
-      {/* Upload Area */}
+      {/* Upload Area - ACCESSIBILITY: Full keyboard support */}
       {!previewUrl ? (
         <div
           onClick={handleClick}
+          onKeyDown={handleKeyDown}
+          role="button"
+          tabIndex={disabled || isUploading ? -1 : 0}
+          aria-label="Upload token logo image"
+          aria-disabled={disabled || isUploading}
           className={`
             relative border-2 border-dashed rounded-xl p-8 transition-all
             ${disabled || isUploading
               ? 'border-gray-200 bg-gray-50 cursor-not-allowed'
-              : 'border-brand-primary-200 bg-brand-primary-50 hover:border-brand-primary hover:bg-brand-primary-100 cursor-pointer'
+              : 'border-brand-primary-200 bg-brand-primary-50 hover:border-brand-primary hover:bg-brand-primary-100 cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-primary focus:ring-offset-2'
             }
           `}
         >
@@ -338,14 +351,15 @@ export function ImageUpload({ value, onChange, disabled }: ImageUploadProps) {
             />
           </div>
 
-          {/* Remove Button */}
+          {/* Remove Button - ACCESSIBILITY: aria-label for screen readers */}
           {!disabled && !isUploading && (
             <button
               onClick={handleRemove}
-              className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors shadow-lg"
+              className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors shadow-lg min-w-[44px] min-h-[44px]"
               type="button"
+              aria-label="Remove uploaded image"
             >
-              <X className="h-5 w-5" />
+              <X className="h-5 w-5" aria-hidden="true" />
             </button>
           )}
 

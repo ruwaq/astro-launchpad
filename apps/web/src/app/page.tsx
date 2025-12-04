@@ -68,14 +68,14 @@ export default function Home() {
                 </Link>
               </div>
 
-              {/* Live Stats */}
-              <div className="grid grid-cols-3 gap-4 sm:gap-8 pt-8 max-w-2xl mx-auto lg:mx-0">
-                <div className="bg-white rounded-xl p-4 border border-gray-200">
+              {/* Live Stats - stack on very small mobile, 3 cols on sm+ */}
+              <div className="grid grid-cols-1 xs:grid-cols-3 sm:grid-cols-3 gap-3 sm:gap-8 pt-8 max-w-2xl mx-auto lg:mx-0">
+                <div className="bg-white rounded-xl p-3 sm:p-4 border border-gray-200">
                   <div className="flex items-center gap-2 mb-1">
                     {isLoadingCount ? (
                       <div className="h-8 w-16 bg-gray-200 animate-pulse rounded" />
                     ) : (
-                      <div className="text-2xl sm:text-3xl font-bold text-brand-primary">
+                      <div className="text-xl sm:text-2xl md:text-3xl font-bold text-brand-primary">
                         {tokenCount}
                       </div>
                     )}
@@ -83,13 +83,13 @@ export default function Home() {
                   <div className="text-xs sm:text-sm text-gray-600">Tokens Launched</div>
                 </div>
 
-                <div className="bg-white rounded-xl p-4 border border-gray-200">
-                  <div className="text-2xl sm:text-3xl font-bold text-brand-primary">$0</div>
+                <div className="bg-white rounded-xl p-3 sm:p-4 border border-gray-200">
+                  <div className="text-xl sm:text-2xl md:text-3xl font-bold text-brand-primary">$0</div>
                   <div className="text-xs sm:text-sm text-gray-600">Gas Fees</div>
                 </div>
 
-                <div className="bg-white rounded-xl p-4 border border-gray-200">
-                  <div className="text-2xl sm:text-3xl font-bold text-brand-primary">3-5s</div>
+                <div className="bg-white rounded-xl p-3 sm:p-4 border border-gray-200">
+                  <div className="text-xl sm:text-2xl md:text-3xl font-bold text-brand-primary">3-5s</div>
                   <div className="text-xs sm:text-sm text-gray-600">Finality</div>
                 </div>
               </div>

@@ -130,3 +130,56 @@ export function ipfsToHttp(uri: string): string {
   }
   return uri;
 }
+
+/**
+ * SECURITY: Validate network passphrase matches expected value
+ * This prevents signing transactions on the wrong network (e.g., testnet vs mainnet)
+ *
+ * @param actualPassphrase - Passphrase returned from RPC/wallet
+ * @returns true if passphrase matches current network config
+ * @throws Error if passphrase doesn't match
+ */
+export function validateNetworkPassphrase(actualPassphrase: string): boolean {
+  const config = getNetworkConfig();
+  const expected = config.passphrase;
+
+  if (actualPassphrase !== expected) {
+    const currentNetwork = getCurrentNetwork();
+    throw new Error(
+      `Network passphrase mismatch! Expected ${currentNetwork} network. ` +
+      `Got: "${actualPassphrase.substring(0, 20)}..." ` +
+      `Expected: "${expected.substring(0, 20)}..."`
+    );
+  }
+
+  return true;
+}
+
+/**
+ * SECURITY: Check if a wallet is connected to the correct network
+ * Call this before any transaction signing
+ *
+ * @param walletNetworkPassphrase - Passphrase from the connected wallet
+ * @returns Object with validation result and error message if any
+ */
+export function checkWalletNetwork(walletNetworkPassphrase: string): {
+  isCorrect: boolean;
+  error?: string;
+  expectedNetwork: NetworkType;
+} {
+  const config = getNetworkConfig();
+  const expectedNetwork = getCurrentNetwork();
+
+  if (walletNetworkPassphrase !== config.passphrase) {
+    return {
+      isCorrect: false,
+      error: `Your wallet is connected to the wrong network. Please switch to ${config.name}.`,
+      expectedNetwork,
+    };
+  }
+
+  return {
+    isCorrect: true,
+    expectedNetwork,
+  };
+}

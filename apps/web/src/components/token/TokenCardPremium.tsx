@@ -416,11 +416,11 @@ export const TokenCardPremium = memo(function TokenCardPremium({
             </motion.div>
           </div>
 
-          {/* Stats Grid */}
-          <div className="grid grid-cols-3 gap-2 mt-3">
+          {/* Stats Grid - responsive: stack on very small mobile, 3 cols on sm+ */}
+          <div className="grid grid-cols-1 xs:grid-cols-3 sm:grid-cols-3 gap-2 mt-3">
             <div className="text-center p-2 bg-gray-50 rounded-lg">
               <p className="text-xs text-ui-text-secondary">Market Cap</p>
-              <p className="font-semibold text-sm">${formattedMarketCap}</p>
+              <p className="font-semibold text-sm truncate">${formattedMarketCap}</p>
             </div>
             <div className="text-center p-2 bg-gray-50 rounded-lg">
               <p className="text-xs text-ui-text-secondary">Holders</p>
@@ -428,7 +428,7 @@ export const TokenCardPremium = memo(function TokenCardPremium({
             </div>
             <div className="text-center p-2 bg-gray-50 rounded-lg">
               <p className="text-xs text-ui-text-secondary">XLM Reserve</p>
-              <p className="font-semibold text-sm">{formatCompactNumber(parseFloat(stroopsToXlm(token.xlm_reserve || '0')))}</p>
+              <p className="font-semibold text-sm truncate">{formatCompactNumber(parseFloat(stroopsToXlm(token.xlm_reserve || '0')))}</p>
             </div>
           </div>
 

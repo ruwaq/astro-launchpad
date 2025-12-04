@@ -36,6 +36,22 @@ const typeDefs = gql`
     token(address: String!): Token
     trendingTokens(limit: Int = 10): [Token!]!
 
+    # Pools
+    pools(
+      limit: Int = 20
+      offset: Int = 0
+    ): PoolConnection!
+    pool(address: String!): Pool
+
+    # Transactions
+    transactions(
+      address: String
+      tokenAddress: String
+      type: TransactionType
+      limit: Int = 20
+      offset: Int = 0
+    ): TransactionConnection!
+
     # Global Stats
     globalStats: GlobalStats!
   }
@@ -127,18 +143,59 @@ const typeDefs = gql`
     reserve0: String!
     reserve1: String!
     totalSupply: String!
-    liquidity: String
     tvl: String
     volume24h: String
     volume7d: String
-    volumeChange24h: Float
     apr: Float
-    apy: Float
-    fee: Float
+    feeRate: Float
     createdAt: String!
     updatedAt: String
     token0: Token
     token1: Token
+  }
+
+  type PoolConnection {
+    edges: [PoolEdge!]!
+    nodes: [Pool!]!
+    pageInfo: PageInfo!
+    totalCount: Int!
+  }
+
+  type PoolEdge {
+    cursor: String!
+    node: Pool!
+  }
+
+  # ============================================================================
+  # Transaction Types
+  # ============================================================================
+  type Transaction {
+    id: ID!
+    hash: String!
+    type: TransactionType!
+    from: String!
+    to: String
+    tokenAddress: String
+    amount: String
+    grossAmount: String
+    netAmount: String
+    totalFees: String
+    status: String!
+    timestamp: String!
+    token: Token
+    user: User
+  }
+
+  type TransactionConnection {
+    edges: [TransactionEdge!]!
+    nodes: [Transaction!]!
+    pageInfo: PageInfo!
+    totalCount: Int!
+  }
+
+  type TransactionEdge {
+    cursor: String!
+    node: Transaction!
   }
 
   # ============================================================================
@@ -179,6 +236,15 @@ const typeDefs = gql`
     VOLUME_DESC
     VOLUME_24H_DESC
     HOLDERS_DESC
+  }
+
+  enum TransactionType {
+    TOKEN_CREATED
+    TOKEN_BOUGHT
+    TOKEN_SOLD
+    LIQUIDITY_ADDED
+    LIQUIDITY_REMOVED
+    SWAP
   }
 `;
 
@@ -371,6 +437,167 @@ const resolvers = {
       return tokens.map(transformToken);
     },
 
+    // ========================================================================
+    // Pools
+    // ========================================================================
+    pools: async (_, args) => {
+      const limit = args.limit || 20;
+      const offset = args.offset || 0;
+
+      const [pools, totalCount] = await Promise.all([
+        prisma.pool.findMany({
+          take: limit,
+          skip: offset,
+          orderBy: { tvl: 'desc' },
+          include: {
+            token0: true,
+            token1: true,
+          },
+        }),
+        prisma.pool.count(),
+      ]);
+
+      const transformedPools = pools.map(pool => ({
+        id: pool.id,
+        address: pool.address,
+        token0Address: pool.token0Address,
+        token1Address: pool.token1Address,
+        reserve0: pool.reserve0?.toString() || '0',
+        reserve1: pool.reserve1?.toString() || '0',
+        totalSupply: pool.totalSupply?.toString() || '0',
+        tvl: pool.tvl?.toString(),
+        volume24h: pool.volume24h?.toString() || '0',
+        volume7d: pool.volume7d?.toString(),
+        apr: pool.apr,
+        feeRate: pool.feeRate || 0.003,
+        createdAt: pool.createdAt?.toISOString(),
+        updatedAt: pool.updatedAt?.toISOString(),
+        token0: pool.token0 ? transformToken(pool.token0) : null,
+        token1: pool.token1 ? transformToken(pool.token1) : null,
+      }));
+
+      const edges = transformedPools.map((pool, index) => ({
+        cursor: createCursor(offset + index),
+        node: pool,
+      }));
+
+      return {
+        edges,
+        nodes: transformedPools,
+        totalCount,
+        pageInfo: {
+          hasNextPage: offset + limit < totalCount,
+          hasPreviousPage: offset > 0,
+          startCursor: edges.length > 0 ? edges[0].cursor : null,
+          endCursor: edges.length > 0 ? edges[edges.length - 1].cursor : null,
+        },
+      };
+    },
+
+    pool: async (_, { address }) => {
+      const pool = await prisma.pool.findUnique({
+        where: { address },
+        include: {
+          token0: true,
+          token1: true,
+        },
+      });
+
+      if (!pool) return null;
+
+      return {
+        id: pool.id,
+        address: pool.address,
+        token0Address: pool.token0Address,
+        token1Address: pool.token1Address,
+        reserve0: pool.reserve0?.toString() || '0',
+        reserve1: pool.reserve1?.toString() || '0',
+        totalSupply: pool.totalSupply?.toString() || '0',
+        tvl: pool.tvl?.toString(),
+        volume24h: pool.volume24h?.toString() || '0',
+        volume7d: pool.volume7d?.toString(),
+        apr: pool.apr,
+        feeRate: pool.feeRate || 0.003,
+        createdAt: pool.createdAt?.toISOString(),
+        updatedAt: pool.updatedAt?.toISOString(),
+        token0: pool.token0 ? transformToken(pool.token0) : null,
+        token1: pool.token1 ? transformToken(pool.token1) : null,
+      };
+    },
+
+    // ========================================================================
+    // Transactions
+    // ========================================================================
+    transactions: async (_, args) => {
+      const limit = args.limit || 20;
+      const offset = args.offset || 0;
+      const { address, tokenAddress, type } = args;
+
+      // Build where clause
+      const where = {};
+      if (address) where.from = address;
+      if (tokenAddress) where.tokenAddress = tokenAddress;
+      if (type) where.type = type;
+
+      const [transactions, totalCount] = await Promise.all([
+        prisma.transaction.findMany({
+          where,
+          take: limit,
+          skip: offset,
+          orderBy: { timestamp: 'desc' },
+          include: {
+            token: true,
+            user: true,
+          },
+        }),
+        prisma.transaction.count({ where }),
+      ]);
+
+      const transformedTransactions = transactions.map(tx => ({
+        id: tx.id,
+        hash: tx.hash || tx.id,
+        type: tx.type || 'TOKEN_BOUGHT',
+        from: tx.from || '',
+        to: tx.to,
+        tokenAddress: tx.tokenAddress || null,
+        amount: tx.amount || null,
+        grossAmount: tx.grossAmount || null,
+        netAmount: tx.netAmount || null,
+        totalFees: tx.totalFees || null,
+        status: tx.status || 'PENDING',
+        timestamp: tx.timestamp?.toISOString() || new Date().toISOString(),
+        token: tx.token ? transformToken(tx.token) : null,
+        user: tx.user ? {
+          id: tx.user.id,
+          address: tx.user.address,
+          points: tx.user.points || 0,
+          level: tx.user.level || 1,
+          referrals: tx.user.referrals || 0,
+          tokensCreatedCount: tx.user.tokensCreatedCount || 0,
+          totalVolumeTraded: tx.user.totalVolumeTraded?.toString() || '0',
+          totalLiquidityProvided: tx.user.totalLiquidityProvided?.toString() || '0',
+          createdAt: tx.user.createdAt?.toISOString(),
+        } : null,
+      }));
+
+      const edges = transformedTransactions.map((tx, index) => ({
+        cursor: createCursor(offset + index),
+        node: tx,
+      }));
+
+      return {
+        edges,
+        nodes: transformedTransactions,
+        totalCount,
+        pageInfo: {
+          hasNextPage: offset + limit < totalCount,
+          hasPreviousPage: offset > 0,
+          startCursor: edges.length > 0 ? edges[0].cursor : null,
+          endCursor: edges.length > 0 ? edges[edges.length - 1].cursor : null,
+        },
+      };
+    },
+
     globalStats: async () => {
       const [totalTokens, totalUsers, totalTransactions, totalPools] = await Promise.all([
         prisma.token.count(),
@@ -466,18 +693,54 @@ const handler = startServerAndCreateNextHandler(server, {
 });
 
 // ============================================================================
-// Request Handler with CORS
+// CORS Configuration - Allowed Origins
+// ============================================================================
+const ALLOWED_ORIGINS = [
+  'https://astroshiba.io',
+  'https://app.astroshiba.io',
+  'https://www.astroshiba.io',
+  'https://staging.astroshiba.io',
+  // Development origins only in non-production
+  ...(process.env.NODE_ENV !== 'production' ? [
+    'http://localhost:3000',
+    'http://localhost:3001',
+    'http://127.0.0.1:3000',
+  ] : []),
+];
+
+/**
+ * Validates if the origin is allowed
+ * SECURITY: Only allows origins in the whitelist
+ */
+function isOriginAllowed(origin) {
+  if (!origin) return false;
+  return ALLOWED_ORIGINS.some(allowed =>
+    origin === allowed || origin.endsWith('.vercel.app')
+  );
+}
+
+// ============================================================================
+// Request Handler with Secure CORS
 // ============================================================================
 export default async function graphqlHandler(req, res) {
-  // CORS headers
-  const origin = req.headers.origin || '*';
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Allow-Origin', origin);
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Request-ID');
+  const requestOrigin = req.headers.origin;
+
+  // SECURITY: Only set CORS headers for allowed origins
+  if (requestOrigin && isOriginAllowed(requestOrigin)) {
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Allow-Origin', requestOrigin);
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Request-ID');
+    res.setHeader('Vary', 'Origin');
+  }
 
   if (req.method === 'OPTIONS') {
-    res.status(200).end();
+    // SECURITY: Return 204 for preflight, 403 for disallowed origins
+    if (requestOrigin && isOriginAllowed(requestOrigin)) {
+      res.status(204).end();
+    } else {
+      res.status(403).json({ error: 'CORS origin not allowed' });
+    }
     return;
   }
 

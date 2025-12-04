@@ -89,14 +89,11 @@ export const POOL_BASIC_FRAGMENT = gql`
     reserve0
     reserve1
     totalSupply
-    liquidity
     tvl
     volume24h
     volume7d
-    volumeChange24h
     apr
-    apy
-    fee
+    feeRate
     createdAt
     updatedAt
   }
@@ -138,6 +135,9 @@ export const TRANSACTION_BASIC_FRAGMENT = gql`
     to
     tokenAddress
     amount
+    grossAmount
+    netAmount
+    totalFees
     status
     timestamp
   }
@@ -173,8 +173,10 @@ export const GLOBAL_STATS_FRAGMENT = gql`
     totalTokens
     totalPools
     totalUsers
+    totalVolume
     totalVolume24h
     totalTVL
+    totalTransactions
   }
 `;
 

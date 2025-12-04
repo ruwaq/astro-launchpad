@@ -84,8 +84,8 @@ export const colors = {
 
     text: {
       primary: '#1a1a1a',
-      secondary: '#6b7280',
-      tertiary: '#c5c5c4',
+      secondary: '#525252',  // gray-700 for WCAG AA contrast (7:1)
+      tertiary: '#737373',   // gray-600 for WCAG AA contrast (4.5:1)
       inverse: '#ffffff',
     },
 

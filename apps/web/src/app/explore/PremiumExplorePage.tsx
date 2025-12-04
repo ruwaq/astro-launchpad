@@ -62,8 +62,8 @@ const GET_ALL_TOKENS = gql`
         }
       }
       pageInfo {
-        total
         hasNextPage
+        hasPreviousPage
       }
       totalCount
     }

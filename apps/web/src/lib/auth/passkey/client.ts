@@ -39,6 +39,10 @@ import type {
 } from './types';
 
 import { LocalPasskeyStorage } from './storage';
+import { logger } from '@/lib/logger';
+
+// Create passkey-specific logger
+const passkeyLogger = logger.child({ domain: 'passkey' });
 
 /**
  * Passkey Client Configuration
@@ -105,8 +109,11 @@ export class PasskeyClient {
         throw new Error('Failed to get registration options');
       }
 
-      const registrationOptions: PublicKeyCredentialCreationOptionsJSON =
-        await optionsResponse.json();
+      const optionsData = await optionsResponse.json();
+
+      // Extract challengeToken for stateless verification (CRITICAL for serverless)
+      const { challengeToken, ...registrationOptions } = optionsData as
+        PublicKeyCredentialCreationOptionsJSON & { challengeToken: string };
 
       // Apply custom options
       if (options?.authenticatorAttachment) {
@@ -127,13 +134,14 @@ export class PasskeyClient {
       // 2. Start WebAuthn registration
       const attResp: RegistrationResponseJSON = await startRegistration({ optionsJSON: registrationOptions });
 
-      // 3. Verify registration with server
+      // 3. Verify registration with server (MUST include challengeToken for stateless auth)
       const verifyResponse = await fetch(`${this.apiBaseUrl}/register/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           username,
           attestationResponse: attResp,
+          challengeToken, // CRITICAL: Required for serverless verification
         }),
       });
 
@@ -178,7 +186,7 @@ export class PasskeyClient {
         publicKey: account.publicKey,
       };
     } catch (error: unknown) {
-      console.error('Passkey registration error:', error);
+      passkeyLogger.error('Passkey registration error', error instanceof Error ? error : new Error('Unknown error'), { operation: 'register' });
       // Type guard for error message extraction
       const errorMessage = error instanceof Error ? error.message : 'Registration failed';
       return {
@@ -256,7 +264,7 @@ export class PasskeyClient {
         credentialId: authResp.id,
       };
     } catch (error: unknown) {
-      console.error('Passkey authentication error:', error);
+      passkeyLogger.error('Passkey authentication error', error instanceof Error ? error : new Error('Unknown error'), { operation: 'authenticate' });
       // Type guard for error message extraction
       const errorMessage = error instanceof Error ? error.message : 'Authentication failed';
       return {

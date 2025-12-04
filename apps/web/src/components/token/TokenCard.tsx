@@ -148,15 +148,15 @@ export const TokenCard = memo(function TokenCard({ tokenAddress, compact = false
           </p>
         )}
 
-        {/* Stats */}
-        <div className="grid grid-cols-2 gap-3 mt-4">
-          <div>
+        {/* Stats - responsive with truncation for small screens */}
+        <div className="grid grid-cols-2 gap-2 sm:gap-3 mt-4">
+          <div className="min-w-0">
             <p className="text-xs text-ui-text-secondary">Price</p>
-            <p className="font-semibold text-ui-text-primary">{formattedPrice} XLM</p>
+            <p className="font-semibold text-ui-text-primary text-sm sm:text-base truncate">{formattedPrice} XLM</p>
           </div>
-          <div>
+          <div className="min-w-0">
             <p className="text-xs text-ui-text-secondary">Market Cap</p>
-            <p className="font-semibold text-ui-text-primary">${formattedMarketCap}</p>
+            <p className="font-semibold text-ui-text-primary text-sm sm:text-base truncate">${formattedMarketCap}</p>
           </div>
         </div>
 

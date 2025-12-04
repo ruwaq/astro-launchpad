@@ -12,7 +12,7 @@
 
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, memo } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import {
   TrendingUp,
@@ -36,8 +36,8 @@ import { formatCompactNumber } from '@/lib/stellar/utils';
 // GraphQL query for recent transactions
 // Uses the transactions query with pagination from the backend
 const GET_RECENT_TRANSACTIONS = gql`
-  query GetRecentTransactions($limit: Int!) {
-    transactions(limit: $limit) {
+  query GetRecentTransactions($limit: Int!, $tokenAddress: String) {
+    transactions(limit: $limit, tokenAddress: $tokenAddress) {
       edges {
         node {
           id
@@ -47,31 +47,52 @@ const GET_RECENT_TRANSACTIONS = gql`
           to
           tokenAddress
           amount
+          grossAmount
           status
           timestamp
           token {
+            address
             symbol
             name
             imageUrl
           }
         }
       }
+      totalCount
     }
   }
 `;
 
+// Transaction types from API - matching Prisma schema
+type ApiTransactionType = 'TOKEN_CREATED' | 'TOKEN_BOUGHT' | 'TOKEN_SOLD' | 'LIQUIDITY_ADDED' | 'LIQUIDITY_REMOVED' | 'SWAP';
+// Display types for UI
+type DisplayTransactionType = 'buy' | 'sell' | 'create' | 'graduate';
+
 interface Transaction {
   id: string;
-  type: 'buy' | 'sell' | 'create' | 'graduate';
+  type: DisplayTransactionType;
   tokenAddress: string;
   tokenSymbol: string;
   tokenName: string;
   tokenImage?: string;
   amount: number;
-  xlmAmount: number;
+  grossAmount?: number;
   userAddress: string;
   timestamp: number;
   txHash?: string;
+}
+
+// Map API transaction types to display types
+function mapTransactionType(apiType: string): DisplayTransactionType {
+  switch (apiType) {
+    case 'TOKEN_BOUGHT': return 'buy';
+    case 'TOKEN_SOLD': return 'sell';
+    case 'TOKEN_CREATED': return 'create';
+    case 'SWAP': return 'buy'; // Treat swaps as buys for display
+    case 'LIQUIDITY_ADDED':
+    case 'LIQUIDITY_REMOVED':
+    default: return 'buy';
+  }
 }
 
 // Animation variants
@@ -129,7 +150,8 @@ interface LiveActivityFeedProps {
   pollInterval?: number;
 }
 
-export function LiveActivityFeed({
+// PERFORMANCE: Memoize component to prevent unnecessary re-renders from parent
+export const LiveActivityFeed = memo(function LiveActivityFeed({
   tokenAddress,
   maxItems = MAX_ITEMS_DEFAULT,
   compact = false,
@@ -152,73 +174,92 @@ export function LiveActivityFeed({
   const feedRef = useRef<HTMLDivElement>(null);
   const lastTxIdRef = useRef<string | null>(null);
 
-  // Mock data for development (will be replaced by real GraphQL)
-  const generateMockTransaction = useCallback((): Transaction => {
-    const types: ('buy' | 'sell' | 'create' | 'graduate')[] = ['buy', 'sell', 'buy', 'buy', 'create'];
-    const type = types[Math.floor(Math.random() * types.length)];
-    const symbols = ['ASTRO', 'SHIBA', 'MOON', 'DOGE', 'PEPE', 'BONK', 'WIF'];
-    const symbol = symbols[Math.floor(Math.random() * symbols.length)];
+  // Build query variables
+  const queryVariables = {
+    limit: maxItems,
+    ...(tokenAddress && { tokenAddress }),
+  };
 
-    return {
-      id: `tx-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      type,
-      tokenAddress: `CA${Math.random().toString(36).substr(2, 40).toUpperCase()}`,
-      tokenSymbol: symbol,
-      tokenName: `${symbol} Token`,
-      tokenImage: `/tokens/${symbol.toLowerCase()}.png`,
-      amount: Math.floor(Math.random() * 1000000) + 1000,
-      xlmAmount: Math.floor(Math.random() * 10000) + 10,
-      userAddress: `G${Math.random().toString(36).substr(2, 55).toUpperCase()}`,
-      timestamp: Date.now(),
-      txHash: Math.random().toString(36).substr(2, 64),
-    };
-  }, []);
-
-  // Simulated polling (replace with real WebSocket/GraphQL subscription)
-  useEffect(() => {
-    // Initial load with some mock data
-    const initialTxs = Array.from({ length: 5 }, generateMockTransaction);
-    setTransactions(initialTxs);
-    lastTxIdRef.current = initialTxs[0]?.id || null;
-
+  // Fetch real transactions from GraphQL API
+  const { data: txData, loading: txLoading } = useQuery(GET_RECENT_TRANSACTIONS, {
+    variables: queryVariables,
     // PERFORMANCE: Stop polling when paused OR when tab is not visible
-    if (isPaused || !isPageVisible) return;
+    pollInterval: isPaused || !isPageVisible ? 0 : pollInterval,
+    fetchPolicy: 'cache-and-network',
+  });
 
-    const interval = setInterval(() => {
-      // Add new transaction
-      const newTx = generateMockTransaction();
+  // Transform API transactions to local Transaction type
+  useEffect(() => {
+    if (!txData?.transactions?.edges) return;
 
-      setTransactions((prev) => {
-        const updated = [newTx, ...prev].slice(0, maxItems);
-        return updated;
-      });
+    const apiTransactions: Transaction[] = txData.transactions.edges.map(
+      (edge: { node: {
+        id: string;
+        hash?: string;
+        type?: string;
+        from?: string;
+        tokenAddress?: string;
+        amount?: string;
+        grossAmount?: string;
+        timestamp?: string;
+        token?: { address?: string; symbol?: string; name?: string; imageUrl?: string };
+      }}) => {
+        const tx = edge.node;
+        return {
+          id: tx.id,
+          type: mapTransactionType(tx.type || 'TOKEN_BOUGHT'),
+          tokenAddress: tx.token?.address || tx.tokenAddress || '',
+          tokenSymbol: tx.token?.symbol || 'TOKEN',
+          tokenName: tx.token?.name || 'Unknown Token',
+          tokenImage: tx.token?.imageUrl,
+          amount: parseFloat(tx.amount || '0'),
+          grossAmount: tx.grossAmount ? parseFloat(tx.grossAmount) : undefined,
+          userAddress: tx.from || '',
+          timestamp: tx.timestamp ? new Date(tx.timestamp).getTime() : Date.now(),
+          txHash: tx.hash,
+        };
+      }
+    );
 
-      // Mark as new for highlighting
-      setNewTxIds((prev) => new Set([...prev, newTx.id]));
-      setTimeout(() => {
-        setNewTxIds((prev) => {
+    // Check for new transactions and highlight them
+    if (transactions.length > 0 && apiTransactions.length > 0) {
+      const existingIds = new Set(transactions.map(t => t.id));
+      const newTransactions = apiTransactions.filter(t => !existingIds.has(t.id));
+
+      if (newTransactions.length > 0) {
+        // Mark new transactions for highlighting
+        setNewTxIds(prev => {
           const next = new Set(prev);
-          next.delete(newTx.id);
+          newTransactions.forEach(t => next.add(t.id));
           return next;
         });
-      }, HIGHLIGHT_DURATION_MS);
 
-      // Play sound
-      if (soundEnabled && lastTxIdRef.current !== newTx.id) {
-        if (newTx.type === 'buy') {
-          playNotification();
-        } else if (newTx.type === 'sell') {
-          playNotification();
-        } else if (newTx.type === 'create' || newTx.type === 'graduate') {
-          playMilestone();
+        // Play sound for new transactions
+        if (soundEnabled && newTransactions.length > 0) {
+          const latestTx = newTransactions[0];
+          if (latestTx.type === 'create' || latestTx.type === 'graduate') {
+            playMilestone();
+          } else {
+            playNotification();
+          }
         }
+
+        // Remove highlight after duration
+        setTimeout(() => {
+          setNewTxIds(prev => {
+            const next = new Set(prev);
+            newTransactions.forEach(t => next.delete(t.id));
+            return next;
+          });
+        }, HIGHLIGHT_DURATION_MS);
       }
+    }
 
-      lastTxIdRef.current = newTx.id;
-    }, pollInterval + Math.random() * POLL_JITTER_MAX_MS);
-
-    return () => clearInterval(interval);
-  }, [isPaused, isPageVisible, maxItems, pollInterval, soundEnabled, generateMockTransaction, playNotification, playMilestone]);
+    setTransactions(apiTransactions);
+    if (apiTransactions.length > 0) {
+      lastTxIdRef.current = apiTransactions[0].id;
+    }
+  }, [txData, soundEnabled, playNotification, playMilestone]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Format relative time
   const formatRelativeTime = (timestamp: number): string => {
@@ -310,7 +351,12 @@ export function LiveActivityFeed({
   };
 
   return (
-    <div className="bg-white rounded-xl border border-ui-border shadow-sm overflow-hidden">
+    <div
+      className="bg-white rounded-xl border border-ui-border shadow-sm overflow-hidden"
+      role="feed"
+      aria-label="Live transaction activity"
+      aria-busy={txLoading}
+    >
       {/* Header */}
       {showHeader && (
         <div className="p-4 border-b border-ui-border flex items-center justify-between">
@@ -406,15 +452,15 @@ export function LiveActivityFeed({
                       <div className="flex items-center gap-2 mt-1 text-xs text-ui-text-secondary">
                         <Clock className="h-3 w-3" />
                         <span>{formatRelativeTime(tx.timestamp)}</span>
-                        {tx.xlmAmount > 0 && (
+                        {tx.grossAmount && tx.grossAmount > 0 && (
                           <>
                             <span>•</span>
-                            <span>{formatNumber(tx.xlmAmount)} XLM</span>
+                            <span>{formatNumber(tx.grossAmount)} XLM</span>
                           </>
                         )}
                         {tx.txHash && (
                           <a
-                            href={`https://stellar.expert/explorer/testnet/tx/${tx.txHash}`}
+                            href={`https://stellar.expert/explorer/${process.env.NEXT_PUBLIC_NETWORK || 'testnet'}/tx/${tx.txHash}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="flex items-center gap-1 hover:text-brand-primary"
@@ -439,8 +485,16 @@ export function LiveActivityFeed({
           ))}
         </AnimatePresence>
 
+        {/* Loading State */}
+        {txLoading && transactions.length === 0 && (
+          <div className="p-8 text-center text-ui-text-secondary">
+            <div className="w-8 h-8 mx-auto mb-2 border-2 border-brand-primary border-t-transparent rounded-full animate-spin" />
+            <p className="text-sm">Loading activity...</p>
+          </div>
+        )}
+
         {/* Empty State */}
-        {transactions.length === 0 && (
+        {!txLoading && transactions.length === 0 && (
           <div className="p-8 text-center text-ui-text-secondary">
             <Users className="h-8 w-8 mx-auto mb-2 opacity-50" />
             <p className="text-sm">No activity yet</p>
@@ -460,6 +514,9 @@ export function LiveActivityFeed({
       )}
     </div>
   );
-}
+});
+
+// Custom comparison function for memo - only re-render if props actually change
+LiveActivityFeed.displayName = 'LiveActivityFeed';
 
 export default LiveActivityFeed;

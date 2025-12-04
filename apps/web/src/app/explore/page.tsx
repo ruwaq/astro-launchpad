@@ -3,18 +3,20 @@
 // Force dynamic rendering to avoid build-time errors with contract service
 export const dynamic = 'force-dynamic';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { TokenCardPremium } from '@/components/token/TokenCardPremium';
 import { LiveActivityFeed } from '@/components/activity/LiveActivityFeed';
-import { Search, TrendingUp, Loader2, Flame, Sparkles, Activity, Filter } from 'lucide-react';
+import { Search, TrendingUp, Loader2, Flame, Sparkles, Activity, Filter, ChevronDown } from 'lucide-react';
 import { useWallet } from '@/contexts/WalletContext';
 import toast from 'react-hot-toast';
 import { useQuery, gql } from '@apollo/client';
 import type { Token, TokenEdge } from '@/lib/graphql/types';
 import { GRADUATION_THRESHOLD_XLM } from '@/lib/stellar/utils';
+import { useDebounce } from '@/hooks/useDebounce';
+import { SearchResultsAnnouncer } from '@/components/accessibility/LiveRegion';
 
 type SortOption = 'trending' | 'new' | 'marketCap' | 'volume' | 'graduation';
 type StatusFilter = 'all' | 'bonding' | 'graduated';
@@ -38,10 +40,13 @@ const itemVariants = {
 export default function ExplorePage() {
   const { address, isConnected, connect, isConnecting } = useWallet();
 
-  // Fetch ALL tokens from GraphQL API (not filtered by user)
-  const { data: tokensData, loading: tokensLoading, error: tokensError } = useQuery(gql`
-    query GetAllTokens($limit: Int!, $orderBy: TokenOrderBy!) {
-      tokens(limit: $limit, orderBy: $orderBy) {
+  // Pagination constants
+  const TOKENS_PER_PAGE = 24;
+
+  // Fetch tokens from GraphQL API with pagination support
+  const { data: tokensData, loading: tokensLoading, error: tokensError, fetchMore } = useQuery(gql`
+    query GetAllTokens($limit: Int!, $after: String, $orderBy: TokenOrderBy!) {
+      tokens(limit: $limit, after: $after, orderBy: $orderBy) {
         edges {
           cursor
           node {
@@ -62,24 +67,62 @@ export default function ExplorePage() {
           }
         }
         pageInfo {
-          total
           hasNextPage
+          hasPreviousPage
+          endCursor
         }
         totalCount
       }
     }
   `, {
     variables: {
-      limit: 100,
+      limit: TOKENS_PER_PAGE,
+      after: null,
       orderBy: 'CREATED_AT_DESC'
     },
     pollInterval: 30000,
+    notifyOnNetworkStatusChange: true,
   });
+
+  // Track if we're loading more
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  // Load more tokens handler
+  const handleLoadMore = useCallback(async () => {
+    if (!tokensData?.tokens?.pageInfo?.hasNextPage || loadingMore) return;
+
+    setLoadingMore(true);
+    try {
+      await fetchMore({
+        variables: {
+          after: tokensData.tokens.pageInfo.endCursor,
+        },
+        updateQuery: (prev, { fetchMoreResult }) => {
+          if (!fetchMoreResult) return prev;
+          return {
+            tokens: {
+              ...fetchMoreResult.tokens,
+              edges: [
+                ...prev.tokens.edges,
+                ...fetchMoreResult.tokens.edges,
+              ],
+            },
+          };
+        },
+      });
+    } catch (error) {
+      console.error('Error loading more tokens:', error);
+      toast.error('Failed to load more tokens');
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [tokensData, fetchMore, loadingMore]);
 
   // State
   const [tokens, setTokens] = useState<Token[]>([]);
   const [filteredTokens, setFilteredTokens] = useState<Token[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const debouncedSearchQuery = useDebounce(searchQuery, 300); // Debounce search for better performance
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [sortBy, setSortBy] = useState<SortOption>('new');
 
@@ -96,11 +139,11 @@ export default function ExplorePage() {
   useEffect(() => {
     let result = [...tokens];
 
-    // Apply search
-    if (searchQuery) {
+    // Apply search (using debounced value for better performance)
+    if (debouncedSearchQuery) {
       result = result.filter(token =>
-        token.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        token.symbol?.toLowerCase().includes(searchQuery.toLowerCase())
+        token.name?.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+        token.symbol?.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
       );
     }
 
@@ -132,7 +175,7 @@ export default function ExplorePage() {
     });
 
     setFilteredTokens(result);
-  }, [tokens, searchQuery, statusFilter, sortBy]);
+  }, [tokens, debouncedSearchQuery, statusFilter, sortBy]);
 
   const handleConnect = async () => {
     try {
@@ -271,9 +314,16 @@ export default function ExplorePage() {
             </div>
           </motion.div>
 
+          {/* Screen reader announcement for search results */}
+          <SearchResultsAnnouncer
+            count={filteredTokens.length}
+            isLoading={tokensLoading}
+            searchTerm={debouncedSearchQuery}
+          />
+
           {/* GraphQL Error Display - only show if there's an error */}
           {tokensError && (
-            <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6">
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6" role="alert">
               <h3 className="font-bold text-red-700">Error loading tokens</h3>
               <p className="text-red-600 text-sm">{tokensError.message}</p>
             </div>
@@ -281,8 +331,8 @@ export default function ExplorePage() {
 
           {/* Content */}
           {tokensLoading ? (
-            // Loading state with skeleton
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            // Loading state with skeleton - matches main grid responsive classes
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4">
               {[...Array(6)].map((_, i) => (
                 <div
                   key={i}
@@ -297,7 +347,7 @@ export default function ExplorePage() {
                   </div>
                   <div className="mt-4 space-y-2">
                     <div className="h-6 bg-gray-200 rounded w-1/2" />
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-1 xs:grid-cols-3 gap-2">
                       {[1, 2, 3].map((j) => (
                         <div key={j} className="h-12 bg-gray-100 rounded" />
                       ))}
@@ -338,34 +388,66 @@ export default function ExplorePage() {
               </div>
             </motion.div>
           ) : (
-            // Premium Tokens Grid with staggered animation
-            <motion.div
-              variants={containerVariants}
-              initial="hidden"
-              animate="visible"
-              className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"
-            >
-              <AnimatePresence mode="popLayout">
-                {filteredTokens.map((token) => {
-                  const metadata = getTokenMetadata[token.address] || { isNew: false, trendingRank: 0 };
-                  return (
-                    <motion.div
-                      key={token.address}
-                      variants={itemVariants}
-                      layout
-                      exit={{ opacity: 0, scale: 0.9 }}
-                    >
-                      <TokenCardPremium
-                        token={token}
-                        isNew={metadata.isNew}
-                        trendingRank={sortBy === 'trending' ? metadata.trendingRank : undefined}
-                        showQuickActions={true}
-                      />
-                    </motion.div>
-                  );
-                })}
-              </AnimatePresence>
-            </motion.div>
+            // Premium Tokens Grid with staggered animation - responsive for mobile
+            <>
+              <motion.div
+                variants={containerVariants}
+                initial="hidden"
+                animate="visible"
+                className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4"
+              >
+                <AnimatePresence mode="popLayout">
+                  {filteredTokens.map((token) => {
+                    const metadata = getTokenMetadata[token.address] || { isNew: false, trendingRank: 0 };
+                    return (
+                      <motion.div
+                        key={token.address}
+                        variants={itemVariants}
+                        layout
+                        exit={{ opacity: 0, scale: 0.9 }}
+                      >
+                        <TokenCardPremium
+                          token={token}
+                          isNew={metadata.isNew}
+                          trendingRank={sortBy === 'trending' ? metadata.trendingRank : undefined}
+                          showQuickActions={true}
+                        />
+                      </motion.div>
+                    );
+                  })}
+                </AnimatePresence>
+              </motion.div>
+
+              {/* Load More Button - only show if there are more tokens */}
+              {tokensData?.tokens?.pageInfo?.hasNextPage && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="flex justify-center mt-8"
+                >
+                  <button
+                    onClick={handleLoadMore}
+                    disabled={loadingMore}
+                    className="inline-flex items-center gap-2 px-6 py-3 bg-white border border-ui-border rounded-xl font-medium text-ui-text-primary hover:bg-gray-50 hover:border-brand-primary transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                  >
+                    {loadingMore ? (
+                      <>
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                        Loading...
+                      </>
+                    ) : (
+                      <>
+                        <ChevronDown className="h-5 w-5" />
+                        Load More Tokens
+                        <span className="text-sm text-ui-text-secondary ml-1">
+                          ({tokens.length} of {tokensData.tokens.totalCount})
+                        </span>
+                      </>
+                    )}
+                  </button>
+                </motion.div>
+              )}
+            </>
           )}
         </div>
 
@@ -379,7 +461,7 @@ export default function ExplorePage() {
               className="hidden lg:block flex-shrink-0"
             >
               <div className="sticky top-24">
-                <LiveActivityFeed maxItems={10} pollInterval={3000} />
+                <LiveActivityFeed maxItems={10} pollInterval={15000} />
               </div>
             </motion.div>
           )}

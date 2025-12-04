@@ -11,7 +11,7 @@
  * Uses @creit.tech/stellar-wallets-kit for unified wallet interface
  */
 
-import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef, useMemo } from 'react';
 import {
   StellarWalletsKit,
   WalletNetwork,
@@ -22,15 +22,22 @@ import {
   HanaModule,
   type ISupportedWallet,
 } from '@creit.tech/stellar-wallets-kit';
-import { getNetworkConfig } from '@/lib/config/network';
+import { getNetworkConfig, getCurrentNetwork, checkWalletNetwork } from '@/lib/config/network';
+import { isValidStellarAddress } from '@/lib/stellar/utils';
 import { setAuthHeaders, clearAuthHeaders, resetApolloCache } from '@/lib/graphql/client';
 import { useTokenStore } from '@/stores/useTokenStore';
+import { logger } from '@/lib/logger';
+
+// Create wallet-specific logger
+const walletLogger = logger.child({ domain: 'wallet' });
 
 interface WalletContextType {
   address: string | null;
   isConnected: boolean;
   isConnecting: boolean;
   error: string | null;
+  networkWarning: string | null; // Warning if connected to wrong network
+  expectedNetwork: string; // Expected network (testnet/mainnet)
   kit: StellarWalletsKit | null;
   isMobile: boolean;
   isStandalone: boolean; // PWA mode
@@ -84,9 +91,13 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [networkWarning, setNetworkWarning] = useState<string | null>(null);
   const [kit, setKit] = useState<StellarWalletsKit | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
+
+  // Get expected network from config
+  const expectedNetwork = getCurrentNetwork();
 
   // Initialize StellarWalletsKit with wallet modules
   useEffect(() => {
@@ -124,36 +135,33 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         const savedAddress = localStorage.getItem('stellar_wallet_address');
         const savedWalletId = localStorage.getItem('stellar_wallet_id');
 
-        // Validate saved data before using
-        const isValidStellarAddress = savedAddress &&
-          typeof savedAddress === 'string' &&
-          savedAddress.length === 56 &&
-          (savedAddress.startsWith('G') || savedAddress.startsWith('C'));
+        // Validate saved data before using (with full checksum validation)
+        const isAddressValid = savedAddress && isValidStellarAddress(savedAddress);
 
         const validWalletIds = ['freighter', 'xbull', 'albedo', 'hana', 'lobstr'];
-        const isValidWalletId = savedWalletId &&
+        const isWalletIdValid = savedWalletId &&
           typeof savedWalletId === 'string' &&
           validWalletIds.includes(savedWalletId.toLowerCase());
 
-        if (isValidStellarAddress && isValidWalletId) {
+        if (isAddressValid && isWalletIdValid) {
           try {
             walletsKit.setWallet(savedWalletId);
             setAddress(savedAddress);
             setIsConnected(true);
           } catch (walletError) {
             // Wallet extension might not be available - clear invalid state
-            console.warn('Could not restore wallet connection:', walletError);
+            walletLogger.warn('Could not restore wallet connection', { error: walletError });
             localStorage.removeItem('stellar_wallet_address');
             localStorage.removeItem('stellar_wallet_id');
           }
-        } else if (savedAddress || savedWalletId) {
+        } else if ((savedAddress && !isAddressValid) || (savedWalletId && !isWalletIdValid)) {
           // Clear invalid/corrupted data
-          console.warn('Invalid wallet data in localStorage, clearing');
+          walletLogger.warn('Invalid wallet data in localStorage, clearing');
           localStorage.removeItem('stellar_wallet_address');
           localStorage.removeItem('stellar_wallet_id');
         }
       } catch (e) {
-        console.warn('Could not access localStorage:', e);
+        walletLogger.warn('Could not access localStorage', { error: e });
       }
     }
 
@@ -161,8 +169,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
       navigator.serviceWorker
         .register('/sw.js')
-        .then((reg) => console.log('[PWA] Service worker registered:', reg.scope))
-        .catch((err) => console.warn('[PWA] Service worker registration failed:', err));
+        .then((reg) => walletLogger.info('Service worker registered', { scope: reg.scope }))
+        .catch((err) => walletLogger.warn('Service worker registration failed', { error: err }));
     }
   }, []);
 
@@ -195,6 +203,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
             kit.setWallet(option.id);
             const { address: walletAddress } = await kit.getAddress();
 
+            // Note: Network validation happens at signing time - wallet will reject
+            // transactions for the wrong network. We just clear any previous warning.
+            setNetworkWarning(null);
+
             setAddress(walletAddress);
             setIsConnected(true);
 
@@ -202,10 +214,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
               localStorage.setItem('stellar_wallet_address', walletAddress);
               localStorage.setItem('stellar_wallet_id', option.id);
             } catch (e) {
-              console.warn('Could not save to localStorage:', e);
+              walletLogger.warn('Could not save to localStorage', { error: e });
             }
           } catch (error) {
-            console.error('Error in wallet selection:', error);
+            walletLogger.error('Error in wallet selection', error);
             throw error;
           }
         },
@@ -215,7 +227,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
           : 'Wallet extension not installed. Install Freighter, xBull, or Albedo.',
       });
     } catch (err: any) {
-      console.error('Failed to connect wallet:', err);
+      walletLogger.error('Failed to connect wallet', err);
 
       let errorMessage = 'Failed to connect wallet';
 
@@ -244,7 +256,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       localStorage.removeItem('stellar_wallet_address');
       localStorage.removeItem('stellar_wallet_id');
     } catch (e) {
-      console.warn('Could not clear localStorage:', e);
+      walletLogger.warn('Could not clear localStorage', { error: e });
     }
     // Clear all cached data to prevent stale user-specific data
     clearAuthHeaders();
@@ -260,6 +272,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
     const config = getNetworkConfig();
 
+    // The network passphrase is validated at transaction signing time
+    // If wallet is on wrong network, the signature will fail
+    // Clear any previous warnings since we're about to verify via signing
+    setNetworkWarning(null);
+
     try {
       const { signedTxXdr } = await kit.signTransaction(txXDR, {
         address,
@@ -268,7 +285,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
       return signedTxXdr;
     } catch (err: any) {
-      console.error('Failed to sign transaction:', err);
+      walletLogger.error('Failed to sign transaction', err);
       throw new Error(err.message || 'Failed to sign transaction');
     }
   }, [kit, address]);
@@ -302,7 +319,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       };
     } catch (err: any) {
       // Many wallets don't support signBlob - this is expected
-      console.debug('[Auth] Wallet does not support message signing:', err.message);
+      walletLogger.debug('Wallet does not support message signing', { message: err.message });
       return null;
     }
   }, [kit, address]);
@@ -346,21 +363,43 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }, 2500);
   }, []);
 
-  const value: WalletContextType = {
-    address,
-    isConnected,
-    isConnecting,
-    error,
-    kit,
-    isMobile,
-    isStandalone,
-    connect,
-    disconnect,
-    signTransaction,
-    signAuthMessage,
-    getAuthHeaders,
-    openMobileWallet,
-  };
+  // Memoize context value to prevent unnecessary re-renders
+  const value = useMemo<WalletContextType>(
+    () => ({
+      address,
+      isConnected,
+      isConnecting,
+      error,
+      networkWarning,
+      expectedNetwork,
+      kit,
+      isMobile,
+      isStandalone,
+      connect,
+      disconnect,
+      signTransaction,
+      signAuthMessage,
+      getAuthHeaders,
+      openMobileWallet,
+    }),
+    [
+      address,
+      isConnected,
+      isConnecting,
+      error,
+      networkWarning,
+      expectedNetwork,
+      kit,
+      isMobile,
+      isStandalone,
+      connect,
+      disconnect,
+      signTransaction,
+      signAuthMessage,
+      getAuthHeaders,
+      openMobileWallet,
+    ]
+  );
 
   return <WalletContext.Provider value={value}>{children}</WalletContext.Provider>;
 }

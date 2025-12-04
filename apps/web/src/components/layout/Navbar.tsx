@@ -1,15 +1,17 @@
 'use client';
 
-import { Bell, Wallet, LogOut } from 'lucide-react';
+import { Bell, Wallet, LogOut, AlertTriangle } from 'lucide-react';
 import { useWallet } from '@/contexts/WalletContext';
 import { useBalance } from '@/hooks/useBalance';
-import { useState } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
+import FocusTrap from 'focus-trap-react';
 
 export function Navbar() {
   const { address, isConnected, isConnecting, connect, disconnect } = useWallet();
   const { balance, isLoading: isLoadingBalance } = useBalance(address);
   const [showDropdown, setShowDropdown] = useState(false);
+  const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false);
 
   const handleConnect = async () => {
     try {
@@ -22,11 +24,20 @@ export function Navbar() {
     }
   };
 
-  const handleDisconnect = () => {
-    disconnect();
+  const handleDisconnectClick = useCallback(() => {
+    setShowDisconnectConfirm(true);
     setShowDropdown(false);
+  }, []);
+
+  const handleDisconnectConfirm = useCallback(() => {
+    disconnect();
+    setShowDisconnectConfirm(false);
     toast.success('Wallet disconnected');
-  };
+  }, [disconnect]);
+
+  const handleDisconnectCancel = useCallback(() => {
+    setShowDisconnectConfirm(false);
+  }, []);
 
   const formatAddress = (addr: string) => {
     return `${addr.slice(0, 4)}...${addr.slice(-4)}`;
@@ -93,57 +104,117 @@ export function Navbar() {
 
               {/* Dropdown */}
               {showDropdown && (
-                <>
-                  {/* Backdrop */}
-                  <div
-                    role="presentation"
-                    aria-hidden="true"
-                    className="fixed inset-0 z-40"
-                    onClick={() => setShowDropdown(false)}
-                  />
+                <FocusTrap
+                  focusTrapOptions={{
+                    escapeDeactivates: true,
+                    onDeactivate: () => setShowDropdown(false),
+                    clickOutsideDeactivates: true,
+                    returnFocusOnDeactivate: true,
+                  }}
+                >
+                  <div>
+                    {/* Backdrop */}
+                    <div
+                      role="presentation"
+                      aria-hidden="true"
+                      className="fixed inset-0 z-40"
+                      onClick={() => setShowDropdown(false)}
+                    />
 
-                  {/* Dropdown Menu */}
-                  <div
-                    role="menu"
-                    aria-orientation="vertical"
-                    aria-label="Wallet options"
-                    className="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 z-50"
-                  >
-                    <div className="p-4 border-b border-gray-200">
-                      <p className="text-xs text-gray-600 mb-1">
-                        Connected Wallet
-                      </p>
-                      <p className="font-mono text-sm text-gray-900 break-all mb-3">
-                        {address}
-                      </p>
-                      <div className="flex items-center justify-between bg-green-50 px-3 py-2 rounded-lg">
-                        <span className="text-xs text-gray-600">Balance</span>
-                        <span className="font-bold text-sm text-gray-900">
-                          {isLoadingBalance ? (
-                            <span className="inline-block w-20 h-4 bg-gray-200 animate-pulse rounded" />
-                          ) : (
-                            `${parseFloat(balance).toLocaleString('en-US', { maximumFractionDigits: 2 })} XLM`
-                          )}
-                        </span>
-                      </div>
-                    </div>
-                    <button
-                      onClick={handleDisconnect}
-                      role="menuitem"
-                      aria-label="Disconnect wallet"
-                      className="w-full flex items-center gap-2 px-4 py-3 text-left text-gray-900 hover:bg-gray-50 transition-colors"
+                    {/* Dropdown Menu */}
+                    <div
+                      role="menu"
+                      aria-orientation="vertical"
+                      aria-label="Wallet options"
+                      className="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 z-50"
                     >
-                      <LogOut className="h-4 w-4 text-gray-600" aria-hidden="true" />
-                      <span>Disconnect</span>
-                    </button>
+                      <div className="p-4 border-b border-gray-200">
+                        <p className="text-xs text-gray-600 mb-1">
+                          Connected Wallet
+                        </p>
+                        <p className="font-mono text-sm text-gray-900 break-all mb-3">
+                          {address}
+                        </p>
+                        <div className="flex items-center justify-between bg-green-50 px-3 py-2 rounded-lg">
+                          <span className="text-xs text-gray-600">Balance</span>
+                          <span className="font-bold text-sm text-gray-900">
+                            {isLoadingBalance ? (
+                              <span className="inline-block w-20 h-4 bg-gray-200 animate-pulse rounded" />
+                            ) : (
+                              `${parseFloat(balance).toLocaleString('en-US', { maximumFractionDigits: 2 })} XLM`
+                            )}
+                          </span>
+                        </div>
+                      </div>
+                      <button
+                        onClick={handleDisconnectClick}
+                        role="menuitem"
+                        aria-label="Disconnect wallet"
+                        className="w-full flex items-center gap-2 px-4 py-3 text-left text-gray-900 hover:bg-gray-50 transition-colors"
+                      >
+                        <LogOut className="h-4 w-4 text-gray-600" aria-hidden="true" />
+                        <span>Disconnect</span>
+                      </button>
+                    </div>
                   </div>
-                </>
+                </FocusTrap>
               )}
             </div>
           )}
           </div>
         </div>
       </div>
+
+      {/* Disconnect Confirmation Modal */}
+      {showDisconnectConfirm && (
+        <FocusTrap
+          focusTrapOptions={{
+            escapeDeactivates: true,
+            onDeactivate: handleDisconnectCancel,
+            initialFocus: false,
+            returnFocusOnDeactivate: true,
+          }}
+        >
+          <div
+            className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4"
+            onClick={handleDisconnectCancel}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="disconnect-dialog-title"
+          >
+            <div
+              className="bg-white rounded-xl max-w-sm w-full p-6 shadow-xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center flex-shrink-0">
+                  <AlertTriangle className="w-5 h-5 text-amber-600" />
+                </div>
+                <h3 id="disconnect-dialog-title" className="font-bold text-lg">
+                  Disconnect Wallet?
+                </h3>
+              </div>
+              <p className="text-gray-600 mb-6">
+                Are you sure you want to disconnect your wallet? You will need to reconnect to access your portfolio and make transactions.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={handleDisconnectCancel}
+                  className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDisconnectConfirm}
+                  className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors"
+                >
+                  Disconnect
+                </button>
+              </div>
+            </div>
+          </div>
+        </FocusTrap>
+      )}
     </header>
   );
 }

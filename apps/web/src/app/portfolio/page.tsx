@@ -7,6 +7,8 @@ import { useWallet } from '@/contexts/WalletContext';
 import { useUserTransactions } from '@/hooks/useApi';
 import { TransactionHistory } from '@/components/transactions/TransactionHistory';
 import { formatCompactNumber, truncateAddress, stroopsToXlm, GRADUATION_THRESHOLD_XLM } from '@/lib/stellar/utils';
+import { checkTrustline } from '@/lib/stellar/utils/trustline';
+import { sacFactoryService, type TokenInfo } from '@/lib/stellar/services/sac-factory.service';
 import toast from 'react-hot-toast';
 
 type TabType = 'holdings' | 'created' | 'history';
@@ -260,54 +262,78 @@ function HoldingsTab({ address, transactions }: { address: string; transactions:
         </span>
       </div>
 
-      <div className="bg-brand-blue-50 border border-brand-blue-200 rounded-xl p-4">
-        <div className="flex items-start gap-3">
-          <div className="p-2 bg-brand-blue rounded-lg">
-            <TrendingUp className="h-5 w-5 text-white" />
-          </div>
-          <div className="flex-1">
-            <p className="text-sm font-medium text-brand-blue-900">
-              Holdings data based on transaction history
-            </p>
-            <p className="text-xs text-brand-blue-700 mt-1">
-              Full balance tracking coming soon. Currently showing tokens you&apos;ve traded.
-            </p>
-          </div>
-        </div>
-      </div>
-
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {uniqueTokens.map((tokenAddress) => (
-          <HoldingCard key={tokenAddress} tokenAddress={tokenAddress} />
+          <HoldingCard key={tokenAddress} tokenAddress={tokenAddress} userAddress={address} />
         ))}
       </div>
     </div>
   );
 }
 
-// Individual Holding Card
-function HoldingCard({ tokenAddress }: { tokenAddress: string }) {
+// Individual Holding Card - Fetches real balance from blockchain
+function HoldingCard({ tokenAddress, userAddress }: { tokenAddress: string; userAddress: string }) {
+  const [tokenInfo, setTokenInfo] = useState<TokenInfo | null>(null);
+  const [balance, setBalance] = useState<string>('0');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchTokenAndBalance = async () => {
+      setLoading(true);
+      try {
+        // 1. Get token info (symbol, issuer)
+        const info = await sacFactoryService.getTokenInfo(tokenAddress);
+        setTokenInfo(info);
+
+        if (info?.issuer && info?.symbol) {
+          // 2. Get real balance from trustline
+          try {
+            const trustline = await checkTrustline(userAddress, info.symbol, info.issuer);
+            setBalance(trustline.balance);
+          } catch {
+            // No trustline = 0 balance
+            setBalance('0');
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching token/balance:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchTokenAndBalance();
+  }, [tokenAddress, userAddress]);
+
   return (
     <a
-      href={`/tokens/${tokenAddress}`}
+      href={`/t/${tokenAddress}`}
       className="block bg-white rounded-xl p-4 border border-ui-border hover:border-brand-primary transition-all hover:shadow-md"
     >
       <div className="flex items-start gap-3">
         <div className="w-10 h-10 bg-gradient-to-br from-brand-primary to-brand-blue rounded-lg flex items-center justify-center text-white font-bold flex-shrink-0">
-          T
+          {tokenInfo?.symbol?.charAt(0) || 'T'}
         </div>
         <div className="flex-1 min-w-0">
           <p className="font-semibold text-ui-text-primary truncate">
-            Token
+            {tokenInfo?.name || 'Loading...'}
           </p>
           <p className="text-xs text-ui-text-secondary truncate">
-            {truncateAddress(tokenAddress, 6)}
+            {tokenInfo?.symbol ? `$${tokenInfo.symbol}` : truncateAddress(tokenAddress, 6)}
           </p>
         </div>
       </div>
       <div className="mt-3 pt-3 border-t border-ui-border">
         <p className="text-xs text-ui-text-secondary">Balance</p>
-        <p className="text-sm font-semibold text-ui-text-primary">--</p>
+        <p className="text-sm font-semibold text-ui-text-primary">
+          {loading ? (
+            <span className="inline-block w-16 h-4 bg-gray-200 rounded animate-pulse" />
+          ) : parseFloat(balance) > 0 ? (
+            `${formatCompactNumber(parseFloat(balance))} ${tokenInfo?.symbol || ''}`
+          ) : (
+            <span className="text-ui-text-secondary">0</span>
+          )}
+        </p>
       </div>
     </a>
   );

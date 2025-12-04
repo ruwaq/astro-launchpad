@@ -303,10 +303,13 @@ export class BatchProcessor {
     // Create many tokens at once
     // This is much faster than individual upserts
     const operations = events.map((event) => {
+      const address = event.data.address as string;
+      // Cast data to the expected Prisma types
+      const tokenData = event.data as Parameters<typeof tx.token.create>[0]['data'];
       return tx.token.upsert({
-        where: { address: event.data.address },
-        create: event.data,
-        update: event.data,
+        where: { address },
+        create: tokenData,
+        update: tokenData,
       })
     })
 

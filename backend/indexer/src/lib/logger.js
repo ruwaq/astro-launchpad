@@ -1,5 +1,5 @@
 import pino from 'pino';
-// @ts-expect-error - Pino type signature issue with transport
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const logger = pino({
     transport: {
         target: 'pino-pretty',

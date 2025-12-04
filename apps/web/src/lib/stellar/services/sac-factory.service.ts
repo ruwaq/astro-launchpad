@@ -149,7 +149,7 @@ export interface LaunchTokenParams {
  * toStroopsBigInt(100) // 1000000000n
  * toStroopsBigInt("0.0000001") // 1n
  */
-function toStroopsBigInt(amount: number | string, decimals: number = 7): bigint {
+export function toStroopsBigInt(amount: number | string, decimals: number = 7): bigint {
   // Convert to string to avoid floating-point issues
   const amountStr = typeof amount === 'number' ? amount.toString() : amount;
 

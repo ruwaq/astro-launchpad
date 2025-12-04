@@ -46,4 +46,52 @@
   .animate-slide-up {
     animation: slide-up 0.3s ease-out forwards;
   }
+
+  /* ACCESSIBILITY: Respect user's motion preferences (WCAG 2.1 SC 2.3.3) */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
+  /* ACCESSIBILITY: Enhanced focus indicators for keyboard navigation (WCAG 2.1 SC 2.4.7) */
+  /* Default focus ring for all focusable elements */
+  :focus-visible {
+    outline: 2px solid #fa9427;
+    outline-offset: 2px;
+  }
+
+  /* Specific focus styles for buttons */
+  button:focus-visible,
+  [role="button"]:focus-visible {
+    outline: 2px solid #fa9427;
+    outline-offset: 2px;
+    box-shadow: 0 0 0 4px rgba(250, 148, 39, 0.25);
+  }
+
+  /* Focus styles for inputs */
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible {
+    outline: 2px solid #247bca;
+    outline-offset: 0;
+    border-color: #247bca;
+  }
+
+  /* Focus styles for links */
+  a:focus-visible {
+    outline: 2px solid #fa9427;
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  /* Remove default focus for mouse users */
+  :focus:not(:focus-visible) {
+    outline: none;
+  }
 }

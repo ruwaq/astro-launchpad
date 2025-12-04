@@ -6,8 +6,9 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect, useCallback } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { useWallet } from '@/contexts/WalletContext';
-import { sacFactoryService, TokenInfo } from '@/lib/stellar/services/sac-factory.service';
+import { sacFactoryService, toStroopsBigInt, TokenInfo } from '@/lib/stellar/services/sac-factory.service';
 import { xlmToStroops, stroopsToXlm, formatCompactNumber } from '@/lib/stellar/utils';
+import { getClientDeadline } from '@/lib/stellar/client';
 import { getNetworkConfig } from '@/lib/config/network';
 import { SorobanRpc, TransactionBuilder, Networks, Operation } from '@stellar/stellar-sdk';
 import toast from 'react-hot-toast';
@@ -121,7 +122,8 @@ export default function SwapPage() {
         setPriceImpact(impact);
       } else {
         // Sell tokens for XLM
-        const tokenAmount = BigInt(Math.floor(parseFloat(inputAmount) * 10000000));
+        // SAFE: Use string-based conversion to avoid floating-point precision loss
+        const tokenAmount = toStroopsBigInt(inputAmount);
         const xlmOut = sacFactoryService.calculateSellOutput(selectedTokenInfo, tokenAmount);
         setOutputAmount(stroopsToXlm(xlmOut.toString()));
 
@@ -165,13 +167,15 @@ export default function SwapPage() {
       // Build transaction based on direction
       let operation: any;
 
-      // Calculate deadline: current time + 5 minutes (MEV protection)
-      const deadline = BigInt(Math.floor(Date.now() / 1000) + 300);
+      // SAFE: Use getClientDeadline for consistent deadline calculation
+      const deadline = getClientDeadline(300);
 
       if (direction === 'xlm-to-token') {
         // Buy tokens with XLM
+        // SAFE: Use string-based conversion to avoid floating-point precision loss
         const xlmStroops = BigInt(xlmToStroops(inputAmount));
-        const minTokens = BigInt(Math.floor(parseFloat(outputAmount) * (1 - slippage / 100) * 10000000));
+        const minTokensAmount = parseFloat(outputAmount) * (1 - slippage / 100);
+        const minTokens = toStroopsBigInt(minTokensAmount);
 
         operation = sacFactoryService.buildBuyOperation(
           address,
@@ -184,8 +188,10 @@ export default function SwapPage() {
         toast.loading('Building buy transaction...');
       } else {
         // Sell tokens for XLM
-        const tokenAmount = BigInt(Math.floor(parseFloat(inputAmount) * 10000000));
-        const minXlm = BigInt(xlmToStroops((parseFloat(outputAmount) * (1 - slippage / 100)).toString()));
+        // SAFE: Use string-based conversion to avoid floating-point precision loss
+        const tokenAmount = toStroopsBigInt(inputAmount);
+        const minXlmAmount = parseFloat(outputAmount) * (1 - slippage / 100);
+        const minXlm = toStroopsBigInt(minXlmAmount);
 
         operation = sacFactoryService.buildSellOperation(
           address,

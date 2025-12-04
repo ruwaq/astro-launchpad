@@ -583,34 +583,42 @@ export default function CreatePage() {
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-ui-text-primary mb-2">
+                  <label htmlFor="token-name" className="block text-sm font-medium text-ui-text-primary mb-2">
                     Token Name <span className="text-red-500">*</span>
                   </label>
                   <input
+                    id="token-name"
                     type="text"
                     placeholder="Doge Shiba"
                     maxLength={32}
+                    required
+                    aria-required="true"
+                    aria-describedby="token-name-hint"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     className="w-full px-4 py-3 border border-ui-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent"
                     disabled={!isConnected || isProcessing}
                   />
-                  <p className="text-xs text-gray-500 mt-1">Max 32 characters</p>
+                  <p id="token-name-hint" className="text-xs text-gray-500 mt-1">Max 32 characters ({name.length}/32)</p>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-ui-text-primary mb-2">
+                  <label htmlFor="token-symbol" className="block text-sm font-medium text-ui-text-primary mb-2">
                     Symbol <span className="text-red-500">*</span>
                   </label>
                   <input
+                    id="token-symbol"
                     type="text"
                     placeholder="DSHIB"
                     maxLength={12}
+                    required
+                    aria-required="true"
+                    aria-describedby="token-symbol-hint"
                     value={symbol}
                     onChange={(e) => setSymbol(e.target.value.toUpperCase())}
                     className="w-full px-4 py-3 border border-ui-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent"
                     disabled={!isConnected || isProcessing}
                   />
-                  <p className="text-xs text-gray-500 mt-1">1-12 uppercase alphanumeric</p>
+                  <p id="token-symbol-hint" className="text-xs text-gray-500 mt-1">1-12 uppercase alphanumeric ({symbol.length}/12)</p>
                 </div>
               </div>
             </div>
@@ -636,17 +644,23 @@ export default function CreatePage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-ui-text-primary mb-2">
+                <label htmlFor="token-description" className="block text-sm font-medium text-ui-text-primary mb-2">
                   Description <span className="text-red-500">*</span>
                 </label>
                 <textarea
+                  id="token-description"
                   rows={4}
+                  maxLength={500}
+                  required
+                  aria-required="true"
+                  aria-describedby="token-description-hint"
                   placeholder="Tell the community about your token..."
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   className="w-full px-4 py-3 border border-ui-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent"
                   disabled={!isConnected || isProcessing}
                 />
+                <p id="token-description-hint" className="text-xs text-gray-500 mt-1">{description.length}/500 characters</p>
               </div>
             </div>
 
@@ -657,10 +671,11 @@ export default function CreatePage() {
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-ui-text-primary mb-2">
+                  <label htmlFor="token-website" className="block text-sm font-medium text-ui-text-primary mb-2">
                     Website
                   </label>
                   <input
+                    id="token-website"
                     type="url"
                     placeholder="https://yourtoken.com"
                     value={website}
@@ -670,10 +685,11 @@ export default function CreatePage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-ui-text-primary mb-2">
+                  <label htmlFor="token-telegram" className="block text-sm font-medium text-ui-text-primary mb-2">
                     Telegram
                   </label>
                   <input
+                    id="token-telegram"
                     type="url"
                     placeholder="https://t.me/yourtoken"
                     value={telegram}
@@ -717,11 +733,16 @@ export default function CreatePage() {
               </ul>
             </div>
 
-            {/* Processing Status */}
+            {/* Processing Status - Accessible live region */}
             {isProcessing && (
-              <div className="bg-blue-50 border border-blue-200 rounded-xl p-6">
+              <div
+                role="status"
+                aria-live="polite"
+                aria-label="Transaction progress"
+                className="bg-blue-50 border border-blue-200 rounded-xl p-6"
+              >
                 <div className="flex items-center gap-4">
-                  <Loader2 className="h-6 w-6 text-blue-600 animate-spin flex-shrink-0" />
+                  <Loader2 className="h-6 w-6 text-blue-600 animate-spin flex-shrink-0" aria-hidden="true" />
                   <div>
                     <p className="font-semibold text-blue-900">
                       {formState === 'validating' && 'Validating transaction...'}

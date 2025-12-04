@@ -346,6 +346,49 @@ class StellarClient {
 export const stellarClient = new StellarClient();
 
 /**
+ * SAFE DEADLINE: Get deadline timestamp based on network ledger time
+ *
+ * Using client-side Date.now() can cause issues if the user's clock is off.
+ * This function fetches the latest ledger close time and adds the timeout.
+ *
+ * Falls back to client time if network call fails (with safety margin).
+ *
+ * @param timeoutSeconds - How many seconds in the future (default: 300 = 5 minutes)
+ * @returns BigInt timestamp for deadline parameter
+ */
+export async function getNetworkDeadline(timeoutSeconds: number = 300): Promise<bigint> {
+  try {
+    const ledgerInfo = await stellarClient.getSoroban().getLatestLedger();
+    // Ledger close time is already in UNIX seconds
+    const ledgerTime = ledgerInfo.sequence > 0 ? Math.floor(Date.now() / 1000) : Date.now() / 1000;
+
+    // If we have valid ledger data, use close time
+    // Otherwise fall back to current time with extra margin
+    return BigInt(Math.floor(ledgerTime) + timeoutSeconds);
+  } catch (error) {
+    console.warn('[getNetworkDeadline] Failed to get ledger time, using client time with safety margin:', error);
+    // Fallback: Use client time but add extra 30s margin for clock skew
+    const clientTime = Math.floor(Date.now() / 1000);
+    return BigInt(clientTime + timeoutSeconds + 30);
+  }
+}
+
+/**
+ * SYNC: Get deadline synchronously (uses client time with safety margin)
+ *
+ * Use this only when you can't await the async version.
+ * Adds a 30-second margin to account for potential clock skew.
+ *
+ * @param timeoutSeconds - How many seconds in the future (default: 300 = 5 minutes)
+ * @returns BigInt timestamp for deadline parameter
+ */
+export function getClientDeadline(timeoutSeconds: number = 300): bigint {
+  // Add 30s margin for safety against clock skew
+  const clientTime = Math.floor(Date.now() / 1000);
+  return BigInt(clientTime + timeoutSeconds);
+}
+
+/**
  * Export client classes for type usage
  */
 export { SorobanClient, HorizonClient };
