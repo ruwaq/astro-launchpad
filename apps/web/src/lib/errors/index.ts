@@ -69,15 +69,25 @@ export class InsufficientBalanceError extends StellarError {
     }
 }
 
-export class SlippageExceededError extends StellarError {
+/**
+ * Error when minimum output cannot be guaranteed due to race conditions.
+ * Note: This is NOT slippage - bonding curves are deterministic.
+ * This occurs when another trade executed between calculation and submission.
+ */
+export class MinOutputNotMetError extends StellarError {
     constructor(expected: string, actual: string) {
         super(
-            `Slippage exceeded. Expected: ${expected}, Actual: ${actual}`,
-            'SLIPPAGE_EXCEEDED',
+            `Minimum output not met. Expected: ${expected}, Actual: ${actual}. Another trade may have executed first.`,
+            'MIN_OUTPUT_NOT_MET',
             { expected, actual }
         );
     }
 }
+
+/**
+ * @deprecated Use MinOutputNotMetError instead. Kept for backwards compatibility.
+ */
+export const SlippageExceededError = MinOutputNotMetError;
 
 /**
  * Validation errors
@@ -181,7 +191,9 @@ export class ErrorHandler {
             CONTRACT_CALL_FAILED: 'Failed to communicate with the blockchain. Please try again.',
             TRANSACTION_FAILED: 'Transaction failed. Please check your wallet and try again.',
             INSUFFICIENT_BALANCE: 'Insufficient balance to complete this transaction.',
-            SLIPPAGE_EXCEEDED: 'Price changed too much. Please adjust slippage tolerance.',
+            MIN_OUTPUT_NOT_MET: 'Another trade executed first. Please try again.',
+            // Deprecated: keep for backwards compatibility
+            SLIPPAGE_EXCEEDED: 'Another trade executed first. Please try again.',
             VALIDATION_ERROR: error.message,
             NETWORK_ERROR: 'Network error. Please check your connection.',
             AUTHENTICATION_ERROR: 'Please connect your wallet to continue.',

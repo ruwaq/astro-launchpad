@@ -342,8 +342,8 @@ export function TradingViewChart({ tokenAddress, symbol = 'TOKEN' }: TradingView
 
     window.addEventListener('resize', handleResize);
 
-    // Crosshair move handler
-    chart.subscribeCrosshairMove((param) => {
+    // FIX: Create crosshair handler as a named function for proper cleanup
+    const handleCrosshairMove: Parameters<typeof chart.subscribeCrosshairMove>[0] = (param) => {
       if (param.point && param.time && seriesRef.current) {
         const data = param.seriesData.get(seriesRef.current);
         const volumeData = volumeSeriesRef.current ? param.seriesData.get(volumeSeriesRef.current) : null;
@@ -360,9 +360,13 @@ export function TradingViewChart({ tokenAddress, symbol = 'TOKEN' }: TradingView
       } else {
         setIsHovering(false);
       }
-    });
+    };
+
+    chart.subscribeCrosshairMove(handleCrosshairMove);
 
     return () => {
+      // FIX: Properly unsubscribe from crosshair events before removing chart
+      chart.unsubscribeCrosshairMove(handleCrosshairMove);
       window.removeEventListener('resize', handleResize);
       chart.remove();
     };

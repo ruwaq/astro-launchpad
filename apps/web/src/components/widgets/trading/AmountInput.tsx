@@ -86,13 +86,13 @@ export const AmountInput = memo(function AmountInput({
         </div>
 
         {showQuickAmounts && onQuickAmount && (
-          <div className="flex gap-1">
+          <div className="flex gap-2">
             {QUICK_AMOUNTS.map((amount) => (
               <button
                 key={amount}
                 onClick={() => onQuickAmount(amount)}
                 disabled={disabled}
-                className="flex-1 py-1 px-2 bg-white rounded text-xs font-medium text-gray-600 hover:bg-gray-100 disabled:opacity-50"
+                className="flex-1 min-h-[44px] py-2.5 px-3 bg-white rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 active:bg-gray-200 disabled:opacity-50 transition-colors touch-manipulation"
               >
                 {amount}
               </button>

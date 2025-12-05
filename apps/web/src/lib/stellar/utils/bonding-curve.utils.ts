@@ -29,10 +29,14 @@ export const BPS_PRECISION = 10000n;
 
 /**
  * Bonding curve calculation result
+ *
+ * NOTE: priceChange is the expected price movement from the trade.
+ * For bonding curves this is deterministic, NOT "slippage" or "price impact" like DEX swaps.
  */
 export interface BondingCurveOutput {
   amountOut: bigint;
-  priceImpact: number; // Percentage (0-100)
+  /** Expected price change percentage (0-100). This is deterministic for bonding curves. */
+  priceChange: number;
   effectivePrice: bigint; // Price per token in stroops
 }
 
@@ -61,7 +65,7 @@ export function calculateBuyOutput(
 ): BondingCurveOutput {
   // SAFETY: Validate curve state before calculations
   if (!curve || !curve.xlm_reserve || !curve.token_reserve || !curve.k) {
-    return { amountOut: 0n, priceImpact: 0, effectivePrice: 0n };
+    return { amountOut: 0n, priceChange: 0, effectivePrice: 0n };
   }
 
   const xlmReserve = BigInt(curve.xlm_reserve);
@@ -70,12 +74,12 @@ export function calculateBuyOutput(
 
   // SAFETY: Validate reserves are positive to prevent division by zero
   if (xlmReserve <= 0n || tokenReserve <= 0n || k <= 0n) {
-    return { amountOut: 0n, priceImpact: 0, effectivePrice: 0n };
+    return { amountOut: 0n, priceChange: 0, effectivePrice: 0n };
   }
 
   // SAFETY: Validate input amount
   if (xlmAmount <= 0n) {
-    return { amountOut: 0n, priceImpact: 0, effectivePrice: 0n };
+    return { amountOut: 0n, priceChange: 0, effectivePrice: 0n };
   }
 
   // New reserves after trade
@@ -83,15 +87,15 @@ export function calculateBuyOutput(
   const newTokenReserve = k / newXlmReserve;
   const tokensOut = tokenReserve - newTokenReserve;
 
-  // Calculate price impact
-  const priceImpact = calculatePriceImpact(tokenReserve, newTokenReserve);
+  // Calculate expected price change (deterministic for bonding curves)
+  const priceChange = calculatePriceChangePercent(tokenReserve, newTokenReserve);
 
   // Effective price: XLM spent / tokens received
   const effectivePrice = tokensOut > 0n ? (xlmAmount * BigInt(10_000_000)) / tokensOut : 0n;
 
   return {
     amountOut: tokensOut,
-    priceImpact,
+    priceChange,
     effectivePrice,
   };
 }
@@ -116,7 +120,7 @@ export function calculateSellOutput(
 ): BondingCurveOutput {
   // SAFETY: Validate curve state before calculations
   if (!curve || !curve.xlm_reserve || !curve.token_reserve || !curve.k) {
-    return { amountOut: 0n, priceImpact: 0, effectivePrice: 0n };
+    return { amountOut: 0n, priceChange: 0, effectivePrice: 0n };
   }
 
   const xlmReserve = BigInt(curve.xlm_reserve);
@@ -125,12 +129,12 @@ export function calculateSellOutput(
 
   // SAFETY: Validate reserves are positive to prevent division by zero
   if (xlmReserve <= 0n || tokenReserve <= 0n || k <= 0n) {
-    return { amountOut: 0n, priceImpact: 0, effectivePrice: 0n };
+    return { amountOut: 0n, priceChange: 0, effectivePrice: 0n };
   }
 
   // SAFETY: Validate input amount
   if (tokenAmount <= 0n) {
-    return { amountOut: 0n, priceImpact: 0, effectivePrice: 0n };
+    return { amountOut: 0n, priceChange: 0, effectivePrice: 0n };
   }
 
   // New reserves after trade
@@ -138,15 +142,15 @@ export function calculateSellOutput(
   const newXlmReserve = k / newTokenReserve;
   const xlmOut = xlmReserve - newXlmReserve;
 
-  // Calculate price impact
-  const priceImpact = calculatePriceImpact(xlmReserve, newXlmReserve);
+  // Calculate expected price change (deterministic for bonding curves)
+  const priceChange = calculatePriceChangePercent(xlmReserve, newXlmReserve);
 
   // Effective price: XLM received / tokens sold
   const effectivePrice = tokenAmount > 0n ? (xlmOut * BigInt(10_000_000)) / tokenAmount : 0n;
 
   return {
     amountOut: xlmOut,
-    priceImpact,
+    priceChange,
     effectivePrice,
   };
 }
@@ -170,13 +174,16 @@ export function getCurrentPrice(curve: NormalizedBondingCurve): bigint {
 }
 
 /**
- * Calculate price impact percentage
+ * Calculate expected price change percentage
+ *
+ * NOTE: For bonding curves this is deterministic - it's the expected change,
+ * not uncertain "impact" like DEX swaps.
  *
  * @param reserveBefore - Reserve before trade
  * @param reserveAfter - Reserve after trade
- * @returns Price impact as percentage (0-100)
+ * @returns Price change as percentage (0-100)
  */
-function calculatePriceImpact(reserveBefore: bigint, reserveAfter: bigint): number {
+function calculatePriceChangePercent(reserveBefore: bigint, reserveAfter: bigint): number {
   if (reserveBefore === 0n) return 0;
 
   const difference = reserveBefore > reserveAfter
@@ -190,33 +197,42 @@ function calculatePriceImpact(reserveBefore: bigint, reserveAfter: bigint): numb
 }
 
 /**
- * Apply slippage tolerance to amount
+ * Apply output tolerance to amount
  *
- * @param amount - Amount before slippage
- * @param slippagePercent - Slippage tolerance (0-100)
+ * NOTE: For bonding curves, this is NOT slippage tolerance.
+ * This tolerance protects against race conditions where another transaction
+ * changes the reserves between price calculation and transaction execution.
+ *
+ * @param amount - Amount before tolerance adjustment
+ * @param tolerancePercent - Tolerance percentage (0-100), typically 0.5% for bonding curves
  * @param isMinimum - If true, calculates minimum out; if false, calculates maximum in
- * @returns Amount after slippage adjustment
+ * @returns Amount after tolerance adjustment
  *
  * @example
- * const minOut = applySlippageTolerance(1000n, 1, true);  // 990n (1% slippage)
- * const maxIn = applySlippageTolerance(1000n, 1, false); // 1010n (1% slippage)
+ * const minOut = applyOutputTolerance(1000n, 0.5, true);  // 995n (0.5% tolerance)
+ * const maxIn = applyOutputTolerance(1000n, 0.5, false); // 1005n (0.5% tolerance)
  */
-export function applySlippageTolerance(
+export function applyOutputTolerance(
   amount: bigint,
-  slippagePercent: number,
+  tolerancePercent: number,
   isMinimum: boolean = true
 ): bigint {
-  const slippageBps = BigInt(Math.floor(slippagePercent * 100)); // Convert to basis points
+  const toleranceBps = BigInt(Math.floor(tolerancePercent * 100)); // Convert to basis points
   const bpsBase = BigInt(10000);
 
   if (isMinimum) {
-    // Minimum out: amount * (10000 - slippage_bps) / 10000
-    return (amount * (bpsBase - slippageBps)) / bpsBase;
+    // Minimum out: amount * (10000 - tolerance_bps) / 10000
+    return (amount * (bpsBase - toleranceBps)) / bpsBase;
   } else {
-    // Maximum in: amount * (10000 + slippage_bps) / 10000
-    return (amount * (bpsBase + slippageBps)) / bpsBase;
+    // Maximum in: amount * (10000 + tolerance_bps) / 10000
+    return (amount * (bpsBase + toleranceBps)) / bpsBase;
   }
 }
+
+/**
+ * @deprecated Use applyOutputTolerance instead. Kept for backwards compatibility.
+ */
+export const applySlippageTolerance = applyOutputTolerance;
 
 /**
  * Calculate market cap in XLM
@@ -439,7 +455,7 @@ export function calculateSellOutputWithFees(
 
   return {
     amountOut: feeBreakdown.netAmount,
-    priceImpact: result.priceImpact,
+    priceChange: result.priceChange,
     effectivePrice: tokenAmount > 0n
       ? (feeBreakdown.netAmount * BigInt(10_000_000)) / tokenAmount
       : 0n,

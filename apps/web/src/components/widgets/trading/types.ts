@@ -1,5 +1,8 @@
 /**
  * Trading Widget Types
+ *
+ * NOTE: This is for bonding curve trading (mint/burn), NOT DEX swaps.
+ * Bonding curve pricing is deterministic - no slippage applies.
  */
 
 export type TradeType = 'buy' | 'sell';
@@ -11,7 +14,8 @@ export interface TradeState {
   selectedToken: TokenOption | null;
   isCalculating: boolean;
   isProcessing: boolean;
-  slippage: number;
+  // Note: No slippage field - bonding curves are deterministic.
+  // minOutputTolerance is used internally for race condition protection only.
 }
 
 export interface TokenOption {

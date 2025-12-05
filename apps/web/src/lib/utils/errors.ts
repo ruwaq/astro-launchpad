@@ -51,9 +51,10 @@ export function parseContractError(error: string): string {
     return 'Insufficient balance to complete this transaction.';
   }
 
-  // Slippage error
-  if (errorLower.includes('slippage') || errorLower.includes('price')) {
-    return 'Price changed during transaction. Please try again with higher slippage.';
+  // Min output not met (race condition - another trade changed reserves)
+  // NOTE: Bonding curves are deterministic - this is NOT slippage, it's a race condition
+  if (errorLower.includes('slippage') || errorLower.includes('min_output') || errorLower.includes('price')) {
+    return 'Another trade executed first. The minimum output could not be guaranteed. Please try again.';
   }
 
   // Transaction rejected

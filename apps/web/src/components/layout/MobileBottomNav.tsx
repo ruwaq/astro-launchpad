@@ -15,7 +15,7 @@ import { usePathname } from 'next/navigation';
 import { memo } from 'react';
 import { motion } from 'framer-motion';
 import {
-  Home,
+  Trophy,
   PlusCircle,
   Compass,
   Wallet,
@@ -30,7 +30,7 @@ interface NavItem {
 }
 
 const navigation: NavItem[] = [
-  { name: 'Home', href: '/dashboard', icon: Home },
+  { name: 'Rankings', href: '/leaderboard', icon: Trophy },
   { name: 'Explore', href: '/explore', icon: Compass },
   { name: 'Create', href: '/create', icon: PlusCircle },
   { name: 'Portfolio', href: '/portfolio', icon: Wallet },
@@ -58,7 +58,7 @@ export const MobileBottomNav = memo(function MobileBottomNav() {
         {navigation.map((item) => {
           const Icon = item.icon;
           const isActive = pathname === item.href ||
-            (item.href !== '/dashboard' && pathname?.startsWith(item.href));
+            (item.href !== '/leaderboard' && pathname?.startsWith(item.href));
           const isCreate = item.href === '/create';
 
           return (

@@ -108,6 +108,8 @@ export function TradingWidgetPremium({
   const [priceFlash, setPriceFlash] = useState<'up' | 'down' | null>(null);
   // User's token balance for MAX/percentage sells (in stroops)
   const [userTokenBalance, setUserTokenBalance] = useState<string>('0');
+  // User's XLM balance for buy validation (in XLM, not stroops)
+  const [userXlmBalance, setUserXlmBalance] = useState<string>('0');
 
   // RACE CONDITION FIX: Use ref-based lock for synchronous double-click prevention
   const isTransactionInProgressRef = useRef(false);
@@ -268,6 +270,30 @@ export function TradingWidgetPremium({
       toast.error('Enter a valid amount');
       isTransactionInProgressRef.current = false;
       return;
+    }
+
+    // CRITICAL: Validate user has sufficient balance before trading
+    if (tradeType === 'buy') {
+      const xlmBalance = parseFloat(userXlmBalance);
+      // Reserve 1 XLM for transaction fees and minimum balance
+      const availableXlm = xlmBalance - 1;
+      if (amount > availableXlm) {
+        toast.error(`Insufficient XLM balance. You have ${xlmBalance.toFixed(2)} XLM (${availableXlm.toFixed(2)} available after reserves)`);
+        if (soundEnabled) playError();
+        haptics.error();
+        isTransactionInProgressRef.current = false;
+        return;
+      }
+    } else {
+      // Selling tokens - validate token balance
+      const tokenBalanceHuman = parseFloat(userTokenBalance) / 10_000_000;
+      if (amount > tokenBalanceHuman) {
+        toast.error(`Insufficient ${tokenSymbol} balance. You have ${tokenBalanceHuman.toFixed(4)} ${tokenSymbol}`);
+        if (soundEnabled) playError();
+        haptics.error();
+        isTransactionInProgressRef.current = false;
+        return;
+      }
     }
 
     const expectedOutput = parseFloat(outputAmount);
@@ -513,6 +539,7 @@ export function TradingWidgetPremium({
             tokenSymbol={tokenSymbol}
             isConnected={isConnected}
             onTokenBalanceChange={setUserTokenBalance}
+            onXlmBalanceChange={setUserXlmBalance}
           />
         </motion.div>
 

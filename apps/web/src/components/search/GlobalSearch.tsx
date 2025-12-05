@@ -3,9 +3,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Image from 'next/image';
 import { useSearch } from '@/hooks/useApi';
-import { truncateAddress, formatCompactNumber } from '@/lib/stellar/utils';
+import { formatCompactNumber } from '@/lib/stellar/utils';
 import Link from 'next/link';
-import type { Token, Pool } from '@/lib/graphql/types';
+import type { Token } from '@/lib/graphql/types';
 
 /**
  * Custom hook for debouncing values
@@ -65,8 +65,7 @@ export function GlobalSearch() {
   }, []);
 
   const tokens = data?.search.tokens || [];
-  const pools = data?.search.pools || [];
-  const hasResults = tokens.length > 0 || pools.length > 0;
+  const hasResults = tokens.length > 0;
 
   return (
     <div ref={wrapperRef} className="relative w-full max-w-lg">
@@ -74,7 +73,7 @@ export function GlobalSearch() {
         <input
           type="text"
           className="w-full px-4 py-2 pl-10 pr-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          placeholder="Search tokens, pools..."
+          placeholder="Search tokens..."
           value={query}
           onChange={(e) => handleSearch(e.target.value)}
           onFocus={() => query.length >= 2 && setIsOpen(true)}
@@ -119,14 +118,14 @@ export function GlobalSearch() {
             <>
               {/* Tokens Section */}
               {tokens.length > 0 && (
-                <div className="border-b border-gray-200">
+                <div>
                   <div className="px-4 py-2 bg-gray-50 text-xs font-medium text-gray-500 uppercase">
                     Tokens
                   </div>
                   {tokens.map((token: Token) => (
                     <Link
                       key={token.address}
-                      href={`/explore?token=${token.address}`}
+                      href={`/t/${token.address}`}
                       className="flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors"
                       onClick={() => setIsOpen(false)}
                     >
@@ -158,64 +157,6 @@ export function GlobalSearch() {
                             : 'text-red-600'
                         }`}>
                           {parseFloat(token.priceChange24h).toFixed(2)}%
-                        </div>
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-              )}
-
-              {/* Pools Section */}
-              {pools.length > 0 && (
-                <div>
-                  <div className="px-4 py-2 bg-gray-50 text-xs font-medium text-gray-500 uppercase">
-                    Pools
-                  </div>
-                  {pools.map((pool: Pool) => (
-                    <Link
-                      key={pool.address}
-                      href={`/pools?pool=${pool.address}`}
-                      className="flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors"
-                      onClick={() => setIsOpen(false)}
-                    >
-                      <div className="flex items-center space-x-3">
-                        <div className="flex -space-x-2">
-                          {pool.token0.logoUrl && (
-                            <Image
-                              src={pool.token0.logoUrl}
-                              alt={pool.token0.symbol}
-                              width={32}
-                              height={32}
-                              className="w-8 h-8 rounded-full border-2 border-white object-cover"
-                              unoptimized
-                            />
-                          )}
-                          {pool.token1.logoUrl && (
-                            <Image
-                              src={pool.token1.logoUrl}
-                              alt={pool.token1.symbol}
-                              width={32}
-                              height={32}
-                              className="w-8 h-8 rounded-full border-2 border-white object-cover"
-                              unoptimized
-                            />
-                          )}
-                        </div>
-                        <div>
-                          <div className="font-medium text-gray-900">
-                            {pool.token0.symbol}/{pool.token1.symbol}
-                          </div>
-                          <div className="text-sm text-gray-500">
-                            {truncateAddress(pool.address, 6)}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-sm font-medium text-gray-900">
-                          TVL: ${formatCompactNumber(parseFloat(pool.liquidity))}
-                        </div>
-                        <div className="text-xs text-green-600">
-                          APY: {pool.apy}%
                         </div>
                       </div>
                     </Link>

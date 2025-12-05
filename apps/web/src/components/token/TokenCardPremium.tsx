@@ -15,10 +15,12 @@
 
 'use client';
 
-import { useState, useEffect, useMemo, memo } from 'react';
+import { useState, useEffect, useMemo, memo, useCallback } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
+import toast from 'react-hot-toast';
 import {
   TrendingUp,
   TrendingDown,
@@ -144,9 +146,47 @@ export const TokenCardPremium = memo(function TokenCardPremium({
     { interval: 30000 }
   );
 
+  const router = useRouter();
   const [previousPrice, setPreviousPrice] = useState<bigint | null>(null);
   const [priceAnimation, setPriceAnimation] = useState<'increase' | 'decrease' | 'neutral'>('neutral');
   const [isLiked, setIsLiked] = useState(false);
+
+  // Handler for Quick Buy - navigate to token page
+  const handleQuickBuy = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    router.push(`/t/${address}`);
+  }, [router, address]);
+
+  // Handler for Share - use Web Share API or copy link
+  const handleShare = useCallback(async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const tokenName = tokenProp?.name || fetchedToken?.name || 'Token';
+    const tokenSymbol = tokenProp?.symbol || fetchedToken?.symbol || '';
+    const shareUrl = `${window.location.origin}/t/${address}`;
+    const shareData = {
+      title: tokenSymbol ? `${tokenName} ($${tokenSymbol})` : tokenName,
+      text: `Check out ${tokenName} on Astro Shiba!`,
+      url: shareUrl,
+    };
+
+    try {
+      if (navigator.share && navigator.canShare?.(shareData)) {
+        await navigator.share(shareData);
+      } else {
+        await navigator.clipboard.writeText(shareUrl);
+        toast.success('Link copied to clipboard!');
+      }
+    } catch (err) {
+      // User cancelled share or error
+      if ((err as Error).name !== 'AbortError') {
+        await navigator.clipboard.writeText(shareUrl);
+        toast.success('Link copied to clipboard!');
+      }
+    }
+  }, [address, tokenProp?.name, tokenProp?.symbol, fetchedToken?.name, fetchedToken?.symbol]);
 
   // Normalize token data from either source
   const token = useMemo(() => {
@@ -474,10 +514,7 @@ export const TokenCardPremium = memo(function TokenCardPremium({
             >
               <button
                 className="flex-1 flex items-center justify-center gap-2 bg-brand-primary text-white font-semibold py-2.5 sm:py-2 px-4 min-h-[44px] rounded-lg hover:bg-brand-primary/90 transition-colors"
-                onClick={(e) => {
-                  e.preventDefault();
-                  // Handle quick buy
-                }}
+                onClick={handleQuickBuy}
               >
                 <Zap className="h-4 w-4" />
                 Quick Buy
@@ -493,10 +530,7 @@ export const TokenCardPremium = memo(function TokenCardPremium({
               </button>
               <button
                 className="p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg border border-ui-border hover:bg-gray-50 transition-colors"
-                onClick={(e) => {
-                  e.preventDefault();
-                  // Handle share
-                }}
+                onClick={handleShare}
               >
                 <Share2 className="h-4 w-4 text-gray-400" />
               </button>

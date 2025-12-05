@@ -1,7 +1,7 @@
 'use client';
 
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
-import { Settings as SettingsIcon, Network, Bell, Shield } from 'lucide-react';
+import { Network, Shield } from 'lucide-react';
 import { useWallet } from '@/contexts/WalletContext';
 import { getNetworkConfig } from '@/lib/config/network';
 
@@ -91,52 +91,6 @@ export default function SettingsPage() {
                   </button>
                 </>
               )}
-            </div>
-          </div>
-        </div>
-
-        {/* Notifications */}
-        <div className="bg-white rounded-xl border border-ui-border p-4 sm:p-6">
-          <div className="flex items-start gap-4">
-            <div className="p-2 bg-brand-green-50 rounded-lg">
-              <Bell className="h-6 w-6 text-brand-green" />
-            </div>
-            <div className="flex-1">
-              <h3 className="font-semibold text-ui-text-primary mb-4">
-                Notifications
-              </h3>
-              <div className="space-y-3">
-                <label className="flex items-center justify-between min-h-[44px] py-2">
-                  <span className="text-sm text-ui-text-primary">
-                    Token graduation alerts
-                  </span>
-                  <input
-                    type="checkbox"
-                    className="w-5 h-5 text-brand-primary"
-                    disabled
-                  />
-                </label>
-                <label className="flex items-center justify-between min-h-[44px] py-2">
-                  <span className="text-sm text-ui-text-primary">
-                    Price change notifications
-                  </span>
-                  <input
-                    type="checkbox"
-                    className="w-5 h-5 text-brand-primary"
-                    disabled
-                  />
-                </label>
-                <label className="flex items-center justify-between min-h-[44px] py-2">
-                  <span className="text-sm text-ui-text-primary">
-                    New token launches
-                  </span>
-                  <input
-                    type="checkbox"
-                    className="w-5 h-5 text-brand-primary"
-                    disabled
-                  />
-                </label>
-              </div>
             </div>
           </div>
         </div>

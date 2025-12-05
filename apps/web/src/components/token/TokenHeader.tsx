@@ -11,6 +11,7 @@ import Image from 'next/image';
 import { Copy, ExternalLink, Check } from 'lucide-react';
 import { useState } from 'react';
 import { getIpfsUrl as getImageUrl } from '@/lib/utils/ipfs';
+import { getNetworkConfig } from '@/lib/config/network';
 
 interface TokenHeaderProps {
   token: any; // Token object from GraphQL
@@ -18,6 +19,10 @@ interface TokenHeaderProps {
 
 export function TokenHeader({ token }: TokenHeaderProps) {
   const [copied, setCopied] = useState(false);
+
+  // Get network for explorer URL
+  const networkConfig = getNetworkConfig();
+  const explorerNetwork = networkConfig.passphrase.includes('Test') ? 'testnet' : 'public';
 
   const handleCopyAddress = async () => {
     try {
@@ -150,7 +155,7 @@ export function TokenHeader({ token }: TokenHeaderProps) {
                 )}
               </button>
               <a
-                href={`https://stellar.expert/explorer/testnet/contract/${token.address}`}
+                href={`https://stellar.expert/explorer/${explorerNetwork}/contract/${token.address}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="p-2 min-h-[40px] min-w-[40px] flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors"

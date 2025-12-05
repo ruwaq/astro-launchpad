@@ -2,14 +2,13 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, PlusCircle, Compass, Wallet, Settings, Trophy } from 'lucide-react';
+import { PlusCircle, Compass, Wallet, Settings, Trophy } from 'lucide-react';
 import Image from 'next/image';
 
 const navigation = [
-  { name: 'Dashboard', href: '/dashboard', icon: Home },
+  { name: 'Leaderboard', href: '/leaderboard', icon: Trophy },
   { name: 'Create Token', href: '/create', icon: PlusCircle },
   { name: 'Explore', href: '/explore', icon: Compass },
-  { name: 'Leaderboard', href: '/leaderboard', icon: Trophy },
   { name: 'Portfolio', href: '/portfolio', icon: Wallet },
   { name: 'Settings', href: '/settings', icon: Settings },
 ];

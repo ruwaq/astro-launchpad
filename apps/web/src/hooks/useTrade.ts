@@ -47,7 +47,13 @@ export interface UseTradeReturn {
     tradeType: TradeType;
     inputAmount: string;
     outputAmount: string;
-    slippage: number;
+    /**
+     * Tolerance for minimum output (race condition protection).
+     * NOTE: This is NOT slippage - bonding curves are deterministic.
+     * This protects against another transaction changing reserves.
+     * Default: 0.5%
+     */
+    minOutputTolerance?: number;
   }) => Promise<boolean>;
   statusMessage: string;
   resetStatus: () => void;
@@ -97,16 +103,19 @@ export function useTrade({
     isTransactionInProgressRef.current = false;
   }, []);
 
+  // Default tolerance for race condition protection (NOT slippage)
+  const DEFAULT_MIN_OUTPUT_TOLERANCE = 0.5;
+
   const executeTrade = useCallback(async ({
     tradeType,
     inputAmount,
     outputAmount,
-    slippage,
+    minOutputTolerance = DEFAULT_MIN_OUTPUT_TOLERANCE,
   }: {
     tradeType: TradeType;
     inputAmount: string;
     outputAmount: string;
-    slippage: number;
+    minOutputTolerance?: number;
   }): Promise<boolean> => {
     // RACE CONDITION FIX: Use ref-based lock
     if (isTransactionInProgressRef.current) {
@@ -153,7 +162,9 @@ export function useTrade({
       return false;
     }
 
-    const minOutput = expectedOutput * (1 - slippage / 100);
+    // minOutput protects against race conditions (another tx changing reserves)
+    // This is NOT slippage - bonding curve pricing is deterministic
+    const minOutput = expectedOutput * (1 - minOutputTolerance / 100);
 
     try {
       setTxStatus('preparing');

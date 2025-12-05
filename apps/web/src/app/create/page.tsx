@@ -111,6 +111,18 @@ export default function CreatePage() {
     }
   }, []);
 
+  // FIX: Cleanup all timeouts on unmount to prevent memory leaks
+  useEffect(() => {
+    // Copy ref to local variable for cleanup (React ESLint rule)
+    const timeouts = timeoutsRef.current;
+    return () => {
+      timeouts.forEach((timeoutId) => {
+        clearTimeout(timeoutId);
+      });
+      timeouts.clear();
+    };
+  }, []);
+
   // State management
   const [formState, setFormState] = useState<FormState>('idle');
   const [createdTokenAddress, setCreatedTokenAddress] = useState<string>('');
@@ -120,6 +132,8 @@ export default function CreatePage() {
   // CRITICAL: Ref to prevent double-submission race condition
   // State updates are async, but ref updates are immediate
   const isSubmittingRef = useRef(false);
+  // FIX: Track timeouts for cleanup to prevent memory leaks
+  const timeoutsRef = useRef<Set<NodeJS.Timeout>>(new Set());
 
   // Transaction progress steps (V2: no admin step needed - factory is already admin)
   const [txSteps, setTxSteps] = useState<TransactionStep[]>([
@@ -196,9 +210,12 @@ export default function CreatePage() {
       return;
     }
 
-    // Validate form
+    // Validate form - FIX: validateForm sets error state internally, but we need to use
+    // the returned value directly since React state updates are async
     if (!validateForm()) {
-      toast.error(error);
+      // validateForm() already called setError() with the specific message
+      // Just show a generic toast since state update is async
+      toast.error('Please fix the form errors and try again');
       isSubmittingRef.current = false;
       return;
     }
@@ -453,9 +470,12 @@ export default function CreatePage() {
 
         // Clear saved form data and redirect to explore page
         clearFormStorage();
-        setTimeout(() => {
+        // FIX: Track timeout for cleanup
+        const redirectTimeout = setTimeout(() => {
           router.push('/explore');
+          timeoutsRef.current.delete(redirectTimeout);
         }, 3000);
+        timeoutsRef.current.add(redirectTimeout);
       } else if (attempts >= maxAttempts) {
         throw new Error('Transaction confirmation timeout - please check Stellar Expert');
       }
@@ -478,16 +498,18 @@ export default function CreatePage() {
       setError(errorMessage);
       toast.error(errorMessage);
 
-      // Reset to idle after 5 seconds
-      setTimeout(() => {
+      // FIX: Track timeout for cleanup - Reset to idle after 5 seconds
+      const resetTimeout = setTimeout(() => {
         setFormState('idle');
         setError('');
         resetSteps();
         // Reset submission ref to allow retry
         isSubmittingRef.current = false;
+        timeoutsRef.current.delete(resetTimeout);
       }, 5000);
+      timeoutsRef.current.add(resetTimeout);
     }
-  }, [address, isConnected, name, symbol, imageUrl, description, website, telegram, error, signTransaction, syncToken, clearFormStorage, router]);
+  }, [address, isConnected, name, symbol, imageUrl, description, website, telegram, signTransaction, syncToken, clearFormStorage, router]);
 
   const isProcessing = ['validating', 'building', 'signing', 'submitting', 'confirming'].includes(formState);
   const isSuccess = formState === 'success';

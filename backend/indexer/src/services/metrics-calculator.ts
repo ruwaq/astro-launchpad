@@ -148,21 +148,40 @@ export class MetricsCalculator {
   }
 
   private async calculatePoolMetrics() {
-    const pools = await this.prisma.pool.findMany();
+    const pools = await this.prisma.pool.findMany({
+      select: {
+        id: true,
+        address: true,
+        token0Address: true,
+        token1Address: true,
+        reserve0: true,
+        reserve1: true,
+      },
+    });
 
     if (pools.length === 0) return;
 
-    // Build batch updates - no need to refetch pools, we already have all data
+    // Calculate 24h fees for all pools from FeeCollection events
+    // Pass pools with token addresses for correct fee matching
+    const fees24hMap = await this.calculatePoolFees24h(pools);
+
+    // Build batch updates
     const updates = pools.map(pool => {
       try {
+        // Get fees from our calculation (now keyed by pool.id)
+        const fees24h = fees24hMap.get(pool.id) || 0n;
+
         // Calculate TVL directly from pool data (no extra query!)
         const tvl = this.calculatePoolTVLSync(pool);
-        const apr = this.calculatePoolAPRSync(pool);
+
+        // Calculate APR using real fees data
+        const apr = this.calculatePoolAPRWithFees(fees24h, tvl);
 
         return this.prisma.pool.update({
           where: { id: pool.id },
           data: {
             tvl: tvl.toString(),
+            fees24h: fees24h.toString(),
             apr,
           },
         });
@@ -176,6 +195,78 @@ export class MetricsCalculator {
     if (updates.length > 0) {
       await this.prisma.$transaction(updates as any[]);
     }
+  }
+
+  /**
+   * Calculate 24h fees for pools from FeeCollection events
+   *
+   * NOTE: FeeCollection.tokenAddress contains the TOKEN address (not pool address).
+   * Pools have token0Address (usually XLM) and token1Address (the token).
+   * We need to match FeeCollection by the token addresses in the pool.
+   *
+   * @param pools Array of pools with their token addresses
+   * @returns Map of pool id to fees in stroops
+   */
+  private async calculatePoolFees24h(pools: Array<{ id: string; token0Address: string; token1Address: string }>): Promise<Map<string, bigint>> {
+    const result = new Map<string, bigint>();
+
+    if (pools.length === 0) return result;
+
+    try {
+      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+      // Collect all token addresses from pools (both token0 and token1)
+      const tokenAddresses = new Set<string>();
+      pools.forEach(pool => {
+        tokenAddresses.add(pool.token0Address);
+        tokenAddresses.add(pool.token1Address);
+      });
+
+      // Query fee collections from last 24 hours for these tokens
+      const feeCollections = await this.prisma.feeCollection.groupBy({
+        by: ['tokenAddress'],
+        where: {
+          tokenAddress: { in: Array.from(tokenAddresses) },
+          timestamp: { gte: twentyFourHoursAgo },
+        },
+        _sum: {
+          lpFee: true,
+          protocolFee: true,
+        },
+      });
+
+      // Create map of tokenAddress -> fees
+      const tokenFeesMap = new Map<string, bigint>();
+      for (const fee of feeCollections) {
+        const lpFee = BigInt(fee._sum.lpFee || '0');
+        const protocolFee = BigInt(fee._sum.protocolFee || '0');
+        tokenFeesMap.set(fee.tokenAddress, lpFee + protocolFee);
+      }
+
+      // Map fees back to pools (sum fees from both tokens in the pool)
+      for (const pool of pools) {
+        const token0Fees = tokenFeesMap.get(pool.token0Address) || 0n;
+        const token1Fees = tokenFeesMap.get(pool.token1Address) || 0n;
+        result.set(pool.id, token0Fees + token1Fees);
+      }
+    } catch (error) {
+      logger.error({ error }, 'Error calculating pool fees 24h');
+    }
+
+    return result;
+  }
+
+  /**
+   * Calculate APR with real fees data
+   * APR = (fees_24h * 365 / tvl) * 100
+   */
+  private calculatePoolAPRWithFees(fees24h: bigint, tvl: bigint): number {
+    if (tvl === 0n) return 0;
+
+    // APR = (fees_24h * 365 / tvl) * 100
+    // Using 10000 multiplier for precision (2 decimal places)
+    const apr = (fees24h * 365n * 10000n) / tvl;
+    return Number(apr) / 100;
   }
 
   private async calculateUserLevels() {

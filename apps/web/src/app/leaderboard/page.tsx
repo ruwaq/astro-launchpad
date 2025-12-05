@@ -3,389 +3,412 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
-import { useLeaderboard } from '@/hooks/useApi';
+import { useLeaderboard, useGlobalStats } from '@/hooks/useApi';
+import { useWallet } from '@/contexts/WalletContext';
 import { truncateAddress, formatCompactNumber } from '@/lib/stellar/utils';
+import { MetricCard } from '@/components/widgets/MetricCard';
+import { TokensWidget } from '@/components/widgets/TokensWidget';
+import { ActivityWidget } from '@/components/widgets/ActivityWidget';
+import { TrendingUp, Rocket, Users, Lock, Zap, Plus, Trophy, Coins, ChevronRight } from 'lucide-react';
 import type { LeaderboardEntry } from '@/lib/graphql/types';
+import toast from 'react-hot-toast';
 
-type LeaderboardType = 'TRADERS' | 'CREATORS' | 'LIQUIDITY_PROVIDERS' | 'VIRAL_TOKENS';
+type LeaderboardType = 'TRADERS' | 'CREATORS' | 'LIQUIDITY_PROVIDERS';
 type LeaderboardTimeframe = 'HOUR' | 'DAY' | 'WEEK' | 'MONTH' | 'ALL_TIME';
+
+const typeConfig: Record<LeaderboardType, { label: string; icon: typeof Trophy; description: string }> = {
+  TRADERS: { label: 'Top Traders', icon: TrendingUp, description: 'Ranked by trading volume' },
+  CREATORS: { label: 'Top Creators', icon: Coins, description: 'Ranked by tokens created' },
+  LIQUIDITY_PROVIDERS: { label: 'Top LPs', icon: Users, description: 'Ranked by liquidity provided' },
+};
+
+const timeframeLabels: Record<LeaderboardTimeframe, string> = {
+  HOUR: '1H',
+  DAY: '24H',
+  WEEK: '7D',
+  MONTH: '30D',
+  ALL_TIME: 'All',
+};
 
 export default function LeaderboardPage() {
   const [selectedType, setSelectedType] = useState<LeaderboardType>('TRADERS');
   const [selectedTimeframe, setSelectedTimeframe] = useState<LeaderboardTimeframe>('DAY');
+  const { address, isConnected, connect, isConnecting } = useWallet();
+  const { data: statsData, loading: statsLoading } = useGlobalStats();
 
   const { data, loading, error } = useLeaderboard({
     type: selectedType,
-    limit: 100,
+    limit: 50,
     timeframe: selectedTimeframe,
   });
 
   const leaderboard = data?.leaderboard || [];
+  const stats = statsData?.globalStats;
 
-  if (loading) {
-    return (
-      <DashboardLayout>
-        <div className="animate-pulse space-y-4">
-          <div className="h-8 bg-gray-200 rounded w-1/3"></div>
-          <div className="h-96 bg-gray-200 rounded"></div>
-        </div>
-      </DashboardLayout>
-    );
-  }
-
-  const timeframeLabels: Record<LeaderboardTimeframe, string> = {
-    HOUR: '1H',
-    DAY: '24H',
-    WEEK: '7D',
-    MONTH: '30D',
-    ALL_TIME: 'All Time',
+  const handleConnect = async () => {
+    try {
+      await connect();
+      toast.success('Wallet connected!');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to connect wallet';
+      toast.error(errorMessage);
+    }
   };
 
-  const typeLabels: Record<LeaderboardType, string> = {
-    TRADERS: 'Top Traders',
-    CREATORS: 'Top Creators',
-    LIQUIDITY_PROVIDERS: 'Top LPs',
-    VIRAL_TOKENS: 'Viral Tokens',
+  const getEntryPrimaryValue = (entry: LeaderboardEntry): string => {
+    switch (selectedType) {
+      case 'TRADERS':
+        return `$${formatCompactNumber(parseFloat(entry.volume24h || '0'))}`;
+      case 'CREATORS':
+        return `${entry.tokensCreated || 0}`;
+      case 'LIQUIDITY_PROVIDERS':
+        return `$${formatCompactNumber(parseFloat(entry.totalLiquidity || '0'))}`;
+      default:
+        return '';
+    }
+  };
+
+  const getEntrySecondaryValue = (entry: LeaderboardEntry): string | null => {
+    switch (selectedType) {
+      case 'TRADERS':
+        return `${entry.trades24h || 0} trades`;
+      case 'CREATORS':
+        return entry.totalVolumeGenerated
+          ? `$${formatCompactNumber(parseFloat(entry.totalVolumeGenerated))} vol`
+          : null;
+      case 'LIQUIDITY_PROVIDERS':
+        return entry.feesEarned24h
+          ? `+$${formatCompactNumber(parseFloat(entry.feesEarned24h))} fees`
+          : null;
+      default:
+        return null;
+    }
   };
 
   return (
     <DashboardLayout>
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2">Leaderboard</h1>
-        <p className="text-gray-600">
-          {selectedType === 'TRADERS' && 'Top traders ranked by volume'}
-          {selectedType === 'CREATORS' && 'Top token creators ranked by tokens created'}
-          {selectedType === 'LIQUIDITY_PROVIDERS' && 'Top liquidity providers ranked by TVL'}
-          {selectedType === 'VIRAL_TOKENS' && 'Most viral tokens'}
-        </p>
-      </div>
-
-      {/* Filter Controls */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
-        <div className="flex flex-col sm:flex-row flex-wrap gap-4">
-          {/* Type Filter */}
-          <div className="flex-1">
-            <label className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2 block">
-              Leaderboard Type
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {(Object.keys(typeLabels) as LeaderboardType[]).map((type) => (
-                <button
-                  key={type}
-                  onClick={() => setSelectedType(type)}
-                  className={`px-3 sm:px-4 py-2.5 min-h-[44px] rounded-lg text-xs sm:text-sm font-medium transition-colors ${
-                    selectedType === type
-                      ? 'bg-brand-primary text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  {typeLabels[type]}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Timeframe Filter */}
+      <div className="space-y-6">
+        {/* Header with CTA */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <label className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2 block">
-              Timeframe
-            </label>
-            <div className="flex flex-wrap gap-1.5 sm:gap-2">
-              {(Object.keys(timeframeLabels) as LeaderboardTimeframe[]).map((timeframe) => (
+            <h1 className="text-2xl lg:text-3xl font-bold text-ui-text-primary flex items-center gap-3">
+              <Trophy className="h-8 w-8 text-brand-primary" />
+              Leaderboard
+            </h1>
+            <p className="text-ui-text-secondary mt-1">
+              Astro Shiba Token Launchpad on Stellar
+            </p>
+          </div>
+          {isConnected && (
+            <Link
+              href="/create"
+              className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-brand-primary text-white rounded-xl font-semibold hover:bg-brand-primary-dark transition-colors shadow-sm"
+            >
+              <Plus className="h-5 w-5" />
+              Create Token
+            </Link>
+          )}
+        </div>
+
+        {/* Platform Stats */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <MetricCard
+            title="Total Tokens"
+            value={stats?.totalTokens || 0}
+            loading={statsLoading}
+            icon={<Rocket className="h-5 w-5" />}
+          />
+          <MetricCard
+            title="Volume (24h)"
+            value={formatCompactNumber(parseFloat(stats?.totalVolume24h || '0'))}
+            loading={statsLoading}
+            prefix="$"
+            icon={<TrendingUp className="h-5 w-5" />}
+          />
+          <MetricCard
+            title="Users"
+            value={stats?.totalUsers || 0}
+            loading={statsLoading}
+            icon={<Users className="h-5 w-5" />}
+          />
+          <MetricCard
+            title="TVL"
+            value={formatCompactNumber(parseFloat(stats?.totalTVL || '0'))}
+            loading={statsLoading}
+            prefix="$"
+            icon={<Lock className="h-5 w-5" />}
+          />
+        </div>
+
+        {/* Connect Wallet Notice */}
+        {!isConnected && (
+          <div className="bg-brand-blue-50 border border-brand-blue-200 rounded-xl p-4 sm:p-6">
+            <div className="flex items-start gap-4">
+              <div className="p-2 bg-brand-blue rounded-lg hidden sm:block">
+                <Lock className="h-5 w-5 text-white" />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-semibold text-brand-blue-900">Connect Your Wallet</h3>
+                <p className="text-sm text-brand-blue-700 mt-1">
+                  Connect to start trading and climb the leaderboard!
+                </p>
                 <button
-                  key={timeframe}
-                  onClick={() => setSelectedTimeframe(timeframe)}
-                  className={`px-2.5 sm:px-3 py-2.5 min-h-[44px] rounded-lg text-xs sm:text-sm font-medium transition-colors ${
-                    selectedTimeframe === timeframe
-                      ? 'bg-brand-primary text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
+                  onClick={handleConnect}
+                  disabled={isConnecting}
+                  className="mt-3 px-5 py-2.5 min-h-[44px] bg-brand-blue text-white rounded-lg hover:bg-brand-blue-600 transition-colors font-medium disabled:opacity-50 text-sm"
                 >
-                  {timeframeLabels[timeframe]}
+                  {isConnecting ? 'Connecting...' : 'Connect Wallet'}
                 </button>
-              ))}
+              </div>
             </div>
           </div>
-        </div>
-      </div>
+        )}
 
-      {/* Empty State */}
-      {!loading && leaderboard.length === 0 && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-8 text-center">
-          <div className="max-w-md mx-auto">
-            <div className="text-6xl mb-4">🏆</div>
-            <h3 className="text-xl font-bold text-gray-900 mb-3">No Data Yet</h3>
-            <p className="text-gray-600 mb-6">
-              No {typeLabels[selectedType].toLowerCase()} found for this timeframe. Be the first!
-            </p>
-            <Link
-              href="/explore"
-              className="inline-flex items-center gap-2 bg-brand-primary text-white px-6 py-3 rounded-lg hover:bg-brand-primary-dark transition-colors font-medium"
-            >
-              Start Trading
-            </Link>
+        {/* Leaderboard Section */}
+        <div className="bg-white rounded-xl border border-ui-border shadow-sm overflow-hidden">
+          {/* Leaderboard Controls */}
+          <div className="p-4 border-b border-ui-border bg-gray-50">
+            <div className="flex flex-col sm:flex-row gap-4">
+              {/* Type Filter */}
+              <div className="flex-1">
+                <div className="flex flex-wrap gap-2">
+                  {(Object.keys(typeConfig) as LeaderboardType[]).map((type) => {
+                    const config = typeConfig[type];
+                    const Icon = config.icon;
+                    return (
+                      <button
+                        key={type}
+                        onClick={() => setSelectedType(type)}
+                        className={`flex items-center gap-2 px-4 py-2.5 min-h-[44px] rounded-lg text-sm font-medium transition-colors ${
+                          selectedType === type
+                            ? 'bg-brand-primary text-white shadow-sm'
+                            : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
+                        }`}
+                      >
+                        <Icon className="h-4 w-4" />
+                        {config.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Timeframe Filter */}
+              <div className="flex gap-1">
+                {(Object.keys(timeframeLabels) as LeaderboardTimeframe[]).map((timeframe) => (
+                  <button
+                    key={timeframe}
+                    onClick={() => setSelectedTimeframe(timeframe)}
+                    className={`px-3 py-2 min-h-[40px] rounded-lg text-xs font-medium transition-colors ${
+                      selectedTimeframe === timeframe
+                        ? 'bg-brand-primary text-white'
+                        : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
+                    }`}
+                  >
+                    {timeframeLabels[timeframe]}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <p className="text-xs text-gray-500 mt-2">{typeConfig[selectedType].description}</p>
           </div>
-        </div>
-      )}
 
-      {/* Leaderboard Content */}
-      {!loading && leaderboard.length > 0 && (
-        <div>
-
-      {/* Top 3 Podium - Hidden on very small screens, shown on sm+ */}
-      {leaderboard.length >= 3 && (
-        <div className="mb-8">
-          {/* Mobile: Vertical stack */}
-          <div className="sm:hidden space-y-3">
-            {[0, 1, 2].map((idx) => {
-              const entry = leaderboard[idx];
-              const colors = idx === 0
-                ? 'border-yellow-400 bg-yellow-50'
-                : idx === 1
-                ? 'border-gray-400 bg-gray-50'
-                : 'border-orange-400 bg-orange-50';
-              const badge = idx === 0 ? '🥇' : idx === 1 ? '🥈' : '🥉';
-
-              return (
-                <div key={entry.address} className={`flex items-center gap-4 p-4 rounded-xl border-2 ${colors}`}>
-                  <span className="text-2xl">{badge}</span>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-semibold text-gray-900 truncate">
-                      {truncateAddress(entry.address, 6)}
+          {/* Loading State */}
+          {loading && (
+            <div className="p-8">
+              <div className="animate-pulse space-y-4">
+                {[...Array(5)].map((_, i) => (
+                  <div key={i} className="flex items-center gap-4">
+                    <div className="w-10 h-10 bg-gray-200 rounded-full" />
+                    <div className="flex-1">
+                      <div className="h-4 bg-gray-200 rounded w-32 mb-2" />
+                      <div className="h-3 bg-gray-200 rounded w-20" />
                     </div>
-                    <div className="text-sm text-gray-600">
-                      ${formatCompactNumber(parseFloat(entry.volume24h))} • {entry.trades24h} trades
+                    <div className="h-4 bg-gray-200 rounded w-20" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Empty State */}
+          {!loading && leaderboard.length === 0 && (
+            <div className="p-12 text-center">
+              <Trophy className="h-16 w-16 text-gray-200 mx-auto mb-4" />
+              <h3 className="text-lg font-bold text-gray-900 mb-2">No Rankings Yet</h3>
+              <p className="text-gray-500 mb-6 max-w-sm mx-auto">
+                Be the first to rank! Start trading or creating tokens to appear on the leaderboard.
+              </p>
+              <Link
+                href="/explore"
+                className="inline-flex items-center gap-2 bg-brand-primary text-white px-6 py-3 rounded-lg hover:bg-brand-primary-dark transition-colors font-medium"
+              >
+                <Rocket className="h-4 w-4" />
+                Start Trading
+              </Link>
+            </div>
+          )}
+
+          {/* Top 3 Podium */}
+          {!loading && leaderboard.length >= 3 && (
+            <div className="p-6 bg-gradient-to-b from-gray-50 to-white border-b border-gray-100">
+              {/* Mobile: Compact list */}
+              <div className="sm:hidden space-y-2">
+                {[0, 1, 2].map((idx) => {
+                  const entry = leaderboard[idx];
+                  const badges = ['🥇', '🥈', '🥉'];
+                  const colors = [
+                    'border-l-4 border-yellow-400 bg-yellow-50',
+                    'border-l-4 border-gray-400 bg-gray-50',
+                    'border-l-4 border-orange-400 bg-orange-50',
+                  ];
+                  return (
+                    <div key={entry.address} className={`flex items-center gap-3 p-3 rounded-lg ${colors[idx]}`}>
+                      <span className="text-xl">{badges[idx]}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-semibold text-sm truncate">{truncateAddress(entry.address, 5)}</div>
+                        <div className="text-xs text-gray-500">{getEntrySecondaryValue(entry)}</div>
+                      </div>
+                      <div className="text-sm font-bold text-gray-900">{getEntryPrimaryValue(entry)}</div>
                     </div>
+                  );
+                })}
+              </div>
+
+              {/* Desktop: Podium layout */}
+              <div className="hidden sm:flex justify-center items-end gap-4">
+                {/* 2nd Place */}
+                <div className="flex flex-col items-center">
+                  <div className="w-16 h-16 md:w-20 md:h-20 bg-gradient-to-br from-gray-300 to-gray-500 rounded-full flex items-center justify-center mb-2 shadow-lg">
+                    <span className="text-2xl font-bold text-white">2</span>
+                  </div>
+                  <div className="bg-white rounded-lg p-3 w-36 text-center shadow-md border-2 border-gray-300">
+                    <div className="font-semibold text-gray-900 text-sm truncate">
+                      {truncateAddress(leaderboard[1].address, 5)}
+                    </div>
+                    <div className="text-lg font-bold text-gray-700 mt-1">
+                      {getEntryPrimaryValue(leaderboard[1])}
+                    </div>
+                    <div className="text-xs text-gray-500">{getEntrySecondaryValue(leaderboard[1])}</div>
                   </div>
                 </div>
-              );
-            })}
-          </div>
 
-          {/* Desktop: Podium layout */}
-          <div className="hidden sm:flex justify-center items-end gap-3 md:gap-4">
-            {/* 2nd Place */}
-            <div className="flex flex-col items-center">
-              <div className="w-16 h-16 md:w-24 md:h-24 bg-gradient-to-br from-gray-400 to-gray-600 rounded-full flex items-center justify-center mb-2">
-                <span className="text-2xl md:text-3xl font-bold text-white">2</span>
-              </div>
-              <div className="bg-white rounded-lg p-3 md:p-4 w-32 md:w-48 text-center shadow-lg border-2 border-gray-400">
-                <div className="font-semibold text-gray-900 mb-1 text-sm md:text-base truncate">
-                  {truncateAddress(leaderboard[1].address, 6)}
+                {/* 1st Place */}
+                <div className="flex flex-col items-center -mt-6">
+                  <div className="w-20 h-20 md:w-28 md:h-28 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-full flex items-center justify-center mb-2 shadow-xl ring-4 ring-yellow-200">
+                    <span className="text-3xl font-bold text-white">1</span>
+                  </div>
+                  <div className="bg-white rounded-lg p-4 w-44 text-center shadow-xl border-4 border-yellow-400">
+                    <div className="font-bold text-gray-900 truncate">
+                      {truncateAddress(leaderboard[0].address, 5)}
+                    </div>
+                    <div className="text-xl font-bold text-yellow-600 mt-1">
+                      {getEntryPrimaryValue(leaderboard[0])}
+                    </div>
+                    <div className="text-xs text-gray-500">{getEntrySecondaryValue(leaderboard[0])}</div>
+                  </div>
                 </div>
-                <div className="text-xs md:text-sm text-gray-600 mb-1 md:mb-2">
-                  ${formatCompactNumber(parseFloat(leaderboard[1].volume24h))}
-                </div>
-                <div className="text-xs text-gray-500">
-                  {leaderboard[1].trades24h} trades
+
+                {/* 3rd Place */}
+                <div className="flex flex-col items-center">
+                  <div className="w-16 h-16 md:w-20 md:h-20 bg-gradient-to-br from-orange-400 to-orange-600 rounded-full flex items-center justify-center mb-2 shadow-lg">
+                    <span className="text-2xl font-bold text-white">3</span>
+                  </div>
+                  <div className="bg-white rounded-lg p-3 w-36 text-center shadow-md border-2 border-orange-400">
+                    <div className="font-semibold text-gray-900 text-sm truncate">
+                      {truncateAddress(leaderboard[2].address, 5)}
+                    </div>
+                    <div className="text-lg font-bold text-orange-600 mt-1">
+                      {getEntryPrimaryValue(leaderboard[2])}
+                    </div>
+                    <div className="text-xs text-gray-500">{getEntrySecondaryValue(leaderboard[2])}</div>
+                  </div>
                 </div>
               </div>
             </div>
+          )}
 
-            {/* 1st Place */}
-            <div className="flex flex-col items-center -mt-4 md:-mt-8">
-              <div className="w-20 h-20 md:w-32 md:h-32 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-full flex items-center justify-center mb-2 shadow-xl">
-                <span className="text-3xl md:text-4xl font-bold text-white">1</span>
-              </div>
-              <div className="bg-white rounded-lg p-4 md:p-6 w-36 md:w-56 text-center shadow-xl border-4 border-yellow-400">
-                <div className="font-bold text-gray-900 mb-1 text-sm md:text-lg truncate">
-                  {truncateAddress(leaderboard[0].address, 6)}
-                </div>
-                <div className="text-sm md:text-base text-gray-600 mb-1 md:mb-2 font-semibold">
-                  ${formatCompactNumber(parseFloat(leaderboard[0].volume24h))}
-                </div>
-                <div className="text-xs md:text-sm text-gray-500">
-                  {leaderboard[0].trades24h} trades
-                </div>
-                <div className={`text-xs mt-1 md:mt-2 ${
-                  parseFloat(leaderboard[0].profitLoss24h) >= 0 ? 'text-green-600' : 'text-red-600'
-                }`}>
-                  P/L: ${formatCompactNumber(parseFloat(leaderboard[0].profitLoss24h))}
-                </div>
-              </div>
-            </div>
-
-            {/* 3rd Place */}
-            <div className="flex flex-col items-center">
-              <div className="w-16 h-16 md:w-24 md:h-24 bg-gradient-to-br from-orange-400 to-orange-600 rounded-full flex items-center justify-center mb-2">
-                <span className="text-2xl md:text-3xl font-bold text-white">3</span>
-              </div>
-              <div className="bg-white rounded-lg p-3 md:p-4 w-32 md:w-48 text-center shadow-lg border-2 border-orange-400">
-                <div className="font-semibold text-gray-900 mb-1 text-sm md:text-base truncate">
-                  {truncateAddress(leaderboard[2].address, 6)}
-                </div>
-                <div className="text-xs md:text-sm text-gray-600 mb-1 md:mb-2">
-                  ${formatCompactNumber(parseFloat(leaderboard[2].volume24h))}
-                </div>
-                <div className="text-xs text-gray-500">
-                  {leaderboard[2].trades24h} trades
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Full Leaderboard Table */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[480px]">
-            <thead className="bg-gray-50 border-b border-gray-200">
-              <tr>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Rank
-                </th>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Address
-                </th>
-                {selectedType === 'TRADERS' && (
-                  <>
-                    <th className="px-3 sm:px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Volume
+          {/* Full Rankings Table */}
+          {!loading && leaderboard.length > 0 && (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[400px]">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Rank</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Address</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                      {selectedType === 'TRADERS' ? 'Volume' : selectedType === 'CREATORS' ? 'Tokens' : 'Liquidity'}
                     </th>
-                    <th className="px-3 sm:px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Trades
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                      {selectedType === 'TRADERS' ? 'Trades' : selectedType === 'CREATORS' ? 'Volume' : 'Fees'}
                     </th>
-                    <th className="px-3 sm:px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      P/L
-                    </th>
-                  </>
-                )}
-                {selectedType === 'CREATORS' && (
-                  <>
-                    <th className="px-3 sm:px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Tokens
-                    </th>
-                    <th className="px-3 sm:px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Volume
-                    </th>
-                  </>
-                )}
-                {selectedType === 'LIQUIDITY_PROVIDERS' && (
-                  <>
-                    <th className="px-3 sm:px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Liquidity
-                    </th>
-                    <th className="px-3 sm:px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Fees
-                    </th>
-                  </>
-                )}
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {leaderboard.map((entry: LeaderboardEntry) => {
-                const profitLoss = entry.profitLoss24h ? parseFloat(entry.profitLoss24h) : 0;
-                const isProfit = profitLoss >= 0;
-
-                return (
-                  <tr key={entry.address} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center font-bold text-xs sm:text-sm ${
-                          entry.rank === 1
-                            ? 'bg-yellow-100 text-yellow-800'
-                            : entry.rank === 2
-                            ? 'bg-gray-100 text-gray-800'
-                            : entry.rank === 3
-                            ? 'bg-orange-100 text-orange-800'
-                            : 'bg-blue-50 text-blue-800'
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {leaderboard.map((entry: LeaderboardEntry, index: number) => (
+                    <tr key={entry.address} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
+                          index === 0 ? 'bg-yellow-100 text-yellow-800' :
+                          index === 1 ? 'bg-gray-100 text-gray-800' :
+                          index === 2 ? 'bg-orange-100 text-orange-800' :
+                          'bg-blue-50 text-blue-700'
                         }`}>
                           {entry.rank}
                         </div>
-                      </div>
-                    </td>
-                    <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
-                      <div className="text-xs sm:text-sm font-medium text-gray-900">
-                        {truncateAddress(entry.address, 6)}
-                      </div>
-                      {entry.user && entry.user.level > 1 && (
-                        <div className="text-xs text-gray-500">
-                          Lvl {entry.user.level}
-                        </div>
-                      )}
-                    </td>
-                    {selectedType === 'TRADERS' && (
-                      <>
-                        <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-right">
-                          <div className="text-xs sm:text-sm font-medium text-gray-900">
-                            ${formatCompactNumber(parseFloat(entry.volume24h || '0'))}
-                          </div>
-                        </td>
-                        <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-right text-xs sm:text-sm text-gray-500">
-                          {entry.trades24h || 0}
-                        </td>
-                        <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-right">
-                          <div className={`text-xs sm:text-sm font-medium ${isProfit ? 'text-green-600' : 'text-red-600'}`}>
-                            {isProfit ? '+' : ''}${formatCompactNumber(Math.abs(profitLoss))}
-                          </div>
-                        </td>
-                      </>
-                    )}
-                    {selectedType === 'CREATORS' && (
-                      <>
-                        <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-right">
-                          <div className="text-xs sm:text-sm font-medium text-gray-900">
-                            {entry.tokensCreated || 0}
-                          </div>
-                        </td>
-                        <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-right">
-                          <div className="text-xs sm:text-sm font-medium text-gray-900">
-                            ${formatCompactNumber(parseFloat(entry.totalVolumeGenerated || '0'))}
-                          </div>
-                        </td>
-                      </>
-                    )}
-                    {selectedType === 'LIQUIDITY_PROVIDERS' && (
-                      <>
-                        <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-right">
-                          <div className="text-xs sm:text-sm font-medium text-gray-900">
-                            ${formatCompactNumber(parseFloat(entry.totalLiquidity || '0'))}
-                          </div>
-                        </td>
-                        <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-right">
-                          <div className="text-xs sm:text-sm font-medium text-green-600">
-                            ${formatCompactNumber(parseFloat(entry.feesEarned24h || '0'))}
-                          </div>
-                        </td>
-                      </>
-                    )}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <div className="font-medium text-sm text-gray-900">{truncateAddress(entry.address, 6)}</div>
+                        {entry.user?.level && entry.user.level > 1 && (
+                          <div className="text-xs text-gray-400">Lvl {entry.user.level}</div>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-right">
+                        <div className="text-sm font-medium text-gray-900">{getEntryPrimaryValue(entry)}</div>
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-right">
+                        <div className="text-sm text-gray-500">{getEntrySecondaryValue(entry) || '-'}</div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
-      </div>
-        </div>
-      )}
 
-      {/* Info Card */}
-      <div className="mt-8 bg-blue-50 rounded-lg p-6 border border-blue-200">
-        <h3 className="font-semibold text-blue-900 mb-3">About the Leaderboard</h3>
-        <p className="text-sm text-blue-800">
-          {selectedType === 'TRADERS' && (
-            <>
-              Rankings are based on trading volume for the selected timeframe.
-              The P/L column shows profit/loss from token buys and sells.
-              Trade more to climb the ranks!
-            </>
-          )}
-          {selectedType === 'CREATORS' && (
-            <>
-              Rankings are based on the number of tokens created in the selected timeframe.
-              Total volume shows the combined trading volume of all your created tokens.
-              Create successful tokens to climb the ranks!
-            </>
-          )}
-          {selectedType === 'LIQUIDITY_PROVIDERS' && (
-            <>
-              Rankings are based on total liquidity provided across all pools.
-              Fees earned shows your share of trading fees.
-              Provide more liquidity to earn more fees!
-            </>
-          )}
-        </p>
+        {/* Trending Tokens + Activity Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <TokensWidget />
+          <ActivityWidget />
+        </div>
+
+        {/* Features Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-gradient-to-br from-brand-primary-50 to-white rounded-xl p-5 border border-brand-primary-100">
+            <div className="w-10 h-10 bg-brand-primary rounded-lg flex items-center justify-center mb-3">
+              <Zap className="h-5 w-5 text-white" />
+            </div>
+            <h3 className="font-bold text-ui-text-primary mb-1">Instant Launch</h3>
+            <p className="text-sm text-ui-text-secondary">Deploy tokens in seconds on Stellar</p>
+          </div>
+
+          <div className="bg-gradient-to-br from-brand-blue-50 to-white rounded-xl p-5 border border-brand-blue-100">
+            <div className="w-10 h-10 bg-brand-blue rounded-lg flex items-center justify-center mb-3">
+              <Users className="h-5 w-5 text-white" />
+            </div>
+            <h3 className="font-bold text-ui-text-primary mb-1">Fair Launch</h3>
+            <p className="text-sm text-ui-text-secondary">No pre-mints, everyone starts equal</p>
+          </div>
+
+          <div className="bg-gradient-to-br from-brand-green-50 to-white rounded-xl p-5 border border-brand-green-100">
+            <div className="w-10 h-10 bg-brand-green rounded-lg flex items-center justify-center mb-3">
+              <Lock className="h-5 w-5 text-white" />
+            </div>
+            <h3 className="font-bold text-ui-text-primary mb-1">LP Locked</h3>
+            <p className="text-sm text-ui-text-secondary">Liquidity burned on graduation</p>
+          </div>
+        </div>
       </div>
     </DashboardLayout>
   );

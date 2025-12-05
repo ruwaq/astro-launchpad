@@ -639,7 +639,9 @@ export class SacFactoryService extends BaseContractService {
    * @param buyerAddress - Buyer's Stellar address
    * @param tokenAddress - Token contract address
    * @param xlmAmount - Amount of XLM to spend (in stroops)
-   * @param minTokens - Minimum tokens to receive (slippage protection)
+   * @param minTokens - Minimum tokens to receive (race condition protection)
+   *                   NOTE: This is NOT slippage - bonding curves are deterministic.
+   *                   This protects against another tx changing reserves.
    * @param deadline - Transaction deadline timestamp (MEV protection)
    * @returns Transaction operation
    *
@@ -670,7 +672,9 @@ export class SacFactoryService extends BaseContractService {
    * @param sellerAddress - Seller's Stellar address
    * @param tokenAddress - Token contract address
    * @param tokenAmount - Amount of tokens to sell
-   * @param minXlm - Minimum XLM to receive (slippage protection)
+   * @param minXlm - Minimum XLM to receive (race condition protection)
+   *                NOTE: This is NOT slippage - bonding curves are deterministic.
+   *                This protects against another tx changing reserves.
    * @param deadline - Transaction deadline timestamp (MEV protection)
    * @returns Transaction operation
    *
@@ -702,14 +706,15 @@ export class SacFactoryService extends BaseContractService {
    * @param tokenAddress - Token contract address
    * @param xlmAmount - Amount of XLM to spend (in XLM, not stroops)
    * @param buyerAddress - Buyer's Stellar address
-   * @param slippagePercent - Slippage tolerance (default 1%)
+   * @param tolerancePercent - Output tolerance for race condition protection (default 1%)
+   *                          NOTE: This is NOT slippage - bonding curves are deterministic.
    * @returns Prepared transaction XDR ready for signing
    */
   async prepareBuyTransaction(
     tokenAddress: string,
     xlmAmount: number,
     buyerAddress: string,
-    slippagePercent: number = 1
+    tolerancePercent: number = 1
   ): Promise<{ txXDR: string; expectedTokens: bigint }> {
     // Convert XLM to stroops using precision-safe conversion
     const xlmAmountStroops = toStroopsBigInt(xlmAmount);
@@ -723,10 +728,10 @@ export class SacFactoryService extends BaseContractService {
     // Calculate expected output
     const expectedTokens = this.calculateBuyOutput(tokenInfo, xlmAmountStroops);
 
-    // Apply slippage tolerance using basis points for precision (100 bps = 1%)
-    // This prevents precision loss for fractional slippage like 1.5%
-    const slippageBps = BigInt(Math.floor(slippagePercent * 100));
-    const minTokens = (expectedTokens * (BigInt(10000) - slippageBps)) / BigInt(10000);
+    // Apply output tolerance using basis points for precision (100 bps = 1%)
+    // This protects against race conditions (another tx changing reserves)
+    const toleranceBps = BigInt(Math.floor(tolerancePercent * 100));
+    const minTokens = (expectedTokens * (BigInt(10000) - toleranceBps)) / BigInt(10000);
 
     // Set deadline (5 minutes from now)
     const deadline = BigInt(Math.floor(Date.now() / 1000) + 300);
@@ -785,14 +790,14 @@ export class SacFactoryService extends BaseContractService {
    * @param tokenAddress - Token contract address
    * @param xlmAmount - Amount of XLM to spend (in XLM, not stroops)
    * @param buyerAddress - Buyer's Stellar address
-   * @param slippagePercent - Slippage tolerance (default 1%)
+   * @param tolerancePercent - Output tolerance for race condition protection (default 1%)
    * @returns Prepared transactions (trustline if needed + buy)
    */
   async prepareBuyWithTrustline(
     tokenAddress: string,
     xlmAmount: number,
     buyerAddress: string,
-    slippagePercent: number = 1
+    tolerancePercent: number = 1
   ): Promise<{
     needsTrustline: boolean;
     trustlineTxXDR?: string;
@@ -900,7 +905,7 @@ export class SacFactoryService extends BaseContractService {
       tokenAddress,
       xlmAmount,
       buyerAddress,
-      slippagePercent
+      tolerancePercent
     );
 
     return {
@@ -951,14 +956,14 @@ export class SacFactoryService extends BaseContractService {
    * @param tokenAddress - Token contract address
    * @param xlmAmount - Amount of XLM to spend (in XLM, not stroops)
    * @param buyerAddress - Buyer's Stellar address
-   * @param slippagePercent - Slippage tolerance (default 1%)
+   * @param tolerancePercent - Output tolerance for race condition protection (default 1%)
    * @returns Transaction result
    */
   async buyTokens(
     tokenAddress: string,
     xlmAmount: number,
     buyerAddress: string,
-    slippagePercent: number = 1
+    tolerancePercent: number = 1
   ): Promise<{ success: boolean; error?: string }> {
     try {
       // Convert XLM to stroops using precision-safe conversion
@@ -973,8 +978,8 @@ export class SacFactoryService extends BaseContractService {
       // Calculate expected output
       const expectedTokens = this.calculateBuyOutput(tokenInfo, xlmAmountStroops);
 
-      // Apply slippage tolerance
-      const minTokens = (expectedTokens * BigInt(100 - slippagePercent)) / BigInt(100);
+      // Apply output tolerance for race condition protection
+      const minTokens = (expectedTokens * BigInt(100 - tolerancePercent)) / BigInt(100);
 
       // Set deadline (5 minutes from now) - Date.now()/1000 is an integer so Math.floor is safe
       const deadline = BigInt(Math.floor(Date.now() / 1000) + 300);
@@ -1005,14 +1010,15 @@ export class SacFactoryService extends BaseContractService {
    * @param tokenAddress - Token contract address
    * @param tokenAmount - Amount of tokens to sell (in tokens, not smallest unit)
    * @param sellerAddress - Seller's Stellar address
-   * @param slippagePercent - Slippage tolerance (default 1%)
+   * @param tolerancePercent - Output tolerance for race condition protection (default 1%)
+   *                          NOTE: This is NOT slippage - bonding curves are deterministic.
    * @returns Prepared transaction XDR ready for signing
    */
   async prepareSellTransaction(
     tokenAddress: string,
     tokenAmount: number,
     sellerAddress: string,
-    slippagePercent: number = 1
+    tolerancePercent: number = 1
   ): Promise<{ txXDR: string; expectedXlm: bigint }> {
     // Convert to smallest unit using precision-safe conversion (7 decimals for SAC tokens)
     const tokenAmountSmallest = toStroopsBigInt(tokenAmount);
@@ -1026,10 +1032,9 @@ export class SacFactoryService extends BaseContractService {
     // Calculate expected output
     const expectedXlm = this.calculateSellOutput(tokenInfo, tokenAmountSmallest);
 
-    // Apply slippage tolerance
-    // Apply slippage tolerance using basis points for precision (100 bps = 1%)
-    const slippageBps = BigInt(Math.floor(slippagePercent * 100));
-    const minXlm = (expectedXlm * (BigInt(10000) - slippageBps)) / BigInt(10000);
+    // Apply output tolerance for race condition protection using basis points (100 bps = 1%)
+    const toleranceBps = BigInt(Math.floor(tolerancePercent * 100));
+    const minXlm = (expectedXlm * (BigInt(10000) - toleranceBps)) / BigInt(10000);
 
     // Set deadline (5 minutes from now)
     const deadline = BigInt(Math.floor(Date.now() / 1000) + 300);
@@ -1079,14 +1084,14 @@ export class SacFactoryService extends BaseContractService {
    * @param tokenAddress - Token contract address
    * @param tokenAmount - Amount of tokens to sell (in tokens, not smallest unit)
    * @param sellerAddress - Seller's Stellar address
-   * @param slippagePercent - Slippage tolerance (default 1%)
+   * @param tolerancePercent - Output tolerance for race condition protection (default 1%)
    * @returns Transaction result
    */
   async sellTokens(
     tokenAddress: string,
     tokenAmount: number,
     sellerAddress: string,
-    slippagePercent: number = 1
+    tolerancePercent: number = 1
   ): Promise<{ success: boolean; error?: string }> {
     try {
       // Convert to smallest unit using precision-safe conversion (7 decimals for SAC tokens)
@@ -1101,10 +1106,9 @@ export class SacFactoryService extends BaseContractService {
       // Calculate expected output
       const expectedXlm = this.calculateSellOutput(tokenInfo, tokenAmountSmallest);
 
-      // Apply slippage tolerance
-      // Apply slippage tolerance using basis points for precision (100 bps = 1%)
-    const slippageBps = BigInt(Math.floor(slippagePercent * 100));
-    const minXlm = (expectedXlm * (BigInt(10000) - slippageBps)) / BigInt(10000);
+      // Apply output tolerance for race condition protection using basis points (100 bps = 1%)
+    const toleranceBps = BigInt(Math.floor(tolerancePercent * 100));
+    const minXlm = (expectedXlm * (BigInt(10000) - toleranceBps)) / BigInt(10000);
 
       // Set deadline (5 minutes from now) - Date.now()/1000 is an integer so Math.floor is safe
       const deadline = BigInt(Math.floor(Date.now() / 1000) + 300);

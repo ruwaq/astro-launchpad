@@ -12,7 +12,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
 import { Crown, TrendingUp, Users, Flame, Zap, ExternalLink } from 'lucide-react';
-import { formatCompactNumber } from '@/lib/stellar/utils';
+import { formatCompactNumber, GRADUATION_THRESHOLD_XLM } from '@/lib/stellar/utils';
 import type { Token } from '@/lib/graphql/types';
 
 interface KingOfTheHillProps {
@@ -48,7 +48,7 @@ export const KingOfTheHill = memo(function KingOfTheHill({
   }
 
   const graduationProgress = token.xlmRaised
-    ? Math.min((parseFloat(token.xlmRaised) / 30000) * 100, 100)
+    ? Math.min((parseFloat(token.xlmRaised) / GRADUATION_THRESHOLD_XLM) * 100, 100)
     : 0;
 
   return (
@@ -194,7 +194,7 @@ export const KingOfTheHill = memo(function KingOfTheHill({
               <div className="mt-4">
                 <div className="flex justify-between text-xs text-amber-700 mb-1">
                   <span>Progress to DEX</span>
-                  <span>{formatCompactNumber(parseFloat(token.xlmRaised || '0'))} / 30K XLM</span>
+                  <span>{formatCompactNumber(parseFloat(token.xlmRaised || '0'))} / {formatCompactNumber(GRADUATION_THRESHOLD_XLM)} XLM</span>
                 </div>
                 <div className="h-2 bg-amber-200 rounded-full overflow-hidden">
                   <motion.div

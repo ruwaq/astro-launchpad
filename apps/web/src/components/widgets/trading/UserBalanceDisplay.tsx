@@ -23,6 +23,8 @@ interface UserBalanceDisplayProps {
   isConnected: boolean;
   /** Callback when token balance changes - useful for MAX button */
   onTokenBalanceChange?: (balance: string) => void;
+  /** Callback when XLM balance changes - useful for balance validation */
+  onXlmBalanceChange?: (balance: string) => void;
 }
 
 export const UserBalanceDisplay = memo(function UserBalanceDisplay({
@@ -31,6 +33,7 @@ export const UserBalanceDisplay = memo(function UserBalanceDisplay({
   tokenSymbol = 'TOKEN',
   isConnected,
   onTokenBalanceChange,
+  onXlmBalanceChange,
 }: UserBalanceDisplayProps) {
   const [xlmBalance, setXlmBalance] = useState<string | null>(null);
   const [tokenBalance, setTokenBalance] = useState<string | null>(null);
@@ -65,13 +68,16 @@ export const UserBalanceDisplay = memo(function UserBalanceDisplay({
           (b: { asset_type: string }) => b.asset_type === 'native'
         );
         if (xlmBalanceEntry && 'balance' in xlmBalanceEntry) {
-          setXlmBalance(xlmBalanceEntry.balance as string);
+          const balance = xlmBalanceEntry.balance as string;
+          setXlmBalance(balance);
+          onXlmBalanceChange?.(balance);
         }
       } catch (horizonErr) {
         // Account might not exist on Horizon yet (new account)
         console.warn('Could not load account from Horizon:', horizonErr);
         if (isMountedRef.current) {
           setXlmBalance('0');
+          onXlmBalanceChange?.('0');
         }
       }
 
@@ -117,7 +123,7 @@ export const UserBalanceDisplay = memo(function UserBalanceDisplay({
         setIsLoading(false);
       }
     }
-  }, [userAddress, tokenAddress, isConnected, onTokenBalanceChange]);
+  }, [userAddress, tokenAddress, isConnected, onTokenBalanceChange, onXlmBalanceChange]);
 
   useEffect(() => {
     isMountedRef.current = true;

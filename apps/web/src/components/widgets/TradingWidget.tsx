@@ -94,6 +94,10 @@ export function TradingWidget() {
     pollInterval: 30000,
   });
 
+  // MIN_OUTPUT_TOLERANCE: Fixed 0.5% tolerance for race condition protection only
+  // Bonding curves are deterministic - this is NOT slippage
+  const MIN_OUTPUT_TOLERANCE = 0.5;
+
   const [state, setState] = useState<TradeState>({
     type: 'buy',
     inputAmount: '',
@@ -101,7 +105,6 @@ export function TradingWidget() {
     selectedToken: null,
     isCalculating: false,
     isProcessing: false,
-    slippage: 1,
   });
 
   const [showTokenSelector, setShowTokenSelector] = useState(false);
@@ -153,20 +156,21 @@ export function TradingWidget() {
       const inputAmount = parseFloat(state.inputAmount);
 
       if (tokenInfo) {
-        let output: bigint;
+        let outputNet: bigint;
 
         if (state.type === 'buy') {
-          // SAFE: Use string-based conversion to avoid floating-point precision loss
+          // BUY: Fee is deducted from XLM INPUT before bonding curve calculation
           const xlmAmountStroops = toStroopsBigInt(inputAmount);
-          output = sacFactoryService.calculateBuyOutput(tokenInfo, xlmAmountStroops);
+          const { tokensOut } = sacFactoryService.calculateBuyOutputNet(tokenInfo, xlmAmountStroops);
+          outputNet = tokensOut;
         } else {
-          // SAFE: Use string-based conversion to avoid floating-point precision loss
+          // SELL: Fee is deducted from XLM OUTPUT after bonding curve calculation
           const tokenAmountSmallest = toStroopsBigInt(inputAmount);
-          output = sacFactoryService.calculateSellOutput(tokenInfo, tokenAmountSmallest);
+          const { xlmOut } = sacFactoryService.calculateSellOutputNet(tokenInfo, tokenAmountSmallest);
+          outputNet = xlmOut;
         }
 
-        const outputAfterFee = sacFactoryService.applyTradingFee(output);
-        const outputHuman = Number(outputAfterFee) / 10_000_000;
+        const outputHuman = Number(outputNet) / 10_000_000;
 
         // SAFETY: Validate output is a valid number before displaying
         const outputStr = Number.isFinite(outputHuman) && outputHuman >= 0
@@ -268,7 +272,9 @@ export function TradingWidget() {
       const config = getNetworkConfig();
       const inputAmount = parseFloat(state.inputAmount);
       const outputAmount = parseFloat(state.outputAmount);
-      const minOutput = outputAmount * (1 - state.slippage / 100);
+      // MIN_OUTPUT_TOLERANCE protects against race conditions (another tx changing reserves)
+      // This is NOT slippage - bonding curve pricing is deterministic
+      const minOutput = outputAmount * (1 - MIN_OUTPUT_TOLERANCE / 100);
 
       let loadingToast = '';
 
@@ -359,9 +365,9 @@ export function TradingWidget() {
             throw new Error('Insufficient balance. Please check your XLM balance.');
           }
 
-          // SLIPPAGE
+          // MIN OUTPUT NOT MET (race condition - reserves changed between calculation and execution)
           if (errorLower.includes('slippage') || errorLower.includes('min_output') || errorLower.includes('slippageexceeded')) {
-            throw new Error('Price moved too much. Try increasing slippage or reducing amount.');
+            throw new Error('Price changed during transaction. Another trade occurred first - please try again.');
           }
 
           // LIQUIDITY

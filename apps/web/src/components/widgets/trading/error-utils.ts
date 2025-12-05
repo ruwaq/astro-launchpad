@@ -18,7 +18,7 @@ export const CONTRACT_ERROR_MESSAGES: Record<number, string> = {
   30: 'Token not found',
   31: 'Token already graduated',
   32: 'Insufficient liquidity',
-  40: 'Slippage exceeded - price changed too much',
+  40: 'Price changed during transaction - another trade occurred first. Please try again.',
   41: 'Insufficient balance',
   50: 'Math overflow',
   51: 'Math underflow',

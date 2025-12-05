@@ -619,11 +619,85 @@ const queryResolvers = {
             }
 
             const addresses = results.map((r: any) => r.address).filter(Boolean)
-            const users = addresses.length > 0 ? await context.prisma.user.findMany({
-              where: { address: { in: addresses } },
-            }) : []
+
+            // Fetch users and fees in parallel for efficiency
+            const [users, feesResults] = await Promise.all([
+              addresses.length > 0 ? context.prisma.user.findMany({
+                where: { address: { in: addresses } },
+              }) : Promise.resolve([]),
+              // Calculate fees earned by each LP based on their share of pool liquidity
+              // LP fees are distributed proportionally to liquidity providers
+              //
+              // NOTE: FeeCollection.tokenAddress is the TOKEN address, not pool address.
+              // Pool has token0Address (usually XLM) and token1Address (the token).
+              // We join on pool's token addresses to match fees correctly.
+              context.prisma.$queryRaw<Array<{ provider: string; fees_earned: bigint | null }>>`
+                WITH provider_pools AS (
+                  -- Get each provider's current liquidity in each pool
+                  SELECT
+                    le.provider,
+                    le."poolId",
+                    COALESCE(SUM(
+                      CASE
+                        WHEN le.type = 'ADD' THEN CAST(NULLIF(le.liquidity, '') AS DECIMAL)
+                        WHEN le.type = 'REMOVE' THEN -CAST(NULLIF(le.liquidity, '') AS DECIMAL)
+                        ELSE 0
+                      END
+                    ), 0) as provider_liquidity
+                  FROM "LiquidityEvent" le
+                  WHERE le.provider = ANY(${addresses})
+                  GROUP BY le.provider, le."poolId"
+                  HAVING COALESCE(SUM(
+                    CASE
+                      WHEN le.type = 'ADD' THEN CAST(NULLIF(le.liquidity, '') AS DECIMAL)
+                      WHEN le.type = 'REMOVE' THEN -CAST(NULLIF(le.liquidity, '') AS DECIMAL)
+                      ELSE 0
+                    END
+                  ), 0) > 0
+                ),
+                pool_totals AS (
+                  -- Get total liquidity and token addresses for each pool
+                  SELECT
+                    p.id as pool_id,
+                    p."token0Address",
+                    p."token1Address",
+                    CAST(NULLIF(p."totalSupply", '') AS DECIMAL) as total_supply
+                  FROM "Pool" p
+                ),
+                pool_fees_24h AS (
+                  -- Get LP fees collected in last 24h for each token
+                  SELECT
+                    fc."tokenAddress",
+                    COALESCE(SUM(CAST(NULLIF(fc."lpFee", '') AS DECIMAL)), 0) as lp_fees
+                  FROM "FeeCollection" fc
+                  WHERE fc.timestamp >= ${startTime}
+                    AND fc."lpFee" IS NOT NULL
+                    AND fc."lpFee" != ''
+                  GROUP BY fc."tokenAddress"
+                )
+                SELECT
+                  pp.provider,
+                  COALESCE(SUM(
+                    CASE
+                      WHEN pt.total_supply > 0 THEN
+                        (pp.provider_liquidity / pt.total_supply) * (
+                          COALESCE(pf0.lp_fees, 0) + COALESCE(pf1.lp_fees, 0)
+                        )
+                      ELSE 0
+                    END
+                  ), 0)::BIGINT as fees_earned
+                FROM provider_pools pp
+                JOIN pool_totals pt ON pp."poolId" = pt.pool_id
+                LEFT JOIN pool_fees_24h pf0 ON pt."token0Address" = pf0."tokenAddress"
+                LEFT JOIN pool_fees_24h pf1 ON pt."token1Address" = pf1."tokenAddress"
+                GROUP BY pp.provider
+              `,
+            ])
 
             const userMap = new Map(users.map(u => [u.address, u]))
+            const feesMap = new Map(
+              feesResults.map(f => [f.provider, (f.fees_earned || BigInt(0)).toString()])
+            )
 
             return results.map((result: any, index: number) => ({
               rank: index + 1,
@@ -644,8 +718,8 @@ const queryResolvers = {
               trades24h: 0,
               profitLoss24h: '0',
               totalLiquidity: (result.net_liquidity || 0).toString(),
-              // Would need to join with FeeCollection: SUM(lpFee) WHERE provider = user AND timestamp > 24h ago
-              feesEarned24h: '0',
+              // Real fees earned based on LP's proportional share of pool liquidity
+              feesEarned24h: feesMap.get(result.address) || '0',
               // Would need PoolSnapshot table to calculate volume change
               volumeChange24h: 0,
               rankChange24h: 0,

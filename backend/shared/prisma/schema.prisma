@@ -61,6 +61,7 @@ model Pool {
   tvl             String?
   volume24h       String           @default("0")
   volume7d        String           @default("0")
+  fees24h         String           @default("0")
   apr             Float?
   feeRate         Float            @default(0.003)
   createdAt       DateTime         @default(now())

@@ -176,8 +176,8 @@ describe('calculateBuyOutput (without fees)', () => {
     // tokens_out ≈ 9900.99 tokens
 
     expect(result.amountOut).toBeGreaterThan(0n);
-    expect(result.priceImpact).toBeGreaterThan(0);
-    expect(result.priceImpact).toBeLessThan(100);
+    expect(result.priceChange).toBeGreaterThan(0);
+    expect(result.priceChange).toBeLessThan(100);
   });
 
   it('should return zero for zero input', () => {
@@ -246,7 +246,7 @@ describe('calculateSellOutput (without fees)', () => {
     const result = calculateSellOutput(STANDARD_CURVE, tokenInput);
 
     expect(result.amountOut).toBeGreaterThan(0n);
-    expect(result.priceImpact).toBeGreaterThan(0);
+    expect(result.priceChange).toBeGreaterThan(0);
   });
 
   it('should return zero for zero input', () => {

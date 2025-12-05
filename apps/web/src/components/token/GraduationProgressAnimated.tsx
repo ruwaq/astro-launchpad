@@ -13,7 +13,7 @@
 
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { motion, AnimatePresence, useSpring, useTransform } from 'framer-motion';
 import { Rocket, Trophy, Flame, Zap, Star, PartyPopper, TrendingUp, Target, Droplets, Info } from 'lucide-react';
 import { GRADUATION_THRESHOLD_XLM } from '@/lib/stellar/utils';
@@ -114,6 +114,9 @@ export function GraduationProgressAnimated({
   const [prevProgress, setPrevProgress] = useState(0);
   const [showAstroDetails, setShowAstroDetails] = useState(false);
 
+  // FIX: Track particle cleanup timeouts to prevent memory leaks
+  const particleTimeoutsRef = useRef<Set<NodeJS.Timeout>>(new Set());
+
   // FIX: Defensive checks for NaN/Infinity from malformed data
   const parsedRaised = parseFloat(xlmRaised?.toString() ?? '0');
   const raised = isNaN(parsedRaised) || !isFinite(parsedRaised) ? 0 : Math.max(0, parsedRaised);
@@ -164,15 +167,29 @@ export function GraduationProgressAnimated({
         }));
         setParticles((prev) => [...prev, ...newParticles]);
 
-        // Clean up particles after animation
-        setTimeout(() => {
+        // FIX: Track timeout for cleanup to prevent memory leaks
+        const timeoutId = setTimeout(() => {
           setParticles((prev) => prev.filter((p) => !newParticles.find((np) => np.id === p.id)));
+          particleTimeoutsRef.current.delete(timeoutId);
         }, 2000);
+        particleTimeoutsRef.current.add(timeoutId);
       }
     });
 
     setPrevProgress(percentComplete);
   }, [percentComplete, prevProgress, particleCounter]);
+
+  // FIX: Cleanup all particle timeouts on unmount
+  useEffect(() => {
+    // Copy ref to local variable for cleanup (React ESLint rule)
+    const timeouts = particleTimeoutsRef.current;
+    return () => {
+      timeouts.forEach((timeoutId) => {
+        clearTimeout(timeoutId);
+      });
+      timeouts.clear();
+    };
+  }, []);
 
   // Graduation celebration
   useEffect(() => {

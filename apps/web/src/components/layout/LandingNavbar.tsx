@@ -70,11 +70,11 @@ export function LandingNavbar() {
             {isConnected ? (
               <div className="flex items-center gap-2">
                 <Link
-                  href="/dashboard"
+                  href="/leaderboard"
                   className="hidden sm:flex items-center gap-2 px-4 py-2 bg-brand-primary text-white rounded-lg hover:bg-brand-primary-dark transition-colors"
                 >
                   <Rocket className="h-4 w-4" />
-                  {t('common.dashboard')}
+                  {t('nav.leaderboard')}
                 </Link>
                 <button
                   onClick={handleWalletAction}

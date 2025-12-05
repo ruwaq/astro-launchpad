@@ -174,6 +174,8 @@ export const LiveActivityFeed = memo(function LiveActivityFeed({
   const feedRef = useRef<HTMLDivElement>(null);
   const lastTxIdRef = useRef<string | null>(null);
   const highlightTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  // FIX: Use ref to track existing transaction IDs to avoid stale closure in useEffect
+  const existingTxIdsRef = useRef<Set<string>>(new Set());
 
   // Build query variables
   const queryVariables = {
@@ -222,10 +224,10 @@ export const LiveActivityFeed = memo(function LiveActivityFeed({
       }
     );
 
+    // FIX: Use ref to check for new transactions (avoids stale closure issue)
     // Check for new transactions and highlight them
-    if (transactions.length > 0 && apiTransactions.length > 0) {
-      const existingIds = new Set(transactions.map(t => t.id));
-      const newTransactions = apiTransactions.filter(t => !existingIds.has(t.id));
+    if (existingTxIdsRef.current.size > 0 && apiTransactions.length > 0) {
+      const newTransactions = apiTransactions.filter(t => !existingTxIdsRef.current.has(t.id));
 
       if (newTransactions.length > 0) {
         // Mark new transactions for highlighting
@@ -259,11 +261,14 @@ export const LiveActivityFeed = memo(function LiveActivityFeed({
       }
     }
 
+    // FIX: Update ref with current transaction IDs AFTER checking for new ones
+    existingTxIdsRef.current = new Set(apiTransactions.map(t => t.id));
+
     setTransactions(apiTransactions);
     if (apiTransactions.length > 0) {
       lastTxIdRef.current = apiTransactions[0].id;
     }
-  }, [txData, soundEnabled, playNotification, playMilestone]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [txData, soundEnabled, playNotification, playMilestone]);
 
   // FIX: Cleanup timeout on unmount to prevent memory leak
   useEffect(() => {

@@ -96,6 +96,9 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [isMobile, setIsMobile] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
 
+  // Ref to track mobile wallet timeout for cleanup (prevents memory leak)
+  const mobileWalletTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   // Get expected network from config
   const expectedNetwork = getCurrentNetwork();
 
@@ -352,15 +355,35 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     const links = MOBILE_WALLET_DEEPLINKS[wallet];
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
 
+    // Clear any existing timeout to prevent memory leak
+    if (mobileWalletTimeoutRef.current) {
+      clearTimeout(mobileWalletTimeoutRef.current);
+      mobileWalletTimeoutRef.current = null;
+    }
+
     // Try deep link first
     const deepLink = isIOS ? links.ios : links.android;
     window.location.href = deepLink;
 
-    // Fallback to app store after timeout
-    setTimeout(() => {
-      const storeLink = isIOS ? links.appStore : links.playStore;
-      window.location.href = storeLink;
+    // Fallback to app store after timeout (tracked in ref for cleanup)
+    mobileWalletTimeoutRef.current = setTimeout(() => {
+      // Only navigate if timeout wasn't cancelled
+      if (mobileWalletTimeoutRef.current !== null) {
+        const storeLink = isIOS ? links.appStore : links.playStore;
+        window.location.href = storeLink;
+        mobileWalletTimeoutRef.current = null;
+      }
     }, 2500);
+  }, []);
+
+  // Cleanup mobile wallet timeout on unmount (prevents memory leak)
+  useEffect(() => {
+    return () => {
+      if (mobileWalletTimeoutRef.current) {
+        clearTimeout(mobileWalletTimeoutRef.current);
+        mobileWalletTimeoutRef.current = null;
+      }
+    };
   }, []);
 
   // Memoize context value to prevent unnecessary re-renders
