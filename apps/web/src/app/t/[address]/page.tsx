@@ -423,8 +423,10 @@ export default function TokenTradingPage({ params }: PageProps) {
   const xlmRaisedNumber = parseFloat(xlmRaisedFormatted);
 
   // Calculate price from reserves (only for contract data)
+  // Formula: (xlm_reserve * 10^7) / token_reserve / 10^7 = xlm_reserve / token_reserve
+  // Both reserves are in stroops (7 decimals), so this gives price in XLM per token
   const currentPrice = hasContractData && token?.bonding_curve
-    ? (Number(token.bonding_curve.xlm_reserve) / Number(token.bonding_curve.token_reserve || 1) / 10_000_000).toFixed(7)
+    ? (Number(token.bonding_curve.xlm_reserve) / Number(token.bonding_curve.token_reserve || 1)).toFixed(7)
     : (parseFloat(formattedToken.currentPrice) || 0).toFixed(7);
 
   return (
