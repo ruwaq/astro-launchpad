@@ -193,14 +193,22 @@ export function TradingViewChart({ tokenAddress, symbol = 'TOKEN', refreshTrigge
       setError(null);
       const now = Math.floor(Date.now() / 1000);
 
-      // Add to price history if price changed
-      if (currentPrice !== lastPriceRef.current && currentPrice > 0) {
+      // ALWAYS add a price point on each poll (creates visible chart over time)
+      if (currentPrice > 0) {
+        const priceChanged = currentPrice !== lastPriceRef.current;
+        const priceType = priceChanged
+          ? (currentPrice > lastPriceRef.current ? 'buy' : 'sell')
+          : 'neutral';
+
         lastPriceRef.current = currentPrice;
+
         setPriceHistory(prev => {
           const lastTime = prev.length > 0 ? prev[prev.length - 1].time : 0;
+          // Only add if at least 1 second has passed
           if (now <= lastTime) return prev;
 
-          const newHistory = [...prev, { time: now, price: currentPrice, type: 'neutral' as const }];
+          const newHistory = [...prev, { time: now, price: currentPrice, type: priceType as 'buy' | 'sell' | 'neutral' }];
+          // Keep last 500 points
           return newHistory.slice(-500);
         });
       }
@@ -213,10 +221,10 @@ export function TradingViewChart({ tokenAddress, symbol = 'TOKEN', refreshTrigge
     }
   }, [tokenAddress]);
 
-  // Initial fetch and polling
+  // Initial fetch and polling - faster polling for responsive chart
   useEffect(() => {
     fetchCurrentPrice();
-    const interval = setInterval(fetchCurrentPrice, 15000); // Poll every 15s
+    const interval = setInterval(fetchCurrentPrice, 5000); // Poll every 5s for responsive updates
     return () => clearInterval(interval);
   }, [fetchCurrentPrice]);
 
@@ -638,11 +646,10 @@ export function TradingViewChart({ tokenAddress, symbol = 'TOKEN', refreshTrigge
       {/* Chart Footer */}
       <div className="px-4 py-2 bg-gray-50 border-t border-ui-border flex items-center justify-between">
         <span className="text-xs text-ui-text-tertiary">
-          {txData?.transactions?.totalCount || 0} trades
-          {(txData?.transactions?.totalCount || 0) === 0 && ' • Live price from contract'}
+          {priceHistory.length} price updates • Polling every 5s
         </span>
         <span className="text-xs text-ui-text-tertiary">
-          Powered by TradingView Charts
+          Live from Stellar
         </span>
       </div>
     </div>
