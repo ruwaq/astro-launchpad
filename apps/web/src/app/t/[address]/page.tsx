@@ -24,7 +24,7 @@ import { use, useState, useEffect, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { TradingWidgetPremium } from '@/components/widgets/TradingWidgetPremium';
-import { TradingViewChart } from '@/components/charts/TradingViewChart';
+import { SimpleChart } from '@/components/charts/SimpleChart';
 import { LiveActivityFeed } from '@/components/activity/LiveActivityFeed';
 import { TokenTransactionHistory } from '@/components/transactions/TokenTransactionHistory';
 import { TokenHeader } from '@/components/token/TokenHeader';
@@ -504,7 +504,7 @@ export default function TokenTradingPage({ params }: PageProps) {
             <div className="order-2 lg:order-1">
               {!isReadOnlyMode ? (
                 <CardErrorBoundary>
-                  <TradingViewChart
+                  <SimpleChart
                     tokenAddress={address}
                     symbol={formattedToken.symbol}
                     refreshTrigger={refreshTrigger}
