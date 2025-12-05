@@ -42,7 +42,7 @@ export function TestnetTokenAlert({ token, simulatedPrice }: TestnetTokenAlertPr
           </p>
           <p className="text-sm text-blue-800">
             {token.symbol} uses simulated prices for demo (1 XLM = {simulatedPrice}{' '}
-            {token.symbol}). Real swaps require testnet liquidity pools.
+            {token.symbol}). Real trades use bonding curve pricing.
           </p>
         </div>
       </div>
@@ -58,7 +58,7 @@ export function NoLiquidityAlert() {
         <div className="flex-1">
           <p className="text-sm font-semibold text-orange-900 mb-1">Token Not Available</p>
           <p className="text-sm text-orange-800">
-            This token doesn&apos;t have sufficient liquidity or issuer information.
+            This token is not found in the bonding curve.
             Try tokens from the Astro Shiba section instead.
           </p>
         </div>

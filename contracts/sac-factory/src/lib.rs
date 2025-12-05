@@ -607,13 +607,24 @@ impl SacFactory {
             return Err(Error::AlreadyGraduated);
         }
 
-        // 5. Calculate XLM to receive from bonding curve
+        // 5. SECURITY: Verify seller has sufficient token balance BEFORE any state changes
+        // This prevents state inconsistency if burn fails
+        #[cfg(not(test))]
+        {
+            let token_client = token::Client::new(&env, &token);
+            let seller_balance = token_client.balance(&seller);
+            if seller_balance < token_amount {
+                return Err(Error::InsufficientBalance);
+            }
+        }
+
+        // 6. Calculate XLM to receive from bonding curve
         let xlm_gross = token_info.bonding_curve.calculate_sell(token_amount)?;
 
-        // 6. Apply dual-fee system (protocol + LP fees)
+        // 7. Apply dual-fee system (protocol + LP fees)
         let fee_breakdown = fee_management::apply_trading_fees(&env, xlm_gross)?;
 
-        // 7. Check slippage (using net amount after fees)
+        // 8. Check slippage (using net amount after fees)
         if fee_breakdown.net_amount < min_xlm {
             return Err(Error::SlippageExceeded);
         }
@@ -623,7 +634,7 @@ impl SacFactory {
         // This prevents reentrancy attacks
         // ============================================================
 
-        // 8. Update bonding curve state with LP fee retention (Uniswap V2 style)
+        // 9. Update bonding curve state with LP fee retention (Uniswap V2 style)
         // - xlm_gross is total calculated, but LP fee stays in reserves
         // - Only (gross - lp_fee) is removed from reserves
         // - k grows over time as fees accumulate
@@ -633,13 +644,13 @@ impl SacFactory {
             fee_breakdown.lp_fee,
         )?;
 
-        // 9. Update total XLM raised (using safe math)
+        // 10. Update total XLM raised (using safe math)
         token_info.xlm_raised = core_math::safe_sub(token_info.xlm_raised, xlm_gross)?;
 
-        // 10. Update market cap
+        // 11. Update market cap
         token_info.market_cap = core_math::safe_mul(token_info.xlm_raised, 2)?;
 
-        // 11. Save state BEFORE any external calls
+        // 12. Save state BEFORE any external calls
         storage::set_token_info(&env, &token, &token_info);
 
         // Record sell for anti-whale tracking (state update)
@@ -649,7 +660,7 @@ impl SacFactory {
         // CEI PATTERN: INTERACTIONS - External calls AFTER state updates
         // ============================================================
 
-        // 12. BURN tokens from seller (bonding curve destroys tokens dynamically)
+        // 13. BURN tokens from seller (bonding curve destroys tokens dynamically)
         // For pure Soroban tokens (V2), factory uses admin_burn
         // For SAC tokens (V1), factory must be set as admin and uses burn
         #[cfg(not(test))]
@@ -665,7 +676,7 @@ impl SacFactory {
             }
         }
 
-        // 13. Transfer XLM from contract to seller (net amount after fees)
+        // 14. Transfer XLM from contract to seller (net amount after fees)
         #[cfg(not(test))]
         {
             let xlm_token_address = Self::get_xlm_token_address(&env);
@@ -675,7 +686,7 @@ impl SacFactory {
             xlm_client.transfer(&contract_address, &seller, &fee_breakdown.net_amount);
         }
 
-        // 14. Transfer protocol fee to treasury (in XLM)
+        // 15. Transfer protocol fee to treasury (in XLM)
         #[cfg(not(test))]
         {
             if fee_breakdown.protocol_fee > 0 {
@@ -689,16 +700,16 @@ impl SacFactory {
             }
         }
 
-        // 15. LP fee stays in bonding curve (already in XLM reserves)
+        // 16. LP fee stays in bonding curve (already in XLM reserves)
         if fee_breakdown.lp_fee > 0 {
             let xlm_token_address = Self::get_xlm_token_address(&env);
             events::lp_fee_collected(&env, &xlm_token_address, fee_breakdown.lp_fee);
         }
 
-        // 16. Emit events (with net amount)
+        // 17. Emit events (with net amount)
         events::tokens_sold(&env, &seller, &token, token_amount, fee_breakdown.net_amount);
 
-        // 17. Emit fee breakdown event for transparency
+        // 18. Emit fee breakdown event for transparency
         events::fee_breakdown_event(
             &env,
             "SELL",

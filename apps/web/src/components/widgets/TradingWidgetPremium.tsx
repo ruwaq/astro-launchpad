@@ -39,7 +39,7 @@ import { sanitizeNumericInput } from '@/lib/utils/format';
 // Import modular components
 import {
   QuickBuyButtons,
-  QUICK_BUY_AMOUNTS,
+  QuickSellButtons,
   TradingHeader,
   TransactionStatus,
   TradeInfoPanel,
@@ -48,7 +48,6 @@ import {
   PriceImpactWarning,
   parseContractError,
   extractSimulationError,
-  SLIPPAGE_OPTIONS,
   type TradeType,
 } from './trading';
 import type { TransactionStatusType } from './trading/TransactionStatus';
@@ -99,13 +98,17 @@ export function TradingWidgetPremium({
   const [tradeType, setTradeType] = useState<TradeType>('buy');
   const [inputAmount, setInputAmount] = useState('');
   const [outputAmount, setOutputAmount] = useState('');
-  const [slippage, setSlippage] = useState(1);
+  // Fixed minimal slippage protection (0.5%) - bonding curves are deterministic
+  // This only protects against race conditions, not price impact
+  const slippage = 0.5;
   const [tokenInfo, setTokenInfo] = useState<TokenInfo | null>(null);
   const [isCalculating, setIsCalculating] = useState(false);
   const [txStatus, setTxStatus] = useState<TransactionStatusType>('idle');
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [previousPrice, setPreviousPrice] = useState<bigint>(BigInt(0));
   const [priceFlash, setPriceFlash] = useState<'up' | 'down' | null>(null);
+  // User's token balance for MAX/percentage sells (in stroops)
+  const [userTokenBalance, setUserTokenBalance] = useState<string>('0');
 
   // RACE CONDITION FIX: Use ref-based lock for synchronous double-click prevention
   const isTransactionInProgressRef = useRef(false);
@@ -510,19 +513,34 @@ export function TradingWidgetPremium({
             tokenAddress={tokenAddress}
             tokenSymbol={tokenSymbol}
             isConnected={isConnected}
+            onTokenBalanceChange={setUserTokenBalance}
           />
         </motion.div>
 
-        {/* Quick Buy Buttons */}
+        {/* Quick Buy/Sell Buttons */}
         <motion.div variants={itemVariants}>
-          <QuickBuyButtons
-            selectedAmount={inputAmount}
-            tradeType={tradeType}
-            disabled={!isConnected || isProcessing}
-            onSelect={handleQuickBuy}
-            currentPrice={parseFloat(currentPrice)}
-            tokenSymbol={tokenSymbol}
-          />
+          {tradeType === 'buy' ? (
+            <QuickBuyButtons
+              selectedAmount={inputAmount}
+              tradeType={tradeType}
+              disabled={!isConnected || isProcessing}
+              onSelect={handleQuickBuy}
+              currentPrice={parseFloat(currentPrice)}
+              tokenSymbol={tokenSymbol}
+            />
+          ) : (
+            <QuickSellButtons
+              tokenBalance={userTokenBalance}
+              tokenSymbol={tokenSymbol}
+              onSelect={(amount) => {
+                if (soundEnabled) playClick();
+                haptics.lightTap();
+                setInputAmount(amount);
+              }}
+              selectedAmount={inputAmount}
+              disabled={!isConnected || isProcessing}
+            />
+          )}
         </motion.div>
 
         {/* Trade Type Tabs */}
@@ -622,31 +640,9 @@ export function TradingWidgetPremium({
           )}
         </motion.div>
 
-        {/* Slippage */}
-        <motion.div variants={itemVariants} className="space-y-2">
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-ui-text-secondary">Slippage Tolerance</span>
-            <span className="font-medium">{slippage}%</span>
-          </div>
-          <div className="flex gap-2">
-            {SLIPPAGE_OPTIONS.map((s) => (
-              <button
-                key={s}
-                onClick={() => {
-                  if (soundEnabled) playClick();
-                  setSlippage(s);
-                }}
-                disabled={isProcessing}
-                className={`flex-1 py-3 rounded-lg text-sm font-medium transition-colors min-h-[44px] ${
-                  slippage === s
-                    ? 'bg-brand-primary text-white'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                } disabled:opacity-50`}
-              >
-                {s}%
-              </button>
-            ))}
-          </div>
+        {/* Trade Protection Info - Bonding curve is deterministic */}
+        <motion.div variants={itemVariants} className="text-xs text-gray-500 text-center py-1">
+          Price is calculated instantly from bonding curve (no external liquidity)
         </motion.div>
 
         {/* Transaction Status */}

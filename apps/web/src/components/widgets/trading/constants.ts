@@ -30,7 +30,7 @@ export const TESTNET_TOKENS = [
     imageUrl: 'https://via.placeholder.com/32/3b82f6/ffffff?text=TTA',
     isTestnet: true,
     decimals: 7,
-    description: 'Example testnet token for testing swaps',
+    description: 'Example testnet token for testing trades',
   },
   {
     address: 'CBGTG5WCUFKYTQGIOAOYUD7GZ4KXOYAIQX2ESMNKTVFHOXDS7G2Y7BOQ',

@@ -25,6 +25,7 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { TradingWidgetPremium } from '@/components/widgets/TradingWidgetPremium';
 import { TradingViewChart } from '@/components/charts/TradingViewChart';
 import { LiveActivityFeed } from '@/components/activity/LiveActivityFeed';
+import { TokenTransactionHistory } from '@/components/transactions/TokenTransactionHistory';
 import { TokenHeader } from '@/components/token/TokenHeader';
 import { GraduationProgressAnimated } from '@/components/token/GraduationProgressAnimated';
 import { Loader2, AlertCircle, Users, DollarSign, TrendingUp, Activity, AlertTriangle, Database, Wifi } from 'lucide-react';
@@ -583,6 +584,13 @@ export default function TokenTradingPage({ params }: PageProps) {
               tokenAddress={address}
               maxItems={8}
               pollInterval={15000}
+            />
+
+            {/* Token Trade History */}
+            <TokenTransactionHistory
+              tokenAddress={address}
+              tokenSymbol={formattedToken.symbol}
+              limit={20}
             />
           </motion.div>
         </div>
