@@ -15,7 +15,7 @@
 
 'use client';
 
-import { useState, useEffect, useMemo, memo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, memo, useCallback } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -121,7 +121,7 @@ const progressVariants = {
 };
 
 // PERFORMANCE: Memoized to prevent unnecessary re-renders in token lists
-export const TokenCardPremium = memo(function TokenCardPremium({
+function TokenCardPremiumInner({
   tokenAddress,
   token: tokenProp,
   compact = false,
@@ -129,7 +129,7 @@ export const TokenCardPremium = memo(function TokenCardPremium({
   trendingRank,
   isNew = false,
   showQuickActions = true,
-}: TokenCardPremiumProps) {
+}: TokenCardPremiumProps): React.ReactElement | null {
   // Use provided token data or fetch from contract
   const address = tokenProp?.address || tokenAddress || '';
   const shouldFetch = !tokenProp && !!tokenAddress;
@@ -554,8 +554,9 @@ export const TokenCardPremium = memo(function TokenCardPremium({
       </Link>
     </motion.div>
   );
-});
+}
 
+export const TokenCardPremium = memo(TokenCardPremiumInner);
 TokenCardPremium.displayName = 'TokenCardPremium';
 
 export default TokenCardPremium;
