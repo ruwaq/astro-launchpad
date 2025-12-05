@@ -3,7 +3,7 @@
 import { Loader2 } from 'lucide-react';
 import type { TokenOption, TradeType } from './types';
 
-interface SwapButtonProps {
+interface TradeButtonProps {
   onClick: () => void;
   isConnected: boolean;
   isProcessing: boolean;
@@ -13,7 +13,13 @@ interface SwapButtonProps {
   tradeType: TradeType;
 }
 
-export function SwapButton({
+/**
+ * Trade Button Component
+ *
+ * Button for executing buy/sell trades on bonding curve.
+ * Note: This is NOT a swap - bonding curves mint/burn tokens directly.
+ */
+export function TradeButton({
   onClick,
   isConnected,
   isProcessing,
@@ -21,7 +27,7 @@ export function SwapButton({
   inputAmount,
   hasTokenInfo,
   tradeType,
-}: SwapButtonProps) {
+}: TradeButtonProps) {
   const isTestnetOnly = selectedToken?.isTestnet && !hasTokenInfo;
   const hasValidAmount = inputAmount && parseFloat(inputAmount) > 0;
 
@@ -73,3 +79,6 @@ export function SwapButton({
     </button>
   );
 }
+
+// Backwards compatibility alias
+export const SwapButton = TradeButton;

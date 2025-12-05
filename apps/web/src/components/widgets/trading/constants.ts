@@ -55,5 +55,10 @@ export const SIMULATED_PRICES: Record<string, number> = {
 
 export const DEFAULT_SIMULATED_PRICE = 10;
 export const STROOPS_PER_XLM = 10_000_000;
-export const SLIPPAGE_OPTIONS = [0.5, 1, 2, 5];
 export const QUICK_AMOUNTS = [1, 10, 100];
+
+/**
+ * @deprecated Slippage doesn't apply to bonding curves - pricing is deterministic.
+ * Only kept for backwards compatibility.
+ */
+export const SLIPPAGE_OPTIONS = [0.5, 1, 2, 5];

@@ -1,7 +1,8 @@
 /**
  * Trade Info Panel Component
  *
- * Displays trading statistics and calculated values
+ * Displays trading statistics and bonding curve information.
+ * Note: Bonding curve pricing is deterministic (no slippage).
  */
 
 'use client';
@@ -27,7 +28,8 @@ interface TradeInfoPanelProps {
   tokenInfo: TokenInfo;
   tokenSymbol: string;
   outputAmount: string;
-  slippage: number;
+  /** @deprecated Not used - bonding curves are deterministic */
+  slippage?: number;
   tradeType: TradeType;
 }
 
@@ -35,12 +37,14 @@ export const TradeInfoPanel = memo(function TradeInfoPanel({
   tokenInfo,
   tokenSymbol,
   outputAmount,
-  slippage,
   tradeType,
 }: TradeInfoPanelProps) {
-  const minOutput = outputAmount
-    ? (parseFloat(outputAmount) * (1 - slippage / 100)).toFixed(4)
-    : '0';
+  // Calculate current price from reserves (XLM per token)
+  const xlmReserve = BigInt(tokenInfo.bonding_curve.xlm_reserve);
+  const tokenReserve = BigInt(tokenInfo.bonding_curve.token_reserve);
+  const currentPrice = tokenReserve > 0n
+    ? Number(xlmReserve) / Number(tokenReserve)
+    : 0;
 
   return (
     <motion.div
@@ -66,9 +70,9 @@ export const TradeInfoPanel = memo(function TradeInfoPanel({
         </p>
       </div>
       <div>
-        <p className="text-ui-text-secondary">Min Output</p>
+        <p className="text-ui-text-secondary">Current Price</p>
         <p className="font-semibold">
-          {minOutput} {tradeType === 'buy' ? tokenSymbol : 'XLM'}
+          {currentPrice.toFixed(7)} XLM/{tokenSymbol}
         </p>
       </div>
     </motion.div>

@@ -1,13 +1,15 @@
 /**
  * Trading Widget for Dashboard
  *
- * Professional swap interface with:
+ * Buy/Sell interface for bonding curve tokens with:
  * - Token selector (dropdown of available tokens)
  * - Real-time price calculations from bonding curve
  * - Buy/Sell tabs
- * - Slippage protection
  * - Transaction monitoring
  * - Real Stellar testnet transactions
+ *
+ * NOTE: This is NOT a swap/DEX. Bonding curves mint/burn tokens directly.
+ * Pricing is deterministic - no slippage or price impact applies.
  */
 
 'use client';
@@ -39,9 +41,8 @@ const triggerConfetti = () => {
 import {
   TradeTypeTabs,
   AmountInput,
-  SlippageSelector,
   TokenInfoCard,
-  SwapButton,
+  TradeButton,
   ConnectWalletAlert,
   TestnetTokenAlert,
   NoLiquidityAlert,
@@ -287,7 +288,7 @@ export function TradingWidget() {
           if (tokenInfo?.issuer && tokenInfo.issuer.startsWith('G')) {
             loadingToast = toast.loading('Setting up trustline for token...');
             await ensureTrustline(address, tokenInfo.symbol, tokenInfo.issuer);
-            toast.loading('Trustline ready. Preparing swap...', { id: loadingToast });
+            toast.loading('Trustline ready. Preparing trade...', { id: loadingToast });
           }
 
           operation = sacFactoryService.buildBuyOperation(
@@ -323,9 +324,9 @@ export function TradingWidget() {
           .build();
 
         if (!loadingToast) {
-          loadingToast = toast.loading('Simulating bonding curve swap...');
+          loadingToast = toast.loading('Simulating bonding curve trade...');
         } else {
-          toast.loading('Simulating bonding curve swap...', { id: loadingToast });
+          toast.loading('Simulating bonding curve trade...', { id: loadingToast });
         }
 
         const simulated = await server.simulateTransaction(transaction);
@@ -436,7 +437,7 @@ export function TradingWidget() {
 
         toast.dismiss(loadingToast);
       } else if (state.selectedToken?.isTestnet && state.selectedToken?.classicIssuer) {
-        toast.error('External token swaps coming soon! Use bonding curve tokens for now.');
+        toast.error('External token trades coming soon! Use bonding curve tokens for now.');
         setState((prev) => ({ ...prev, isProcessing: false }));
         return;
       } else {
@@ -548,9 +549,9 @@ export function TradingWidget() {
           displayMode="output"
         />
 
-        {/* SIMPLIFIED: Slippage is auto-set to 1% (hidden from users for simplicity) */}
+        {/* Bonding curve pricing is deterministic - no slippage configuration needed */}
 
-        <SwapButton
+        <TradeButton
           onClick={handleTrade}
           isConnected={isConnected}
           isProcessing={state.isProcessing}

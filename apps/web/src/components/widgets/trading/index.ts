@@ -1,10 +1,15 @@
+/**
+ * Trading Widget Components
+ *
+ * Components for bonding curve trading (buy/sell).
+ * NOTE: This is NOT a swap/DEX - bonding curves mint/burn tokens directly.
+ */
+
 export { TokenSelector } from './TokenSelector';
 export { TradeTypeTabs } from './TradeTypeTabs';
 export { AmountInput } from './AmountInput';
-export { SlippageSelector } from './SlippageSelector';
 export { TokenInfoCard } from './TokenInfoCard';
-export { SwapButton } from './SwapButton';
-export { PriceImpactWarning } from './PriceImpactWarning';
+export { TradeButton, SwapButton } from './TradeButton'; // SwapButton is alias for backwards compat
 export { UserBalanceDisplay } from './UserBalanceDisplay';
 export { ConnectWalletAlert, TestnetTokenAlert, NoLiquidityAlert } from './TradingAlerts';
 export { QuickBuyButtons, QUICK_BUY_AMOUNTS } from './QuickBuyButtons';
