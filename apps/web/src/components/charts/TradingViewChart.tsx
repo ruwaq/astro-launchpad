@@ -234,10 +234,21 @@ export function TradingViewChart({ tokenAddress, symbol = 'TOKEN', refreshTrigge
     if (priceHistory.length === 0) return { line: [], candle: [], volume: [] };
 
     // Generate line data
-    const lineData: LineData[] = priceHistory.map((point) => ({
+    let lineData: LineData[] = priceHistory.map((point) => ({
       time: point.time as Time,
       value: point.price,
     }));
+
+    // FIX: If only 1 data point, add a synthetic point to render a visible line
+    if (lineData.length === 1) {
+      const point = lineData[0];
+      // Add a point 5 minutes before with the same price to show a horizontal line
+      const syntheticTime = (point.time as number) - 300; // 5 minutes before
+      lineData = [
+        { time: syntheticTime as Time, value: point.value },
+        point,
+      ];
+    }
 
     // Generate volume data
     const volumeData = priceHistory.map((point) => ({
@@ -627,7 +638,8 @@ export function TradingViewChart({ tokenAddress, symbol = 'TOKEN', refreshTrigge
       {/* Chart Footer */}
       <div className="px-4 py-2 bg-gray-50 border-t border-ui-border flex items-center justify-between">
         <span className="text-xs text-ui-text-tertiary">
-          {chartData.line.length} data points • {txData?.transactions?.totalCount || 0} trades
+          {txData?.transactions?.totalCount || 0} trades
+          {(txData?.transactions?.totalCount || 0) === 0 && ' • Live price from contract'}
         </span>
         <span className="text-xs text-ui-text-tertiary">
           Powered by TradingView Charts
