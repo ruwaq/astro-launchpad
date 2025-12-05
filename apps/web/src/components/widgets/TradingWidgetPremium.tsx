@@ -45,7 +45,6 @@ import {
   TradeInfoPanel,
   DisabledTradingState,
   UserBalanceDisplay,
-  PriceImpactWarning,
   parseContractError,
   extractSimulationError,
   type TradeType,
@@ -628,16 +627,7 @@ export function TradingWidgetPremium({
             </span>
           </div>
 
-          {/* Price Impact Warning */}
-          {tokenInfo && inputAmount && outputAmount && (
-            <PriceImpactWarning
-              inputAmount={inputAmount}
-              outputAmount={outputAmount}
-              xlmReserve={(Number(BigInt(tokenInfo.bonding_curve.xlm_reserve)) / 10_000_000).toString()}
-              tokenReserve={(Number(BigInt(tokenInfo.bonding_curve.token_reserve)) / 10_000_000).toString()}
-              tradeType={tradeType}
-            />
-          )}
+          {/* Note: No price impact warning needed - bonding curve pricing is deterministic */}
         </motion.div>
 
         {/* Trade Protection Info - Bonding curve is deterministic */}
