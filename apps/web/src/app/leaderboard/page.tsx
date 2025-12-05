@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { useLeaderboard, useGlobalStats } from '@/hooks/useApi';
@@ -9,9 +9,36 @@ import { truncateAddress, formatCompactNumber } from '@/lib/stellar/utils';
 import { MetricCard } from '@/components/widgets/MetricCard';
 import { TokensWidget } from '@/components/widgets/TokensWidget';
 import { ActivityWidget } from '@/components/widgets/ActivityWidget';
+import { KingOfTheHill } from '@/components/explore/KingOfTheHill';
 import { TrendingUp, Rocket, Users, Lock, Zap, Plus, Trophy, Coins, ChevronRight } from 'lucide-react';
-import type { LeaderboardEntry } from '@/lib/graphql/types';
+import type { LeaderboardEntry, Token, TokenEdge } from '@/lib/graphql/types';
+import { useQuery, gql } from '@apollo/client';
 import toast from 'react-hot-toast';
+
+// GraphQL query to fetch top token by volume
+const GET_TOP_TOKEN = gql`
+  query GetTopToken {
+    tokens(limit: 1, orderBy: VOLUME_DESC, status: BONDING) {
+      edges {
+        node {
+          address
+          name
+          symbol
+          imageUrl
+          logoUrl
+          currentPrice
+          priceChange24h
+          volume24h
+          marketCap
+          holders
+          xlmRaised
+          graduated
+          createdAt
+        }
+      }
+    }
+  }
+`;
 
 type LeaderboardType = 'TRADERS' | 'CREATORS' | 'LIQUIDITY_PROVIDERS';
 type LeaderboardTimeframe = 'HOUR' | 'DAY' | 'WEEK' | 'MONTH' | 'ALL_TIME';
@@ -42,8 +69,19 @@ export default function LeaderboardPage() {
     timeframe: selectedTimeframe,
   });
 
+  // Fetch top token for King of the Hill
+  const { data: topTokenData, loading: topTokenLoading } = useQuery(GET_TOP_TOKEN, {
+    pollInterval: 60000, // Refresh every minute
+  });
+
   const leaderboard = data?.leaderboard || [];
   const stats = statsData?.globalStats;
+
+  // Extract top token from query
+  const topToken = useMemo(() => {
+    if (!topTokenData?.tokens?.edges?.[0]?.node) return null;
+    return topTokenData.tokens.edges[0].node as Token;
+  }, [topTokenData]);
 
   const handleConnect = async () => {
     try {
@@ -139,6 +177,12 @@ export default function LeaderboardPage() {
             icon={<Lock className="h-5 w-5" />}
           />
         </div>
+
+        {/* King of the Hill - Top Trending Token */}
+        <KingOfTheHill
+          token={topToken}
+          isLoading={topTokenLoading}
+        />
 
         {/* Connect Wallet Notice */}
         {!isConnected && (

@@ -13,6 +13,7 @@ import Image from 'next/image';
 import { motion } from 'framer-motion';
 import { Crown, TrendingUp, Users, Flame, Zap, ExternalLink } from 'lucide-react';
 import { formatCompactNumber, GRADUATION_THRESHOLD_XLM } from '@/lib/stellar/utils';
+import { getIpfsUrl } from '@/lib/utils/ipfs';
 import type { Token } from '@/lib/graphql/types';
 
 interface KingOfTheHillProps {
@@ -97,13 +98,17 @@ export const KingOfTheHill = memo(function KingOfTheHill({
                 whileHover={{ scale: 1.05 }}
                 className="w-24 h-24 rounded-xl bg-white shadow-lg overflow-hidden border-2 border-amber-200"
               >
-                {token.imageUrl || token.logoUrl ? (
+                {(token.imageUrl || token.logoUrl) ? (
                   <Image
-                    src={token.imageUrl || token.logoUrl || ''}
+                    src={getIpfsUrl(token.imageUrl || token.logoUrl) || ''}
                     alt={token.name}
                     width={96}
                     height={96}
                     className="w-full h-full object-cover"
+                    unoptimized
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.display = 'none';
+                    }}
                   />
                 ) : (
                   <div className="w-full h-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center">

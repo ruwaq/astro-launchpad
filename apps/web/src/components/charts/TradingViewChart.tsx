@@ -56,6 +56,8 @@ const GET_TOKEN_PRICE_HISTORY = gql`
 interface TradingViewChartProps {
   tokenAddress: string;
   symbol?: string;
+  /** Increment this to trigger a data refresh (e.g., after a trade) */
+  refreshTrigger?: number;
 }
 
 type ChartType = 'candlestick' | 'line';
@@ -77,7 +79,7 @@ interface TransactionNode {
   timestamp: string;
 }
 
-export function TradingViewChart({ tokenAddress, symbol = 'TOKEN' }: TradingViewChartProps) {
+export function TradingViewChart({ tokenAddress, symbol = 'TOKEN', refreshTrigger = 0 }: TradingViewChartProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<'Candlestick'> | ISeriesApi<'Line'> | null>(null);
@@ -217,6 +219,15 @@ export function TradingViewChart({ tokenAddress, symbol = 'TOKEN' }: TradingView
     const interval = setInterval(fetchCurrentPrice, 15000); // Poll every 15s
     return () => clearInterval(interval);
   }, [fetchCurrentPrice]);
+
+  // Refresh when triggered by parent (e.g., after a trade)
+  useEffect(() => {
+    if (refreshTrigger > 0) {
+      console.log('[TradingViewChart] Refresh triggered, fetching new data...');
+      refetchTx();
+      fetchCurrentPrice();
+    }
+  }, [refreshTrigger, refetchTx, fetchCurrentPrice]);
 
   // Transform price history to chart format
   const chartData = useMemo(() => {

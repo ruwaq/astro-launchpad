@@ -7,7 +7,8 @@
  * - Recent trades feed with live activity
  * - Graduation progress with animations
  * - Live holder count
- * - Sound effects and haptic feedback
+ * - Haptic feedback on mobile
+ * - Auto-refresh on trade success
  *
  * DATA SOURCES:
  * 1. PRIMARY: Stellar Testnet Contract (real-time, enables trading)
@@ -84,6 +85,9 @@ export default function TokenTradingPage({ params }: PageProps) {
   // FIX: Use ref to track dataSource for polling to avoid race condition
   const dataSourceRef = useRef<DataSource>('none');
   const isMountedRef = useRef(true);
+
+  // Refresh trigger for child components (chart, activity feed)
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   const fetchToken = useCallback(async (isInitialFetch = false) => {
     if (isInitialFetch) {
@@ -486,6 +490,9 @@ export default function TokenTradingPage({ params }: PageProps) {
                   disabled={isReadOnlyMode || undefined}
                   onTradeSuccess={(type, amount) => {
                     console.log(`Trade success: ${type} ${amount}`);
+                    // Trigger immediate refresh of all data
+                    fetchToken(false);
+                    setRefreshTrigger(prev => prev + 1);
                   }}
                 />
               </WidgetErrorBoundary>
@@ -498,6 +505,7 @@ export default function TokenTradingPage({ params }: PageProps) {
                   <TradingViewChart
                     tokenAddress={address}
                     symbol={formattedToken.symbol}
+                    refreshTrigger={refreshTrigger}
                   />
                 </CardErrorBoundary>
               ) : (
@@ -584,6 +592,7 @@ export default function TokenTradingPage({ params }: PageProps) {
               tokenAddress={address}
               maxItems={8}
               pollInterval={15000}
+              refreshTrigger={refreshTrigger}
             />
 
             {/* Token Trade History */}
@@ -591,6 +600,7 @@ export default function TokenTradingPage({ params }: PageProps) {
               tokenAddress={address}
               tokenSymbol={formattedToken.symbol}
               limit={20}
+              refreshTrigger={refreshTrigger}
             />
           </motion.div>
         </div>

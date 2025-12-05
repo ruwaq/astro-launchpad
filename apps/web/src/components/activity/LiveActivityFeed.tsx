@@ -148,6 +148,8 @@ interface LiveActivityFeedProps {
   soundEnabled?: boolean;
   /** Polling interval in ms. Min: 10000ms. Default: 15000ms */
   pollInterval?: number;
+  /** Increment this to trigger a data refresh (e.g., after a trade) */
+  refreshTrigger?: number;
 }
 
 // PERFORMANCE: Memoize component to prevent unnecessary re-renders from parent
@@ -159,6 +161,7 @@ export const LiveActivityFeed = memo(function LiveActivityFeed({
   autoScroll = true,
   soundEnabled: initialSoundEnabled = true,
   pollInterval: requestedPollInterval = DEFAULT_POLL_INTERVAL,
+  refreshTrigger = 0,
 }: LiveActivityFeedProps) {
   // PERFORMANCE: Enforce minimum polling interval
   const pollInterval = Math.max(requestedPollInterval, MIN_POLL_INTERVAL);
@@ -184,12 +187,20 @@ export const LiveActivityFeed = memo(function LiveActivityFeed({
   };
 
   // Fetch real transactions from GraphQL API
-  const { data: txData, loading: txLoading } = useQuery(GET_RECENT_TRANSACTIONS, {
+  const { data: txData, loading: txLoading, refetch: refetchTx } = useQuery(GET_RECENT_TRANSACTIONS, {
     variables: queryVariables,
     // PERFORMANCE: Stop polling when paused OR when tab is not visible
     pollInterval: isPaused || !isPageVisible ? 0 : pollInterval,
     fetchPolicy: 'cache-and-network',
   });
+
+  // Refresh when triggered by parent (e.g., after a trade)
+  useEffect(() => {
+    if (refreshTrigger > 0) {
+      console.log('[LiveActivityFeed] Refresh triggered, fetching new data...');
+      refetchTx();
+    }
+  }, [refreshTrigger, refetchTx]);
 
   // Transform API transactions to local Transaction type
   useEffect(() => {

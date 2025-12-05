@@ -3,7 +3,6 @@
  *
  * Enhanced trading interface with:
  * - Quick-buy preset amounts (pump.fun style)
- * - Sound effects on transactions
  * - Framer Motion animations
  * - Real-time price animations
  * - Haptic feedback on mobile
@@ -103,7 +102,6 @@ export function TradingWidgetPremium({
   const [tokenInfo, setTokenInfo] = useState<TokenInfo | null>(null);
   const [isCalculating, setIsCalculating] = useState(false);
   const [txStatus, setTxStatus] = useState<TransactionStatusType>('idle');
-  const [soundEnabled, setSoundEnabled] = useState(true);
   const [previousPrice, setPreviousPrice] = useState<bigint>(BigInt(0));
   const [priceFlash, setPriceFlash] = useState<'up' | 'down' | null>(null);
   // User's token balance for MAX/percentage sells (in stroops)
@@ -225,7 +223,7 @@ export function TradingWidgetPremium({
 
   // Handle quick buy
   const handleQuickBuy = (amount: number) => {
-    if (soundEnabled) playClick();
+    playClick();
     haptics.lightTap();
     setTradeType('buy');
     setInputAmount(amount.toString());
@@ -233,7 +231,7 @@ export function TradingWidgetPremium({
 
   // Handle trade type switch
   const handleSwitchType = () => {
-    if (soundEnabled) playClick();
+    playClick();
     haptics.lightTap();
     setTradeType((prev) => (prev === 'buy' ? 'sell' : 'buy'));
     setInputAmount(outputAmount);
@@ -279,7 +277,7 @@ export function TradingWidgetPremium({
       const availableXlm = xlmBalance - 1;
       if (amount > availableXlm) {
         toast.error(`Insufficient XLM balance. You have ${xlmBalance.toFixed(2)} XLM (${availableXlm.toFixed(2)} available after reserves)`);
-        if (soundEnabled) playError();
+        playError();
         haptics.error();
         isTransactionInProgressRef.current = false;
         return;
@@ -289,7 +287,7 @@ export function TradingWidgetPremium({
       const tokenBalanceHuman = parseFloat(userTokenBalance) / 10_000_000;
       if (amount > tokenBalanceHuman) {
         toast.error(`Insufficient ${tokenSymbol} balance. You have ${tokenBalanceHuman.toFixed(4)} ${tokenSymbol}`);
-        if (soundEnabled) playError();
+        playError();
         haptics.error();
         isTransactionInProgressRef.current = false;
         return;
@@ -453,15 +451,13 @@ export function TradingWidgetPremium({
       // Success!
       setTxStatus('success');
 
-      if (soundEnabled) {
-        if (tradeType === 'buy') {
-          playBuy();
-        } else {
-          playSell();
-        }
-        if (amount >= 100) {
-          setTimeout(() => playMilestone(), 300);
-        }
+      if (tradeType === 'buy') {
+        playBuy();
+      } else {
+        playSell();
+      }
+      if (amount >= 100) {
+        setTimeout(() => playMilestone(), 300);
       }
       haptics.success();
 
@@ -489,7 +485,7 @@ export function TradingWidgetPremium({
 
     } catch (error) {
       setTxStatus('error');
-      if (soundEnabled) playError();
+      playError();
       haptics.error();
 
       const err = error as { message?: string };
@@ -526,8 +522,6 @@ export function TradingWidgetPremium({
         currentPrice={currentPrice}
         priceFlash={priceFlash}
         priceChangePercent={priceChangePercent}
-        soundEnabled={soundEnabled}
-        onToggleSound={() => setSoundEnabled(!soundEnabled)}
       />
 
       <div className="p-3 lg:p-4 space-y-3 lg:space-y-4">
@@ -559,7 +553,7 @@ export function TradingWidgetPremium({
               tokenBalance={userTokenBalance}
               tokenSymbol={tokenSymbol}
               onSelect={(amount) => {
-                if (soundEnabled) playClick();
+                playClick();
                 haptics.lightTap();
                 setInputAmount(amount);
               }}
@@ -575,7 +569,7 @@ export function TradingWidgetPremium({
             <button
               key={type}
               onClick={() => {
-                if (soundEnabled) playClick();
+                playClick();
                 haptics.lightTap();
                 setTradeType(type);
               }}

@@ -7,7 +7,7 @@
 
 'use client';
 
-import { memo } from 'react';
+import { memo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   TrendingUp,
@@ -63,6 +63,8 @@ interface TokenTransactionHistoryProps {
   tokenAddress: string;
   tokenSymbol: string;
   limit?: number;
+  /** Increment this to trigger a data refresh (e.g., after a trade) */
+  refreshTrigger?: number;
 }
 
 // Map API transaction types to display types
@@ -112,6 +114,7 @@ export const TokenTransactionHistory = memo(function TokenTransactionHistory({
   tokenAddress,
   tokenSymbol,
   limit = 20,
+  refreshTrigger = 0,
 }: TokenTransactionHistoryProps) {
   const networkConfig = getNetworkConfig();
   const explorerBaseUrl = networkConfig.passphrase.includes('Test')
@@ -123,6 +126,14 @@ export const TokenTransactionHistory = memo(function TokenTransactionHistory({
     pollInterval: 30000, // Refresh every 30 seconds
     skip: !tokenAddress,
   });
+
+  // Refresh when triggered by parent (e.g., after a trade)
+  useEffect(() => {
+    if (refreshTrigger > 0) {
+      console.log('[TokenTransactionHistory] Refresh triggered, fetching new data...');
+      refetch();
+    }
+  }, [refreshTrigger, refetch]);
 
   const formatAddress = (addr: string) => {
     return `${addr.slice(0, 4)}...${addr.slice(-4)}`;
