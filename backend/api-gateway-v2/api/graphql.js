@@ -53,6 +53,7 @@ const typeDefs = gql`
       skip: Int
       orderBy: TokenOrderBy = CREATED_AT_DESC
       search: String
+      status: TokenStatus
     ): TokenConnection!
     token(address: String!): Token
     trendingTokens(limit: Int = 10): [Token!]!
@@ -305,6 +306,13 @@ const typeDefs = gql`
     VOLUME_DESC
     VOLUME_24H_DESC
     HOLDERS_DESC
+    GRADUATION_DESC
+  }
+
+  enum TokenStatus {
+    ALL
+    BONDING
+    GRADUATED
   }
 
   enum TransactionType {
@@ -473,7 +481,7 @@ const resolvers = {
       // Support both limit/offset and first/skip naming
       const limit = args.limit || args.first || 20;
       let offset = args.offset || args.skip || 0;
-      const { orderBy = 'CREATED_AT_DESC', search } = args;
+      const { orderBy = 'CREATED_AT_DESC', search, status } = args;
 
       // Handle cursor-based pagination (after parameter)
       if (args.after) {
@@ -488,18 +496,33 @@ const resolvers = {
         VOLUME_DESC: { volume24h: 'desc' },
         VOLUME_24H_DESC: { volume24h: 'desc' },
         HOLDERS_DESC: { holders: 'desc' },
+        GRADUATION_DESC: { xlmRaised: 'desc' },
       };
 
-      // Build where clause for search
-      const where = search
-        ? {
-            OR: [
-              { name: { contains: search, mode: 'insensitive' } },
-              { symbol: { contains: search, mode: 'insensitive' } },
-              { address: { contains: search, mode: 'insensitive' } },
-            ],
-          }
-        : {};
+      // Build where clause for search and status
+      const whereConditions = [];
+
+      // Search filter
+      if (search) {
+        whereConditions.push({
+          OR: [
+            { name: { contains: search, mode: 'insensitive' } },
+            { symbol: { contains: search, mode: 'insensitive' } },
+            { address: { contains: search, mode: 'insensitive' } },
+          ],
+        });
+      }
+
+      // Status filter (bonding = not graduated, graduated = graduated)
+      if (status && status !== 'ALL') {
+        if (status === 'BONDING') {
+          whereConditions.push({ graduated: false });
+        } else if (status === 'GRADUATED') {
+          whereConditions.push({ graduated: true });
+        }
+      }
+
+      const where = whereConditions.length > 0 ? { AND: whereConditions } : {};
 
       const [tokens, totalCount] = await Promise.all([
         prisma.token.findMany({
