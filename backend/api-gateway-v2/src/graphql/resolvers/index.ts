@@ -779,6 +779,7 @@ const queryResolvers = {
     }
 
     // PERFORMANCE: Select only fields needed for transaction list
+    // FIX: Added grossAmount, netAmount, protocolFee, lpFee for frontend display
     const [edges, total] = await Promise.all([
       context.prisma.transaction.findMany({
         where,
@@ -792,6 +793,10 @@ const queryResolvers = {
           from: true,
           to: true,
           amount: true,
+          grossAmount: true,
+          netAmount: true,
+          protocolFee: true,
+          lpFee: true,
           status: true,
           timestamp: true,
           tokenAddress: true,

@@ -123,7 +123,7 @@ export const TokenTransactionHistory = memo(function TokenTransactionHistory({
 
   const { data, loading, error, refetch } = useQuery(GET_TOKEN_TRANSACTIONS, {
     variables: { tokenAddress, limit },
-    pollInterval: 30000, // Refresh every 30 seconds
+    pollInterval: 10000, // Refresh every 10 seconds for better real-time experience
     skip: !tokenAddress,
   });
 

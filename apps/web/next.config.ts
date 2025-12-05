@@ -85,6 +85,8 @@ const nextConfig: NextConfig = {
               process.env.NODE_ENV === 'production'
                 ? "script-src 'self' 'unsafe-inline'"
                 : "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+              // Workers: allow blob URLs for lightweight-charts and other libraries
+              "worker-src 'self' blob:",
               // Styles: self + inline (for styled-components/emotion)
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               // Images: self + data URIs + IPFS gateways + Stellar + any HTTPS (for token logos)

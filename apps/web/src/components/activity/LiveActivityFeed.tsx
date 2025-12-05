@@ -130,10 +130,9 @@ const highlightVariants = {
 };
 
 // PERFORMANCE: Polling interval constants for production
-// Previous: 5000ms default = excessive API calls
-// Current: 15000ms default = balanced real-time feel with sustainable load
-const DEFAULT_POLL_INTERVAL = 15000; // 15 seconds
-const MIN_POLL_INTERVAL = 10000; // 10 seconds minimum
+// Reduced for better real-time experience after trades
+const DEFAULT_POLL_INTERVAL = 5000; // 5 seconds - fast updates
+const MIN_POLL_INTERVAL = 3000; // 3 seconds minimum
 const MAX_ITEMS_DEFAULT = 20;
 const HIGHLIGHT_DURATION_MS = 2000;
 const POLL_JITTER_MAX_MS = 2000; // Random jitter to prevent thundering herd
