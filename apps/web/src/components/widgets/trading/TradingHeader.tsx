@@ -10,6 +10,7 @@ import { memo } from 'react';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
 import { Sparkles } from 'lucide-react';
+import { getIpfsUrl } from '@/lib/utils/ipfs';
 
 const priceFlashVariants = {
   flash: {
@@ -38,16 +39,26 @@ export const TradingHeader = memo(function TradingHeader({
   return (
     <div className="p-4 border-b border-ui-border bg-gradient-to-r from-brand-primary/5 to-brand-blue/5">
       <div className="flex items-center gap-3">
-        {tokenImage && (
-          <Image
-            src={tokenImage}
-            alt={tokenName}
-            width={40}
-            height={40}
-            className="w-10 h-10 rounded-full"
-            unoptimized={tokenImage.startsWith('data:')}
-          />
-        )}
+        {(() => {
+          const imageUrl = getIpfsUrl(tokenImage);
+          return imageUrl ? (
+            <Image
+              src={imageUrl}
+              alt={tokenName}
+              width={40}
+              height={40}
+              className="w-10 h-10 rounded-full"
+              unoptimized
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = 'none';
+              }}
+            />
+          ) : (
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-brand-primary to-purple-600 flex items-center justify-center text-white font-bold">
+              {tokenSymbol?.charAt(0) || '?'}
+            </div>
+          );
+        })()}
         <div>
           <h3 className="font-bold text-ui-text-primary flex items-center gap-2">
             Trade {tokenSymbol}
