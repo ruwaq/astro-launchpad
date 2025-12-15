@@ -22,6 +22,7 @@
   },
   "dependencies": {
     "@apollo/server": "5.2.0",
+    "@as-integrations/express4": "1.1.2",
     "@as-integrations/next": "4.1.0",
     "@prisma/client": "5.22.0",
     "@sentry/node": "10.29.0",

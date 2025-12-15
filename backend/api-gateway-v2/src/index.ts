@@ -9,7 +9,7 @@ import http from 'node:http';
 import express from 'express';
 import cors from 'cors';
 import { ApolloServer } from '@apollo/server';
-import { expressMiddleware } from '@apollo/server/express4';
+import { expressMiddleware } from '@as-integrations/express4';
 import { schema } from './graphql/schema.js';
 import { resolvers } from './graphql/resolvers/index.js';
 import { createContext, GraphQLContext } from './graphql/context.js';

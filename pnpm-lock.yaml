@@ -162,6 +162,9 @@ importers:
       '@apollo/server':
         specifier: 5.2.0
         version: 5.2.0(graphql@16.12.0)
+      '@as-integrations/express4':
+        specifier: 1.1.2
+        version: 1.1.2(@apollo/server@5.2.0(graphql@16.12.0))(express@5.1.0)
       '@as-integrations/next':
         specifier: 4.1.0
         version: 4.1.0(@apollo/server@5.2.0(graphql@16.12.0))(next@16.0.3(@opentelemetry/api@1.9.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))
@@ -623,6 +626,13 @@ packages:
 
   '@apollographql/graphql-playground-html@1.6.29':
     resolution: {integrity: sha512-xCcXpoz52rI4ksJSdOCxeOCn2DLocxwHf9dVT/Q90Pte1LX+LY+91SFtJF3KXVHH8kEin+g1KKCQPKBjZJfWNA==}
+
+  '@as-integrations/express4@1.1.2':
+    resolution: {integrity: sha512-PGeMcwoOKdYnZ4LtsmM7aLNoel3tbK8wKnfyahdRau1qb7wLbuaXB35zg3w34Ov4bm3WJtO3yzd8Bw5jVE+aIQ==}
+    engines: {node: '>=20'}
+    peerDependencies:
+      '@apollo/server': ^4.0.0 || ^5.0.0
+      express: ^4.0.0
 
   '@as-integrations/next@4.1.0':
     resolution: {integrity: sha512-QZ+bGlLn1ahYpVt60CofkgJUB0XhG6JghkoCywCnzueQM9qoQct0WPGMNZuWXyfBxXJGCbeF/tsIlATlHT1HoQ==}
@@ -8631,6 +8641,11 @@ snapshots:
     dependencies:
       xss: 1.0.15
 
+  '@as-integrations/express4@1.1.2(@apollo/server@5.2.0(graphql@16.12.0))(express@5.1.0)':
+    dependencies:
+      '@apollo/server': 5.2.0(graphql@16.12.0)
+      express: 5.1.0
+
   '@as-integrations/next@4.1.0(@apollo/server@5.2.0(graphql@16.12.0))(next@16.0.3(@opentelemetry/api@1.9.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))':
     dependencies:
       '@apollo/server': 5.2.0(graphql@16.12.0)
@@ -12261,7 +12276,7 @@ snapshots:
       sirv: 3.0.2
       tinyglobby: 0.2.15
       tinyrainbow: 1.2.0
-      vitest: 2.1.9(@edge-runtime/vm@3.2.0)(@types/node@22.19.1)(@vitest/ui@2.1.9)(happy-dom@20.0.10)(jsdom@25.0.1(bufferutil@4.0.9)(utf-8-validate@5.0.10))(terser@5.44.1)
+      vitest: 2.1.9(@edge-runtime/vm@3.2.0)(@types/node@20.19.25)(@vitest/ui@2.1.9)(happy-dom@20.0.10)(jsdom@25.0.1(bufferutil@4.0.9)(utf-8-validate@5.0.10))(terser@5.44.1)
 
   '@vitest/utils@2.1.9':
     dependencies:

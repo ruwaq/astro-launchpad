@@ -1,5 +1,5 @@
-import { wsManager } from './server';
-import { logger } from '../lib/logger';
+import { wsManager } from './server.js';
+import { logger } from '../lib/logger.js';
 
 /**
  * WebSocket Broadcaster Service
@@ -67,9 +67,9 @@ export class WebSocketBroadcaster {
         timestamp: Date.now(),
       });
 
-      logger.debug('Broadcasted token update', { tokenAddress: update.tokenAddress });
+      logger.debug({ tokenAddress: update.tokenAddress }, 'Broadcasted token update');
     } catch (error) {
-      logger.error('Failed to broadcast token update', { error, tokenAddress: update.tokenAddress });
+      logger.error({ error, tokenAddress: update.tokenAddress }, 'Failed to broadcast token update');
     }
   }
 
@@ -88,13 +88,13 @@ export class WebSocketBroadcaster {
         ...trade,
       });
 
-      logger.debug('Broadcasted trade', {
+      logger.debug({
         tokenAddress: trade.tokenAddress,
         type: trade.type,
         txHash: trade.txHash,
-      });
+      }, 'Broadcasted trade');
     } catch (error) {
-      logger.error('Failed to broadcast trade', { error, tokenAddress: trade.tokenAddress });
+      logger.error({ error, tokenAddress: trade.tokenAddress }, 'Failed to broadcast trade');
     }
   }
 
@@ -120,12 +120,12 @@ export class WebSocketBroadcaster {
         ...event,
       });
 
-      logger.info('Broadcasted graduation event', {
+      logger.info({
         tokenAddress: event.tokenAddress,
         tokenSymbol: event.tokenSymbol,
-      });
+      }, 'Broadcasted graduation event');
     } catch (error) {
-      logger.error('Failed to broadcast graduation', { error, tokenAddress: event.tokenAddress });
+      logger.error({ error, tokenAddress: event.tokenAddress }, 'Failed to broadcast graduation');
     }
   }
 
@@ -144,12 +144,12 @@ export class WebSocketBroadcaster {
         ...event,
       });
 
-      logger.info('Broadcasted new token', {
+      logger.info({
         tokenAddress: event.tokenAddress,
         symbol: event.symbol,
-      });
+      }, 'Broadcasted new token');
     } catch (error) {
-      logger.error('Failed to broadcast new token', { error, tokenAddress: event.tokenAddress });
+      logger.error({ error, tokenAddress: event.tokenAddress }, 'Failed to broadcast new token');
     }
   }
 
@@ -171,9 +171,9 @@ export class WebSocketBroadcaster {
         timestamp: Date.now(),
       });
 
-      logger.debug('Broadcasted price update', { tokenAddress, price });
+      logger.debug({ tokenAddress, price }, 'Broadcasted price update');
     } catch (error) {
-      logger.error('Failed to broadcast price update', { error, tokenAddress });
+      logger.error({ error, tokenAddress }, 'Failed to broadcast price update');
     }
   }
 
@@ -200,7 +200,7 @@ export class WebSocketBroadcaster {
 
       logger.debug('Broadcasted global stats');
     } catch (error) {
-      logger.error('Failed to broadcast global stats', { error });
+      logger.error({ error }, 'Failed to broadcast global stats');
     }
   }
 

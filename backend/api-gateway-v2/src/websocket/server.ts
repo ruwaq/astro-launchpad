@@ -1,15 +1,27 @@
-import { WebSocketServer, WebSocket } from 'ws';
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-require-imports */
 import { createServer } from 'http';
-import { logger } from '../lib/logger';
+import { createRequire } from 'module';
+import { logger } from '../lib/logger.js';
+
+// Use CommonJS require for ws module (better type compatibility)
+const require = createRequire(import.meta.url);
+const ws = require('ws');
+const WebSocketServer = ws.WebSocketServer || ws.Server;
+const OPEN_STATE = ws.OPEN || 1;
 
 interface Client {
-  ws: WebSocket;
+  ws: any; // WebSocket instance
   subscriptions: Set<string>;
   lastPing: number;
 }
 
+interface TokenUpdate {
+  tokenAddress?: string;
+  [key: string]: unknown;
+}
+
 class WebSocketManager {
-  private wss: WebSocketServer;
+  private wss: any; // WebSocketServer instance
   private clients: Map<string, Client> = new Map();
   private tokenSubscribers: Map<string, Set<string>> = new Map();
 
@@ -20,24 +32,24 @@ class WebSocketManager {
   }
 
   private setupHandlers() {
-    this.wss.on('connection', (ws, req) => {
+    this.wss.on('connection', (wsClient: any, req: any) => {
       const clientId = crypto.randomUUID();
       this.clients.set(clientId, {
-        ws,
+        ws: wsClient,
         subscriptions: new Set(),
         lastPing: Date.now(),
       });
 
-      logger.info('WebSocket client connected', { clientId, ip: req.socket.remoteAddress });
+      logger.info({ clientId, ip: req.socket.remoteAddress }, 'WebSocket client connected');
 
-      ws.on('message', (data) => this.handleMessage(clientId, data.toString()));
-      ws.on('close', () => this.handleDisconnect(clientId));
-      ws.on('pong', () => {
+      wsClient.on('message', (data: any) => this.handleMessage(clientId, data.toString()));
+      wsClient.on('close', () => this.handleDisconnect(clientId));
+      wsClient.on('pong', () => {
         const client = this.clients.get(clientId);
         if (client) client.lastPing = Date.now();
       });
 
-      ws.send(JSON.stringify({ type: 'connected', clientId }));
+      wsClient.send(JSON.stringify({ type: 'connected', clientId }));
     });
   }
 
@@ -55,10 +67,10 @@ class WebSocketManager {
           this.unsubscribe(clientId, data.channel);
           break;
         default:
-          logger.warn('Unknown message type', { type: data.type, clientId });
+          logger.warn({ type: data.type, clientId }, 'Unknown message type');
       }
     } catch (error) {
-      logger.error('WebSocket message error', { error, clientId });
+      logger.error({ error, clientId }, 'WebSocket message error');
     }
   }
 
@@ -73,7 +85,7 @@ class WebSocketManager {
     }
     this.tokenSubscribers.get(channel)!.add(clientId);
 
-    logger.debug('Client subscribed to channel', { clientId, channel });
+    logger.debug({ clientId, channel }, 'Client subscribed to channel');
     client.ws.send(JSON.stringify({ type: 'subscribed', channel }));
   }
 
@@ -84,7 +96,7 @@ class WebSocketManager {
     client.subscriptions.delete(channel);
     this.tokenSubscribers.get(channel)?.delete(clientId);
 
-    logger.debug('Client unsubscribed from channel', { clientId, channel });
+    logger.debug({ clientId, channel }, 'Client unsubscribed from channel');
     client.ws.send(JSON.stringify({ type: 'unsubscribed', channel }));
   }
 
@@ -97,7 +109,7 @@ class WebSocketManager {
     });
     this.clients.delete(clientId);
 
-    logger.info('WebSocket client disconnected', { clientId });
+    logger.info({ clientId }, 'WebSocket client disconnected');
   }
 
   broadcast(channel: string, data: unknown) {
@@ -109,25 +121,25 @@ class WebSocketManager {
 
     subscribers.forEach((clientId) => {
       const client = this.clients.get(clientId);
-      if (client?.ws.readyState === WebSocket.OPEN) {
+      if (client?.ws.readyState === OPEN_STATE) {
         try {
           client.ws.send(message);
           sentCount++;
         } catch (error) {
-          logger.error('Failed to send message to client', { error, clientId });
+          logger.error({ error, clientId }, 'Failed to send message to client');
         }
       }
     });
 
-    logger.debug('Broadcast sent', { channel, subscribers: sentCount });
+    logger.debug({ channel, subscribers: sentCount }, 'Broadcast sent');
   }
 
-  broadcastTokenUpdate(tokenAddress: string, update: unknown) {
+  broadcastTokenUpdate(tokenAddress: string, update: TokenUpdate) {
     this.broadcast(`token:${tokenAddress}`, update);
     this.broadcast('tokens:all', { tokenAddress, ...update });
   }
 
-  broadcastTrade(tokenAddress: string, trade: unknown) {
+  broadcastTrade(tokenAddress: string, trade: TokenUpdate) {
     this.broadcast(`trades:${tokenAddress}`, trade);
     this.broadcast('trades:all', { tokenAddress, ...trade });
   }
@@ -141,10 +153,10 @@ class WebSocketManager {
       const now = Date.now();
       this.clients.forEach((client, clientId) => {
         if (now - client.lastPing > 60000) {
-          logger.warn('Client ping timeout, terminating', { clientId });
+          logger.warn({ clientId }, 'Client ping timeout, terminating');
           client.ws.terminate();
           this.handleDisconnect(clientId);
-        } else if (client.ws.readyState === WebSocket.OPEN) {
+        } else if (client.ws.readyState === OPEN_STATE) {
           client.ws.ping();
         }
       });

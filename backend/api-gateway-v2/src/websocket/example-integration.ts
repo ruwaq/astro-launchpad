@@ -5,8 +5,8 @@
  * GraphQL resolvers and indexer event handlers.
  */
 
-import { WebSocketBroadcaster } from './broadcaster';
-import { GraphQLContext } from '../graphql/context';
+import { WebSocketBroadcaster } from './broadcaster.js';
+import { GraphQLContext } from '../graphql/context.js';
 
 // =============================================================================
 // EXAMPLE 1: GraphQL Mutation - Buy Tokens
