@@ -15,8 +15,11 @@ import { LeaderboardClient } from './LeaderboardClient';
 import type { Metadata } from 'next';
 import type { LeaderboardEntry, Token, GlobalStats } from '@/lib/graphql/types';
 
-// GraphQL endpoint
-const GRAPHQL_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api-gateway-v2.vercel.app/graphql';
+// GraphQL endpoint - use explicit GRAPHQL_ENDPOINT or fallback to production
+const GRAPHQL_URL =
+  process.env.NEXT_PUBLIC_GRAPHQL_ENDPOINT ||
+  (process.env.NEXT_PUBLIC_API_URL ? `${process.env.NEXT_PUBLIC_API_URL}/graphql` : null) ||
+  'https://api-gateway-v2.vercel.app/graphql';
 
 /**
  * Fetch leaderboard data from GraphQL API

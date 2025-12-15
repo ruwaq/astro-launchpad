@@ -16,8 +16,11 @@
 import { HomeClient } from './HomeClient';
 import type { Metadata } from 'next';
 
-// GraphQL endpoint
-const GRAPHQL_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api-gateway-v2.vercel.app/graphql';
+// GraphQL endpoint - use explicit GRAPHQL_ENDPOINT or fallback to production
+const GRAPHQL_URL =
+  process.env.NEXT_PUBLIC_GRAPHQL_ENDPOINT ||
+  (process.env.NEXT_PUBLIC_API_URL ? `${process.env.NEXT_PUBLIC_API_URL}/graphql` : null) ||
+  'https://api-gateway-v2.vercel.app/graphql';
 
 /**
  * Fetch token count from GraphQL API

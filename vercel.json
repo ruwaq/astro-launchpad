@@ -15,6 +15,7 @@
   "build": {
     "env": {
       "NEXT_PUBLIC_API_URL": "https://api-gateway-v2.vercel.app",
+      "NEXT_PUBLIC_GRAPHQL_ENDPOINT": "https://api-gateway-v2.vercel.app/graphql",
       "NEXT_PUBLIC_NETWORK": "testnet",
       "STELLAR_RPC_URL": "https://soroban-testnet.stellar.org"
     }
