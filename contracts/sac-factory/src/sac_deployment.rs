@@ -7,6 +7,9 @@
 //! - ✅ Compatible with all Stellar DEXs
 //! - ✅ SEP-41 compliant
 //!
+//! Note: Currently using pure Soroban tokens, SAC integration pending
+#![allow(dead_code)] // Legacy SAC deployment - kept for future SAC integration
+//!
 //! ## Architecture
 //! The client creates and serializes the Asset XDR to bytes, then passes it to the contract.
 //! This follows Stellar/Soroban best practices and avoids XDR serialization in no_std contracts.

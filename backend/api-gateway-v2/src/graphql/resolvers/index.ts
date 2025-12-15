@@ -4,7 +4,7 @@
  */
 
 import type { GraphQLContext } from '../context.js'
-import { requireAuth } from '../context.js'
+import { requireAuth, validateAdminKeyFromHeader } from '../context.js'
 import { GraphQLError } from 'graphql'
 
 // Type definition for GraphQL resolvers (replacing mercurius IResolvers)
@@ -859,32 +859,19 @@ const queryResolvers = {
   },
 }
 
-// Admin key for delete operations (MUST be set in env vars in production)
-const ADMIN_KEY = process.env.ADMIN_API_KEY
-if (!ADMIN_KEY && process.env.NODE_ENV === 'production') {
-  throw new Error('ADMIN_API_KEY environment variable is required in production')
-}
-
-/**
- * Secure comparison to prevent timing attacks
- */
-function secureCompare(a: string, b: string): boolean {
-  if (!a || !b) return false
-  try {
-    return crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b))
-  } catch {
-    return false
-  }
-}
+// Admin key validation moved to context.ts - validateAdminKeyFromHeader()
+// SECURITY: Admin key is now read from X-Admin-Key header instead of GraphQL arguments
+// This prevents the key from being logged or visible in browser DevTools
 
 /**
  * Mutation resolvers
  */
 const mutationResolvers = {
   // Delete a single token from database (admin only)
+  // SECURITY: Admin key must be sent via X-Admin-Key header (not in GraphQL arguments)
   deleteToken: async (
     _parent: any,
-    args: { tokenAddress: string; adminKey: string },
+    args: { tokenAddress: string },
     context: GraphQLContext
   ) => {
     // Get client IP for rate limiting
@@ -901,8 +888,9 @@ const mutationResolvers = {
       }
     }
 
-    // Validate admin key with timing-safe comparison
-    if (!ADMIN_KEY || !secureCompare(args.adminKey, ADMIN_KEY)) {
+    // SECURITY: Validate admin key from X-Admin-Key header (timing-safe)
+    const adminKeyResult = validateAdminKeyFromHeader(context)
+    if (!adminKeyResult.valid) {
       // Track failed auth attempts
       const authResult = await trackFailedAdminAuth(clientIP)
       if (authResult.blocked) {
@@ -914,11 +902,11 @@ const mutationResolvers = {
         }
       }
 
-      logger.warn({ tokenAddress: args.tokenAddress, clientIP, attemptsRemaining: authResult.attemptsRemaining }, '[Admin] Unauthorized delete attempt')
+      logger.warn({ tokenAddress: args.tokenAddress, clientIP, attemptsRemaining: authResult.attemptsRemaining, error: adminKeyResult.error }, '[Admin] Unauthorized delete attempt')
       return {
         success: false,
         address: args.tokenAddress,
-        message: 'Unauthorized: Invalid admin key',
+        message: `Unauthorized: ${adminKeyResult.error}`,
       }
     }
 
@@ -970,9 +958,10 @@ const mutationResolvers = {
   },
 
   // Delete multiple tokens from database (admin only)
+  // SECURITY: Admin key must be sent via X-Admin-Key header (not in GraphQL arguments)
   deleteTokensBatch: async (
     _parent: any,
-    args: { tokenAddresses: string[]; adminKey: string },
+    args: { tokenAddresses: string[] },
     context: GraphQLContext
   ) => {
     // Get client IP for rate limiting
@@ -994,8 +983,9 @@ const mutationResolvers = {
       }
     }
 
-    // Validate admin key with timing-safe comparison
-    if (!ADMIN_KEY || !secureCompare(args.adminKey, ADMIN_KEY)) {
+    // SECURITY: Validate admin key from X-Admin-Key header (timing-safe)
+    const adminKeyResult = validateAdminKeyFromHeader(context)
+    if (!adminKeyResult.valid) {
       // Track failed auth attempts
       const authResult = await trackFailedAdminAuth(clientIP)
       if (authResult.blocked) {
@@ -1012,7 +1002,7 @@ const mutationResolvers = {
         }
       }
 
-      logger.warn({ count: args.tokenAddresses.length, clientIP, attemptsRemaining: authResult.attemptsRemaining }, '[Admin] Unauthorized batch delete attempt')
+      logger.warn({ count: args.tokenAddresses.length, clientIP, attemptsRemaining: authResult.attemptsRemaining, error: adminKeyResult.error }, '[Admin] Unauthorized batch delete attempt')
       return {
         success: false,
         deletedCount: 0,
@@ -1020,7 +1010,7 @@ const mutationResolvers = {
         results: args.tokenAddresses.map((address) => ({
           success: false,
           address,
-          message: 'Unauthorized: Invalid admin key',
+          message: `Unauthorized: ${adminKeyResult.error}`,
         })),
       }
     }

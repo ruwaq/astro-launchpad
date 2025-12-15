@@ -8,12 +8,12 @@ datasource db {
 }
 
 model Token {
-  id                String        @id @default(cuid())
-  address           String        @unique
+  id                String          @id @default(cuid())
+  address           String          @unique
   creator           String
   name              String
   symbol            String
-  decimals          Int           @default(7)
+  decimals          Int             @default(7)
   totalSupply       String
   metadataUri       String
   imageUrl          String?
@@ -22,21 +22,23 @@ model Token {
   twitter           String?
   telegram          String?
   discord           String?
-  circulatingSupply String        @default("0")
-  xlmReserve        String        @default("0")
-  graduated         Boolean       @default(false)
-  xlmRaised         String        @default("0")
+  circulatingSupply String          @default("0")
+  xlmReserve        String          @default("0")
+  graduated         Boolean         @default(false)
+  xlmRaised         String          @default("0")
   marketCap         String?
   currentPrice      String?
   priceChange24h    Float?
-  volume24h         String        @default("0")
-  volume7d          String        @default("0")
-  holders           Int           @default(0)
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
-  poolsToken0       Pool[]        @relation("Token0")
-  poolsToken1       Pool[]        @relation("Token1")
+  volume24h         String          @default("0")
+  volume7d          String          @default("0")
+  holders           Int             @default(0)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  deletedAt         DateTime?
+  poolsToken0       Pool[]          @relation("Token0")
+  poolsToken1       Pool[]          @relation("Token1")
   transactions      Transaction[]
+  snapshots         TokenSnapshot[]
 
   @@index([creator])
   @@index([createdAt])
@@ -48,6 +50,23 @@ model Token {
   @@index([graduated])
   @@index([graduated, createdAt(sort: Desc)])
   @@index([graduated, volume24h(sort: Desc)])
+  @@index([deletedAt])
+}
+
+model TokenSnapshot {
+  id                String   @id @default(cuid())
+  tokenAddress      String
+  timestamp         DateTime
+  holders           Int
+  currentPrice      String
+  marketCap         String
+  volume24h         String
+  circulatingSupply String
+  createdAt         DateTime @default(now())
+  token             Token    @relation(fields: [tokenAddress], references: [address], onDelete: Cascade)
+
+  @@unique([tokenAddress, timestamp])
+  @@index([tokenAddress, timestamp(sort: Desc)])
 }
 
 model Pool {
@@ -66,10 +85,12 @@ model Pool {
   feeRate         Float            @default(0.003)
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
+  deletedAt       DateTime?
   liquidityEvents LiquidityEvent[]
-  token0          Token            @relation("Token0", fields: [token0Address], references: [address])
-  token1          Token            @relation("Token1", fields: [token1Address], references: [address])
+  token0          Token            @relation("Token0", fields: [token0Address], references: [address], onDelete: Cascade)
+  token1          Token            @relation("Token1", fields: [token1Address], references: [address], onDelete: Cascade)
   swaps           Swap[]
+  snapshots       PoolSnapshot[]
 
   @@index([token0Address])
   @@index([token1Address])
@@ -77,24 +98,59 @@ model Pool {
   @@index([token0Address, createdAt(sort: Desc)])
   @@index([token1Address, createdAt(sort: Desc)])
   @@index([tvl(sort: Desc), createdAt(sort: Desc)])
+  @@index([deletedAt])
+}
+
+model PoolSnapshot {
+  id        String   @id @default(cuid())
+  poolId    String
+  timestamp DateTime
+  reserve0  String
+  reserve1  String
+  tvl       String
+  volume24h String
+  apr       Float?
+  createdAt DateTime @default(now())
+  pool      Pool     @relation(fields: [poolId], references: [id], onDelete: Cascade)
+
+  @@unique([poolId, timestamp])
+  @@index([poolId, timestamp(sort: Desc)])
 }
 
 model User {
-  id                     String        @id @default(cuid())
-  address                String        @unique
-  points                 Int           @default(0)
-  level                  Int           @default(1)
-  referrals              Int           @default(0)
-  tokensCreatedCount     Int           @default(0)
-  totalVolumeTraded      String        @default("0")
-  totalLiquidityProvided String        @default("0")
-  createdAt              DateTime      @default(now())
-  updatedAt              DateTime      @updatedAt
+  id                     String                 @id @default(cuid())
+  address                String                 @unique
+  points                 Int                    @default(0)
+  level                  Int                    @default(1)
+  referrals              Int                    @default(0)
+  tokensCreatedCount     Int                    @default(0)
+  totalVolumeTraded      String                 @default("0")
+  totalLiquidityProvided String                 @default("0")
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
   achievements           Achievement[]
   transactions           Transaction[]
+  activitySnapshots      UserActivitySnapshot[]
 
   @@index([points])
   @@index([level])
+}
+
+model UserActivitySnapshot {
+  id           String   @id @default(cuid())
+  userAddress  String
+  timestamp    DateTime
+  volumeTraded String
+  tradesCount  Int
+  points       Int
+  level        Int
+  rank         Int?
+  createdAt    DateTime @default(now())
+  user         User     @relation(fields: [userAddress], references: [address], onDelete: Cascade)
+
+  @@unique([userAddress, timestamp])
+  @@index([userAddress, timestamp(sort: Desc)])
+  @@index([timestamp, rank])
 }
 
 model Achievement {
@@ -109,7 +165,7 @@ model Achievement {
   completed     Boolean   @default(false)
   unlockedAt    DateTime?
   createdAt     DateTime  @default(now())
-  user          User      @relation(fields: [userId], references: [id])
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, achievementId])
   @@index([userId])
@@ -131,8 +187,8 @@ model Transaction {
   netAmount    String?
   protocolFee  String?
   totalFees    String?
-  token        Token?            @relation(fields: [tokenAddress], references: [address])
-  user         User?             @relation(fields: [userId], references: [id])
+  token        Token?            @relation(fields: [tokenAddress], references: [address], onDelete: SetNull)
+  user         User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([from])
   @@index([to])
@@ -154,7 +210,7 @@ model Swap {
   amountIn  String
   amountOut String
   timestamp DateTime
-  pool      Pool     @relation(fields: [poolId], references: [id])
+  pool      Pool     @relation(fields: [poolId], references: [id], onDelete: Cascade)
 
   @@index([poolId])
   @@index([sender])
@@ -171,7 +227,7 @@ model LiquidityEvent {
   liquidity String
   type      LiquidityEventType
   timestamp DateTime
-  pool      Pool               @relation(fields: [poolId], references: [id])
+  pool      Pool               @relation(fields: [poolId], references: [id], onDelete: Cascade)
 
   @@index([poolId])
   @@index([provider])
@@ -411,4 +467,54 @@ enum ConfigEventType {
   MIN_MARKET_CAP_UPDATED
   ORACLE_PRICE_MAX_AGE_UPDATED
   BRIDGE_CONFIG_UPDATED
+}
+
+/// Dead Letter Queue for failed event processing
+/// Stores events that failed processing for retry or manual intervention
+model FailedEvent {
+  id             String            @id @default(cuid())
+  eventId        String            @unique /// Original event.id from Stellar
+  eventType      String /// token_created, token_buy, token_sell, etc.
+  contract       String /// token_factory, amm_factory
+  ledger         String /// Ledger sequence number
+
+  /// Event data (JSON)
+  eventData      Json /// Full event payload for replay
+
+  /// Error tracking
+  errorMessage   String            @db.Text /// Last error message
+  errorStack     String?           @db.Text /// Stack trace if available
+  failureReason  String /// parsing_error, db_error, rpc_error, etc.
+
+  /// Retry tracking
+  retryCount     Int               @default(0) /// Number of retry attempts
+  maxRetries     Int               @default(5) /// Maximum retries allowed
+  nextRetryAt    DateTime? /// Next scheduled retry (exponential backoff)
+  lastRetryAt    DateTime? /// Last retry attempt timestamp
+
+  /// Status
+  status         FailedEventStatus @default(PENDING)
+  resolvedAt     DateTime? /// When the event was resolved
+  resolvedBy     String? /// Admin/system that resolved it
+  resolutionNote String?           @db.Text /// Notes about resolution
+
+  /// Metadata
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@index([status])
+  @@index([eventType])
+  @@index([contract])
+  @@index([nextRetryAt])
+  @@index([createdAt])
+  @@index([status, nextRetryAt]) /// For efficient retry query
+  @@index([status, createdAt(sort: Desc)]) /// For listing recent failures
+}
+
+enum FailedEventStatus {
+  PENDING /// Waiting for retry
+  RETRYING /// Currently being retried
+  RESOLVED /// Successfully processed
+  ABANDONED /// Max retries exceeded, needs manual intervention
+  DUPLICATE /// Event already processed (idempotency)
 }

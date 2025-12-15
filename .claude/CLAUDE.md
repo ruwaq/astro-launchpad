@@ -110,11 +110,16 @@ stellar contract deploy --network testnet
 ## Architecture Patterns
 
 ### Frontend
-- **Smart/Presentational** component split
-- **Custom hooks** for data logic
+- **Server/Client Component Boundary** pattern (Next.js 15 RSC)
+  - `page.tsx` = async Server Component (fetches data with ISR)
+  - `*Client.tsx` = Client Component (handles interactivity)
+- **ISR (Incremental Static Regeneration)** for optimal caching
+  - Home: 5 minutes (`next: { revalidate: 300 }`)
+  - Explore: 1 minute (`next: { revalidate: 60 }`)
+  - Leaderboard: 2 minutes (`next: { revalidate: 120 }`)
+- **Apollo Client** for real-time polling in client components
 - **Zustand** for global state (token cache)
-- **React Query/Apollo** for server state
-- **Server Components** where possible (Next.js 15)
+- **Custom hooks** (`useApi.ts`) for data logic
 
 ### Backend
 - **GraphQL** with Apollo Server
@@ -132,10 +137,21 @@ stellar contract deploy --network testnet
 
 | File | Purpose |
 |------|---------|
+| **Pages (Server/Client Boundary)** | |
+| `apps/web/src/app/page.tsx` | Home Server Component (ISR 5min) |
+| `apps/web/src/app/HomeClient.tsx` | Home Client Component |
+| `apps/web/src/app/explore/page.tsx` | Explore Server Component (ISR 1min) |
+| `apps/web/src/app/explore/ExploreClient.tsx` | Explore Client Component |
+| `apps/web/src/app/leaderboard/page.tsx` | Leaderboard Server Component (ISR 2min) |
+| `apps/web/src/app/leaderboard/LeaderboardClient.tsx` | Leaderboard Client Component |
+| **Services & Hooks** | |
 | `apps/web/src/lib/stellar/services/sac-factory.service.ts` | Main contract service |
+| `apps/web/src/hooks/useApi.ts` | Apollo hooks for data fetching |
 | `apps/web/src/components/widgets/TradingWidget.tsx` | Trading interface |
-| `apps/web/src/hooks/useToken.ts` | Token data hook |
+| **Backend** | |
 | `backend/api-gateway-v2/src/graphql/schema.ts` | GraphQL schema |
+| `backend/indexer/src/services/dead-letter-queue.ts` | Failed event retry system |
+| **Contracts** | |
 | `contracts/sac-factory/src/lib.rs` | Main contract |
 | `contracts/sac-factory/src/bonding_curve.rs` | Price algorithm |
 
@@ -165,6 +181,10 @@ REDIS_URL=redis://localhost:6379
 
 # Contract IDs (after deployment)
 TOKEN_FACTORY_CONTRACT_ID=CXXX...
+
+# Monitoring (Sentry)
+NEXT_PUBLIC_SENTRY_DSN=https://xxx@o4xxx.ingest.sentry.io/xxx
+SENTRY_AUTH_TOKEN=sntrys_xxx  # For source maps upload
 ```
 
 ## Testing

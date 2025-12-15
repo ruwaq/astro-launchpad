@@ -3,6 +3,8 @@
 //! Handles cross-contract calls to graduate tokens from the bonding curve
 //! to the AstroSwap DEX.
 
+#![allow(dead_code)] // Bridge graduation feature - not yet integrated
+
 use soroban_sdk::{contracttype, Address, Env, IntoVal, String, Symbol, Val};
 
 use crate::errors::Error;

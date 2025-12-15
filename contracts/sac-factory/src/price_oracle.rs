@@ -3,6 +3,8 @@
 //! Provides price feed integration with DIA Oracle on Soroban
 //! Sprint 2 - Price Oracle Integration
 
+#![allow(dead_code)] // Oracle integration pending DIA deployment
+
 use soroban_sdk::{contracttype, Address, Env, IntoVal, Symbol, Vec as SorobanVec};
 
 use crate::errors::Error;

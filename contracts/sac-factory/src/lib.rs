@@ -65,10 +65,10 @@ use storage::{TokenInfo, TokenStatus};
 // Value: 100_000_000 stroops = 10 XLM
 
 /// Initial token supply (210 million tokens - Bitcoin's number)
-const INITIAL_SUPPLY: i128 = 210_000_000_0000000; // 210M with 7 decimals
+const INITIAL_SUPPLY: i128 = 2_100_000_000_000_000; // 210M with 7 decimals
 
 /// Tokens allocated to bonding curve (80% = 168M)
-const BONDING_CURVE_SUPPLY: i128 = 168_000_000_0000000;
+const BONDING_CURVE_SUPPLY: i128 = 1_680_000_000_000_000;
 
 #[contract]
 pub struct SacFactory;
@@ -140,6 +140,7 @@ impl SacFactory {
     /// # Client Responsibility
     /// The client must create the Asset XDR and serialize it to bytes before calling.
     /// See SOLUTION_SAC_DEPLOYMENT.md for frontend implementation examples.
+    #[allow(clippy::too_many_arguments)]
     pub fn launch_token(
         env: Env,
         creator: Address,
@@ -156,10 +157,10 @@ impl SacFactory {
         state_management::require_active(&env)?;
 
         // Validate inputs
-        if name.len() == 0 || name.len() > 32 {
+        if name.is_empty() || name.len() > 32 {
             return Err(Error::InvalidName);
         }
-        if symbol.len() == 0 || symbol.len() > 12 {
+        if symbol.is_empty() || symbol.len() > 12 {
             return Err(Error::InvalidSymbol);
         }
 
@@ -245,10 +246,10 @@ impl SacFactory {
         state_management::require_active(&env)?;
 
         // Validate inputs
-        if name.len() == 0 || name.len() > 32 {
+        if name.is_empty() || name.len() > 32 {
             return Err(Error::InvalidName);
         }
-        if symbol.len() == 0 || symbol.len() > 12 {
+        if symbol.is_empty() || symbol.len() > 12 {
             return Err(Error::InvalidSymbol);
         }
 
@@ -407,7 +408,7 @@ impl SacFactory {
         // For now, we skip XLM transfers in test mode to allow tests to pass
         #[cfg(not(test))]
         {
-            let xlm_token_address = Self::get_xlm_token_address(&env);
+            let xlm_token_address = Self::get_xlm_token_address(&env)?;
             let xlm_client = token::Client::new(&env, &xlm_token_address);
             let contract_address = env.current_contract_address();
 
@@ -416,7 +417,7 @@ impl SacFactory {
         }
 
         // 6. Get price before trade (for slippage calculation)
-        let price_before = token_info.bonding_curve.get_current_price();
+        let price_before = token_info.bonding_curve.get_current_price()?;
 
         // 7. Apply dual-fee system to XLM INPUT (Uniswap V2 style)
         // This maintains the k=x*y invariant by applying fees BEFORE the swap calculation
@@ -428,13 +429,19 @@ impl SacFactory {
             let whale_fee = fee_breakdown.net_amount
                 .checked_mul(anti_whale_result.extra_fee_bps)
                 .and_then(|v| v.checked_div(10_000))
-                .unwrap_or(0);
+                .ok_or(Error::Overflow)?;
 
             // Deduct whale fee from net amount
-            fee_breakdown.net_amount = fee_breakdown.net_amount.saturating_sub(whale_fee);
-            fee_breakdown.total_fees = fee_breakdown.total_fees.saturating_add(whale_fee);
+            fee_breakdown.net_amount = fee_breakdown.net_amount
+                .checked_sub(whale_fee)
+                .ok_or(Error::Underflow)?;
+            fee_breakdown.total_fees = fee_breakdown.total_fees
+                .checked_add(whale_fee)
+                .ok_or(Error::Overflow)?;
             // Whale fee goes to protocol (treasury)
-            fee_breakdown.protocol_fee = fee_breakdown.protocol_fee.saturating_add(whale_fee);
+            fee_breakdown.protocol_fee = fee_breakdown.protocol_fee
+                .checked_add(whale_fee)
+                .ok_or(Error::Overflow)?;
         }
 
         // 8. Calculate tokens to receive using XLM AFTER fees
@@ -462,8 +469,15 @@ impl SacFactory {
             fee_breakdown.lp_fee,
         )?;
 
+        // 10b. SECURITY: Track XLM locked in bonding curve (protect from withdrawal)
+        // Total locked = xlm_for_swap + lp_fee (protocol_fee goes to treasury)
+        let xlm_locked_in_curve = xlm_for_swap
+            .checked_add(fee_breakdown.lp_fee)
+            .ok_or(Error::Overflow)?;
+        storage::add_locked_xlm(&env, xlm_locked_in_curve);
+
         // 11. Get price after trade
-        let price_after = token_info.bonding_curve.get_current_price();
+        let price_after = token_info.bonding_curve.get_current_price()?;
 
         // 12. Calculate actual slippage
         let slippage_bps = core_math::calculate_slippage_bps(price_before, price_after)?;
@@ -471,14 +485,23 @@ impl SacFactory {
         // 13. Update total XLM raised
         token_info.xlm_raised = core_math::safe_add(token_info.xlm_raised, xlm_amount)?;
 
-        // 14. Update market cap (XLM raised * 2 for constant product)
-        token_info.market_cap = core_math::safe_mul(token_info.xlm_raised, 2)?;
+        // 14. Update market cap using bonding curve's correct calculation
+        // Market cap = 2 * xlm_reserve (constant product TVL)
+        // Note: xlm_reserve reflects current liquidity (changes on buys/sells)
+        // while xlm_raised is cumulative (only increases on buys)
+        token_info.market_cap = token_info.bonding_curve.get_market_cap()?;
 
         // 15. Check for auto-graduation (using configurable threshold)
         let graduation_threshold = storage::get_graduation_threshold(&env);
         let should_graduate = token_info.xlm_raised >= graduation_threshold;
         if should_graduate {
-            Self::graduate_to_amm(&env, &mut token_info)?;
+            // SECURITY: Handle graduation errors gracefully
+            // If graduation fails, set status to GraduationFailed (not left in GraduationInProgress)
+            if let Err(e) = Self::graduate_to_amm(&env, &mut token_info) {
+                token_info.status = TokenStatus::GraduationFailed;
+                storage::set_token_info(&env, &token, &token_info);
+                return Err(e);
+            }
         }
 
         // 16. Save state BEFORE any external calls
@@ -499,7 +522,7 @@ impl SacFactory {
         {
             // Check if this is a pure Soroban token (empty issuer) or SAC (has issuer)
             // Mint ALL calculated tokens (fee was on XLM input, not token output)
-            if token_info.issuer.len() == 0 {
+            if token_info.issuer.is_empty() {
                 // Pure Soroban token (V2) - use launchpad_token_client
                 launchpad_token_client::mint(&env, &token, &buyer, tokens_out);
             } else {
@@ -644,11 +667,18 @@ impl SacFactory {
             fee_breakdown.lp_fee,
         )?;
 
+        // 9b. SECURITY: Track XLM released from bonding curve
+        // Amount leaving curve = xlm_gross - lp_fee (lp_fee stays in reserves)
+        let xlm_released_from_curve = xlm_gross
+            .checked_sub(fee_breakdown.lp_fee)
+            .ok_or(Error::Underflow)?;
+        storage::sub_locked_xlm(&env, xlm_released_from_curve);
+
         // 10. Update total XLM raised (using safe math)
         token_info.xlm_raised = core_math::safe_sub(token_info.xlm_raised, xlm_gross)?;
 
-        // 11. Update market cap
-        token_info.market_cap = core_math::safe_mul(token_info.xlm_raised, 2)?;
+        // 11. Update market cap using bonding curve's correct calculation
+        token_info.market_cap = token_info.bonding_curve.get_market_cap()?;
 
         // 12. Save state BEFORE any external calls
         storage::set_token_info(&env, &token, &token_info);
@@ -666,7 +696,7 @@ impl SacFactory {
         #[cfg(not(test))]
         {
             // Check if this is a pure Soroban token (empty issuer) or SAC (has issuer)
-            if token_info.issuer.len() == 0 {
+            if token_info.issuer.is_empty() {
                 // Pure Soroban token (V2) - use admin_burn (factory is admin)
                 launchpad_token_client::admin_burn(&env, &token, &seller, token_amount);
             } else {
@@ -679,7 +709,7 @@ impl SacFactory {
         // 14. Transfer XLM from contract to seller (net amount after fees)
         #[cfg(not(test))]
         {
-            let xlm_token_address = Self::get_xlm_token_address(&env);
+            let xlm_token_address = Self::get_xlm_token_address(&env)?;
             let xlm_client = token::Client::new(&env, &xlm_token_address);
             let contract_address = env.current_contract_address();
 
@@ -690,7 +720,7 @@ impl SacFactory {
         #[cfg(not(test))]
         {
             if fee_breakdown.protocol_fee > 0 {
-                let xlm_token_address = Self::get_xlm_token_address(&env);
+                let xlm_token_address = Self::get_xlm_token_address(&env)?;
                 let xlm_client = token::Client::new(&env, &xlm_token_address);
                 let contract_address = env.current_contract_address();
                 let treasury = fee_management::get_fee_config(&env).treasury;
@@ -702,7 +732,7 @@ impl SacFactory {
 
         // 16. LP fee stays in bonding curve (already in XLM reserves)
         if fee_breakdown.lp_fee > 0 {
-            let xlm_token_address = Self::get_xlm_token_address(&env);
+            let xlm_token_address = Self::get_xlm_token_address(&env)?;
             events::lp_fee_collected(&env, &xlm_token_address, fee_breakdown.lp_fee);
         }
 
@@ -734,7 +764,7 @@ impl SacFactory {
         let token_info = storage::get_token_info(&env, &token)
             .ok_or(Error::TokenNotFound)?;
 
-        Ok(token_info.bonding_curve.get_current_price())
+        token_info.bonding_curve.get_current_price()
     }
 
     /// Get graduation progress (0-10000 = 0%-100%)
@@ -893,7 +923,7 @@ impl SacFactory {
         }
 
         let fee_config = fee_management::get_fee_config(&env);
-        let xlm_address = Self::get_xlm_token_address(&env);
+        let xlm_address = Self::get_xlm_token_address(&env)?;
 
         // Get contract's XLM balance
         #[cfg(not(test))]
@@ -905,11 +935,22 @@ impl SacFactory {
         #[cfg(test)]
         let contract_balance = 0i128;
 
-        // Determine amount to withdraw
+        // SECURITY: Protect bonding curve reserves from withdrawal
+        // Only allow withdrawing XLM that is NOT locked in active bonding curves
+        let total_locked = storage::get_total_locked_xlm(&env);
+        let available_xlm = contract_balance
+            .checked_sub(total_locked)
+            .ok_or(Error::Underflow)?;
+
+        if available_xlm <= 0 {
+            return Err(Error::InsufficientBalance);
+        }
+
+        // Determine amount to withdraw (capped at available, not total balance)
         let withdraw_amount = if amount <= 0 {
-            contract_balance
+            available_xlm
         } else {
-            amount.min(contract_balance)
+            amount.min(available_xlm)
         };
 
         if withdraw_amount <= 0 {
@@ -1477,8 +1518,18 @@ impl SacFactory {
     /// # Returns
     /// Ok(()) on success, Error on failure
     fn graduate_to_amm(env: &Env, token_info: &mut TokenInfo) -> Result<(), Error> {
+        // SECURITY: Prevent race condition during graduation
+        // Check status is Bonding before starting graduation
+        if token_info.status != TokenStatus::Bonding {
+            return Err(Error::InvalidTokenStatus);
+        }
+
+        // Set status to GraduationInProgress to prevent concurrent graduation attempts
+        token_info.status = TokenStatus::GraduationInProgress;
+        storage::set_token_info(env, &token_info.token_address, token_info);
+
         // Get addresses
-        let xlm_address = Self::get_xlm_token_address(env);
+        let xlm_address = Self::get_xlm_token_address(env)?;
         let factory_address = env.current_contract_address();
         let fee_config = fee_management::get_fee_config(env);
 
@@ -1743,10 +1794,13 @@ impl SacFactory {
             );
         }
 
-        // 8. Mark as graduated
+        // 8. SECURITY: Release locked XLM (liquidity now in AMM, not bonding curve)
+        storage::release_locked_xlm(env, token_info.xlm_raised);
+
+        // 9. Mark as graduated
         token_info.status = TokenStatus::Graduated;
 
-        // 9. Emit graduation events
+        // 10. Emit graduation events
         events::token_graduated(env, &token_info.token_address, token_info.xlm_raised);
 
         // Emit detailed dual-pool graduation event if ASTRO is configured
@@ -1790,7 +1844,7 @@ impl SacFactory {
             .ok_or(Error::BridgeNotConfigured)?;
 
         let factory_address = env.current_contract_address();
-        let xlm_address = Self::get_xlm_token_address(env);
+        let xlm_address = Self::get_xlm_token_address(env)?;
 
         // Prepare token metadata for Bridge
         let metadata = bridge_client::TokenMetadata {
@@ -1851,6 +1905,9 @@ impl SacFactory {
             &pair_address,
         );
 
+        // SECURITY: Release locked XLM (liquidity now in DEX, not bonding curve)
+        storage::release_locked_xlm(env, token_info.xlm_raised);
+
         // Mark as graduated
         token_info.status = TokenStatus::Graduated;
 
@@ -1871,11 +1928,11 @@ impl SacFactory {
     /// This address is set during initialization and stored in contract storage,
     /// allowing the contract to work on any network (testnet, mainnet, etc.)
     ///
-    /// # Panics
-    /// Panics if XLM token address is not configured (contract not initialized)
-    fn get_xlm_token_address(env: &Env) -> Address {
+    /// # Returns
+    /// Result with XLM token address or Error::NotInitialized
+    fn get_xlm_token_address(env: &Env) -> Result<Address, Error> {
         storage::get_xlm_token_address(env)
-            .expect("XLM token address not configured - contract not initialized")
+            .ok_or(Error::NotInitialized)
     }
 
     /// Get the configured XLM token address (public getter)

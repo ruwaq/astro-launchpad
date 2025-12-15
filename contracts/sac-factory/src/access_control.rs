@@ -3,6 +3,8 @@
 //! Implements granular permission system for contract administration.
 //! Inspired by Aquarius AMM access control patterns.
 
+#![allow(dead_code)] // Some role checks not yet used in main contract
+
 use soroban_sdk::{contracttype, Address, Env};
 use crate::errors::Error;
 use crate::events;

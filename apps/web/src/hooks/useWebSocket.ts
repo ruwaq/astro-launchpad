@@ -213,13 +213,14 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
         startHeartbeat();
         processMessageQueue();
 
-        // Re-subscribe to tokens
+        // Re-subscribe to tokens using the new protocol
         subscribedTokens.forEach((tokenAddress) => {
-          sendMessage({
-            type: 'subscribe',
-            data: { tokenAddress },
-            timestamp: Date.now(),
-          });
+          if (wsRef.current?.readyState === WebSocket.OPEN) {
+            wsRef.current.send(JSON.stringify({
+              type: 'subscribe',
+              channel: `token:${tokenAddress}`,
+            }));
+          }
         });
       };
 
@@ -295,12 +296,13 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
   const subscribeToToken = useCallback((tokenAddress: string) => {
     setSubscribedTokens((prev) => new Set([...prev, tokenAddress]));
 
-    sendMessage({
-      type: 'subscribe',
-      data: { tokenAddress },
-      timestamp: Date.now(),
-    });
-  }, [sendMessage]);
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({
+        type: 'subscribe',
+        channel: `token:${tokenAddress}`,
+      }));
+    }
+  }, []);
 
   // Unsubscribe from token updates
   const unsubscribeFromToken = useCallback((tokenAddress: string) => {
@@ -310,12 +312,13 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
       return next;
     });
 
-    sendMessage({
-      type: 'unsubscribe',
-      data: { tokenAddress },
-      timestamp: Date.now(),
-    });
-  }, [sendMessage]);
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({
+        type: 'unsubscribe',
+        channel: `token:${tokenAddress}`,
+      }));
+    }
+  }, []);
 
   // Use ref to track if we should auto-connect (avoids circular dependency)
   const autoConnectRef = useRef(autoConnect);

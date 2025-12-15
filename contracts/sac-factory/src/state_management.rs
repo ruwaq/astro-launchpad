@@ -3,6 +3,8 @@
 //! Handles contract lifecycle states including pause/unpause
 //! for emergency response.
 
+#![allow(dead_code)] // Migration functions for future use
+
 use soroban_sdk::{contracttype, Address, Env};
 use crate::errors::Error;
 use crate::access_control::{require_role, Role};

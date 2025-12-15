@@ -442,6 +442,7 @@ const queryResolvers = {
                             volume24h: (result.total_volume || 0).toString(),
                             trades24h: Number(result.trades_count) || 0,
                             profitLoss24h: (result.profit_loss || 0).toString(),
+                            // Would need UserActivitySnapshot to calculate volume/rank changes
                             volumeChange24h: 0,
                             rankChange24h: 0,
                         }));
@@ -493,6 +494,7 @@ const queryResolvers = {
                             profitLoss24h: '0',
                             tokensCreated: Number(result.tokens_created) || 0,
                             totalVolumeGenerated: (result.total_volume_generated || 0).toString(),
+                            // Would need CreatorActivitySnapshot to calculate volume/rank changes
                             volumeChange24h: 0,
                             rankChange24h: 0,
                         }));
@@ -533,10 +535,81 @@ const queryResolvers = {
                             return [];
                         }
                         const addresses = results.map((r) => r.address).filter(Boolean);
-                        const users = addresses.length > 0 ? await context.prisma.user.findMany({
-                            where: { address: { in: addresses } },
-                        }) : [];
+                        // Fetch users and fees in parallel for efficiency
+                        const [users, feesResults] = await Promise.all([
+                            addresses.length > 0 ? context.prisma.user.findMany({
+                                where: { address: { in: addresses } },
+                            }) : Promise.resolve([]),
+                            // Calculate fees earned by each LP based on their share of pool liquidity
+                            // LP fees are distributed proportionally to liquidity providers
+                            //
+                            // NOTE: FeeCollection.tokenAddress is the TOKEN address, not pool address.
+                            // Pool has token0Address (usually XLM) and token1Address (the token).
+                            // We join on pool's token addresses to match fees correctly.
+                            context.prisma.$queryRaw `
+                WITH provider_pools AS (
+                  -- Get each provider's current liquidity in each pool
+                  SELECT
+                    le.provider,
+                    le."poolId",
+                    COALESCE(SUM(
+                      CASE
+                        WHEN le.type = 'ADD' THEN CAST(NULLIF(le.liquidity, '') AS DECIMAL)
+                        WHEN le.type = 'REMOVE' THEN -CAST(NULLIF(le.liquidity, '') AS DECIMAL)
+                        ELSE 0
+                      END
+                    ), 0) as provider_liquidity
+                  FROM "LiquidityEvent" le
+                  WHERE le.provider = ANY(${addresses})
+                  GROUP BY le.provider, le."poolId"
+                  HAVING COALESCE(SUM(
+                    CASE
+                      WHEN le.type = 'ADD' THEN CAST(NULLIF(le.liquidity, '') AS DECIMAL)
+                      WHEN le.type = 'REMOVE' THEN -CAST(NULLIF(le.liquidity, '') AS DECIMAL)
+                      ELSE 0
+                    END
+                  ), 0) > 0
+                ),
+                pool_totals AS (
+                  -- Get total liquidity and token addresses for each pool
+                  SELECT
+                    p.id as pool_id,
+                    p."token0Address",
+                    p."token1Address",
+                    CAST(NULLIF(p."totalSupply", '') AS DECIMAL) as total_supply
+                  FROM "Pool" p
+                ),
+                pool_fees_24h AS (
+                  -- Get LP fees collected in last 24h for each token
+                  SELECT
+                    fc."tokenAddress",
+                    COALESCE(SUM(CAST(NULLIF(fc."lpFee", '') AS DECIMAL)), 0) as lp_fees
+                  FROM "FeeCollection" fc
+                  WHERE fc.timestamp >= ${startTime}
+                    AND fc."lpFee" IS NOT NULL
+                    AND fc."lpFee" != ''
+                  GROUP BY fc."tokenAddress"
+                )
+                SELECT
+                  pp.provider,
+                  COALESCE(SUM(
+                    CASE
+                      WHEN pt.total_supply > 0 THEN
+                        (pp.provider_liquidity / pt.total_supply) * (
+                          COALESCE(pf0.lp_fees, 0) + COALESCE(pf1.lp_fees, 0)
+                        )
+                      ELSE 0
+                    END
+                  ), 0)::BIGINT as fees_earned
+                FROM provider_pools pp
+                JOIN pool_totals pt ON pp."poolId" = pt.pool_id
+                LEFT JOIN pool_fees_24h pf0 ON pt."token0Address" = pf0."tokenAddress"
+                LEFT JOIN pool_fees_24h pf1 ON pt."token1Address" = pf1."tokenAddress"
+                GROUP BY pp.provider
+              `,
+                        ]);
                         const userMap = new Map(users.map(u => [u.address, u]));
+                        const feesMap = new Map(feesResults.map(f => [f.provider, (f.fees_earned || BigInt(0)).toString()]));
                         return results.map((result, index) => ({
                             rank: index + 1,
                             address: result.address,
@@ -556,7 +629,9 @@ const queryResolvers = {
                             trades24h: 0,
                             profitLoss24h: '0',
                             totalLiquidity: (result.net_liquidity || 0).toString(),
-                            feesEarned24h: '0', // TODO: Calculate from pool fees
+                            // Real fees earned based on LP's proportional share of pool liquidity
+                            feesEarned24h: feesMap.get(result.address) || '0',
+                            // Would need PoolSnapshot table to calculate volume change
                             volumeChange24h: 0,
                             rankChange24h: 0,
                         }));
@@ -601,6 +676,7 @@ const queryResolvers = {
             where.type = validatedType;
         }
         // PERFORMANCE: Select only fields needed for transaction list
+        // FIX: Added grossAmount, netAmount, protocolFee, lpFee for frontend display
         const [edges, total] = await Promise.all([
             context.prisma.transaction.findMany({
                 where,
@@ -614,6 +690,10 @@ const queryResolvers = {
                     from: true,
                     to: true,
                     amount: true,
+                    grossAmount: true,
+                    netAmount: true,
+                    protocolFee: true,
+                    lpFee: true,
                     status: true,
                     timestamp: true,
                     tokenAddress: true,
@@ -934,7 +1014,12 @@ const fieldResolvers = {
         bondingCurve: (parent) => parent.address,
         initialPrice: (parent) => parent.currentPrice || '0',
         holders24h: (parent) => parent.holders || 0,
-        holdersChange24h: (parent) => 0, // TODO: Calculate from historical data
+        // Without a TokenSnapshot table, we can't calculate historical changes
+        // For now, return 0. To implement: add TokenSnapshot model with daily snapshots
+        holdersChange24h: (parent) => {
+            // Would need: SELECT holders FROM TokenSnapshot WHERE tokenAddress = parent.address AND date = now - 24h
+            return 0;
+        },
         website: (parent) => parent.website || null,
         twitter: (parent) => parent.twitter || null,
         telegram: (parent) => parent.telegram || null,
@@ -963,7 +1048,13 @@ const fieldResolvers = {
     Pool: {
         // Alias fields for frontend compatibility
         liquidity: (parent) => parent.totalSupply || parent.tvl || '0',
-        volumeChange24h: (parent) => 0, // TODO: Calculate from historical data
+        // Without a PoolSnapshot table, we can't calculate historical volume changes
+        // For now, return 0. To implement: add PoolSnapshot model with daily volume snapshots
+        volumeChange24h: (parent) => {
+            // Would need: SELECT volume FROM PoolSnapshot WHERE poolAddress = parent.address AND date = now - 24h
+            // Then calculate: ((current - previous) / previous) * 100
+            return 0;
+        },
         apy: (parent) => parent.apr || 0,
         fee: (parent) => '0.3', // Default 0.3% fee
         // Token0 relationship

@@ -1,0 +1,29 @@
+[Unit]
+Description=Astro Launchpad Indexer
+Documentation=https://github.com/nunalabs/astro-launchpad
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/astro-indexer/backend/indexer
+ExecStart=/usr/bin/node dist/index.js
+Restart=always
+RestartSec=10
+
+# Environment
+Environment=NODE_ENV=production
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=astro-indexer
+
+# Security
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/astro-indexer
+
+[Install]
+WantedBy=multi-user.target

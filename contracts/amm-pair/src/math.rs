@@ -1,8 +1,9 @@
 /// Math library for AMM calculations
 /// Wrapper around astro-core-shared math module
-/// Maintains backward-compatible panic-based API
+/// Returns Result instead of panicking for production safety
 
 use astro_core_shared::math as core_math;
+use crate::errors::Error;
 
 /// Fee in basis points (30 = 0.3%)
 const FEE_BPS: u32 = 30;
@@ -22,14 +23,10 @@ pub fn sqrt(y: i128) -> i128 {
 /// * `reserve_b` - Reserve of token B
 ///
 /// # Returns
-/// Equivalent amount of token B
-///
-/// # Panics
-/// - If amount_a <= 0
-/// - If reserves are <= 0
-pub fn quote(amount_a: i128, reserve_a: i128, reserve_b: i128) -> i128 {
+/// Result with equivalent amount of token B or Error
+pub fn quote(amount_a: i128, reserve_a: i128, reserve_b: i128) -> Result<i128, Error> {
     core_math::quote(amount_a, reserve_a, reserve_b)
-        .unwrap_or_else(|_| panic!("insufficient liquidity"))
+        .map_err(|_| Error::InsufficientLiquidity)
 }
 
 /// Calculate output amount for a swap
@@ -41,14 +38,10 @@ pub fn quote(amount_a: i128, reserve_a: i128, reserve_b: i128) -> i128 {
 /// * `reserve_out` - Output token reserve
 ///
 /// # Returns
-/// Output amount after fee
-///
-/// # Panics
-/// - If amount_in <= 0
-/// - If reserves are <= 0
-pub fn get_amount_out(amount_in: i128, reserve_in: i128, reserve_out: i128) -> i128 {
+/// Result with output amount after fee or Error
+pub fn get_amount_out(amount_in: i128, reserve_in: i128, reserve_out: i128) -> Result<i128, Error> {
     core_math::get_amount_out(amount_in, reserve_in, reserve_out, FEE_BPS)
-        .unwrap_or_else(|_| panic!("insufficient liquidity"))
+        .map_err(|_| Error::InsufficientLiquidity)
 }
 
 /// Calculate input amount needed for a desired output
@@ -60,15 +53,10 @@ pub fn get_amount_out(amount_in: i128, reserve_in: i128, reserve_out: i128) -> i
 /// * `reserve_out` - Output token reserve
 ///
 /// # Returns
-/// Required input amount (including fee)
-///
-/// # Panics
-/// - If amount_out <= 0
-/// - If reserves are <= 0
-/// - If amount_out >= reserve_out
-pub fn get_amount_in(amount_out: i128, reserve_in: i128, reserve_out: i128) -> i128 {
+/// Result with required input amount (including fee) or Error
+pub fn get_amount_in(amount_out: i128, reserve_in: i128, reserve_out: i128) -> Result<i128, Error> {
     core_math::get_amount_in(amount_out, reserve_in, reserve_out, FEE_BPS)
-        .unwrap_or_else(|_| panic!("insufficient liquidity"))
+        .map_err(|_| Error::InsufficientLiquidity)
 }
 
 #[cfg(test)]
@@ -89,13 +77,13 @@ mod tests {
     #[test]
     fn test_quote() {
         // 1:1 ratio
-        assert_eq!(quote(100, 1000, 1000), 100);
+        assert_eq!(quote(100, 1000, 1000).unwrap(), 100);
 
         // 1:2 ratio
-        assert_eq!(quote(100, 1000, 2000), 200);
+        assert_eq!(quote(100, 1000, 2000).unwrap(), 200);
 
         // 2:1 ratio
-        assert_eq!(quote(100, 2000, 1000), 50);
+        assert_eq!(quote(100, 2000, 1000).unwrap(), 50);
     }
 
     #[test]
@@ -105,7 +93,7 @@ mod tests {
         let reserve_out = 10_000_000;
         let amount_in = 1_000_000;
 
-        let amount_out = get_amount_out(amount_in, reserve_in, reserve_out);
+        let amount_out = get_amount_out(amount_in, reserve_in, reserve_out).unwrap();
 
         // Should be less than input due to fee and price impact
         assert!(amount_out < amount_in);
@@ -121,7 +109,7 @@ mod tests {
         let reserve_out = 10_000_000;
         let amount_out = 900_000;
 
-        let amount_in = get_amount_in(amount_out, reserve_in, reserve_out);
+        let amount_in = get_amount_in(amount_out, reserve_in, reserve_out).unwrap();
 
         // Should be more than output due to fee
         assert!(amount_in > amount_out);
@@ -133,8 +121,8 @@ mod tests {
         let reserve_out = 10_000_000;
         let amount_in = 1_000_000;
 
-        let amount_out = get_amount_out(amount_in, reserve_in, reserve_out);
-        let amount_in_required = get_amount_in(amount_out, reserve_in, reserve_out);
+        let amount_out = get_amount_out(amount_in, reserve_in, reserve_out).unwrap();
+        let amount_in_required = get_amount_in(amount_out, reserve_in, reserve_out).unwrap();
 
         // Should be approximately equal (within small margin due to rounding)
         assert!(
@@ -146,20 +134,17 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
     fn test_get_amount_out_zero_input() {
-        get_amount_out(0, 1000, 1000);
+        assert!(get_amount_out(0, 1000, 1000).is_err());
     }
 
     #[test]
-    #[should_panic]
     fn test_get_amount_out_zero_reserve() {
-        get_amount_out(100, 0, 1000);
+        assert!(get_amount_out(100, 0, 1000).is_err());
     }
 
     #[test]
-    #[should_panic]
     fn test_get_amount_in_exceeds_reserve() {
-        get_amount_in(1001, 1000, 1000);
+        assert!(get_amount_in(1001, 1000, 1000).is_err());
     }
 }

@@ -223,24 +223,27 @@ export class MetricsCalculator {
       });
 
       // Query fee collections from last 24 hours for these tokens
-      const feeCollections = await this.prisma.feeCollection.groupBy({
-        by: ['tokenAddress'],
+      // Note: lpFee and protocolFee are String fields, so we aggregate manually
+      const feeCollections = await this.prisma.feeCollection.findMany({
         where: {
           tokenAddress: { in: Array.from(tokenAddresses) },
           timestamp: { gte: twentyFourHoursAgo },
         },
-        _sum: {
+        select: {
+          tokenAddress: true,
           lpFee: true,
           protocolFee: true,
         },
       });
 
-      // Create map of tokenAddress -> fees
+      // Create map of tokenAddress -> fees (aggregate manually since fields are strings)
       const tokenFeesMap = new Map<string, bigint>();
       for (const fee of feeCollections) {
-        const lpFee = BigInt(fee._sum.lpFee || '0');
-        const protocolFee = BigInt(fee._sum.protocolFee || '0');
-        tokenFeesMap.set(fee.tokenAddress, lpFee + protocolFee);
+        const lpFee = BigInt(fee.lpFee || '0');
+        const protocolFee = BigInt(fee.protocolFee || '0');
+        const totalFee = lpFee + protocolFee;
+        const existingFees = tokenFeesMap.get(fee.tokenAddress) || 0n;
+        tokenFeesMap.set(fee.tokenAddress, existingFees + totalFee);
       }
 
       // Map fees back to pools (sum fees from both tokens in the pool)

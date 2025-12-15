@@ -3,6 +3,8 @@
 //! Client for cross-contract calls to deployed AMM pair contracts
 //! Sprint 3 - Cross-Contract AMM Initialization
 
+#![allow(dead_code)] // Graduation feature - not yet integrated
+
 use soroban_sdk::{Address, Env, IntoVal, Symbol};
 
 use crate::errors::Error;

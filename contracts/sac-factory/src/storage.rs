@@ -5,6 +5,8 @@
 //! - Persistent: User/token specific data (unbounded, separate keys) - TokenInfo, CreatorTokens
 //! - Temporary: Time-bound data (not used yet, reserved for future features)
 
+#![allow(dead_code)] // Config helpers for future features (views, oracle, bridge)
+
 use soroban_sdk::{contracttype, Address, Env, Vec};
 use crate::bonding_curve::BondingCurve;
 
@@ -31,6 +33,8 @@ pub enum InstanceKey {
     UseBridgeForGraduation, // Whether to use Bridge (true) or local AMM (false)
     // Launchpad Token WASM (Pure Soroban tokens, not SAC)
     TokenWasmHash,         // WASM hash for launchpad token contract deployment
+    // SECURITY: Track total locked XLM to protect bonding curve reserves
+    TotalLockedXlm,        // Total XLM locked in active bonding curves (cannot be withdrawn)
 }
 
 /// Storage keys for Persistent storage (unbounded, per-entity)
@@ -47,9 +51,10 @@ pub enum PersistentKey {
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum TokenStatus {
-    Bonding,           // In bonding curve phase
-    Graduated,         // Successfully moved to AMM
-    GraduationFailed,  // Graduation attempt failed (requires recovery)
+    Bonding,             // In bonding curve phase
+    GraduationInProgress, // Graduation in progress (prevents race conditions)
+    Graduated,           // Successfully moved to AMM
+    GraduationFailed,    // Graduation attempt failed (requires recovery)
 }
 
 /// Token information
@@ -128,10 +133,10 @@ pub fn set_min_market_cap_usd(env: &Env, min_market_cap: u128) {
         .set(&InstanceKey::MinMarketCapUsd, &min_market_cap);
 }
 
-/// Default graduation threshold: 30,000 XLM in stroops
-/// 30,000 XLM = 300_000_000_000 stroops (30000 * 10^7)
-/// Market cap = xlm_raised * 2, so 30,000 XLM raised → 60,000 XLM market cap
-const DEFAULT_GRADUATION_THRESHOLD: i128 = 300_000_000_000;
+/// Default graduation threshold: 34,500 XLM in stroops
+/// 34,500 XLM = 345_000_000_000 stroops (34500 * 10^7)
+/// Market cap = xlm_raised * 2, so 34,500 XLM raised → 69,000 XLM market cap (~$69k)
+const DEFAULT_GRADUATION_THRESHOLD: i128 = 345_000_000_000;
 
 // ========== Token WASM Hash (for pure Soroban token deployment) ==========
 
@@ -158,6 +163,40 @@ pub fn set_graduation_threshold(env: &Env, threshold: i128) {
     env.storage()
         .instance()
         .set(&InstanceKey::GraduationThreshold, &threshold);
+}
+
+// ========== Total Locked XLM (Security: Protect Bonding Curve Reserves) ==========
+
+/// Get total XLM locked in active bonding curves
+/// This amount CANNOT be withdrawn via withdraw_fees
+pub fn get_total_locked_xlm(env: &Env) -> i128 {
+    env.storage()
+        .instance()
+        .get(&InstanceKey::TotalLockedXlm)
+        .unwrap_or(0)
+}
+
+/// Increase total locked XLM (called on buy)
+pub fn add_locked_xlm(env: &Env, amount: i128) {
+    let current = get_total_locked_xlm(env);
+    let new_total = current.saturating_add(amount);
+    env.storage()
+        .instance()
+        .set(&InstanceKey::TotalLockedXlm, &new_total);
+}
+
+/// Decrease total locked XLM (called on sell)
+pub fn sub_locked_xlm(env: &Env, amount: i128) {
+    let current = get_total_locked_xlm(env);
+    let new_total = current.saturating_sub(amount).max(0);
+    env.storage()
+        .instance()
+        .set(&InstanceKey::TotalLockedXlm, &new_total);
+}
+
+/// Release locked XLM on graduation (liquidity moves to AMM)
+pub fn release_locked_xlm(env: &Env, amount: i128) {
+    sub_locked_xlm(env, amount);
 }
 
 // ========== Persistent Storage (Unbounded, Per-Entity) ==========

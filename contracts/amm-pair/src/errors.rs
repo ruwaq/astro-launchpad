@@ -45,4 +45,7 @@ pub enum Error {
     // Flash swap errors (71-80)
     InvalidFlashLoan = 71,
     FlashLoanNotRepaid = 72,
+
+    // Transaction errors (81-90)
+    TransactionExpired = 81,
 }

@@ -2,20 +2,14 @@
 import 'dotenv/config';
 
 // Initialize Sentry BEFORE other imports for error tracking
-import * as Sentry from '@sentry/node';
-
-if (process.env.SENTRY_DSN) {
-  Sentry.init({
-    dsn: process.env.SENTRY_DSN,
-    environment: process.env.NODE_ENV || 'development',
-    tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 1.0,
-    enabled: process.env.NODE_ENV === 'production',
-  });
-}
+import { initializeSentry } from './lib/sentry.js';
+initializeSentry();
 
 import http from 'node:http';
+import express from 'express';
+import cors from 'cors';
 import { ApolloServer } from '@apollo/server';
-import { startStandaloneServer } from '@apollo/server/standalone';
+import { expressMiddleware } from '@apollo/server/express4';
 import { schema } from './graphql/schema.js';
 import { resolvers } from './graphql/resolvers/index.js';
 import { createContext, GraphQLContext } from './graphql/context.js';
@@ -25,9 +19,17 @@ import { env } from './config/env.js';
 import { disconnectPrisma } from './lib/prisma.js';
 import { checkLiveness, checkReadiness, getHealthStatus } from './lib/health.js';
 import { createRateLimitPlugin, getRateLimitHeaders } from './lib/rate-limiter.js';
+import { initWebSocket, wsManager } from './websocket/server.js';
+import {
+  sentryRequestHandler,
+  sentryErrorHandler,
+  errorHandlerMiddleware,
+  flush as flushSentry,
+} from './lib/sentry.js';
 
 // INFRASTRUCTURE: Track server instances for graceful shutdown
 let serverInstance: ApolloServer<GraphQLContext> | null = null;
+let httpServerInstance: http.Server | null = null;
 let healthServerInstance: http.Server | null = null;
 let isShuttingDown = false;
 
@@ -105,6 +107,21 @@ async function startHealthServer(): Promise<http.Server> {
 async function startServer() {
     try {
         logger.info('Initializing Apollo Server...');
+
+        // Create Express app
+        const app = express();
+
+        // MONITORING: Sentry request handler (must be first)
+        app.use(sentryRequestHandler());
+
+        // SECURITY: CORS configuration
+        app.use(cors({
+            origin: isProduction ? allowedOrigins : '*',
+            credentials: true,
+        }));
+
+        app.use(express.json());
+
         // Explicitly type the ApolloServer with our GraphQLContext
         const server = new ApolloServer<GraphQLContext>({
             typeDefs: schema,
@@ -141,19 +158,51 @@ async function startServer() {
             logger.info('📚 GraphQL Introspection ENABLED - Apollo Explorer available at endpoint');
         }
 
+        // Start Apollo Server
+        await server.start();
+
         // Store server reference for graceful shutdown
         serverInstance = server;
 
-        // Start Apollo Server with standalone server (includes built-in CORS support)
-        const port = env.API_PORT ? parseInt(env.API_PORT.toString()) : 4000;
-
-        const { url } = await startStandaloneServer(server, {
-            listen: { port },
+        // Apply Apollo middleware to Express
+        app.use('/graphql', expressMiddleware(server, {
             context: async ({ req }) => createContext(req as any),
+        }));
+
+        // WebSocket stats endpoint
+        app.get('/ws/stats', (req, res) => {
+            if (wsManager) {
+                res.json(wsManager.getStats());
+            } else {
+                res.status(503).json({ error: 'WebSocket not initialized' });
+            }
         });
 
-        logger.info(`🚀 API Gateway running at ${url}`);
-        logger.info(`   - CORS Origins: ${isProduction ? allowedOrigins.join(', ') : 'All (dev mode)'}`);
+        // MONITORING: Sentry error handler (must be after all routes, before custom error handler)
+        app.use(sentryErrorHandler());
+
+        // MONITORING: Custom error handler
+        app.use(errorHandlerMiddleware);
+
+        // Create HTTP server
+        const httpServer = http.createServer(app);
+        httpServerInstance = httpServer;
+
+        // Initialize WebSocket server
+        initWebSocket(httpServer);
+        logger.info('🔌 WebSocket server initialized at /ws');
+
+        const port = env.API_PORT ? parseInt(env.API_PORT.toString()) : 4000;
+
+        // Start HTTP server
+        await new Promise<void>((resolve) => {
+            httpServer.listen(port, () => {
+                logger.info(`🚀 API Gateway running at http://localhost:${port}/graphql`);
+                logger.info(`🔌 WebSocket server running at ws://localhost:${port}/ws`);
+                logger.info(`   - CORS Origins: ${isProduction ? allowedOrigins.join(', ') : 'All (dev mode)'}`);
+                resolve();
+            });
+        });
 
         // Start health check server
         healthServerInstance = await startHealthServer();
@@ -191,7 +240,19 @@ async function gracefulShutdown(signal: string) {
             logger.info('Apollo Server stopped');
         }
 
-        // Step 1.5: Stop health check server
+        // Step 1.5: Stop HTTP server (includes WebSocket)
+        if (httpServerInstance) {
+            logger.info('Stopping HTTP Server (Express + WebSocket)...');
+            await new Promise<void>((resolve, reject) => {
+                httpServerInstance!.close((err) => {
+                    if (err) reject(err);
+                    else resolve();
+                });
+            });
+            logger.info('HTTP Server stopped');
+        }
+
+        // Step 1.6: Stop health check server
         if (healthServerInstance) {
             logger.info('Stopping Health Server...');
             await new Promise<void>((resolve, reject) => {
@@ -210,6 +271,11 @@ async function gracefulShutdown(signal: string) {
         logger.info('Disconnecting from database...');
         await disconnectPrisma();
         logger.info('Database disconnected');
+
+        // Step 4: Flush Sentry events
+        logger.info('Flushing Sentry events...');
+        await flushSentry(2000);
+        logger.info('Sentry events flushed');
 
         clearTimeout(shutdownTimeout);
         logger.info('Graceful shutdown complete');

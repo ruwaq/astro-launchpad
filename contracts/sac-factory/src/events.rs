@@ -1,6 +1,10 @@
 //! Events for SAC Factory
 //!
 //! Using modern #[contractevent] macro for type-safe event emission
+//!
+//! Note: Some events are defined for future features (graduation, ASTRO integration)
+
+#![allow(dead_code)] // Future features: graduation events, fee config events
 
 use soroban_sdk::{contractevent, Address, Env, String};
 use crate::access_control::Role;
@@ -272,6 +276,7 @@ pub struct FeeBreakdownEvent {
 
 // ========== Event Publishers ==========
 
+#[allow(clippy::too_many_arguments)]
 pub fn token_launched_detailed(
     env: &Env,
     creator: &Address,
@@ -294,6 +299,7 @@ pub fn token_launched_detailed(
     }.publish(env);
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn tokens_bought_detailed(
     env: &Env,
     buyer: &Address,
@@ -412,6 +418,7 @@ pub fn lp_fee_collected(env: &Env, token: &Address, amount: i128) {
     }.publish(env);
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn fee_breakdown_event(
     env: &Env,
     transaction_type: &str,

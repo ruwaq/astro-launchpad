@@ -12,6 +12,10 @@ use crate::errors::Error;
 /// Precision for calculations
 const PRECISION: i128 = 10_000_000; // 7 decimals (Stellar standard)
 
+/// Initial virtual XLM reserve (1000 XLM in stroops)
+/// This creates the starting price without requiring real liquidity
+const INITIAL_VIRTUAL_RESERVE: i128 = 1000 * PRECISION;
+
 #[contracttype]
 #[derive(Clone, Debug)]
 pub struct BondingCurve {
@@ -46,7 +50,7 @@ impl BondingCurve {
 
         // Initial virtual XLM reserve (creates starting price)
         // Starting with 1000 XLM virtual liquidity
-        let initial_xlm = 1000 * PRECISION;
+        let initial_xlm = INITIAL_VIRTUAL_RESERVE;
 
         // Calculate k constant with proper error handling
         // k = x * y = xlm_reserve * tokens_remaining
@@ -257,25 +261,59 @@ impl BondingCurve {
     }
 
     /// Get current price per token (in stroops)
-    pub fn get_current_price(&self) -> i128 {
+    /// Returns Error::DivisionByZero if no tokens remaining
+    /// Returns Error::Overflow if calculation overflows
+    pub fn get_current_price(&self) -> Result<i128, Error> {
         if self.tokens_remaining == 0 {
-            return i128::MAX;
+            return Err(Error::DivisionByZero);
         }
 
         // Price = xlm_reserve / tokens_remaining
-        self.xlm_reserve
+        let scaled = self.xlm_reserve
             .checked_mul(PRECISION)
-            .unwrap_or(i128::MAX)
+            .ok_or(Error::Overflow)?;
+
+        scaled
             .checked_div(self.tokens_remaining)
-            .unwrap_or(i128::MAX)
+            .ok_or(Error::DivisionByZero)
     }
 
-    /// Get market cap (total value)
-    pub fn get_market_cap(&self) -> i128 {
+    /// Get market cap (total value) - includes virtual reserve
+    ///
+    /// Note: This includes the initial virtual reserve (1000 XLM).
+    /// For graduation calculations, use `get_real_xlm_raised()` instead.
+    /// Returns Error::Overflow if calculation overflows
+    pub fn get_market_cap(&self) -> Result<i128, Error> {
         // Market cap = 2 * XLM reserve (for constant product)
         self.xlm_reserve
             .checked_mul(2)
-            .unwrap_or(i128::MAX)
+            .ok_or(Error::Overflow)
+    }
+
+    /// Get real XLM raised (excluding virtual reserve)
+    ///
+    /// This is the actual XLM contributed by traders, not including
+    /// the initial virtual liquidity. Use this for graduation thresholds.
+    /// Returns 0 if no real trading has occurred yet.
+    pub fn get_real_xlm_raised(&self) -> i128 {
+        // Real XLM = current reserve - initial virtual reserve
+        // Use saturating_sub to prevent underflow (returns 0 if result would be negative)
+        self.xlm_reserve.saturating_sub(INITIAL_VIRTUAL_RESERVE)
+    }
+
+    /// Get real market cap (excluding virtual reserve contribution)
+    ///
+    /// This represents the actual value from trader contributions.
+    /// Real market cap = 2 * real_xlm_raised (constant product formula)
+    pub fn get_real_market_cap(&self) -> Result<i128, Error> {
+        self.get_real_xlm_raised()
+            .checked_mul(2)
+            .ok_or(Error::Overflow)
+    }
+
+    /// Get the initial virtual reserve constant
+    pub fn initial_virtual_reserve() -> i128 {
+        INITIAL_VIRTUAL_RESERVE
     }
 }
 
@@ -319,14 +357,14 @@ mod tests {
         let supply = 1000 * PRECISION;
         let mut curve = BondingCurve::new(supply).unwrap();
 
-        let price_initial = curve.get_current_price();
+        let price_initial = curve.get_current_price().unwrap();
 
         // Execute buy
         let xlm_in = 100 * PRECISION;
         let tokens_out = curve.calculate_buy(xlm_in).unwrap();
         curve.execute_buy(xlm_in, tokens_out).unwrap();
 
-        let price_after = curve.get_current_price();
+        let price_after = curve.get_current_price().unwrap();
 
         assert!(price_after > price_initial);
     }

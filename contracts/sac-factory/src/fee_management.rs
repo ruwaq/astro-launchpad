@@ -8,6 +8,8 @@
 //! Design principles:
 //! - Gas-optimized calculations
 //! - Atomic fee collection
+
+#![allow(dead_code)] // Fee tier functions for future tiered fee structure
 //! - Multi-sig treasury support
 //! - Zero precision loss
 
@@ -94,12 +96,12 @@ impl FeeConfig {
         }
 
         // Validate protocol fee
-        if protocol_fee_bps < 0 || protocol_fee_bps > MAX_PROTOCOL_FEE_BPS {
+        if !(0..=MAX_PROTOCOL_FEE_BPS).contains(&protocol_fee_bps) {
             return Err(Error::FeeTooHigh);
         }
 
         // Validate LP fee
-        if lp_fee_bps < 0 || lp_fee_bps > MAX_LP_FEE_BPS {
+        if !(0..=MAX_LP_FEE_BPS).contains(&lp_fee_bps) {
             return Err(Error::FeeTooHigh);
         }
 
@@ -177,7 +179,7 @@ pub fn set_protocol_fee(
     }
 
     // Validate new fee
-    if new_protocol_fee_bps < 0 || new_protocol_fee_bps > MAX_PROTOCOL_FEE_BPS {
+    if !(0..=MAX_PROTOCOL_FEE_BPS).contains(&new_protocol_fee_bps) {
         return Err(Error::FeeTooHigh);
     }
 
@@ -212,7 +214,7 @@ pub fn set_lp_fee(
     }
 
     // Validate new fee
-    if new_lp_fee_bps < 0 || new_lp_fee_bps > MAX_LP_FEE_BPS {
+    if !(0..=MAX_LP_FEE_BPS).contains(&new_lp_fee_bps) {
         return Err(Error::FeeTooHigh);
     }
 
@@ -307,8 +309,18 @@ pub fn calculate_fee_breakdown(
         return Err(Error::AmountBelowMinimum);
     }
 
+    // SECURITY: Defensive validation for fee_bps values before type conversion
+    // Ensures values are non-negative and within u32 range (max 10000 BPS = 100%)
+    const MAX_BPS: i128 = 10_000; // 100% in basis points
+    if !(0..=MAX_BPS).contains(&protocol_fee_bps) {
+        return Err(Error::FeeTooHigh);
+    }
+    if !(0..=MAX_BPS).contains(&lp_fee_bps) {
+        return Err(Error::FeeTooHigh);
+    }
+
     // Calculate protocol fee with ROUND UP (ensure protocol always gets fee)
-    // Convert i128 bps to u32 for astro-core-shared compatibility
+    // Safe to convert: validated above to be in 0..=10000 range
     let protocol_fee = core_math::apply_bps_round_up(gross_amount, protocol_fee_bps as u32)?;
 
     // Calculate LP fee with ROUND UP (ensure liquidity always grows)

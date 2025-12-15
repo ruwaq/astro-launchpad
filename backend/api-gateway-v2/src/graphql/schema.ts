@@ -54,11 +54,11 @@ export const schema = `#graphql
     # Sync a token from blockchain to database
     syncToken(tokenAddress: String!): Token!
 
-    # Admin: Delete a token from database (requires admin key)
-    deleteToken(tokenAddress: String!, adminKey: String!): DeleteTokenResult!
+    # Admin: Delete a token from database (requires X-Admin-Key header)
+    deleteToken(tokenAddress: String!): DeleteTokenResult!
 
-    # Admin: Delete multiple tokens from database (requires admin key)
-    deleteTokensBatch(tokenAddresses: [String!]!, adminKey: String!): DeleteTokensBatchResult!
+    # Admin: Delete multiple tokens from database (requires X-Admin-Key header)
+    deleteTokensBatch(tokenAddresses: [String!]!): DeleteTokensBatchResult!
   }
 
   type DeleteTokenResult {

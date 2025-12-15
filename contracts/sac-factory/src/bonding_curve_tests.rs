@@ -229,7 +229,7 @@ mod bonding_curve_tests {
     #[test]
     fn test_get_current_price() {
         let curve = BondingCurve::new(BONDING_CURVE_SUPPLY).unwrap();
-        let price = curve.get_current_price();
+        let price = curve.get_current_price().unwrap();
 
         assert!(price > 0);
     }
@@ -238,14 +238,14 @@ mod bonding_curve_tests {
     fn test_price_increases_after_buys() {
         let mut curve = BondingCurve::new(BONDING_CURVE_SUPPLY).unwrap();
 
-        let price_initial = curve.get_current_price();
+        let price_initial = curve.get_current_price().unwrap();
 
         // Execute buy
         let xlm_in = 1000_0000000;
         let tokens_out = curve.calculate_buy(xlm_in).unwrap();
         curve.execute_buy(xlm_in, tokens_out).unwrap();
 
-        let price_after = curve.get_current_price();
+        let price_after = curve.get_current_price().unwrap();
 
         assert!(price_after > price_initial);
     }
@@ -259,14 +259,14 @@ mod bonding_curve_tests {
         let tokens_bought = curve.calculate_buy(xlm_in).unwrap();
         curve.execute_buy(xlm_in, tokens_bought).unwrap();
 
-        let price_before_sell = curve.get_current_price();
+        let price_before_sell = curve.get_current_price().unwrap();
 
         // Sell
         let tokens_to_sell = tokens_bought / 2;
         let xlm_out = curve.calculate_sell(tokens_to_sell).unwrap();
         curve.execute_sell(tokens_to_sell, xlm_out).unwrap();
 
-        let price_after_sell = curve.get_current_price();
+        let price_after_sell = curve.get_current_price().unwrap();
 
         assert!(price_after_sell < price_before_sell);
     }

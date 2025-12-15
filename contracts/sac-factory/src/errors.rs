@@ -23,6 +23,7 @@ pub enum Error {
     TokenNotFound = 30,
     AlreadyGraduated = 31,
     InsufficientLiquidity = 32,
+    InvalidTokenStatus = 33,  // Token in invalid status for operation (e.g., GraduationInProgress)
 
     // Trading
     SlippageExceeded = 40,

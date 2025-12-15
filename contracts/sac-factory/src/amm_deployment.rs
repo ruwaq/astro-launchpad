@@ -3,6 +3,8 @@
 //! Handles automatic AMM pair creation when a token graduates from bonding curve.
 //! Sprint 2 - Complete Graduation Flow
 
+#![allow(dead_code)] // Graduation feature - not yet integrated
+
 use soroban_sdk::{Address, Bytes, BytesN, Env, xdr::ToXdr};
 
 use crate::errors::Error;

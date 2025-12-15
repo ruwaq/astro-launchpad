@@ -10,7 +10,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 soroban-sdk = "22.0.0"
-astro-core-shared = { git = "https://github.com/nunalabs/astro-core", tag = "v1.0.2" }
+astro-core-shared = { git = "https://github.com/nunalabs/astro-core", tag = "v1.2.0" }
 
 [dev-dependencies]
 soroban-sdk = { version = "22.0.0", features = ["testutils"] }

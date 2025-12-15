@@ -1,7 +1,9 @@
 //! Anti-Whale Protection Module v3 (Pump.fun Style)
 //!
 //! **DISABLED BY DEFAULT** - Following pump.fun's proven model.
-//!
+
+#![allow(dead_code)] // Module disabled by default, kept for optional enabling
+
 //! ## Philosophy
 //!
 //! The bonding curve IS the anti-whale mechanism:
@@ -157,7 +159,7 @@ pub fn set_config(
         if threshold <= prev_threshold {
             return Err(Error::InvalidAmount); // Must be ascending
         }
-        if fee < 0 || fee > 5000 {
+        if !(0..=5000).contains(&fee) {
             return Err(Error::InvalidAmount); // Max 50% fee per tier
         }
         prev_threshold = threshold;

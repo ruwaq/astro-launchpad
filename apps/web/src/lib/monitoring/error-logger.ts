@@ -8,6 +8,14 @@
  */
 
 import { logger } from '../logger';
+import * as Sentry from '@sentry/nextjs';
+
+// Extend Window interface for Sentry
+declare global {
+  interface Window {
+    Sentry: typeof Sentry;
+  }
+}
 
 /**
  * Error severity levels
@@ -272,22 +280,76 @@ class ErrorLoggerService {
   }
 
   private sendToMonitoring(context: ErrorContext): void {
-    // TODO: Integrate with external monitoring service (Sentry, DataDog, etc.)
-    // Example:
-    // if (window.Sentry) {
-    //   window.Sentry.captureException(context.error, {
-    //     level: context.severity,
-    //     tags: {
-    //       category: context.category,
-    //       component: context.component,
-    //     },
-    //     extra: context.metadata,
-    //   });
-    // }
+    // Integrate with Sentry for production monitoring
+    if (typeof window !== 'undefined' && window.Sentry) {
+      // Map error severity to Sentry level
+      const sentryLevel = this.mapSeverityToSentryLevel(context.severity);
 
-    // For now, just log that we would send to monitoring
+      if (context.error instanceof Error) {
+        // Capture exception with full context
+        window.Sentry.captureException(context.error, {
+          level: sentryLevel,
+          tags: {
+            category: context.category,
+            component: context.component || 'unknown',
+            action: context.action || 'unknown',
+          },
+          extra: {
+            ...context.metadata,
+            message: context.message,
+            sessionId: context.sessionId,
+            userId: context.userId,
+          },
+          fingerprint: [
+            context.category,
+            context.component || 'unknown',
+            context.message,
+          ],
+        });
+      } else {
+        // Capture message for non-Error objects
+        window.Sentry.captureMessage(context.message, {
+          level: sentryLevel,
+          tags: {
+            category: context.category,
+            component: context.component || 'unknown',
+            action: context.action || 'unknown',
+          },
+          extra: {
+            ...context.metadata,
+            error: this.serializeError(context.error),
+            sessionId: context.sessionId,
+            userId: context.userId,
+          },
+        });
+      }
+    }
+
+    // Also log critical errors to console
     if (context.severity === ErrorSeverity.CRITICAL) {
       console.error('[Monitoring] Critical error detected:', context);
+    }
+  }
+
+  /**
+   * Map ErrorSeverity to Sentry severity level
+   */
+  private mapSeverityToSentryLevel(
+    severity: ErrorSeverity
+  ): 'debug' | 'info' | 'warning' | 'error' | 'fatal' {
+    switch (severity) {
+      case ErrorSeverity.DEBUG:
+        return 'debug';
+      case ErrorSeverity.INFO:
+        return 'info';
+      case ErrorSeverity.WARNING:
+        return 'warning';
+      case ErrorSeverity.ERROR:
+        return 'error';
+      case ErrorSeverity.CRITICAL:
+        return 'fatal';
+      default:
+        return 'error';
     }
   }
 

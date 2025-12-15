@@ -7,6 +7,9 @@ if (SENTRY_DSN) {
   Sentry.init({
     dsn: SENTRY_DSN,
 
+    // Environment
+    environment: process.env.NODE_ENV || 'development',
+
     // Performance monitoring
     tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 1.0,
 
@@ -14,11 +17,16 @@ if (SENTRY_DSN) {
     replaysSessionSampleRate: 0.1,
     replaysOnErrorSampleRate: 1.0,
 
+    // Replay integration
+    integrations: [
+      Sentry.replayIntegration({
+        maskAllText: true,
+        blockAllMedia: true,
+      }),
+    ],
+
     // Only enable in production with DSN
     enabled: process.env.NODE_ENV === 'production' && !!SENTRY_DSN,
-
-    // Environment
-    environment: process.env.NODE_ENV,
 
     // Filter out noisy errors
     ignoreErrors: [

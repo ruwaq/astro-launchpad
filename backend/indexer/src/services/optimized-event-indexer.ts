@@ -16,6 +16,7 @@ import { AdminEventHandler } from './handlers/admin-events.js'
 import { GraduationEventHandler } from './handlers/graduation-events.js'
 import { AstroEventHandler } from './handlers/astro-events.js'
 import { ConfigEventHandler } from './handlers/config-events.js'
+import { DeadLetterQueue, DEFAULT_DLQ_CONFIG, type DLQStats } from './dead-letter-queue.js'
 import {
   recordEventReceived,
   recordEventFailed,
@@ -113,6 +114,10 @@ export class OptimizedEventIndexer {
   private astroHandler: AstroEventHandler
   private configHandler: ConfigEventHandler
 
+  // Dead Letter Queue for failed event handling
+  private dlq: DeadLetterQueue
+  private dlqRetryInterval: NodeJS.Timeout | null = null
+
   constructor(private prisma: PrismaClient) {
     const rpcUrl = process.env.STELLAR_RPC_URL!
     this.sorobanRpc = new SorobanRpc.Server(rpcUrl)
@@ -146,12 +151,18 @@ export class OptimizedEventIndexer {
       failureThreshold: 5,
     })
 
+    // Initialize Dead Letter Queue for failed event handling
+    this.dlq = new DeadLetterQueue(prisma, DEFAULT_DLQ_CONFIG)
+
     // Start memory metrics collection
     startMemoryMetrics(10000) // Every 10 seconds
   }
 
   async start() {
     logger.info('Starting optimized event indexer...')
+
+    // Start DLQ retry worker
+    await this.startDLQRetryWorker()
 
     // Index Token Factory events
     await this.indexTokenFactory()
@@ -164,12 +175,101 @@ export class OptimizedEventIndexer {
     logger.info('Optimized event indexer started')
   }
 
+  /**
+   * Start the DLQ retry worker that periodically processes failed events
+   */
+  private async startDLQRetryWorker() {
+    logger.info('Starting DLQ retry worker...')
+
+    // Process any pending retries immediately
+    await this.processDLQRetries()
+
+    // Run DLQ retry worker every 2 minutes
+    this.dlqRetryInterval = setInterval(async () => {
+      if (!this.isShuttingDown) {
+        await this.processDLQRetries()
+      }
+    }, 120000) // 2 minutes
+
+    logger.info('DLQ retry worker started')
+  }
+
+  /**
+   * Process pending DLQ retries
+   */
+  private async processDLQRetries() {
+    try {
+      const retryableEvents = await this.dlq.getRetryableEvents(50)
+
+      if (retryableEvents.length === 0) {
+        return
+      }
+
+      logger.info({ count: retryableEvents.length }, 'Processing DLQ retries...')
+
+      for (const failedEvent of retryableEvents) {
+        try {
+          // Mark as retrying
+          await this.dlq.markRetrying(failedEvent.eventId)
+
+          // Reconstruct event and process based on contract
+          const eventData = failedEvent.eventData as Record<string, unknown>
+
+          if (failedEvent.contract === 'token_factory') {
+            // Route to appropriate token handler based on event type
+            if (failedEvent.eventType === 'token_created') {
+              await this.tokenHandler.handleTokenCreated(eventData)
+            } else if (failedEvent.eventType === 'token_buy') {
+              await this.tokenHandler.handleTokenBuy(eventData)
+            } else if (failedEvent.eventType === 'token_sell') {
+              await this.tokenHandler.handleTokenSell(eventData)
+            } else if (failedEvent.eventType === 'token_graduated') {
+              await this.tokenHandler.handleTokenGraduated(eventData)
+            }
+          }
+
+          // Mark as resolved on success
+          await this.dlq.markResolved(failedEvent.eventId, 'auto-retry')
+          logger.info({ eventId: failedEvent.eventId }, 'Successfully replayed DLQ event')
+        } catch (error: any) {
+          logger.error(
+            { eventId: failedEvent.eventId, error: error.message },
+            'Failed to replay DLQ event'
+          )
+
+          // Re-add to DLQ with incremented retry count
+          await this.dlq.addFailedEvent(
+            {
+              id: failedEvent.eventId,
+              ledger: failedEvent.ledger,
+              contract: failedEvent.contract,
+              eventType: failedEvent.eventType,
+              data: failedEvent.eventData as Record<string, unknown>,
+              timestamp: new Date(),
+            },
+            error,
+            'retry_failed',
+            failedEvent.retryCount + 1
+          )
+        }
+      }
+    } catch (error) {
+      logger.error({ error }, 'Error processing DLQ retries')
+    }
+  }
+
   async stop() {
     logger.info('Stopping optimized event indexer...')
     this.isShuttingDown = true
 
     // Stop memory metrics
     stopMemoryMetrics()
+
+    // Stop DLQ retry worker
+    if (this.dlqRetryInterval) {
+      clearInterval(this.dlqRetryInterval)
+      this.dlqRetryInterval = null
+    }
 
     // Clear all reconnect timers
     for (const timer of this.reconnectTimers) {
@@ -208,6 +308,20 @@ export class OptimizedEventIndexer {
       stateCache,
       health: cbStats.state === CircuitState.CLOSED ? 'healthy' : 'degraded',
     }
+  }
+
+  /**
+   * Get DLQ statistics for monitoring
+   */
+  async getDLQStats(): Promise<DLQStats> {
+    return this.dlq.getStats()
+  }
+
+  /**
+   * Access to DLQ for admin operations
+   */
+  getDLQ(): DeadLetterQueue {
+    return this.dlq
   }
 
   /**

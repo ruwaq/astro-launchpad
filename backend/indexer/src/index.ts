@@ -10,6 +10,7 @@ import { logger } from './lib/logger.js';
 import { OptimizedEventIndexer } from './services/optimized-event-indexer.js';
 import { MetricsCalculator } from './services/metrics-calculator.js';
 import { createBootstrapService } from './services/bootstrap-service.js';
+import { wsBroadcaster } from './services/websocket-server.js';
 
 async function main() {
   logger.info('🚀 Starting AstroShibaPop Indexer v2.0...');
@@ -84,7 +85,61 @@ async function main() {
           version: '0.2.0',
           metrics: '/metrics',
           health: '/health',
+          dlq: {
+            stats: '/dlq/stats',
+            list: '/dlq/list',
+          },
         }, null, 2));
+      }
+      // DLQ Endpoints
+      else if (req.url === '/dlq/stats' && req.method === 'GET') {
+        try {
+          const stats = await eventIndexer.getDLQStats();
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify(stats, null, 2));
+        } catch (error) {
+          logger.error('Failed to get DLQ stats:', error);
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Failed to get DLQ stats' }));
+        }
+      } else if (req.url === '/dlq/list' && req.method === 'GET') {
+        try {
+          const dlq = eventIndexer.getDLQ();
+          const events = await dlq.listFailedEvents({ limit: 100 });
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify(events, null, 2));
+        } catch (error) {
+          logger.error('Failed to list DLQ events:', error);
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Failed to list DLQ events' }));
+        }
+      } else if (req.url?.startsWith('/dlq/retry/') && req.method === 'POST') {
+        try {
+          const eventId = req.url.split('/')[3];
+          if (!eventId) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Missing event ID' }));
+            return;
+          }
+          const dlq = eventIndexer.getDLQ();
+          const event = await dlq.getFailedEvent(eventId);
+          if (!event) {
+            res.writeHead(404, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Event not found' }));
+            return;
+          }
+          // Mark for retry by resetting status to PENDING
+          await prisma.failedEvent.update({
+            where: { eventId },
+            data: { status: 'PENDING', nextRetryAt: new Date() },
+          });
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true, message: 'Event queued for retry' }));
+        } catch (error) {
+          logger.error('Failed to retry DLQ event:', error);
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Failed to retry event' }));
+        }
       } else {
         res.writeHead(404, { 'Content-Type': 'text/plain' });
         res.end('Not Found');
@@ -95,13 +150,19 @@ async function main() {
       logger.info(`✓ Metrics server listening on port ${metricsPort}`);
       logger.info(`📊 Metrics: http://localhost:${metricsPort}/metrics`);
       logger.info(`🏥 Health: http://localhost:${metricsPort}/health`);
+      logger.info(`🔌 WebSocket: ws://localhost:${metricsPort}/ws`);
     });
+
+    // Initialize WebSocket server for real-time updates
+    wsBroadcaster.initialize(server);
+    logger.info('✓ WebSocket broadcaster initialized');
 
     logger.info('✓ Optimized indexer running');
 
     // Graceful shutdown
     const shutdown = async () => {
       logger.info('Shutting down...');
+      await wsBroadcaster.shutdown();
       server.close();
       await eventIndexer.stop();
       await prisma.$disconnect();

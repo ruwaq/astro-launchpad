@@ -3,6 +3,8 @@
 //! Client module for interacting with deployed Launchpad Token contracts.
 //! These are pure Soroban tokens (not SAC) that the factory can freely mint/burn.
 
+#![allow(dead_code)] // Helper functions for token client - some unused currently
+
 use soroban_sdk::{Address, Env, IntoVal, Symbol};
 
 /// Initialize a newly deployed launchpad token

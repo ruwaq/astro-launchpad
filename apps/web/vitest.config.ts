@@ -15,10 +15,15 @@ export default defineConfig({
       reporter: ['text', 'json', 'html'],
       include: [
         'src/lib/stellar/utils.ts',
+        'src/lib/stellar/utils/*.ts',
         'src/hooks/usePageVisibility.ts',
         'src/hooks/usePrice.ts',
         'src/hooks/useBalance.ts',
-        'src/lib/stellar/utils/*.ts',
+        'src/hooks/useToken.ts',
+        'src/stores/useTokenStore.ts',
+        'src/components/widgets/TradingWidget.tsx',
+        'src/components/token/TokenCard.tsx',
+        'src/contexts/WalletContext.tsx',
       ],
       exclude: [
         'node_modules/**',

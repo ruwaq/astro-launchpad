@@ -3,6 +3,9 @@
 //! Client module for interacting with the ASTRO protocol token
 //! during graduation to execute buyback & burn mechanism.
 
+#![allow(dead_code)] // ASTRO integration feature - not yet integrated
+#![allow(unused_imports)] // vec used in future ASTRO buyback implementation
+
 use soroban_sdk::{Address, Env, IntoVal, Symbol, token, vec};
 use crate::errors::Error;
 use crate::storage;
@@ -185,7 +188,7 @@ impl<'a> AstroTokenClient<'a> {
 }
 
 /// Get ASTRO client if configured
-pub fn get_astro_client(env: &Env) -> Option<AstroTokenClient> {
+pub fn get_astro_client(env: &Env) -> Option<AstroTokenClient<'_>> {
     let token_address = storage::get_astro_token_address(env)?;
     Some(AstroTokenClient::new(env, token_address))
 }

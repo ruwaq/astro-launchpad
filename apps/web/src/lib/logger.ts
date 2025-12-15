@@ -7,6 +7,8 @@
  * SECURITY: Sanitizes sensitive data in production to prevent exposure
  */
 
+import * as Sentry from '@sentry/nextjs';
+
 type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
 interface LogContext {
@@ -145,20 +147,64 @@ class Logger {
     /**
      * Send logs to remote monitoring service
      */
-    private logToRemote(level: LogLevel, logEntry: unknown): void {
-        // TODO: Integrate with Sentry
-        // if (level === 'error') {
-        //   Sentry.captureException(logEntry);
-        // } else {
-        //   Sentry.captureMessage(JSON.stringify(logEntry));
-        // }
+    private logToRemote(level: LogLevel, logEntry: any): void {
+        // Sentry integration
+        if (process.env.NEXT_PUBLIC_SENTRY_DSN || process.env.SENTRY_DSN) {
+            const { timestamp, message, context, ...rest } = logEntry;
 
-        // TODO: Integrate with LogRocket
-        // LogRocket.log(level, logEntry);
+            if (level === 'error' && context?.error) {
+                // Capture error with full context
+                const error = context.error.name && context.error.message
+                    ? new Error(context.error.message)
+                    : new Error(message);
 
-        // For now, just prepare the structure
+                if (context.error.name) {
+                    error.name = context.error.name;
+                }
+
+                Sentry.captureException(error, {
+                    level: 'error',
+                    extra: {
+                        ...rest,
+                        context: context,
+                        timestamp,
+                    },
+                });
+            } else if (level === 'error') {
+                // Capture error message without exception object
+                Sentry.captureMessage(message, {
+                    level: 'error',
+                    extra: {
+                        ...rest,
+                        context,
+                        timestamp,
+                    },
+                });
+            } else if (level === 'warn') {
+                // Capture warnings
+                Sentry.captureMessage(message, {
+                    level: 'warning',
+                    extra: {
+                        ...rest,
+                        context,
+                        timestamp,
+                    },
+                });
+            } else if (level === 'info' && context?.critical) {
+                // Only send critical info messages to reduce noise
+                Sentry.captureMessage(message, {
+                    level: 'info',
+                    extra: {
+                        ...rest,
+                        context,
+                        timestamp,
+                    },
+                });
+            }
+        }
+
+        // Custom endpoint integration (for other services)
         if (this.config.remoteEndpoint) {
-            // Send to custom endpoint
             fetch(this.config.remoteEndpoint, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },

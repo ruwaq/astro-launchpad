@@ -201,6 +201,10 @@ export const schema = `#graphql
     to: String
     tokenAddress: String
     amount: String
+    grossAmount: String
+    netAmount: String
+    protocolFee: String
+    lpFee: String
     status: TransactionStatus!
     timestamp: DateTime!
 

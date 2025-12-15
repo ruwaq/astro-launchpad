@@ -294,3 +294,71 @@ export function getUserAddress(context: GraphQLContext): string {
   requireAuth(context);
   return context.user!.address;
 }
+
+/**
+ * Validate admin API key from X-Admin-Key header
+ * Uses timing-safe comparison to prevent timing attacks
+ *
+ * SECURITY: Admin key must be sent via header, NOT in GraphQL arguments
+ * This prevents the key from being logged or visible in browser DevTools
+ *
+ * @param context - GraphQL context with request headers
+ * @returns Object with valid flag and optional error message
+ */
+export function validateAdminKeyFromHeader(context: GraphQLContext): {
+  valid: boolean;
+  error?: string;
+  adminKey?: string;
+} {
+  const ADMIN_KEY = process.env.ADMIN_API_KEY;
+
+  if (!ADMIN_KEY) {
+    console.error('[Security] ADMIN_API_KEY environment variable not configured');
+    return { valid: false, error: 'Admin API key not configured on server' };
+  }
+
+  // Extract admin key from X-Admin-Key header
+  const headerKey = context.request?.headers?.['x-admin-key'];
+  if (!headerKey) {
+    return { valid: false, error: 'Missing X-Admin-Key header' };
+  }
+
+  const adminKeyStr = Array.isArray(headerKey) ? headerKey[0] : headerKey;
+
+  // Validate key length matches before comparison (prevents timing leaks on length)
+  if (adminKeyStr.length !== ADMIN_KEY.length) {
+    return { valid: false, error: 'Invalid admin key' };
+  }
+
+  // Timing-safe comparison to prevent timing attacks
+  try {
+    const crypto = require('crypto');
+    const isValid = crypto.timingSafeEqual(
+      Buffer.from(ADMIN_KEY, 'utf8'),
+      Buffer.from(adminKeyStr, 'utf8')
+    );
+
+    if (!isValid) {
+      return { valid: false, error: 'Invalid admin key' };
+    }
+
+    return { valid: true, adminKey: adminKeyStr };
+  } catch (error: any) {
+    // Handle buffer length mismatch (shouldn't happen due to length check above)
+    return { valid: false, error: 'Invalid admin key' };
+  }
+}
+
+/**
+ * Require valid admin API key from X-Admin-Key header
+ * Throws an error if the key is missing or invalid
+ *
+ * @param context - GraphQL context with request headers
+ * @throws Error if admin key is invalid
+ */
+export function requireAdminApiKey(context: GraphQLContext): void {
+  const result = validateAdminKeyFromHeader(context);
+  if (!result.valid) {
+    throw new Error(`Unauthorized: ${result.error}`);
+  }
+}

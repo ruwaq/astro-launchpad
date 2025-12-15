@@ -2,6 +2,7 @@ import { PrismaClient } from '@astroshibapop/shared/prisma';
 import { scValToNative } from '@stellar/stellar-sdk';
 import { logger } from '../../lib/logger.js';
 import { createContractReader } from '../contract-reader.js';
+import { wsBroadcaster } from '../websocket-server.js';
 
 export class TokenEventHandler {
   private contractReader;
@@ -112,6 +113,14 @@ export class TokenEventHandler {
       });
 
       logger.info(`✅ TokenCreated event fully processed for ${symbol}`);
+
+      // Broadcast to WebSocket clients
+      wsBroadcaster.broadcastTokenCreated({
+        address: tokenAddress,
+        name,
+        symbol,
+        creator,
+      });
     } catch (error: any) {
       // Handle unique constraint violation (token already exists)
       if (error.code === 'P2002') {
@@ -210,6 +219,16 @@ export class TokenEventHandler {
           },
         });
       });
+
+      // Broadcast to WebSocket clients
+      wsBroadcaster.broadcastTradeExecuted({
+        tokenAddress,
+        type: 'buy',
+        amount: tokensReceived,
+        price: xlmAmount,
+        trader: buyer,
+        txHash: eventHash,
+      });
     } catch (error: any) {
       // Handle unique constraint violation (transaction already exists)
       if (error.code === 'P2002') {
@@ -305,6 +324,16 @@ export class TokenEventHandler {
           },
         });
       });
+
+      // Broadcast to WebSocket clients
+      wsBroadcaster.broadcastTradeExecuted({
+        tokenAddress,
+        type: 'sell',
+        amount: tokensSold,
+        price: xlmReceived,
+        trader: seller,
+        txHash: eventHash,
+      });
     } catch (error: any) {
       // Handle unique constraint violation (transaction already exists)
       if (error.code === 'P2002') {
@@ -330,12 +359,20 @@ export class TokenEventHandler {
 
       logger.info(`🎓 Token graduated: ${tokenAddress} with ${xlmRaised} stroops raised`);
 
-      await this.prisma.token.update({
+      const updatedToken = await this.prisma.token.update({
         where: { address: tokenAddress },
         data: {
           graduated: true,
           xlmRaised,
         },
+        select: { name: true, currentPrice: true },
+      });
+
+      // Broadcast to WebSocket clients
+      wsBroadcaster.broadcastTokenGraduated({
+        address: tokenAddress,
+        name: updatedToken.name,
+        finalPrice: updatedToken.currentPrice || '0',
       });
     } catch (error) {
       logger.error('Error handling token graduated event:', error);
