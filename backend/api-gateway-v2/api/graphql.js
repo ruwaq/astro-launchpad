@@ -1,6 +1,17 @@
 /**
- * Apollo GraphQL Server for Vercel
+ * Apollo GraphQL Server for Vercel Serverless Functions
  * Production-ready implementation with Relay-style pagination
+ *
+ * IMPORTANT ARCHITECTURE NOTE:
+ * This file (api/graphql.js) is the PRIMARY GraphQL endpoint used by Vercel.
+ * The code in src/graphql/ is for local development and testing only.
+ * All production changes MUST be made in this file.
+ *
+ * SOFT-DELETE IMPLEMENTATION:
+ * Tokens and Pools support soft-delete via the `deletedAt` field.
+ * - deletedAt = null: Active record
+ * - deletedAt = Date: Soft-deleted record
+ * All queries MUST filter by `{ deletedAt: null }` to exclude deleted records.
  *
  * Mantra: Escalable, Modular, Robusto
  */
@@ -500,7 +511,8 @@ const resolvers = {
       };
 
       // Build where clause for search and status
-      const whereConditions = [];
+      // IMPORTANT: Always exclude soft-deleted tokens
+      const whereConditions = [{ deletedAt: null }];
 
       // Search filter
       if (search) {
@@ -522,7 +534,8 @@ const resolvers = {
         }
       }
 
-      const where = whereConditions.length > 0 ? { AND: whereConditions } : {};
+      // Always use AND since we always have at least the deletedAt filter
+      const where = { AND: whereConditions };
 
       const [tokens, totalCount] = await Promise.all([
         prisma.token.findMany({
@@ -564,7 +577,8 @@ const resolvers = {
         },
       });
 
-      if (!token) return null;
+      // Return null if token doesn't exist or is soft-deleted
+      if (!token || token.deletedAt !== null) return null;
 
       const transformed = transformToken(token);
 
@@ -590,6 +604,7 @@ const resolvers = {
 
     trendingTokens: async (_, { limit = 10 }) => {
       const tokens = await prisma.token.findMany({
+        where: { deletedAt: null }, // Exclude soft-deleted tokens
         take: limit,
         orderBy: { volume24h: 'desc' },
       });

@@ -1,6 +1,7 @@
 /**
  * GraphQL Schema Definition
  * Defines all types, queries, mutations for the API
+ * @version 2.1.0 - Added tokenStats to HealthCheck for soft-delete debugging
  */
 
 export const schema = `#graphql
