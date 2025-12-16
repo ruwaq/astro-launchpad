@@ -215,6 +215,9 @@ const queryResolvers = {
         createdAt: true,
       }
 
+      // Debug: Log the where clause being used
+      logger.info({ where: JSON.stringify(where) }, '[Tokens] Query WHERE clause')
+
       // Execute queries in parallel
       const [edges, total] = await Promise.all([
         context.prisma.token.findMany({

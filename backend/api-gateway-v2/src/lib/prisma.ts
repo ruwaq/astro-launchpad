@@ -18,9 +18,8 @@ const isDevelopment = process.env.NODE_ENV !== 'production'
 const isTest = process.env.NODE_ENV === 'test'
 
 // Logging configuration
-const logConfig = isDevelopment
-  ? ['query', 'error', 'warn']
-  : ['error']
+// Enable query logging in all environments to debug soft-delete issue
+const logConfig = ['query', 'error', 'warn']
 
 /**
  * Global singleton instance
