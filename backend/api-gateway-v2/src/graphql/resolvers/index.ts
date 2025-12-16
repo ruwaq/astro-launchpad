@@ -162,75 +162,68 @@ const queryResolvers = {
         offset = validateOffset(args.offset);
       }
 
-      // Build where clause for search and status filter
-      // Always exclude soft-deleted tokens
-      const whereConditions: any[] = [{ deletedAt: null }]
+      // Build ORDER BY clause
+      const orderByMap: Record<string, string> = {
+        CREATED_AT_DESC: '"createdAt" DESC',
+        CREATED_AT_ASC: '"createdAt" ASC',
+        MARKET_CAP_DESC: '"marketCap" DESC NULLS LAST',
+        VOLUME_DESC: '"volume24h" DESC',
+        HOLDERS_DESC: 'holders DESC',
+        GRADUATION_DESC: '"xlmRaised" DESC',
+      }
+      const orderByClause = orderByMap[orderByKey] || '"createdAt" DESC'
+
+      // Build WHERE conditions using raw SQL to guarantee soft-delete filtering
+      // This bypasses any Prisma client generation issues
+      const whereConditions: string[] = ['"deletedAt" IS NULL']
+      const params: any[] = []
+      let paramIndex = 1
 
       // Search filter
       if (search) {
-        whereConditions.push({
-          OR: [
-            { name: { contains: search, mode: 'insensitive' as const } },
-            { symbol: { contains: search, mode: 'insensitive' as const } },
-          ],
-        })
+        whereConditions.push(`(LOWER(name) LIKE $${paramIndex} OR LOWER(symbol) LIKE $${paramIndex})`)
+        params.push(`%${search.toLowerCase()}%`)
+        paramIndex++
       }
 
-      // Status filter (bonding = not graduated, graduated = graduated)
+      // Status filter
       if (args.status && args.status !== 'ALL') {
         if (args.status === 'BONDING') {
-          whereConditions.push({ graduated: false })
+          whereConditions.push('graduated = false')
         } else if (args.status === 'GRADUATED') {
-          whereConditions.push({ graduated: true })
+          whereConditions.push('graduated = true')
         }
       }
 
-      const where = { AND: whereConditions }
+      const whereClause = whereConditions.join(' AND ')
+      params.push(limit, offset)
 
-      // Build orderBy
-      const orderByMap: Record<string, any> = {
-        CREATED_AT_DESC: { createdAt: 'desc' },
-        CREATED_AT_ASC: { createdAt: 'asc' },
-        MARKET_CAP_DESC: { marketCap: 'desc' },
-        VOLUME_DESC: { volume24h: 'desc' },
-        HOLDERS_DESC: { holders: 'desc' },
-        GRADUATION_DESC: { xlmRaised: 'desc' }, // Sort by XLM raised (graduation progress)
-      }
-      const orderBy = orderByMap[orderByKey]
+      // Execute raw SQL queries for guaranteed soft-delete filtering
+      const tokensQuery = `
+        SELECT id, address, name, symbol, "imageUrl", "currentPrice", "priceChange24h",
+               "volume24h", "marketCap", holders, graduated, creator, "createdAt"
+        FROM "Token"
+        WHERE ${whereClause}
+        ORDER BY ${orderByClause}
+        LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+      `
 
-      // PERFORMANCE: Select only fields needed for token list
-      const tokenSelect = {
-        id: true,
-        address: true,
-        name: true,
-        symbol: true,
-        imageUrl: true,
-        currentPrice: true,
-        priceChange24h: true,
-        volume24h: true,
-        marketCap: true,
-        holders: true,
-        graduated: true,
-        creator: true,
-        createdAt: true,
-      }
+      const countQuery = `
+        SELECT COUNT(*)::int as count
+        FROM "Token"
+        WHERE ${whereClause}
+      `
 
-      // Debug: Log the where clause being used
-      logger.info({ where: JSON.stringify(where) }, '[Tokens] Query WHERE clause')
+      logger.info({ whereClause, params: params.slice(0, -2) }, '[Tokens] Raw SQL query')
 
       // Execute queries in parallel
-      const [edges, total] = await Promise.all([
-        context.prisma.token.findMany({
-          where,
-          take: limit,
-          skip: offset,
-          orderBy,
-          select: tokenSelect,
-        }),
-        context.prisma.token.count({
-          where,
-        }),
+      const [tokensResult, countResult] = await Promise.all([
+        context.prisma.$queryRawUnsafe(tokensQuery, ...params) as Promise<any[]>,
+        context.prisma.$queryRawUnsafe(countQuery, ...params.slice(0, -2)) as Promise<{count: number}[]>,
       ])
+
+      const edges = tokensResult || []
+      const total = countResult[0]?.count || 0
 
       return {
         edges: (edges || []).map((node, index) => ({
