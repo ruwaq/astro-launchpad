@@ -1,0 +1,8 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "../.vercel/output/functions/api",
+    "rootDir": ".."
+  },
+  "include": ["*.ts", "../src/**/*"]
+}

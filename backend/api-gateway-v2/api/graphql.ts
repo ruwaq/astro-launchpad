@@ -14,13 +14,13 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { ApolloServer } from '@apollo/server';
 import { startServerAndCreateNextHandler } from '@as-integrations/next';
-import { schema } from '../src/graphql/schema.js';
-import { resolvers } from '../src/graphql/resolvers/index.js';
-import { createContext, type GraphQLContext } from '../src/graphql/context.js';
-import { validationRules, createComplexityPlugin } from '../src/graphql/validation.js';
-import { createRateLimitPlugin } from '../src/lib/rate-limiter.js';
-import { logger } from '../src/lib/logger.js';
-import { initializeSentry, captureException } from '../src/lib/sentry.js';
+import { schema } from '../src/graphql/schema';
+import { resolvers } from '../src/graphql/resolvers/index';
+import { createContext, type GraphQLContext } from '../src/graphql/context';
+import { validationRules, createComplexityPlugin } from '../src/graphql/validation';
+import { createRateLimitPlugin } from '../src/lib/rate-limiter';
+import { logger } from '../src/lib/logger';
+import { initializeSentry, captureException } from '../src/lib/sentry';
 
 // ============================================================================
 // Configuration
