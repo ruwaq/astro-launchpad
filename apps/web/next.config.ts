@@ -1,12 +1,27 @@
 import type { NextConfig } from 'next';
 import { withSentryConfig } from '@sentry/nextjs';
 
+// Bundle analyzer for production optimization
+// Usage: ANALYZE=true pnpm build
+const withBundleAnalyzer = process.env.ANALYZE === 'true'
+  ? require('@next/bundle-analyzer')({ enabled: true })
+  : (config: NextConfig) => config;
+
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   transpilePackages: ['@repo/ui'],
   output: 'standalone', // Required for Docker deployment
   experimental: {
-    optimizePackageImports: ['@repo/ui'],
+    // Optimize package imports for smaller bundles
+    // These libraries have many exports - only import what's used
+    optimizePackageImports: [
+      '@repo/ui',
+      'lucide-react',      // Icon library - tree-shake unused icons
+      'framer-motion',     // Animation library - tree-shake unused exports
+      'date-fns',          // Date library - tree-shake unused functions
+      '@apollo/client',    // Apollo - tree-shake unused exports
+      '@stellar/stellar-sdk', // Stellar SDK - tree-shake unused exports
+    ],
   },
 
   // API rewrites - proxy /graphql to the API Gateway
@@ -197,8 +212,8 @@ const nextConfig: NextConfig = {
   },
 };
 
-// Wrap with Sentry for error monitoring
-export default withSentryConfig(nextConfig, {
+// Wrap with Bundle Analyzer (when ANALYZE=true) then Sentry for error monitoring
+export default withSentryConfig(withBundleAnalyzer(nextConfig), {
   // Sentry organization and project
   org: process.env.SENTRY_ORG,
   project: process.env.SENTRY_PROJECT,

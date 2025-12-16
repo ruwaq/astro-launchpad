@@ -44,9 +44,22 @@ interface WalletContextType {
   connect: () => Promise<void>;
   disconnect: () => void;
   signTransaction: (txXDR: string) => Promise<string>;
-  signAuthMessage: () => Promise<{ signature: string; timestamp: string } | null>;
+  signAuthMessage: () => Promise<{ signature: string; timestamp: string; nonce: string } | null>;
   getAuthHeaders: () => Promise<Record<string, string>>;
   openMobileWallet: (wallet: 'lobstr' | 'xbull') => void;
+}
+
+/**
+ * Generate a cryptographically secure nonce for replay attack protection
+ * Format: 16-byte random hex string (32 characters)
+ */
+function generateNonce(): string {
+  // Use crypto.getRandomValues for cryptographic randomness
+  const array = new Uint8Array(16);
+  crypto.getRandomValues(array);
+  return Array.from(array)
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
 }
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
@@ -297,17 +310,23 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   /**
    * Sign an authentication message for API requests
-   * Message format: "stellar:auth:{address}:{timestamp}"
-   * Returns signature and timestamp for use in request headers
+   * Message format: "stellar:auth:{address}:{timestamp}:{nonce}"
+   *
+   * SECURITY: Includes nonce to prevent replay attacks within the 30-second window.
+   * Each signature can only be used once.
+   *
+   * Returns signature, timestamp and nonce for use in request headers
    */
-  const signAuthMessage = useCallback(async (): Promise<{ signature: string; timestamp: string } | null> => {
+  const signAuthMessage = useCallback(async (): Promise<{ signature: string; timestamp: string; nonce: string } | null> => {
     if (!kit || !address) {
       return null;
     }
 
     try {
       const timestamp = Date.now().toString();
-      const message = `stellar:auth:${address}:${timestamp}`;
+      const nonce = generateNonce();
+      // SECURITY: Include nonce in message to prevent replay attacks
+      const message = `stellar:auth:${address}:${timestamp}:${nonce}`;
       const messageBuffer = Buffer.from(message, 'utf8');
 
       // Try to sign using the wallet's signBlob method
@@ -321,18 +340,21 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       return {
         signature: signedBlob,
         timestamp,
+        nonce,
       };
     } catch (err: unknown) {
       // Many wallets don't support signBlob - this is expected
-      const message = err instanceof Error ? err.message : 'Unknown error';
-      walletLogger.debug('Wallet does not support message signing', { message });
+      const errMessage = err instanceof Error ? err.message : 'Unknown error';
+      walletLogger.debug('Wallet does not support message signing', { message: errMessage });
       return null;
     }
   }, [kit, address]);
 
   /**
    * Get authentication headers for API requests
-   * Includes address and optionally signature + timestamp if wallet supports signing
+   * Includes address and optionally signature + timestamp + nonce if wallet supports signing
+   *
+   * SECURITY: Nonce is included to prevent replay attacks
    */
   const getAuthHeaders = useCallback(async (): Promise<Record<string, string>> => {
     if (!address) {
@@ -343,11 +365,12 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       'X-Stellar-Address': address,
     };
 
-    // Try to get a fresh signature
+    // Try to get a fresh signature with nonce
     const authData = await signAuthMessage();
     if (authData) {
       headers['X-Stellar-Signature'] = authData.signature;
       headers['X-Stellar-Timestamp'] = authData.timestamp;
+      headers['X-Stellar-Nonce'] = authData.nonce;
     }
 
     return headers;

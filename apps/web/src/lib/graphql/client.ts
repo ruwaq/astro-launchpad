@@ -166,7 +166,10 @@ export const apolloClient = new ApolloClient({
   cache,
   defaultOptions: {
     watchQuery: {
-      fetchPolicy: 'cache-and-network',
+      // Changed from 'cache-and-network' to 'cache-first' to prevent duplicate requests
+      // Use refetch() or pollInterval for fresh data when needed
+      fetchPolicy: 'cache-first',
+      nextFetchPolicy: 'cache-first',
       errorPolicy: 'all',
     },
     query: {

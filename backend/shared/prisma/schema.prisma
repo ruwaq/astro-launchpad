@@ -518,3 +518,47 @@ enum FailedEventStatus {
   ABANDONED /// Max retries exceeded, needs manual intervention
   DUPLICATE /// Event already processed (idempotency)
 }
+
+/// Ledger Gap Tracking for event indexer reliability
+/// Detects and tracks gaps in ledger sequence processing
+model LedgerGap {
+  id               String          @id @default(cuid())
+  contractName     String /// token_factory, amm_factory
+  fromLedger       String /// Start of gap (first missing ledger)
+  toLedger         String /// End of gap (last missing ledger)
+  gapSize          Int /// Number of ledgers in gap
+
+  /// Status
+  status           LedgerGapStatus @default(DETECTED)
+
+  /// Timestamps
+  detectedAt       DateTime        @default(now())
+  recoveredAt      DateTime? /// When gap was recovered
+  abandonedAt      DateTime? /// When gap was abandoned
+
+  /// Recovery tracking
+  recoveryAttempts Int             @default(0)
+  lastRecoveryAt   DateTime?
+  eventsRecovered  Int             @default(0) /// Events found during recovery
+  lastError        String?         @db.Text
+  abandonReason    String?         @db.Text
+
+  /// Metadata
+  metadata         Json? /// Additional context (RPC URL, detection method, etc.)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  @@unique([contractName, fromLedger, toLedger])
+  @@index([contractName])
+  @@index([status])
+  @@index([detectedAt])
+  @@index([status, contractName])
+  @@index([status, recoveryAttempts]) /// For finding recoverable gaps
+}
+
+enum LedgerGapStatus {
+  DETECTED /// Gap detected, pending recovery
+  RECOVERING /// Currently attempting recovery
+  RECOVERED /// Gap successfully recovered
+  ABANDONED /// Recovery failed, needs manual review
+}

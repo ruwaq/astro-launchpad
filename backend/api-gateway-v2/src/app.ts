@@ -5,6 +5,7 @@
 
 import express, { Application } from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import { ApolloServer } from '@apollo/server';
 import { expressMiddleware } from '@as-integrations/express4';
 import { schema } from './graphql/schema.js';
@@ -40,6 +41,31 @@ export async function createApp(): Promise<{
 
   // MONITORING: Sentry request handler (must be first)
   app.use(sentryRequestHandler());
+
+  // SECURITY: Helmet security headers
+  app.use(helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", "data:", "https:"],
+        connectSrc: ["'self'", "https://soroban-testnet.stellar.org", "https://horizon-testnet.stellar.org"],
+        fontSrc: ["'self'"],
+        objectSrc: ["'none'"],
+        frameSrc: ["'none'"],
+        baseUri: ["'self'"],
+        formAction: ["'self'"],
+      },
+    },
+    crossOriginEmbedderPolicy: false, // Required for GraphQL Playground
+    crossOriginResourcePolicy: { policy: "cross-origin" }, // Allow cross-origin API calls
+    hsts: {
+      maxAge: 31536000, // 1 year
+      includeSubDomains: true,
+      preload: true,
+    },
+  }));
 
   // SECURITY: CORS configuration
   app.use(cors({

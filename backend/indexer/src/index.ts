@@ -5,6 +5,34 @@ import http from 'http';
 // Load .env from backend/indexer directory with override
 config({ path: resolve(process.cwd(), '.env'), override: true });
 
+// ============================================================================
+// Admin API Key Authentication Middleware
+// ============================================================================
+
+const ADMIN_API_KEY = process.env.INDEXER_ADMIN_API_KEY;
+
+/**
+ * Validates admin API key for protected endpoints
+ * Returns true if authorized, false otherwise
+ */
+function validateAdminAuth(req: http.IncomingMessage, res: http.ServerResponse): boolean {
+  // If no API key configured, log warning and allow (dev mode)
+  if (!ADMIN_API_KEY) {
+    console.warn('⚠️ INDEXER_ADMIN_API_KEY not set - admin endpoints unprotected!');
+    return true;
+  }
+
+  const providedKey = req.headers['x-admin-api-key'] as string;
+
+  if (!providedKey || providedKey !== ADMIN_API_KEY) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Unauthorized - Invalid or missing X-Admin-API-Key header' }));
+    return false;
+  }
+
+  return true;
+}
+
 import { prisma } from '@astroshibapop/shared/prisma';
 import { logger } from './lib/logger.js';
 import { OptimizedEventIndexer } from './services/optimized-event-indexer.js';
@@ -13,6 +41,7 @@ import { createBootstrapService } from './services/bootstrap-service.js';
 import { createBlockchainSyncService } from './services/blockchain-sync.service.js';
 import { createEventDeduplication } from './lib/event-deduplication.js';
 import { wsBroadcaster } from './services/websocket-server.js';
+import { createDLQMaintenance } from './services/dlq-maintenance.js';
 
 // ============================================================================
 // Production Configuration
@@ -90,6 +119,11 @@ async function main() {
       });
     }, METRICS_INTERVAL_MS);
 
+    // Start DLQ maintenance service (cleanup, retries, health checks)
+    const dlqMaintenance = createDLQMaintenance(prisma, eventIndexer.getDLQ());
+    dlqMaintenance.start();
+    logger.info('✓ DLQ maintenance service started');
+
     // Start HTTP server for metrics endpoint
     const metricsPort = parseInt(process.env.METRICS_PORT || '9090', 10);
     const server = http.createServer(async (req, res) => {
@@ -107,14 +141,24 @@ async function main() {
         const indexerStatus = eventIndexer.getStatus();
         const syncMetrics = blockchainSync.getMetrics();
         const dedupMetrics = eventDedup.getMetrics();
+        const gapStats = await eventIndexer.getGapStats();
+
+        // Health degrades if there are active gaps
+        const hasActiveGaps = gapStats.detected > 0 || gapStats.recovering > 0;
+        const hasAbandonedGaps = gapStats.abandoned > 0;
 
         const health = {
-          status: indexerStatus.isRunning && syncMetrics.isHealthy ? 'healthy' : 'degraded',
+          status: indexerStatus.isRunning && syncMetrics.isHealthy && !hasAbandonedGaps ? 'healthy' : 'degraded',
           version: INDEXER_VERSION,
           uptime: process.uptime(),
           indexer: indexerStatus,
           blockchainSync: syncMetrics,
           deduplication: dedupMetrics,
+          ledgerGaps: {
+            ...gapStats,
+            hasActiveGaps,
+            hasAbandonedGaps,
+          },
           memory: process.memoryUsage(),
         };
 
@@ -122,7 +166,8 @@ async function main() {
         res.writeHead(statusCode, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(health, null, 2));
       } else if (req.url === '/sync/force' && req.method === 'POST') {
-        // Force immediate blockchain sync
+        // Force immediate blockchain sync - PROTECTED
+        if (!validateAdminAuth(req, res)) return;
         logger.info('Manual sync triggered via API');
         blockchainSync.forcSync()
           .then((metrics) => {
@@ -136,7 +181,8 @@ async function main() {
           });
         return;
       } else if (req.url?.startsWith('/sync/token/') && req.method === 'POST') {
-        // Sync single token
+        // Sync single token - PROTECTED
+        if (!validateAdminAuth(req, res)) return;
         const tokenAddress = req.url.split('/sync/token/')[1];
         if (!tokenAddress || !tokenAddress.startsWith('C') || tokenAddress.length !== 56) {
           res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -169,6 +215,9 @@ async function main() {
             dlqStats: '/dlq/stats',
             dlqList: '/dlq/list',
             dlqRetry: 'POST /dlq/retry/{eventId}',
+            gapStats: '/gaps/stats',
+            gapList: '/gaps/list',
+            gapRecover: 'POST /gaps/recover/{gapId}',
           },
         }, null, 2));
       }
@@ -195,6 +244,8 @@ async function main() {
           res.end(JSON.stringify({ error: 'Failed to list DLQ events' }));
         }
       } else if (req.url?.startsWith('/dlq/retry/') && req.method === 'POST') {
+        // Retry failed event - PROTECTED
+        if (!validateAdminAuth(req, res)) return;
         try {
           const eventId = req.url.split('/')[3];
           if (!eventId) {
@@ -221,6 +272,48 @@ async function main() {
           res.writeHead(500, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: 'Failed to retry event' }));
         }
+      }
+      // Gap Detection Endpoints
+      else if (req.url === '/gaps/stats' && req.method === 'GET') {
+        try {
+          const stats = await eventIndexer.getGapStats();
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify(stats, null, 2));
+        } catch (error) {
+          logger.error('Failed to get gap stats:', error);
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Failed to get gap stats' }));
+        }
+      } else if (req.url === '/gaps/list' && req.method === 'GET') {
+        try {
+          const gapDetector = eventIndexer.getGapDetector();
+          const gaps = await gapDetector.listGaps({ limit: 100 });
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify(gaps, null, 2));
+        } catch (error) {
+          logger.error('Failed to list gaps:', error);
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Failed to list gaps' }));
+        }
+      } else if (req.url?.startsWith('/gaps/recover/') && req.method === 'POST') {
+        // Trigger gap recovery - PROTECTED
+        if (!validateAdminAuth(req, res)) return;
+        try {
+          const gapId = req.url.split('/gaps/recover/')[1];
+          if (!gapId) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Missing gap ID' }));
+            return;
+          }
+          const gapDetector = eventIndexer.getGapDetector();
+          const result = await gapDetector.triggerRecovery(gapId);
+          res.writeHead(result.success ? 200 : 500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify(result, null, 2));
+        } catch (error) {
+          logger.error('Failed to trigger gap recovery:', error);
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Failed to trigger gap recovery' }));
+        }
       } else {
         res.writeHead(404, { 'Content-Type': 'text/plain' });
         res.end('Not Found');
@@ -245,6 +338,7 @@ async function main() {
       logger.info('Shutting down gracefully...');
       try {
         await wsBroadcaster.shutdown();
+        dlqMaintenance.stop();
         blockchainSync.stop();
         server.close();
         await eventIndexer.stop();

@@ -187,6 +187,59 @@ export const memoryUsage = new Gauge({
   registers: [registry],
 })
 
+/**
+ * Ledger Gap Metrics
+ */
+
+// Gaps detected
+export const ledgerGapsDetected = new Counter({
+  name: 'indexer_ledger_gaps_detected_total',
+  help: 'Total number of ledger gaps detected',
+  labelNames: ['contract'],
+  registers: [registry],
+})
+
+// Gap size histogram
+export const ledgerGapSize = new Histogram({
+  name: 'indexer_ledger_gap_size',
+  help: 'Size of detected ledger gaps',
+  labelNames: ['contract'],
+  buckets: [1, 5, 10, 50, 100, 500, 1000, 5000],
+  registers: [registry],
+})
+
+// Gaps recovered
+export const ledgerGapsRecovered = new Counter({
+  name: 'indexer_ledger_gaps_recovered_total',
+  help: 'Total number of ledger gaps successfully recovered',
+  labelNames: ['contract'],
+  registers: [registry],
+})
+
+// Events recovered from gaps
+export const gapEventsRecovered = new Counter({
+  name: 'indexer_gap_events_recovered_total',
+  help: 'Total number of events recovered from gaps',
+  labelNames: ['contract'],
+  registers: [registry],
+})
+
+// Gaps abandoned
+export const ledgerGapsAbandoned = new Counter({
+  name: 'indexer_ledger_gaps_abandoned_total',
+  help: 'Total number of ledger gaps abandoned',
+  labelNames: ['contract', 'reason'],
+  registers: [registry],
+})
+
+// Active gaps gauge
+export const activeGapCount = new Gauge({
+  name: 'indexer_active_gaps',
+  help: 'Number of active (unrecovered) gaps',
+  labelNames: ['contract'],
+  registers: [registry],
+})
+
 // Collect memory metrics periodically
 let memoryMetricsInterval: NodeJS.Timeout | null = null
 
@@ -269,6 +322,24 @@ export function setCircuitBreakerState(contract: string, state: number) {
 
 export function recordCircuitBreakerTrip(contract: string) {
   circuitBreakerTrips.inc({ contract })
+}
+
+export function recordLedgerGapDetected(contract: string, gapSize: number) {
+  ledgerGapsDetected.inc({ contract })
+  ledgerGapSize.observe({ contract }, gapSize)
+}
+
+export function recordLedgerGapRecovered(contract: string, eventsRecovered: number) {
+  ledgerGapsRecovered.inc({ contract })
+  gapEventsRecovered.inc({ contract }, eventsRecovered)
+}
+
+export function recordLedgerGapAbandoned(contract: string, reason: string) {
+  ledgerGapsAbandoned.inc({ contract, reason })
+}
+
+export function updateActiveGapCount(contract: string, count: number) {
+  activeGapCount.set({ contract }, count)
 }
 
 /**

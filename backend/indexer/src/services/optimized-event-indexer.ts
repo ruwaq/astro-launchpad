@@ -19,6 +19,7 @@ import { ConfigEventHandler } from './handlers/config-events.js'
 import { DeadLetterQueue, DEFAULT_DLQ_CONFIG, type DLQStats } from './dead-letter-queue.js'
 import { wsBroadcaster } from './websocket-server.js'
 import { EventDeduplicationService, type EventData } from '../lib/event-deduplication.js'
+import { LedgerGapDetector, createLedgerGapDetector } from '../lib/ledger-gap-detector.js'
 import {
   recordEventReceived,
   recordEventFailed,
@@ -123,6 +124,9 @@ export class OptimizedEventIndexer {
   // Event deduplication service
   private eventDedup: EventDeduplicationService
 
+  // Ledger gap detector for reliability
+  private gapDetector: LedgerGapDetector
+
   constructor(private prisma: PrismaClient) {
     const rpcUrl = process.env.STELLAR_RPC_URL!
     this.sorobanRpc = new SorobanRpc.Server(rpcUrl)
@@ -166,6 +170,15 @@ export class OptimizedEventIndexer {
       enableDatabaseCheck: true,
     })
 
+    // Initialize ledger gap detector for reliability monitoring
+    this.gapDetector = createLedgerGapDetector(prisma, {
+      maxRecoverableGapSize: 1000, // Don't try to recover gaps > 1000 ledgers
+      maxRecoveryAttempts: 3,
+      minGapSize: 2, // Only flag gaps of 2+ ledgers
+      checkIntervalMs: 60000, // Check every 60 seconds
+      autoRecover: true,
+    })
+
     // Start memory metrics collection
     startMemoryMetrics(10000) // Every 10 seconds
   }
@@ -175,6 +188,10 @@ export class OptimizedEventIndexer {
 
     // Start DLQ retry worker
     await this.startDLQRetryWorker()
+
+    // Start ledger gap detector
+    await this.gapDetector.start()
+    logger.info('✓ Ledger gap detector started')
 
     // Index Token Factory events
     await this.indexTokenFactory()
@@ -282,6 +299,9 @@ export class OptimizedEventIndexer {
     // Stop memory metrics
     stopMemoryMetrics()
 
+    // Stop ledger gap detector
+    await this.gapDetector.stop()
+
     // Stop DLQ retry worker
     if (this.dlqRetryInterval) {
       clearInterval(this.dlqRetryInterval)
@@ -327,6 +347,20 @@ export class OptimizedEventIndexer {
       deduplication: dedupMetrics,
       health: cbStats.state === CircuitState.CLOSED ? 'healthy' : 'degraded',
     }
+  }
+
+  /**
+   * Get ledger gap statistics for monitoring
+   */
+  async getGapStats() {
+    return this.gapDetector.getStats()
+  }
+
+  /**
+   * Get gap detector for admin operations
+   */
+  getGapDetector(): LedgerGapDetector {
+    return this.gapDetector
   }
 
   /**
@@ -428,6 +462,18 @@ export class OptimizedEventIndexer {
         }
       }
 
+      // CRITICAL: Detect gaps before updating last ledger
+      // This catches cases where RPC skipped ledgers or events were missed
+      const currentLatestLedger = response.latestLedger
+      const gap = this.gapDetector.recordLedgerProcessed('token_factory', currentLatestLedger)
+      if (gap) {
+        logger.warn({
+          fromLedger: gap.fromLedger,
+          toLedger: gap.toLedger,
+          gapSize: gap.gapSize,
+        }, '⚠️ LEDGER GAP DETECTED in Token Factory - gap recovery will attempt to recover missed events')
+      }
+
       // Always update last indexed ledger (even if no events found)
       // This ensures we continue from where we left off on next poll
       await this.stateManager.updateLastLedger(
@@ -518,6 +564,17 @@ export class OptimizedEventIndexer {
             recordEventFailed('amm_factory', 'unknown', 'handler_error')
           }
         }
+      }
+
+      // CRITICAL: Detect gaps before updating last ledger
+      const currentLatestLedger = response.latestLedger
+      const gap = this.gapDetector.recordLedgerProcessed('amm_factory', currentLatestLedger)
+      if (gap) {
+        logger.warn({
+          fromLedger: gap.fromLedger,
+          toLedger: gap.toLedger,
+          gapSize: gap.gapSize,
+        }, '⚠️ LEDGER GAP DETECTED in AMM Factory - gap recovery will attempt to recover missed events')
       }
 
       // Always update last indexed ledger (even if no events found)

@@ -12,6 +12,10 @@
 
 import type { PrismaClient, FailedEventStatus } from '@astroshibapop/shared/prisma';
 import { logger } from '../lib/logger.js';
+import {
+  alertDLQEventAbandoned,
+  alertDLQThresholdExceeded,
+} from '../lib/alerting.js';
 
 // Event structure from batch processor
 export interface BatchEvent {
@@ -233,25 +237,18 @@ export class DeadLetterQueue {
    * Alert on abandoned events (requires manual intervention)
    */
   private async alertAbandoned(event: BatchEvent, error: Error): Promise<void> {
-    logger.error(
-      {
-        eventId: event.id,
-        eventType: event.eventType,
-        contract: event.contract,
-        ledger: event.ledger,
-        error: error.message,
-        maxRetries: this.config.maxRetries,
-      },
-      `EVENT ABANDONED - Manual intervention required`
+    // Trigger structured alert (logged + metrics)
+    alertDLQEventAbandoned(
+      event.id,
+      event.eventType,
+      event.contract,
+      error.message,
+      this.config.maxRetries
     );
 
-    // TODO: Integrate with alerting system (Slack, PagerDuty, etc.)
-    // Example:
-    // await sendSlackAlert({
-    //   channel: '#indexer-alerts',
-    //   message: `Event ${event.id} abandoned after ${this.config.maxRetries} retries`,
-    //   severity: 'high',
-    // });
+    // Check if we've exceeded the threshold of abandoned events
+    const stats = await this.getStats();
+    alertDLQThresholdExceeded(stats.abandoned);
   }
 
   /**

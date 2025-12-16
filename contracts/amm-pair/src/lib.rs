@@ -387,13 +387,16 @@ impl AMMPair {
                 .ok_or(Error::Underflow)?;
         }
 
-        // CRITICAL FIX: Verify K invariant - K should INCREASE due to fees
+        // CRITICAL FIX: Verify K invariant - K should NOT DECREASE
+        // Due to fees, K typically increases, but integer rounding may cause K to stay equal
+        // We only error if K actually decreases (liquidity drained)
         let k_new = pair_info.reserve_0
             .checked_mul(pair_info.reserve_1)
             .ok_or(Error::Overflow)?;
 
-        // K must be greater than or equal to k_old (fees ensure K increases)
-        if k_new <= k_old {
+        // K must be greater than or equal to k_old (fees ensure K doesn't decrease)
+        // Using < instead of <= to allow for edge cases where K stays equal due to rounding
+        if k_new < k_old {
             return Err(Error::KInvariantViolated);
         }
 

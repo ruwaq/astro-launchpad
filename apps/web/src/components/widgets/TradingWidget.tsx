@@ -14,7 +14,7 @@
 
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import { ArrowDown } from 'lucide-react';
 import { useWallet } from '@/contexts/WalletContext';
 import { tradingLogger } from '@/lib/logger';
@@ -84,7 +84,8 @@ const GET_TOKENS_QUERY = gql`
   }
 `;
 
-export function TradingWidget() {
+// PERFORMANCE: Wrap in memo to prevent unnecessary re-renders from parent updates
+export const TradingWidget = memo(function TradingWidget() {
   const { address, isConnected, connect, signTransaction } = useWallet();
 
   const { data: tokensData, loading: tokensLoading } = useQuery(GET_TOKENS_QUERY, {
@@ -591,4 +592,6 @@ export function TradingWidget() {
       </div>
     </div>
   );
-}
+});
+
+TradingWidget.displayName = 'TradingWidget';
