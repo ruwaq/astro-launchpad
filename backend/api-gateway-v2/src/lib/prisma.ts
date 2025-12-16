@@ -53,6 +53,11 @@ function createPrismaClient() {
 
   // Soft-delete middleware: automatically filter deleted records
   client.$use(async (params, next) => {
+    // Debug: Log all Token queries
+    if (params.model === 'Token' && params.action === 'findMany') {
+      console.log('[Prisma Middleware] Token.findMany called with where:', JSON.stringify(params.args?.where))
+    }
+
     // Only apply to soft-delete enabled models
     if (!params.model || !SOFT_DELETE_MODELS.includes(params.model)) {
       return next(params)
