@@ -45,6 +45,7 @@ declare const envSchema: z.ZodObject<{
 }, "strip", z.ZodTypeAny, {
     NODE_ENV?: "production" | "test" | "development";
     ADMIN_ADDRESSES?: string;
+    ADMIN_API_KEY?: string;
     DATABASE_URL?: string;
     DIRECT_DATABASE_URL?: string;
     STELLAR_NETWORK?: "testnet" | "mainnet";
@@ -57,7 +58,6 @@ declare const envSchema: z.ZodObject<{
     API_PORT?: number;
     API_HOST?: string;
     CORS_ORIGIN?: string;
-    ADMIN_API_KEY?: string;
     RATE_LIMIT_WINDOW_MS?: number;
     RATE_LIMIT_MAX_REQUESTS?: number;
     GRAPHQL_MAX_DEPTH?: number;
@@ -80,6 +80,7 @@ declare const envSchema: z.ZodObject<{
 }, {
     NODE_ENV?: "production" | "test" | "development";
     ADMIN_ADDRESSES?: string;
+    ADMIN_API_KEY?: string;
     DATABASE_URL?: string;
     DIRECT_DATABASE_URL?: string;
     STELLAR_NETWORK?: "testnet" | "mainnet";
@@ -92,7 +93,6 @@ declare const envSchema: z.ZodObject<{
     API_PORT?: number;
     API_HOST?: string;
     CORS_ORIGIN?: string;
-    ADMIN_API_KEY?: string;
     RATE_LIMIT_WINDOW_MS?: number;
     RATE_LIMIT_MAX_REQUESTS?: number;
     GRAPHQL_MAX_DEPTH?: number;
@@ -124,6 +124,7 @@ export type Env = z.infer<typeof envSchema>;
 export declare const env: {
     NODE_ENV?: "production" | "test" | "development";
     ADMIN_ADDRESSES?: string;
+    ADMIN_API_KEY?: string;
     DATABASE_URL?: string;
     DIRECT_DATABASE_URL?: string;
     STELLAR_NETWORK?: "testnet" | "mainnet";
@@ -136,7 +137,6 @@ export declare const env: {
     API_PORT?: number;
     API_HOST?: string;
     CORS_ORIGIN?: string;
-    ADMIN_API_KEY?: string;
     RATE_LIMIT_WINDOW_MS?: number;
     RATE_LIMIT_MAX_REQUESTS?: number;
     GRAPHQL_MAX_DEPTH?: number;

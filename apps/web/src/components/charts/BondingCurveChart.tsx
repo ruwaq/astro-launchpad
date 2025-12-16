@@ -19,6 +19,8 @@ interface BondingCurveChartProps {
   tokenAddress: string;
   symbol?: string;
   compact?: boolean;
+  graduated?: boolean;
+  ammPairAddress?: string;
 }
 
 const MAX_POINTS = 50;
@@ -31,6 +33,8 @@ interface PricePoint {
 export const BondingCurveChart = memo(function BondingCurveChart({
   tokenAddress,
   compact = false,
+  graduated = false,
+  ammPairAddress,
 }: BondingCurveChartProps) {
   const [price, setPrice] = useState<number>(0);
   const [xlmRaised, setXlmRaised] = useState<number>(0);
@@ -148,6 +152,36 @@ export const BondingCurveChart = memo(function BondingCurveChart({
         {/* Chart Skeleton */}
         <div className="px-2 pb-4">
           <div className="h-20 bg-gray-100 rounded" />
+        </div>
+      </div>
+    );
+  }
+
+  // Show graduated message
+  if (graduated) {
+    const dexUrl = ammPairAddress
+      ? `https://astroswap.stellar.org/pool/${ammPairAddress}`
+      : 'https://astroswap.stellar.org';
+
+    return (
+      <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl border-2 border-green-300 shadow-sm overflow-hidden p-6">
+        <div className="text-center">
+          <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center mx-auto mb-3">
+            <TrendingUp className="h-6 w-6 text-white" />
+          </div>
+          <h3 className="font-bold text-green-800 mb-1">Graduated to DEX!</h3>
+          <p className="text-sm text-green-700 mb-3">
+            Bonding curve complete. Now trading on AstroSwap.
+          </p>
+          <a
+            href={dexUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-semibold rounded-lg transition-all shadow-md hover:shadow-lg text-sm"
+          >
+            <TrendingUp className="h-4 w-4" />
+            <span>View on AstroSwap</span>
+          </a>
         </div>
       </div>
     );

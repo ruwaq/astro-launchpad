@@ -332,13 +332,13 @@ describe('useToken', () => {
 
     it('should reset state when address changes to null', () => {
       const { result, rerender } = renderHook(
-        ({ address }) => useToken(address),
-        { initialProps: { address: 'CTEST123' } }
+        ({ address }: { address: string | null }) => useToken(address),
+        { initialProps: { address: 'CTEST123' as string | null } }
       );
 
       expect(result.current.token).toBeTruthy();
 
-      rerender({ address: null });
+      rerender({ address: null as string | null });
 
       expect(result.current.token).toBeNull();
     });
@@ -411,7 +411,7 @@ describe('useTokenCount', () => {
 describe('useTokens', () => {
   const mockFetchTokenInfo = vi.fn();
   const mockRefreshToken = vi.fn();
-  const mockIsLoadingToken = vi.fn(() => false);
+  const mockIsLoadingToken = vi.fn((_address: string): boolean => false);
 
   const mockToken1: TokenInfo = { ...mockTokenInfo, token_address: 'CTEST123', symbol: 'TEST1' };
   const mockToken2: TokenInfo = { ...mockTokenInfo, token_address: 'CTEST456', symbol: 'TEST2' };
@@ -469,7 +469,7 @@ describe('useTokens', () => {
   });
 
   it('should return isLoading true when any token is loading', () => {
-    mockIsLoadingToken.mockImplementation((address: string) => address === 'CTEST456');
+    mockIsLoadingToken.mockImplementation((address) => address === 'CTEST456');
 
     const { result } = renderHook(() => useTokens(['CTEST123', 'CTEST456']));
 

@@ -29,6 +29,8 @@ interface SimpleChartProps {
   tokenAddress: string;
   symbol?: string;
   refreshTrigger?: number;
+  graduated?: boolean;
+  ammPairAddress?: string;
 }
 
 interface DataPoint {
@@ -37,7 +39,13 @@ interface DataPoint {
   xlmRaised: number;
 }
 
-export function SimpleChart({ tokenAddress, symbol = 'TOKEN', refreshTrigger = 0 }: SimpleChartProps) {
+export function SimpleChart({
+  tokenAddress,
+  symbol = 'TOKEN',
+  refreshTrigger = 0,
+  graduated = false,
+  ammPairAddress,
+}: SimpleChartProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const lineSeriesRef = useRef<ISeriesApi<'Line'> | null>(null);
@@ -237,6 +245,55 @@ export function SimpleChart({ tokenAddress, symbol = 'TOKEN', refreshTrigger = 0
       <div className="bg-white rounded-xl border border-ui-border overflow-hidden">
         <div className="h-[340px] flex items-center justify-center">
           <Loader2 className="h-8 w-8 animate-spin text-green-500" />
+        </div>
+      </div>
+    );
+  }
+
+  // Show graduated state
+  if (graduated) {
+    const dexUrl = ammPairAddress
+      ? `https://astroswap.stellar.org/pool/${ammPairAddress}`
+      : 'https://astroswap.stellar.org';
+
+    return (
+      <div className="bg-white rounded-xl border border-ui-border overflow-hidden">
+        <div className="p-6 text-center">
+          <div className="mb-4">
+            <div className="w-16 h-16 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center mx-auto mb-3">
+              <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+              </svg>
+            </div>
+            <h3 className="text-xl font-bold text-green-800 mb-2">
+              Trading on AstroSwap DEX
+            </h3>
+            <p className="text-sm text-green-700 mb-4">
+              {symbol} has graduated! This token now trades on the decentralized exchange with permanent liquidity.
+            </p>
+            {ammPairAddress && (
+              <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
+                <p className="text-xs text-green-700 mb-1 font-semibold">AMM Pool Address:</p>
+                <code className="text-xs font-mono text-green-800 break-all">
+                  {ammPairAddress}
+                </code>
+              </div>
+            )}
+            <a
+              href={dexUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-semibold rounded-lg transition-all shadow-md hover:shadow-lg"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+              </svg>
+              <span>View on AstroSwap</span>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+            </a>
+          </div>
         </div>
       </div>
     );

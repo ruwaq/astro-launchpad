@@ -8,10 +8,11 @@
 'use client';
 
 import Image from 'next/image';
-import { Copy, ExternalLink, Check } from 'lucide-react';
+import { Copy, ExternalLink, Check, TrendingUp } from 'lucide-react';
 import { useState } from 'react';
 import { getIpfsUrl as getImageUrl } from '@/lib/utils/ipfs';
 import { getNetworkConfig } from '@/lib/config/network';
+import { motion } from 'framer-motion';
 
 interface TokenHeaderProps {
   token: any; // Token object from GraphQL
@@ -37,8 +38,48 @@ export function TokenHeader({ token }: TokenHeaderProps) {
   // Truncate address for display
   const addressShort = `${token.address.slice(0, 6)}...${token.address.slice(-4)}`;
 
+  // Build AstroSwap DEX URL if graduated
+  const dexUrl = token.graduated && token.ammPairAddress
+    ? `https://astroswap.stellar.org/pool/${token.ammPairAddress}`
+    : null;
+
   return (
     <div className="bg-white rounded-xl border border-ui-border p-4 sm:p-6">
+      {/* Graduated - Trade on DEX Banner */}
+      {token.graduated && dexUrl && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-4 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-300 rounded-xl p-4"
+        >
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="flex items-center gap-3 text-center sm:text-left">
+              <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center flex-shrink-0">
+                <TrendingUp className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <h3 className="font-bold text-green-800 text-sm sm:text-base">
+                  Token Graduated to DEX!
+                </h3>
+                <p className="text-xs text-green-700">
+                  Now trading on AstroSwap with permanent liquidity
+                </p>
+              </div>
+            </div>
+            <a
+              href={dexUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-semibold rounded-lg transition-all flex items-center gap-2 shadow-md hover:shadow-lg min-h-[44px]"
+            >
+              <TrendingUp className="h-4 w-4" />
+              <span>Trade on AstroSwap</span>
+              <ExternalLink className="h-3.5 w-3.5" />
+            </a>
+          </div>
+        </motion.div>
+      )}
+
       <div className="flex flex-col sm:flex-row items-start gap-4">
         {/* Token Logo */}
         <div className="flex-shrink-0 mx-auto sm:mx-0">

@@ -7,14 +7,15 @@ import { Wallet } from 'lucide-react';
 import { useWallet } from '@/contexts/WalletContext';
 import { useUserTransactions } from '@/hooks/useApi';
 import { TransactionHistory } from '@/components/transactions/TransactionHistory';
+import { HoldingsSection } from '@/components/portfolio/HoldingsSection';
 import { truncateAddress } from '@/lib/stellar/utils';
 import toast from 'react-hot-toast';
 
-type TabType = 'history' | 'created';
+type TabType = 'holdings' | 'history' | 'created';
 
 export default function PortfolioPage() {
   const { isConnected, connect, isConnecting, address } = useWallet();
-  const [activeTab, setActiveTab] = useState<TabType>('history');
+  const [activeTab, setActiveTab] = useState<TabType>('holdings');
 
   if (!isConnected) {
     return (
@@ -63,10 +64,20 @@ export default function PortfolioPage() {
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-4 border-b border-ui-border">
+        <div className="flex gap-4 border-b border-ui-border overflow-x-auto">
+          <button
+            onClick={() => setActiveTab('holdings')}
+            className={`px-4 py-3 border-b-2 font-medium transition-colors whitespace-nowrap ${
+              activeTab === 'holdings'
+                ? 'border-brand-primary text-brand-primary'
+                : 'border-transparent text-ui-text-secondary hover:text-ui-text-primary'
+            }`}
+          >
+            Holdings
+          </button>
           <button
             onClick={() => setActiveTab('history')}
-            className={`px-4 py-3 border-b-2 font-medium transition-colors ${
+            className={`px-4 py-3 border-b-2 font-medium transition-colors whitespace-nowrap ${
               activeTab === 'history'
                 ? 'border-brand-primary text-brand-primary'
                 : 'border-transparent text-ui-text-secondary hover:text-ui-text-primary'
@@ -76,7 +87,7 @@ export default function PortfolioPage() {
           </button>
           <button
             onClick={() => setActiveTab('created')}
-            className={`px-4 py-3 border-b-2 font-medium transition-colors ${
+            className={`px-4 py-3 border-b-2 font-medium transition-colors whitespace-nowrap ${
               activeTab === 'created'
                 ? 'border-brand-primary text-brand-primary'
                 : 'border-transparent text-ui-text-secondary hover:text-ui-text-primary'
@@ -87,6 +98,10 @@ export default function PortfolioPage() {
         </div>
 
         {/* Content */}
+        {activeTab === 'holdings' && (
+          <HoldingsSection address={address!} />
+        )}
+
         {activeTab === 'history' && (
           <TransactionHistory userAddress={address!} limit={50} />
         )}

@@ -298,15 +298,15 @@ describe('useBalance', () => {
       });
 
       const { result, rerender } = renderHook(
-        ({ address }) => useBalance(address),
-        { initialProps: { address: mockAddress } }
+        ({ address }: { address: string | null }) => useBalance(address),
+        { initialProps: { address: mockAddress as string | null } }
       );
 
       await waitFor(() => {
         expect(result.current.balance).toBe('100.00');
       });
 
-      rerender({ address: null });
+      rerender({ address: null as string | null });
 
       expect(result.current.balance).toBe('0');
       expect(result.current.error).toBeNull();
@@ -325,7 +325,7 @@ describe('useBalance', () => {
         });
 
       const { result, rerender } = renderHook(
-        ({ address }) => useBalance(address),
+        ({ address }: { address: string | null }) => useBalance(address),
         { initialProps: { address: mockAddress } }
       );
 
@@ -347,7 +347,7 @@ describe('useBalance', () => {
       });
 
       const { rerender } = renderHook(
-        ({ address }) => useBalance(address),
+        ({ address }: { address: string | null }) => useBalance(address),
         { initialProps: { address: mockAddress } }
       );
 

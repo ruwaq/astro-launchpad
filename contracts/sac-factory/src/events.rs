@@ -743,6 +743,21 @@ pub fn astro_config_updated(
     }.publish(env);
 }
 
+/// ASTRO configuration cleared
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AstroConfigCleared {
+    pub cleared_by: Address,
+    pub timestamp: u64,
+}
+
+pub fn astro_config_cleared(env: &Env, cleared_by: &Address) {
+    AstroConfigCleared {
+        cleared_by: cleared_by.clone(),
+        timestamp: env.ledger().timestamp(),
+    }.publish(env);
+}
+
 pub fn astro_buyback_executed(
     env: &Env,
     graduated_token: &Address,

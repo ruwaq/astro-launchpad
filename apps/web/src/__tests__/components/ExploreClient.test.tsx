@@ -17,7 +17,7 @@ import userEvent from '@testing-library/user-event';
 import { MockedProvider } from '@apollo/client/testing';
 import { ExploreClient } from '@/app/explore/ExploreClient';
 import { useWallet } from '@/contexts/WalletContext';
-import type { TokensConnection, Token } from '@/lib/graphql/types';
+import type { TokenConnection, Token } from '@/lib/graphql/types';
 
 // Mock dependencies
 vi.mock('@/contexts/WalletContext', () => ({
@@ -95,7 +95,7 @@ describe('ExploreClient', () => {
     xlmReserve: '3000',
   };
 
-  const mockInitialTokens: TokensConnection = {
+  const mockInitialTokens: TokenConnection = {
     edges: [
       { cursor: 'cursor1', node: mockToken },
       {
@@ -111,7 +111,7 @@ describe('ExploreClient', () => {
     totalCount: 10,
   };
 
-  const mockEmptyTokens: TokensConnection = {
+  const mockEmptyTokens: TokenConnection = {
     edges: [],
     pageInfo: {
       hasNextPage: false,

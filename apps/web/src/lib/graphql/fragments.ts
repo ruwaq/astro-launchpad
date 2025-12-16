@@ -62,6 +62,18 @@ export const TOKEN_FULL_FRAGMENT = gql`
   ${TOKEN_BASIC_FRAGMENT}
   fragment TokenFullFragment on Token {
     ...TokenBasicFragment
+    ammPairAddress
+    graduationEvent {
+      id
+      type
+      ammPairAddress
+      lpTokensBurned
+      xlmRaised
+      tokensGraduated
+      timestamp
+      txHash
+      blockNumber
+    }
     creatorUser {
       id
       address

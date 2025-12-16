@@ -9,11 +9,12 @@
 
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { useLeaderboard, useGlobalStats } from '@/hooks/useApi';
 import { useWallet } from '@/contexts/WalletContext';
+import { useBalanceRefresh } from '@/lib/events/balanceRefresh';
 import { truncateAddress, formatCompactNumber } from '@/lib/stellar/utils';
 import { MetricCard } from '@/components/widgets/MetricCard';
 import { TokensWidget } from '@/components/widgets/TokensWidget';
@@ -82,17 +83,26 @@ export function LeaderboardClient({
   const { address, isConnected, connect, isConnecting } = useWallet();
 
   // Apollo takes over for real-time updates
-  const { data: statsData, loading: statsLoading } = useGlobalStats();
-  const { data, loading } = useLeaderboard({
+  const { data: statsData, loading: statsLoading, refetch: refetchStats } = useGlobalStats();
+  const { data, loading, refetch: refetchLeaderboard } = useLeaderboard({
     type: selectedType,
     limit: 50,
     timeframe: selectedTimeframe,
   });
 
   // Fetch top token for King of the Hill (with polling)
-  const { data: topTokenData, loading: topTokenLoading } = useQuery(GET_TOP_TOKEN, {
+  const { data: topTokenData, loading: topTokenLoading, refetch: refetchTopToken } = useQuery(GET_TOP_TOKEN, {
     pollInterval: 60000, // Refresh every minute
   });
+
+  // Listen for balance refresh events (triggered after trades) to update leaderboard
+  const handleBalanceRefresh = useCallback(() => {
+    refetchStats();
+    refetchLeaderboard();
+    refetchTopToken();
+  }, [refetchStats, refetchLeaderboard, refetchTopToken]);
+
+  useBalanceRefresh(handleBalanceRefresh);
 
   // Use client data if available, fallback to server data
   const leaderboard = data?.leaderboard || initialLeaderboard;

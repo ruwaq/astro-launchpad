@@ -7,6 +7,11 @@
  * - Real-time price animations
  * - Haptic feedback on mobile
  * - Visual feedback for success/error states
+ * - Support for both bonding curve AND AMM trading (graduated tokens)
+ *
+ * Trading Modes:
+ * - Bonding: Pre-graduation tokens use deterministic bonding curve pricing
+ * - AMM: Post-graduation tokens trade on constant product AMM (x*y=k)
  *
  * Refactored to use modular sub-components for maintainability.
  */
@@ -22,18 +27,25 @@ import {
   TrendingDown,
   Loader2,
   Wallet,
+  AlertTriangle,
+  CheckCircle2,
+  RefreshCcw,
 } from 'lucide-react';
 import { useWallet } from '@/contexts/WalletContext';
 import { tradingLogger } from '@/lib/logger';
-import { sacFactoryService, toStroopsBigInt, type TokenInfo } from '@/lib/stellar/services/sac-factory.service';
+import { emitBalanceRefresh } from '@/lib/events/balanceRefresh';
+import { sacFactoryService, toStroopsBigInt, type TokenInfo, TokenStatus } from '@/lib/stellar/services/sac-factory.service';
 import { stellarClient, getClientDeadline } from '@/lib/stellar/client';
-import { TransactionBuilder, rpc } from '@stellar/stellar-sdk';
+import { TransactionBuilder, rpc, Operation, nativeToScVal, Address } from '@stellar/stellar-sdk';
 import { ensureTrustlineExists } from '@/lib/stellar/utils/trustline';
 import { getNetworkConfig } from '@/lib/config/network';
+import { CONTRACT_IDS } from '@/lib/stellar/config';
+import { stroopsToXlm, GRADUATION_THRESHOLD_XLM, addressToScVal } from '@/lib/stellar/utils';
 import toast from 'react-hot-toast';
 import confetti from 'canvas-confetti';
 import { useTradingSounds, useHaptics } from '@/hooks/useTradingSounds';
 import { sanitizeNumericInput } from '@/lib/utils/format';
+import { showGraduationToast } from '@/lib/notifications/graduationToast';
 
 // Import modular components
 import {
@@ -80,6 +92,23 @@ interface TradingWidgetPremiumProps {
   onTradeSuccess?: (type: 'buy' | 'sell', amount: number) => void;
 }
 
+/**
+ * Trading context for graduated tokens on AMM
+ */
+interface AmmTradingContext {
+  ammPairAddress: string;
+  token0: string;
+  token1: string;
+  reserve0: bigint;
+  reserve1: bigint;
+  totalSupply: bigint;
+}
+
+/**
+ * Trading mode determines which protocol handles the swap
+ */
+type TradingMode = 'bonding' | 'amm' | 'disabled';
+
 export function TradingWidgetPremium({
   tokenAddress,
   tokenSymbol = 'TOKEN',
@@ -96,9 +125,10 @@ export function TradingWidgetPremium({
   const [tradeType, setTradeType] = useState<TradeType>('buy');
   const [inputAmount, setInputAmount] = useState('');
   const [outputAmount, setOutputAmount] = useState('');
-  // Fixed minimal slippage protection (0.5%) - bonding curves are deterministic
-  // This only protects against race conditions, not price impact
-  const slippage = 0.5;
+  // Slippage protection:
+  // - Bonding curve: Fixed 0.5% (only for race conditions - price is deterministic)
+  // - AMM: User-configurable (real slippage due to price impact)
+  const [slippage, setSlippage] = useState(0.5);
   const [tokenInfo, setTokenInfo] = useState<TokenInfo | null>(null);
   const [isCalculating, setIsCalculating] = useState(false);
   const [txStatus, setTxStatus] = useState<TransactionStatusType>('idle');
@@ -108,6 +138,11 @@ export function TradingWidgetPremium({
   const [userTokenBalance, setUserTokenBalance] = useState<string>('0');
   // User's XLM balance for buy validation (in XLM, not stroops)
   const [userXlmBalance, setUserXlmBalance] = useState<string>('0');
+
+  // Trading mode state (bonding curve vs AMM)
+  const [tradingMode, setTradingMode] = useState<TradingMode>('bonding');
+  const [ammContext, setAmmContext] = useState<AmmTradingContext | null>(null);
+  const [isLoadingContext, setIsLoadingContext] = useState(true);
 
   // RACE CONDITION FIX: Use ref-based lock for synchronous double-click prevention
   const isTransactionInProgressRef = useRef(false);
@@ -122,14 +157,25 @@ export function TradingWidgetPremium({
     return (xlm * BigInt(10_000_000)) / token;
   };
 
-  // Load token info and tracked holdings
-  const loadTokenInfo = useCallback(async () => {
+  // Load token info and trading context (handles both bonding curve and AMM)
+  const loadTradingContext = useCallback(async () => {
     try {
-      const info = await sacFactoryService.getTokenInfo(tokenAddress);
+      setIsLoadingContext(true);
 
-      if (info && tokenInfo) {
+      // Get complete trading context (includes graduated status and AMM info)
+      const context = await sacFactoryService.getTradingContext(tokenAddress);
+
+      if (!context.tokenInfo) {
+        setTokenInfo(null);
+        setTradingMode('disabled');
+        setAmmContext(null);
+        return;
+      }
+
+      // Handle price flash animation
+      if (tokenInfo && context.tokenInfo) {
         const oldPrice = calculatePriceFromReserves(tokenInfo.bonding_curve);
-        const newPrice = calculatePriceFromReserves(info.bonding_curve);
+        const newPrice = calculatePriceFromReserves(context.tokenInfo.bonding_curve);
 
         // FIX: Clear previous timeout before creating new one to prevent memory leaks
         if (priceFlashTimeoutRef.current) {
@@ -147,11 +193,48 @@ export function TradingWidgetPremium({
         setPreviousPrice(oldPrice);
       }
 
-      setTokenInfo(info || null);
-    } catch {
+      setTokenInfo(context.tokenInfo);
+      setTradingMode(context.tradingMode);
+
+      // Setup AMM context if token is graduated
+      if (context.tradingMode === 'amm' && context.ammPairInfo && context.ammPairAddress) {
+        setAmmContext({
+          ammPairAddress: context.ammPairAddress,
+          token0: context.ammPairInfo.token0,
+          token1: context.ammPairInfo.token1,
+          reserve0: context.ammPairInfo.reserve0,
+          reserve1: context.ammPairInfo.reserve1,
+          totalSupply: context.ammPairInfo.totalSupply,
+        });
+
+        // For AMM, default slippage should be higher (1% default)
+        if (slippage === 0.5) {
+          setSlippage(1.0);
+        }
+
+        tradingLogger.info('Token graduated - trading on AMM', {
+          tokenAddress,
+          ammPairAddress: context.ammPairAddress,
+          reserves: {
+            reserve0: context.ammPairInfo.reserve0.toString(),
+            reserve1: context.ammPairInfo.reserve1.toString(),
+          },
+        });
+      } else {
+        setAmmContext(null);
+      }
+    } catch (error) {
+      tradingLogger.error('Error loading trading context:', error);
       setTokenInfo(null);
+      setTradingMode('disabled');
+      setAmmContext(null);
+    } finally {
+      setIsLoadingContext(false);
     }
-  }, [tokenAddress, tokenInfo]);
+  }, [tokenAddress, tokenInfo, slippage]);
+
+  // Legacy alias for compatibility
+  const loadTokenInfo = loadTradingContext;
 
   useEffect(() => {
     loadTokenInfo();
@@ -165,7 +248,7 @@ export function TradingWidgetPremium({
     };
   }, [loadTokenInfo]);
 
-  // Calculate output
+  // Calculate output based on trading mode (bonding curve or AMM)
   const calculateOutput = useCallback(async () => {
     if (!inputAmount || parseFloat(inputAmount) <= 0 || !tokenInfo) {
       setOutputAmount('');
@@ -183,36 +266,87 @@ export function TradingWidgetPremium({
 
       let output: bigint;
 
-      if (tradeType === 'buy') {
-        const xlmStroops = toStroopsBigInt(amount);
-        output = sacFactoryService.calculateBuyOutput(tokenInfo, xlmStroops);
+      if (tradingMode === 'amm' && ammContext) {
+        // AMM trading (graduated tokens)
+        const amountInStroops = toStroopsBigInt(amount);
+
+        // Determine which reserve is which based on token direction
+        // XLM SAC address for comparison
+        const xlmSac = CONTRACT_IDS.xlmSacAddress;
+
+        if (tradeType === 'buy') {
+          // Buying tokens with XLM: XLM is input, token is output
+          const isToken0Xlm = ammContext.token0 === xlmSac;
+          const reserveIn = isToken0Xlm ? ammContext.reserve0 : ammContext.reserve1;
+          const reserveOut = isToken0Xlm ? ammContext.reserve1 : ammContext.reserve0;
+
+          output = sacFactoryService.calculateAmmSwapOutput(
+            amountInStroops,
+            reserveIn,
+            reserveOut
+          );
+        } else {
+          // Selling tokens for XLM: token is input, XLM is output
+          const isToken0Xlm = ammContext.token0 === xlmSac;
+          const reserveIn = isToken0Xlm ? ammContext.reserve1 : ammContext.reserve0;
+          const reserveOut = isToken0Xlm ? ammContext.reserve0 : ammContext.reserve1;
+
+          output = sacFactoryService.calculateAmmSwapOutput(
+            amountInStroops,
+            reserveIn,
+            reserveOut
+          );
+        }
+
+        // AMM fee is already included in calculateAmmSwapOutput (0.3%)
+        const outputHuman = Number(output) / 10_000_000;
+        setOutputAmount(outputHuman.toFixed(4));
       } else {
-        const tokenStroops = toStroopsBigInt(amount);
-        output = sacFactoryService.calculateSellOutput(tokenInfo, tokenStroops);
+        // Bonding curve trading (pre-graduation)
+        if (tradeType === 'buy') {
+          const xlmStroops = toStroopsBigInt(amount);
+          output = sacFactoryService.calculateBuyOutput(tokenInfo, xlmStroops);
+        } else {
+          const tokenStroops = toStroopsBigInt(amount);
+          output = sacFactoryService.calculateSellOutput(tokenInfo, tokenStroops);
+        }
+
+        const outputAfterFee = sacFactoryService.applyTradingFee(output);
+        const outputHuman = Number(outputAfterFee) / 10_000_000;
+        setOutputAmount(outputHuman.toFixed(4));
       }
-
-      const outputAfterFee = sacFactoryService.applyTradingFee(output);
-      const outputHuman = Number(outputAfterFee) / 10_000_000;
-
-      setOutputAmount(outputHuman.toFixed(4));
-    } catch {
+    } catch (error) {
+      tradingLogger.error('Error calculating output:', error);
       setOutputAmount('0');
     } finally {
       setIsCalculating(false);
     }
-  }, [inputAmount, tradeType, tokenInfo]);
+  }, [inputAmount, tradeType, tokenInfo, tradingMode, ammContext]);
 
   useEffect(() => {
     const timer = setTimeout(calculateOutput, 300);
     return () => clearTimeout(timer);
   }, [calculateOutput]);
 
-  // Format price display
+  // Format price display (different for AMM vs bonding curve)
   const currentPrice = useMemo(() => {
     if (!tokenInfo) return '0.0000000';
+
+    if (tradingMode === 'amm' && ammContext) {
+      // AMM price: XLM reserve / token reserve
+      const xlmSac = CONTRACT_IDS.xlmSacAddress;
+      const xlmReserve = ammContext.token0 === xlmSac ? ammContext.reserve0 : ammContext.reserve1;
+      const tokenReserve = ammContext.token0 === xlmSac ? ammContext.reserve1 : ammContext.reserve0;
+
+      if (tokenReserve === 0n) return '0.0000000';
+      const price = Number(xlmReserve) / Number(tokenReserve);
+      return price.toFixed(7);
+    }
+
+    // Bonding curve price
     const price = calculatePriceFromReserves(tokenInfo.bonding_curve);
     return (Number(price) / 10_000_000).toFixed(7);
-  }, [tokenInfo]);
+  }, [tokenInfo, tradingMode, ammContext]);
 
   const priceChangePercent = useMemo(() => {
     if (!tokenInfo || previousPrice === BigInt(0)) return 0;
@@ -220,6 +354,19 @@ export function TradingWidgetPremium({
     const previous = Number(previousPrice);
     return ((current - previous) / previous) * 100;
   }, [tokenInfo, previousPrice]);
+
+  // Calculate remaining XLM until graduation
+  const graduationInfo = useMemo(() => {
+    if (!tokenInfo) return { remaining: 0, isNearGraduation: false, wouldTriggerGraduation: false };
+
+    const xlmRaised = parseFloat(stroopsToXlm(tokenInfo.xlm_raised));
+    const remaining = Math.max(GRADUATION_THRESHOLD_XLM - xlmRaised, 0);
+    const isNearGraduation = remaining < GRADUATION_THRESHOLD_XLM * 0.1; // Less than 10% remaining
+    const buyAmount = tradeType === 'buy' ? parseFloat(inputAmount || '0') : 0;
+    const wouldTriggerGraduation = buyAmount > 0 && buyAmount >= remaining;
+
+    return { remaining, isNearGraduation, wouldTriggerGraduation };
+  }, [tokenInfo, inputAmount, tradeType]);
 
   // Handle quick buy
   const handleQuickBuy = (amount: number) => {
@@ -325,28 +472,66 @@ export function TradingWidgetPremium({
         }
       }
 
-      // Build operation
+      // Build operation based on trading mode
       let operation;
-      if (tradeType === 'buy') {
-        const xlmStroops = toStroopsBigInt(amount);
-        const minTokens = toStroopsBigInt(minOutput);
-        operation = sacFactoryService.buildBuyOperation(
-          address,
-          tokenAddress,
-          xlmStroops,
-          minTokens,
-          deadline
-        );
+
+      if (tradingMode === 'amm' && ammContext) {
+        // AMM swap for graduated tokens
+        const xlmSac = CONTRACT_IDS.xlmSacAddress;
+        const amountInStroops = toStroopsBigInt(amount);
+        const minAmountOutStroops = toStroopsBigInt(minOutput);
+
+        if (tradeType === 'buy') {
+          // Buying tokens with XLM
+          operation = sacFactoryService.buildAmmSwapOperation(
+            ammContext.ammPairAddress,
+            address,
+            amountInStroops,
+            minAmountOutStroops,
+            xlmSac, // Input token is XLM
+            deadline
+          );
+        } else {
+          // Selling tokens for XLM
+          operation = sacFactoryService.buildAmmSwapOperation(
+            ammContext.ammPairAddress,
+            address,
+            amountInStroops,
+            minAmountOutStroops,
+            tokenAddress, // Input token is the launched token
+            deadline
+          );
+        }
+
+        tradingLogger.info('Built AMM swap operation', {
+          ammPair: ammContext.ammPairAddress,
+          tradeType,
+          amountIn: amountInStroops.toString(),
+          minAmountOut: minAmountOutStroops.toString(),
+        });
       } else {
-        const tokenStroops = toStroopsBigInt(amount);
-        const minXlm = toStroopsBigInt(minOutput);
-        operation = sacFactoryService.buildSellOperation(
-          address,
-          tokenAddress,
-          tokenStroops,
-          minXlm,
-          deadline
-        );
+        // Bonding curve trade for pre-graduation tokens
+        if (tradeType === 'buy') {
+          const xlmStroops = toStroopsBigInt(amount);
+          const minTokens = toStroopsBigInt(minOutput);
+          operation = sacFactoryService.buildBuyOperation(
+            address,
+            tokenAddress,
+            xlmStroops,
+            minTokens,
+            deadline
+          );
+        } else {
+          const tokenStroops = toStroopsBigInt(amount);
+          const minXlm = toStroopsBigInt(minOutput);
+          operation = sacFactoryService.buildSellOperation(
+            address,
+            tokenAddress,
+            tokenStroops,
+            minXlm,
+            deadline
+          );
+        }
       }
 
       // Build transaction
@@ -475,11 +660,44 @@ export function TradingWidgetPremium({
 
       onTradeSuccess?.(tradeType, amount);
 
-      setTimeout(() => {
+      // Trigger balance refresh across all components immediately
+      emitBalanceRefresh();
+
+      // GRADUATION DETECTION: Check if this trade triggered graduation
+      const wasPreGraduation = tradingMode === 'bonding';
+
+      setTimeout(async () => {
         setTxStatus('idle');
         setInputAmount('');
         setOutputAmount('');
-        loadTokenInfo();
+
+        // Reload token info to detect graduation
+        await loadTokenInfo();
+
+        // Note: After loadTokenInfo, tradingMode state will be updated, but this closure
+        // still has the old value. We check wasPreGraduation (old state) and if ammContext
+        // exists (which means graduation occurred during loadTokenInfo).
+        if (wasPreGraduation && ammContext) {
+          tradingLogger.info('Graduation detected after trade!', {
+            tokenSymbol,
+            ammPairAddress: ammContext.ammPairAddress,
+          });
+
+          // Play milestone sound for graduation
+          playMilestone();
+
+          // Show celebration graduation toast
+          showGraduationToast({
+            tokenSymbol,
+            tokenName,
+            ammPairAddress: ammContext.ammPairAddress,
+            onCtaClick: () => {
+              // Refresh the page to show AMM trading interface
+              window.location.reload();
+            },
+          });
+        }
+
         isTransactionInProgressRef.current = false;
       }, 2000);
 
@@ -524,7 +742,115 @@ export function TradingWidgetPremium({
         priceChangePercent={priceChangePercent}
       />
 
+      {/* Graduated Token Banner */}
+      {tradingMode === 'amm' && (
+        <div className="bg-gradient-to-r from-emerald-500 to-teal-500 px-3 lg:px-4 py-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 text-white" />
+              <span className="text-sm font-medium text-white">
+                Graduated to AMM
+              </span>
+            </div>
+            <button
+              onClick={() => loadTradingContext()}
+              className="p-1 hover:bg-white/20 rounded-full transition-colors"
+              title="Refresh reserves"
+            >
+              <RefreshCcw className="h-3.5 w-3.5 text-white" />
+            </button>
+          </div>
+          <p className="text-xs text-white/80 mt-1">
+            Trading on decentralized liquidity pool with 0.3% swap fee
+          </p>
+        </div>
+      )}
+
+      {/* Graduation Failed Warning Banner */}
+      {tokenInfo?.status === TokenStatus.GraduationFailed && (
+        <div className="bg-gradient-to-r from-red-500 to-orange-500 px-3 lg:px-4 py-2">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 text-white" />
+            <span className="text-sm font-medium text-white">
+              Graduation Failed
+            </span>
+          </div>
+          <p className="text-xs text-white/80 mt-1">
+            Token graduation failed. Trading on bonding curve is still available.
+            Contact the team for recovery assistance.
+          </p>
+        </div>
+      )}
+
+      {/* Loading Context Indicator */}
+      {isLoadingContext && !tokenInfo && (
+        <div className="px-3 lg:px-4 py-2 bg-gray-50">
+          <div className="flex items-center gap-2 text-gray-500">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <span className="text-sm">Loading trading context...</span>
+          </div>
+        </div>
+      )}
+
       <div className="p-3 lg:p-4 space-y-3 lg:space-y-4">
+        {/* AMM Slippage Controls - Only show for AMM trading */}
+        {tradingMode === 'amm' && (
+          <motion.div variants={itemVariants} className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-amber-600" />
+                <span className="text-sm font-medium text-amber-800">Slippage Tolerance</span>
+              </div>
+              <span className="text-sm font-bold text-amber-900">{slippage}%</span>
+            </div>
+            <div className="flex gap-2">
+              {[0.5, 1, 2, 3].map((value) => (
+                <button
+                  key={value}
+                  onClick={() => {
+                    playClick();
+                    setSlippage(value);
+                  }}
+                  disabled={isProcessing}
+                  className={`flex-1 py-1.5 px-2 text-xs font-medium rounded-lg transition-all ${
+                    slippage === value
+                      ? 'bg-amber-500 text-white'
+                      : 'bg-white text-amber-700 hover:bg-amber-100'
+                  } disabled:opacity-50`}
+                >
+                  {value}%
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-amber-600 mt-2">
+              AMM prices change with each trade. Higher slippage = more likely to succeed.
+            </p>
+          </motion.div>
+        )}
+
+        {/* AMM Liquidity Info */}
+        {tradingMode === 'amm' && ammContext && (
+          <motion.div variants={itemVariants} className="bg-gray-50 rounded-xl p-3">
+            <p className="text-xs font-medium text-gray-500 mb-2 uppercase tracking-wide">
+              Pool Liquidity
+            </p>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <p className="text-gray-500">XLM Reserve</p>
+                <p className="font-semibold">
+                  {(Number(ammContext.token0 === CONTRACT_IDS.xlmSacAddress ? ammContext.reserve0 : ammContext.reserve1) / 10_000_000).toLocaleString()} XLM
+                </p>
+              </div>
+              <div>
+                <p className="text-gray-500">{tokenSymbol} Reserve</p>
+                <p className="font-semibold">
+                  {(Number(ammContext.token0 === CONTRACT_IDS.xlmSacAddress ? ammContext.reserve1 : ammContext.reserve0) / 10_000_000).toLocaleString()} {tokenSymbol}
+                </p>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
         {/* User Balance Display */}
         <motion.div variants={itemVariants}>
           <UserBalanceDisplay
@@ -651,9 +977,53 @@ export function TradingWidgetPremium({
           {/* Note: No price impact warning needed - bonding curve pricing is deterministic */}
         </motion.div>
 
-        {/* Trade Protection Info - Bonding curve is deterministic */}
+        {/* Graduation Warning - Only for bonding curve mode (not yet graduated) */}
+        {tradingMode === 'bonding' && tradeType === 'buy' && graduationInfo.remaining > 0 && (
+          <motion.div variants={itemVariants}>
+            {graduationInfo.wouldTriggerGraduation ? (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-yellow-800">
+                      This purchase will trigger graduation!
+                    </p>
+                    <p className="text-xs text-yellow-600 mt-1">
+                      Only {graduationInfo.remaining.toFixed(2)} XLM needed to graduate.
+                      Your purchase of {parseFloat(inputAmount).toFixed(2)} XLM exceeds this amount.
+                      The token will move to the AMM after this trade.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setInputAmount(Math.max(graduationInfo.remaining - 1, 0.1).toFixed(2))}
+                      className="mt-2 text-xs font-medium text-yellow-700 hover:text-yellow-800 underline"
+                    >
+                      Set to max: {Math.max(graduationInfo.remaining - 1, 0.1).toFixed(2)} XLM
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : graduationInfo.isNearGraduation ? (
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
+                <div className="flex items-center gap-2 text-blue-700">
+                  <TrendingUp className="h-4 w-4" />
+                  <p className="text-sm">
+                    <span className="font-medium">Almost graduated!</span>
+                    {' '}Only {graduationInfo.remaining.toFixed(2)} XLM left
+                  </p>
+                </div>
+              </div>
+            ) : null}
+          </motion.div>
+        )}
+
+        {/* Trade Protection Info - Context-aware message */}
         <motion.div variants={itemVariants} className="text-xs text-gray-500 text-center py-1">
-          Price is calculated instantly from bonding curve (no external liquidity)
+          {tradingMode === 'amm' ? (
+            <>Price from AMM pool (x*y=k). Slippage: {slippage}%</>
+          ) : (
+            <>Price is calculated instantly from bonding curve (no external liquidity)</>
+          )}
         </motion.div>
 
         {/* Transaction Status */}
@@ -696,6 +1066,7 @@ export function TradingWidgetPremium({
           <TradeInfoPanel
             tokenInfo={tokenInfo}
             tokenSymbol={tokenSymbol}
+            inputAmount={inputAmount}
             outputAmount={outputAmount}
             slippage={slippage}
             tradeType={tradeType}

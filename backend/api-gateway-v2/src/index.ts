@@ -108,81 +108,16 @@ async function startServer() {
     try {
         logger.info('Initializing Apollo Server...');
 
-        // Create Express app
-        const app = express();
+        // Create Express app and Apollo Server using factory
+        const { app, server } = await import('./app.js').then(m => m.createApp());
 
-        // MONITORING: Sentry request handler (must be first)
-        app.use(sentryRequestHandler());
-
-        // SECURITY: CORS configuration
-        app.use(cors({
-            origin: isProduction ? allowedOrigins : '*',
-            credentials: true,
-        }));
-
-        app.use(express.json());
-
-        // Explicitly type the ApolloServer with our GraphQLContext
-        const server = new ApolloServer<GraphQLContext>({
-            typeDefs: schema,
-            resolvers: resolvers as any, // Cast to any to avoid type conflicts
-            formatError: (formattedError, error) => {
-                // SECURITY: Don't leak internal errors in production
-                if (isProduction) {
-                    logger.error({ error }, 'GraphQL Error');
-                    // Return sanitized error without internal details
-                    return {
-                        message: formattedError.message,
-                        path: formattedError.path,
-                        extensions: {
-                            code: formattedError.extensions?.code || 'INTERNAL_SERVER_ERROR',
-                        },
-                    };
-                }
-                logger.error({ error }, 'GraphQL Error');
-                return formattedError;
-            },
-            includeStacktraceInErrorResponses: !isProduction,
-            // SECURITY: Enable introspection for Apollo Explorer/Playground (controlled by env)
-            introspection: env.GRAPHQL_INTROSPECTION,
-            // Security: Query depth and complexity limits
-            validationRules,
-            plugins: [
-                createComplexityPlugin(), // Enforces max query complexity
-                createRateLimitPlugin(),  // Global rate limiting per IP
-            ],
-        });
+        // Store server reference for graceful shutdown
+        serverInstance = server;
 
         // Log introspection status for developers
         if (env.GRAPHQL_INTROSPECTION) {
             logger.info('📚 GraphQL Introspection ENABLED - Apollo Explorer available at endpoint');
         }
-
-        // Start Apollo Server
-        await server.start();
-
-        // Store server reference for graceful shutdown
-        serverInstance = server;
-
-        // Apply Apollo middleware to Express
-        app.use('/graphql', expressMiddleware(server, {
-            context: async ({ req }) => createContext(req as any),
-        }));
-
-        // WebSocket stats endpoint
-        app.get('/ws/stats', (req, res) => {
-            if (wsManager) {
-                res.json(wsManager.getStats());
-            } else {
-                res.status(503).json({ error: 'WebSocket not initialized' });
-            }
-        });
-
-        // MONITORING: Sentry error handler (must be after all routes, before custom error handler)
-        app.use(sentryErrorHandler());
-
-        // MONITORING: Custom error handler
-        app.use(errorHandlerMiddleware);
 
         // Create HTTP server
         const httpServer = http.createServer(app);

@@ -643,17 +643,17 @@ describe('useApi Hooks', () => {
   describe('Query Variables', () => {
     it('should update when variables change', () => {
       const { result, rerender } = renderHook(
-        ({ search }: { search?: string }) =>
+        ({ search }: { search: string | undefined }) =>
           useTokens({ where: { search } }),
         {
           wrapper,
-          initialProps: { search: undefined },
+          initialProps: { search: undefined as string | undefined },
         }
       );
 
       expect(result.current.loading).toBeDefined();
 
-      rerender({ search: 'ASTRO' });
+      rerender({ search: 'ASTRO' as string | undefined });
 
       expect(result.current.loading).toBeDefined();
     });

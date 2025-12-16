@@ -70,25 +70,24 @@ const mockWalletContext = {
 };
 
 const mockTokenInfo = {
+  id: 1,
+  creator: 'GXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',
+  token_address: 'CTEST123',
   name: 'Test Token',
   symbol: 'TEST',
-  decimals: 7,
-  total_supply: '1000000000',
-  xlm_raised: '5000000000',
-  creator: 'GXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',
   issuer: 'GXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',
-  xlm_reserve: '5000000000',
-  token_reserve: '500000000',
-  virtual_xlm_reserve: '5000000000',
-  virtual_token_reserve: '500000000',
-  initial_virtual_xlm_reserve: '30000000000',
-  initial_virtual_token_reserve: '1073000000000',
-  status: 'Active',
   image_url: 'https://example.com/token.png',
+  description: 'Test token description',
+  created_at: Date.now(),
+  status: 'Bonding' as any,
+  bonding_curve: {
+    xlm_reserve: '5000000000',
+    token_reserve: '500000000',
+    k: '2500000000000000000',
+  },
+  xlm_raised: '5000000000',
   market_cap: '69000000000',
-  price: '10000000',
   holders_count: 42,
-  k_last: '2500000000000000000',
 };
 
 const mockGraphQLResponse = {
@@ -389,11 +388,23 @@ describe('TradingWidget', () => {
       vi.mocked(sacFactoryService.getTokenInfo).mockResolvedValue(mockTokenInfo);
       vi.mocked(sacFactoryService.calculateBuyOutputNet).mockReturnValue({
         tokensOut: BigInt(100_000_000),
-        feeAmount: BigInt(500_000),
+        feeBreakdown: {
+          grossAmount: BigInt(100_500_000),
+          protocolFee: BigInt(50_000),
+          lpFee: BigInt(450_000),
+          totalFees: BigInt(500_000),
+          netAmount: BigInt(100_000_000),
+        },
       });
       vi.mocked(sacFactoryService.calculateSellOutputNet).mockReturnValue({
         xlmOut: BigInt(50_000_000),
-        feeAmount: BigInt(250_000),
+        feeBreakdown: {
+          grossAmount: BigInt(50_250_000),
+          protocolFee: BigInt(25_000),
+          lpFee: BigInt(225_000),
+          totalFees: BigInt(250_000),
+          netAmount: BigInt(50_000_000),
+        },
       });
     });
 
@@ -428,14 +439,16 @@ describe('TradingWidget', () => {
 
     it('should show calculating state during output calculation', async () => {
       vi.mocked(sacFactoryService.calculateBuyOutputNet).mockImplementation(() => {
-        return new Promise((resolve) => {
-          setTimeout(() => {
-            resolve({
-              tokensOut: BigInt(100_000_000),
-              feeAmount: BigInt(500_000),
-            });
-          }, 100);
-        });
+        return {
+          tokensOut: BigInt(100_000_000),
+          feeBreakdown: {
+            grossAmount: BigInt(100_500_000),
+            protocolFee: BigInt(50_000),
+            lpFee: BigInt(450_000),
+            totalFees: BigInt(500_000),
+            netAmount: BigInt(100_000_000),
+          },
+        };
       });
 
       render(
@@ -461,29 +474,41 @@ describe('TradingWidget', () => {
 
     it('should calculate fees correctly for buy orders', () => {
       const xlmAmount = BigInt(100_000_000); // 10 XLM
-      const expectedFee = BigInt(500_000); // 0.05 XLM (0.5%)
+      const expectedTotalFees = BigInt(500_000); // 0.05 XLM (0.5%)
 
       vi.mocked(sacFactoryService.calculateBuyOutputNet).mockReturnValue({
         tokensOut: BigInt(95_000_000),
-        feeAmount: expectedFee,
+        feeBreakdown: {
+          grossAmount: BigInt(100_000_000),
+          protocolFee: BigInt(50_000),
+          lpFee: BigInt(450_000),
+          totalFees: expectedTotalFees,
+          netAmount: BigInt(99_500_000),
+        },
       });
 
       // Fee calculation is done in the service, verify it's called correctly
       const result = sacFactoryService.calculateBuyOutputNet(mockTokenInfo, xlmAmount);
-      expect(result.feeAmount).toBe(expectedFee);
+      expect(result.feeBreakdown.totalFees).toBe(expectedTotalFees);
     });
 
     it('should calculate fees correctly for sell orders', () => {
       const tokenAmount = BigInt(100_000_000); // 10 tokens
-      const expectedFee = BigInt(250_000); // 0.025 XLM (0.5% of output)
+      const expectedTotalFees = BigInt(250_000); // 0.025 XLM (0.5% of output)
 
       vi.mocked(sacFactoryService.calculateSellOutputNet).mockReturnValue({
         xlmOut: BigInt(49_750_000),
-        feeAmount: expectedFee,
+        feeBreakdown: {
+          grossAmount: BigInt(50_000_000),
+          protocolFee: BigInt(25_000),
+          lpFee: BigInt(225_000),
+          totalFees: expectedTotalFees,
+          netAmount: BigInt(49_750_000),
+        },
       });
 
       const result = sacFactoryService.calculateSellOutputNet(mockTokenInfo, tokenAmount);
-      expect(result.feeAmount).toBe(expectedFee);
+      expect(result.feeBreakdown.totalFees).toBe(expectedTotalFees);
     });
   });
 
@@ -653,7 +678,7 @@ describe('TradingWidget', () => {
       vi.mocked(sacFactoryService.getTokenInfo).mockResolvedValue({
         ...mockTokenInfo,
         xlm_raised: '34500000000', // 50% of 69k XLM
-      });
+      } as any);
 
       render(
         <MockedProvider mocks={[mockGraphQLResponse]} addTypename={false}>
@@ -673,9 +698,9 @@ describe('TradingWidget', () => {
 
       vi.mocked(sacFactoryService.getTokenInfo).mockResolvedValue({
         ...mockTokenInfo,
-        status: 'Graduated',
+        status: 'Graduated' as any,
         xlm_raised: '69000000000', // 69k XLM
-      });
+      } as any);
 
       render(
         <MockedProvider mocks={[mockGraphQLResponse]} addTypename={false}>

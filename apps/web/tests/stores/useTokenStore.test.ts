@@ -8,7 +8,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
 import { useTokenStore } from '@/stores/useTokenStore';
-import { sacFactoryService, type TokenInfo } from '@/lib/stellar/services/sac-factory.service';
+import { sacFactoryService, type TokenInfo, TokenStatus } from '@/lib/stellar/services/sac-factory.service';
 import { getGraphQLClient } from '@/lib/graphql/client';
 
 // Mock dependencies
@@ -16,26 +16,24 @@ vi.mock('@/lib/stellar/services/sac-factory.service');
 vi.mock('@/lib/graphql/client');
 
 const mockTokenInfo: TokenInfo = {
+  id: 1,
+  creator: 'GXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',
+  token_address: 'CXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',
   name: 'Test Token',
   symbol: 'TEST',
-  decimals: 7,
-  total_supply: '1000000000',
-  xlm_raised: '5000000000',
-  creator: 'GXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',
   issuer: 'GXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',
-  xlm_reserve: '5000000000',
-  token_reserve: '500000000',
-  virtual_xlm_reserve: '5000000000',
-  virtual_token_reserve: '500000000',
-  initial_virtual_xlm_reserve: '30000000000',
-  initial_virtual_token_reserve: '1073000000000',
-  status: 'Active',
   image_url: 'https://example.com/token.png',
   description: 'Test token description',
+  created_at: Date.now(),
+  status: TokenStatus.Bonding,
+  bonding_curve: {
+    xlm_reserve: '5000000000',
+    token_reserve: '500000000',
+    k: '2500000000000000000',
+  },
+  xlm_raised: '5000000000',
   market_cap: '69000000000',
-  price: '10000000',
   holders_count: 42,
-  k_last: '2500000000000000000',
 };
 
 const mockGraphQLClient = {

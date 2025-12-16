@@ -56,4 +56,27 @@ export declare function requireAdmin(context: GraphQLContext): void;
  * Get user address from context - throws if not authenticated
  */
 export declare function getUserAddress(context: GraphQLContext): string;
+/**
+ * Validate admin API key from X-Admin-Key header
+ * Uses timing-safe comparison to prevent timing attacks
+ *
+ * SECURITY: Admin key must be sent via header, NOT in GraphQL arguments
+ * This prevents the key from being logged or visible in browser DevTools
+ *
+ * @param context - GraphQL context with request headers
+ * @returns Object with valid flag and optional error message
+ */
+export declare function validateAdminKeyFromHeader(context: GraphQLContext): {
+    valid: boolean;
+    error?: string;
+    adminKey?: string;
+};
+/**
+ * Require valid admin API key from X-Admin-Key header
+ * Throws an error if the key is missing or invalid
+ *
+ * @param context - GraphQL context with request headers
+ * @throws Error if admin key is invalid
+ */
+export declare function requireAdminApiKey(context: GraphQLContext): void;
 //# sourceMappingURL=context.d.ts.map

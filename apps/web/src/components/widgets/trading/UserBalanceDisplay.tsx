@@ -15,6 +15,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { stellarClient } from '@/lib/stellar/client';
 import { formatCompactNumber } from '@/lib/stellar/utils';
 import { sacFactoryService } from '@/lib/stellar/services/sac-factory.service';
+import { useBalanceRefresh } from '@/lib/events/balanceRefresh';
 
 interface UserBalanceDisplayProps {
   userAddress: string | null;
@@ -135,6 +136,9 @@ export const UserBalanceDisplay = memo(function UserBalanceDisplay({
       clearInterval(interval);
     };
   }, [fetchBalances]);
+
+  // Listen for balance refresh events (triggered after successful trades)
+  useBalanceRefresh(fetchBalances);
 
   if (!isConnected) {
     return null;

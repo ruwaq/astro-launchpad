@@ -47,6 +47,16 @@ export enum BondingCurveType {
   SIGMOID = 'SIGMOID',
 }
 
+export enum GraduationEventType {
+  GRADUATED = 'GRADUATED',
+  GRADUATION_DETAILED = 'GRADUATION_DETAILED',
+  GRADUATION_FAILED = 'GRADUATION_FAILED',
+  TOKEN_RECOVERED = 'TOKEN_RECOVERED',
+  GRADUATION_RETRIED = 'GRADUATION_RETRIED',
+  BRIDGE_GRADUATION = 'BRIDGE_GRADUATION',
+  GRADUATION_WITH_ASTRO = 'GRADUATION_WITH_ASTRO',
+}
+
 // ============================================================================
 // Input Types
 // ============================================================================
@@ -87,6 +97,18 @@ export interface PageInfo {
   endCursor?: string | null;
 }
 
+export interface GraduationEventInfo {
+  id: string;
+  type: GraduationEventType;
+  ammPairAddress?: string | null;
+  lpTokensBurned?: string | null;
+  xlmRaised?: string | null;
+  tokensGraduated?: string | null;
+  timestamp: string;
+  txHash?: string | null;
+  blockNumber?: string | null;
+}
+
 export interface Token {
   id?: string;
   address: string;
@@ -121,6 +143,9 @@ export interface Token {
   graduatedAt?: string;
   xlmRaised?: string;
   xlmReserve?: string;
+  // Graduation event fields
+  ammPairAddress?: string | null;
+  graduationEvent?: GraduationEventInfo | null;
 }
 
 export interface TokenEdge {

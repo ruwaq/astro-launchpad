@@ -17,7 +17,7 @@ vi.mock('@creit.tech/stellar-wallets-kit', () => {
     setWallet: vi.fn(),
     getAddress: vi.fn(),
     signTransaction: vi.fn(),
-    signBlob: vi.fn(),
+    // signBlob is not in the actual SDK
   };
 
   return {
@@ -421,16 +421,14 @@ describe('WalletContext', () => {
   });
 
   describe('Authentication', () => {
-    it('should sign auth message successfully', async () => {
+    it('should return null for sign auth message (feature not implemented)', async () => {
       const mockAddress = 'GXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX';
-      const mockSignature = 'base64signature==';
       const mockKit = new StellarWalletsKit({} as any);
 
       (mockKit.openModal as any).mockImplementation(async ({ onWalletSelected }: any) => {
         await onWalletSelected({ id: 'freighter', name: 'Freighter' });
       });
       (mockKit.getAddress as any).mockResolvedValue({ address: mockAddress });
-      (mockKit.signBlob as any).mockResolvedValue({ signedBlob: mockSignature });
 
       const { result } = renderHook(() => useWallet(), {
         wrapper: WalletProvider,
@@ -446,49 +444,18 @@ describe('WalletContext', () => {
         authData = await result.current.signAuthMessage();
       });
 
-      expect(authData).toEqual({
-        signature: mockSignature,
-        timestamp: expect.any(String),
-      });
-    });
-
-    it('should return null when wallet does not support message signing', async () => {
-      const mockAddress = 'GXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX';
-      const mockKit = new StellarWalletsKit({} as any);
-
-      (mockKit.openModal as any).mockImplementation(async ({ onWalletSelected }: any) => {
-        await onWalletSelected({ id: 'freighter', name: 'Freighter' });
-      });
-      (mockKit.getAddress as any).mockResolvedValue({ address: mockAddress });
-      (mockKit.signBlob as any).mockRejectedValue(new Error('Not supported'));
-
-      const { result } = renderHook(() => useWallet(), {
-        wrapper: WalletProvider,
-      });
-
-      await act(async () => {
-        await result.current.connect();
-      });
-
-      let authData: any = null;
-
-      await act(async () => {
-        authData = await result.current.signAuthMessage();
-      });
-
+      // Since signBlob is not available, should return null
       expect(authData).toBeNull();
     });
 
-    it('should get auth headers with signature', async () => {
+    it('should get auth headers with address only', async () => {
       const mockAddress = 'GXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX';
-      const mockSignature = 'base64signature==';
       const mockKit = new StellarWalletsKit({} as any);
 
       (mockKit.openModal as any).mockImplementation(async ({ onWalletSelected }: any) => {
         await onWalletSelected({ id: 'freighter', name: 'Freighter' });
       });
       (mockKit.getAddress as any).mockResolvedValue({ address: mockAddress });
-      (mockKit.signBlob as any).mockResolvedValue({ signedBlob: mockSignature });
 
       const { result } = renderHook(() => useWallet(), {
         wrapper: WalletProvider,
@@ -504,37 +471,7 @@ describe('WalletContext', () => {
         headers = await result.current.getAuthHeaders();
       });
 
-      expect(headers).toEqual({
-        'X-Stellar-Address': mockAddress,
-        'X-Stellar-Signature': mockSignature,
-        'X-Stellar-Timestamp': expect.any(String),
-      });
-    });
-
-    it('should get auth headers without signature when not supported', async () => {
-      const mockAddress = 'GXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX';
-      const mockKit = new StellarWalletsKit({} as any);
-
-      (mockKit.openModal as any).mockImplementation(async ({ onWalletSelected }: any) => {
-        await onWalletSelected({ id: 'freighter', name: 'Freighter' });
-      });
-      (mockKit.getAddress as any).mockResolvedValue({ address: mockAddress });
-      (mockKit.signBlob as any).mockRejectedValue(new Error('Not supported'));
-
-      const { result } = renderHook(() => useWallet(), {
-        wrapper: WalletProvider,
-      });
-
-      await act(async () => {
-        await result.current.connect();
-      });
-
-      let headers: any = {};
-
-      await act(async () => {
-        headers = await result.current.getAuthHeaders();
-      });
-
+      // Should only contain address (no signature since signBlob not available)
       expect(headers).toEqual({
         'X-Stellar-Address': mockAddress,
       });

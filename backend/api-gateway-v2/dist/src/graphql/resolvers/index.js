@@ -2,6 +2,7 @@
  * GraphQL Resolvers
  * Handles all GraphQL queries and mutations
  */
+import { validateAdminKeyFromHeader } from '../context.js';
 import { GraphQLError } from 'graphql';
 import { validateStellarAddress, validateLimit, validateOffset, validateSearchString, validateOrderBy, validateTimeframe, validateLeaderboardType, validateTransactionType, } from '../../lib/validators.js';
 import { checkDatabaseHealth } from '../../lib/prisma.js';
@@ -11,7 +12,6 @@ import { feeResolvers, feeTypeResolvers } from './fee-resolvers.js';
 import { syncTokenToDatabase } from '../../lib/sync-service.js';
 import { logger } from '../../lib/logger.js';
 import { syncTokenRateLimiter, adminRateLimiter, trackFailedAdminAuth, } from '../../lib/rate-limiter.js';
-import crypto from 'crypto';
 /**
  * Custom scalar resolvers
  */
@@ -751,29 +751,15 @@ const queryResolvers = {
         });
     },
 };
-// Admin key for delete operations (MUST be set in env vars in production)
-const ADMIN_KEY = process.env.ADMIN_API_KEY;
-if (!ADMIN_KEY && process.env.NODE_ENV === 'production') {
-    throw new Error('ADMIN_API_KEY environment variable is required in production');
-}
-/**
- * Secure comparison to prevent timing attacks
- */
-function secureCompare(a, b) {
-    if (!a || !b)
-        return false;
-    try {
-        return crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
-    }
-    catch {
-        return false;
-    }
-}
+// Admin key validation moved to context.ts - validateAdminKeyFromHeader()
+// SECURITY: Admin key is now read from X-Admin-Key header instead of GraphQL arguments
+// This prevents the key from being logged or visible in browser DevTools
 /**
  * Mutation resolvers
  */
 const mutationResolvers = {
     // Delete a single token from database (admin only)
+    // SECURITY: Admin key must be sent via X-Admin-Key header (not in GraphQL arguments)
     deleteToken: async (_parent, args, context) => {
         // Get client IP for rate limiting
         const clientIP = context.request?.headers?.['x-forwarded-for'] || 'unknown';
@@ -787,8 +773,9 @@ const mutationResolvers = {
                 message: `Rate limit exceeded. Try again in ${rateLimitResult.retryAfter} seconds.`,
             };
         }
-        // Validate admin key with timing-safe comparison
-        if (!ADMIN_KEY || !secureCompare(args.adminKey, ADMIN_KEY)) {
+        // SECURITY: Validate admin key from X-Admin-Key header (timing-safe)
+        const adminKeyResult = validateAdminKeyFromHeader(context);
+        if (!adminKeyResult.valid) {
             // Track failed auth attempts
             const authResult = await trackFailedAdminAuth(clientIP);
             if (authResult.blocked) {
@@ -799,11 +786,11 @@ const mutationResolvers = {
                     message: 'Too many failed attempts. Please try again later.',
                 };
             }
-            logger.warn({ tokenAddress: args.tokenAddress, clientIP, attemptsRemaining: authResult.attemptsRemaining }, '[Admin] Unauthorized delete attempt');
+            logger.warn({ tokenAddress: args.tokenAddress, clientIP, attemptsRemaining: authResult.attemptsRemaining, error: adminKeyResult.error }, '[Admin] Unauthorized delete attempt');
             return {
                 success: false,
                 address: args.tokenAddress,
-                message: 'Unauthorized: Invalid admin key',
+                message: `Unauthorized: ${adminKeyResult.error}`,
             };
         }
         const tokenAddress = validateStellarAddress(args.tokenAddress, 'token address');
@@ -845,6 +832,7 @@ const mutationResolvers = {
         }
     },
     // Delete multiple tokens from database (admin only)
+    // SECURITY: Admin key must be sent via X-Admin-Key header (not in GraphQL arguments)
     deleteTokensBatch: async (_parent, args, context) => {
         // Get client IP for rate limiting
         const clientIP = context.request?.headers?.['x-forwarded-for'] || 'unknown';
@@ -863,8 +851,9 @@ const mutationResolvers = {
                 })),
             };
         }
-        // Validate admin key with timing-safe comparison
-        if (!ADMIN_KEY || !secureCompare(args.adminKey, ADMIN_KEY)) {
+        // SECURITY: Validate admin key from X-Admin-Key header (timing-safe)
+        const adminKeyResult = validateAdminKeyFromHeader(context);
+        if (!adminKeyResult.valid) {
             // Track failed auth attempts
             const authResult = await trackFailedAdminAuth(clientIP);
             if (authResult.blocked) {
@@ -880,7 +869,7 @@ const mutationResolvers = {
                     })),
                 };
             }
-            logger.warn({ count: args.tokenAddresses.length, clientIP, attemptsRemaining: authResult.attemptsRemaining }, '[Admin] Unauthorized batch delete attempt');
+            logger.warn({ count: args.tokenAddresses.length, clientIP, attemptsRemaining: authResult.attemptsRemaining, error: adminKeyResult.error }, '[Admin] Unauthorized batch delete attempt');
             return {
                 success: false,
                 deletedCount: 0,
@@ -888,7 +877,7 @@ const mutationResolvers = {
                 results: args.tokenAddresses.map((address) => ({
                     success: false,
                     address,
-                    message: 'Unauthorized: Invalid admin key',
+                    message: `Unauthorized: ${adminKeyResult.error}`,
                 })),
             };
         }
@@ -1034,6 +1023,26 @@ const fieldResolvers = {
         holders: (parent) => parent.holders || 0,
         xlmReserve: (parent) => parent.xlmReserve || '0',
         xlmRaised: (parent) => parent.xlmRaised || parent.xlmReserve || '0',
+        // Graduation fields (only for graduated tokens)
+        ammPairAddress: async (parent, _args, context) => {
+            if (!parent.graduated)
+                return null;
+            // Use DataLoader to batch graduation event lookups
+            return context.loaders.graduationEventLoader.load(parent.address);
+        },
+        graduationEvent: async (parent, _args, context) => {
+            if (!parent.graduated)
+                return null;
+            // Fetch full graduation event details
+            const event = await context.prisma.graduationEvent.findFirst({
+                where: {
+                    tokenAddress: parent.address,
+                    type: { in: ['GRADUATED', 'GRADUATION_DETAILED', 'GRADUATION_WITH_ASTRO'] },
+                },
+                orderBy: { timestamp: 'desc' },
+            });
+            return event;
+        },
         // Creator user relationship
         creatorUser: async (parent, _args, context) => {
             // Use DataLoader to batch user lookups

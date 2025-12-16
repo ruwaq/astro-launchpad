@@ -365,6 +365,25 @@ pub fn set_astro_amm_address(env: &Env, address: &Address) {
     env.storage().instance().set(&InstanceKey::AstroAmmAddress, address);
 }
 
+/// Clear ASTRO token address (disables ASTRO integration)
+pub fn clear_astro_token_address(env: &Env) {
+    env.storage().instance().remove(&InstanceKey::AstroTokenAddress);
+}
+
+/// Clear ASTRO AMM address
+pub fn clear_astro_amm_address(env: &Env) {
+    env.storage().instance().remove(&InstanceKey::AstroAmmAddress);
+}
+
+/// Clear all ASTRO configuration (disables ASTRO integration)
+pub fn clear_astro_config(env: &Env) {
+    clear_astro_token_address(env);
+    clear_astro_amm_address(env);
+    // Also clear the basis points to reset to defaults
+    env.storage().instance().remove(&InstanceKey::AstroLiquidityBps);
+    env.storage().instance().remove(&InstanceKey::AstroBuybackBps);
+}
+
 /// ASTRO integration configuration
 #[contracttype]
 #[derive(Clone, Debug)]

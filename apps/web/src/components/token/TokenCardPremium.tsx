@@ -32,6 +32,8 @@ import {
   Heart,
   Share2,
   Zap,
+  Star,
+  ExternalLink,
 } from 'lucide-react';
 import { useToken } from '@/hooks/useToken';
 import { usePrice } from '@/hooks/usePrice';
@@ -328,12 +330,49 @@ function TokenCardPremiumInner({
       <Link
         href={`/t/${address}`}
         onClick={onClick}
-        className="block bg-white rounded-xl border border-ui-border hover:border-brand-primary hover:shadow-xl transition-shadow duration-200 overflow-hidden group"
+        className={`block bg-white rounded-xl border overflow-hidden group transition-all duration-200 ${
+          graduationData.isGraduated
+            ? 'border-green-300 shadow-lg shadow-green-100 hover:shadow-xl hover:shadow-green-200 hover:border-green-400'
+            : 'border-ui-border hover:border-brand-primary hover:shadow-xl'
+        }`}
       >
+        {/* Graduated Token Ribbon */}
+        {graduationData.isGraduated && (
+          <>
+            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-green-400 via-emerald-500 to-green-400 z-20" />
+            {/* Subtle sparkle effect overlay */}
+            <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-xl z-10">
+              <motion.div
+                className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-yellow-200/20 to-transparent rounded-full blur-2xl"
+                animate={{
+                  scale: [1, 1.2, 1],
+                  opacity: [0.3, 0.5, 0.3],
+                }}
+                transition={{
+                  duration: 3,
+                  repeat: Infinity,
+                  ease: "easeInOut"
+                }}
+              />
+            </div>
+          </>
+        )}
+
         <div className="p-4">
           {/* Badges Row */}
           <div className="absolute top-1.5 right-1.5 sm:top-2 sm:right-2 flex gap-0.5 sm:gap-1 z-10">
             <AnimatePresence>
+              {graduationData.isGraduated && (
+                <motion.div
+                  variants={badgeVariants}
+                  initial="hidden"
+                  animate="visible"
+                  className="flex items-center gap-1 bg-gradient-to-r from-green-500 via-emerald-500 to-green-500 text-white text-xs font-bold px-2 py-1 rounded-full shadow-lg"
+                >
+                  <Star className="h-3 w-3 fill-yellow-300 text-yellow-300" />
+                  GRADUATED
+                </motion.div>
+              )}
               {trendingRank && trendingRank <= 10 && (
                 <motion.div
                   variants={badgeVariants}
@@ -345,7 +384,7 @@ function TokenCardPremiumInner({
                   #{trendingRank}
                 </motion.div>
               )}
-              {isNew && (
+              {isNew && !graduationData.isGraduated && (
                 <motion.div
                   variants={badgeVariants}
                   initial="hidden"
@@ -356,7 +395,7 @@ function TokenCardPremiumInner({
                   NEW
                 </motion.div>
               )}
-              {graduationData.isNearGraduation && (
+              {graduationData.isNearGraduation && !graduationData.isGraduated && (
                 <motion.div
                   variants={badgeVariants}
                   initial="hidden"
@@ -374,7 +413,11 @@ function TokenCardPremiumInner({
           <div className="flex items-start gap-3">
             {/* Token Image with ring effect on hover */}
             <motion.div
-              className="relative w-12 h-12 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0 ring-2 ring-transparent group-hover:ring-brand-primary/30 transition-all duration-300"
+              className={`relative w-12 h-12 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0 ring-2 transition-all duration-300 ${
+                graduationData.isGraduated
+                  ? 'ring-green-400/50 group-hover:ring-green-500/70'
+                  : 'ring-transparent group-hover:ring-brand-primary/30'
+              }`}
               whileHover={{ rotate: [0, -5, 5, 0] }}
               transition={{ duration: 0.5 }}
             >
@@ -460,11 +503,11 @@ function TokenCardPremiumInner({
             </div>
           </div>
 
-          {/* Graduation Progress */}
+          {/* Graduation Progress / Status */}
           {!graduationData.isGraduated ? (
             <div className="mt-4">
               <div className="flex items-center justify-between text-xs mb-1">
-                <span className="text-ui-text-secondary">Bonding Curve</span>
+                <span className="text-ui-text-secondary">Bonding Curve Progress</span>
                 <span className={`font-bold ${graduationData.isNearGraduation ? 'text-orange-500 animate-pulse' : 'text-brand-primary'}`}>
                   {graduationData.percent.toFixed(1)}%
                 </span>
@@ -498,10 +541,15 @@ function TokenCardPremiumInner({
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="mt-4 flex items-center justify-center gap-2 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg py-2"
+              className="mt-4 space-y-2"
             >
-              <GraduationCap className="h-5 w-5 text-green-600" />
-              <span className="text-sm font-bold text-green-700">GRADUATED TO DEX</span>
+              <div className="flex items-center justify-center gap-2 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg py-2.5">
+                <GraduationCap className="h-5 w-5 text-green-600" />
+                <span className="text-sm font-bold text-green-700">Trading on DEX</span>
+              </div>
+              <div className="text-center text-xs text-green-600 font-medium">
+                🎉 Successfully graduated with locked liquidity
+              </div>
             </motion.div>
           )}
 
@@ -513,11 +561,24 @@ function TokenCardPremiumInner({
               className="flex gap-2 mt-4 pt-4 border-t border-ui-border opacity-0 group-hover:opacity-100 transition-opacity duration-200"
             >
               <button
-                className="flex-1 flex items-center justify-center gap-2 bg-brand-primary text-white font-semibold py-2.5 sm:py-2 px-4 min-h-[44px] rounded-lg hover:bg-brand-primary/90 transition-colors"
+                className={`flex-1 flex items-center justify-center gap-2 font-semibold py-2.5 sm:py-2 px-4 min-h-[44px] rounded-lg transition-colors ${
+                  graduationData.isGraduated
+                    ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700'
+                    : 'bg-brand-primary text-white hover:bg-brand-primary/90'
+                }`}
                 onClick={handleQuickBuy}
               >
-                <Zap className="h-4 w-4" />
-                Quick Buy
+                {graduationData.isGraduated ? (
+                  <>
+                    <ExternalLink className="h-4 w-4" />
+                    Trade on DEX
+                  </>
+                ) : (
+                  <>
+                    <Zap className="h-4 w-4" />
+                    Quick Buy
+                  </>
+                )}
               </button>
               <button
                 className="p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg border border-ui-border hover:bg-gray-50 transition-colors"

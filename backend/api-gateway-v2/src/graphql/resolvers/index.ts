@@ -1183,6 +1183,26 @@ const fieldResolvers = {
     xlmReserve: (parent: any) => parent.xlmReserve || '0',
     xlmRaised: (parent: any) => parent.xlmRaised || parent.xlmReserve || '0',
 
+    // Graduation fields (only for graduated tokens)
+    ammPairAddress: async (parent: any, _args: any, context: GraphQLContext) => {
+      if (!parent.graduated) return null
+      // Use DataLoader to batch graduation event lookups
+      return context.loaders.graduationEventLoader.load(parent.address)
+    },
+
+    graduationEvent: async (parent: any, _args: any, context: GraphQLContext) => {
+      if (!parent.graduated) return null
+      // Fetch full graduation event details
+      const event = await context.prisma.graduationEvent.findFirst({
+        where: {
+          tokenAddress: parent.address,
+          type: { in: ['GRADUATED', 'GRADUATION_DETAILED', 'GRADUATION_WITH_ASTRO'] },
+        },
+        orderBy: { timestamp: 'desc' },
+      })
+      return event
+    },
+
     // Creator user relationship
     creatorUser: async (parent: any, _args: any, context: GraphQLContext) => {
       // Use DataLoader to batch user lookups

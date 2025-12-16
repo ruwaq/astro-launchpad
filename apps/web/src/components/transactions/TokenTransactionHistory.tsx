@@ -18,6 +18,7 @@ import {
   User,
   AlertCircle,
   Rocket,
+  ArrowLeftRight,
 } from 'lucide-react';
 import { useQuery, gql } from '@apollo/client';
 import { formatCompactNumber, stroopsToXlm } from '@/lib/stellar/utils';
@@ -46,7 +47,7 @@ const GET_TOKEN_TRANSACTIONS = gql`
 
 // Transaction types from API
 type ApiTransactionType = 'TOKEN_CREATED' | 'TOKEN_BOUGHT' | 'TOKEN_SOLD' | 'LIQUIDITY_ADDED' | 'LIQUIDITY_REMOVED' | 'SWAP';
-type DisplayTransactionType = 'buy' | 'sell' | 'create';
+type DisplayTransactionType = 'buy' | 'sell' | 'create' | 'swap';
 
 interface TransactionNode {
   id: string;
@@ -73,6 +74,7 @@ function mapTransactionType(apiType: string): DisplayTransactionType | null {
     case 'TOKEN_BOUGHT': return 'buy';
     case 'TOKEN_SOLD': return 'sell';
     case 'TOKEN_CREATED': return 'create';
+    case 'SWAP': return 'swap';
     default: return null;
   }
 }
@@ -86,6 +88,8 @@ function getTransactionIcon(type: DisplayTransactionType) {
       return <TrendingDown className="h-4 w-4 text-red-600" />;
     case 'create':
       return <Rocket className="h-4 w-4 text-brand-primary" />;
+    case 'swap':
+      return <ArrowLeftRight className="h-4 w-4 text-brand-blue" />;
   }
 }
 
@@ -98,6 +102,8 @@ function getTransactionColors(type: DisplayTransactionType) {
       return { bg: 'bg-red-100', border: 'border-l-red-500', text: 'text-red-600' };
     case 'create':
       return { bg: 'bg-brand-primary-50', border: 'border-l-brand-primary', text: 'text-brand-primary' };
+    case 'swap':
+      return { bg: 'bg-blue-100', border: 'border-l-brand-blue', text: 'text-brand-blue' };
   }
 }
 

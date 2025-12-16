@@ -108,6 +108,10 @@ export const schema = `#graphql
     xlmRaised: String!
     initialPrice: String # Initial bonding curve price
 
+    # Graduation info (only for graduated tokens)
+    ammPairAddress: String # AMM pair address after graduation (null if not graduated)
+    graduationEvent: GraduationEventInfo # Full graduation details
+
     # Metrics
     marketCap: String
     currentPrice: String
@@ -131,6 +135,28 @@ export const schema = `#graphql
     # Relations (will use DataLoaders)
     creatorUser: User
     pools: [Pool!]!
+  }
+
+  type GraduationEventInfo {
+    id: ID!
+    type: GraduationEventType!
+    ammPairAddress: String
+    lpTokensBurned: String
+    xlmRaised: String
+    tokensGraduated: String
+    timestamp: DateTime!
+    txHash: String
+    blockNumber: String
+  }
+
+  enum GraduationEventType {
+    GRADUATED
+    GRADUATION_DETAILED
+    GRADUATION_FAILED
+    TOKEN_RECOVERED
+    GRADUATION_RETRIED
+    BRIDGE_GRADUATION
+    GRADUATION_WITH_ASTRO
   }
 
   type Pool {

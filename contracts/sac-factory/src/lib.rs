@@ -1358,6 +1358,34 @@ impl SacFactory {
         astro_client::is_astro_enabled(&env)
     }
 
+    /// Clear ASTRO integration configuration (Owner only)
+    ///
+    /// This disables all ASTRO integration features including:
+    /// - ASTRO/TOKEN liquidity pool creation during graduation
+    /// - ASTRO buyback & burn during graduation
+    ///
+    /// All liquidity will go to the main XLM/TOKEN pool.
+    ///
+    /// # Arguments
+    /// * `admin` - Owner address
+    ///
+    /// # Security
+    /// Only the contract owner can call this function.
+    pub fn clear_astro_config(env: Env, admin: Address) -> Result<(), Error> {
+        admin.require_auth();
+
+        // Only owner can clear ASTRO configuration
+        access_control::require_role(&env, &admin, access_control::Role::Owner)?;
+
+        // Clear all ASTRO config from storage
+        storage::clear_astro_config(&env);
+
+        // Emit event for transparency
+        events::astro_config_cleared(&env, &admin);
+
+        Ok(())
+    }
+
     /// Update ASTRO liquidity allocation (Owner only)
     pub fn set_astro_liquidity_bps(
         env: Env,
@@ -1631,12 +1659,19 @@ impl SacFactory {
                         // 5d. Add liquidity to ASTRO/TOKEN pool
                         // IMPORTANT: AMM's add_liquidity will PULL tokens from factory
                         // Mint tokens TO FACTORY first, then authorize transfers, then add liquidity
-                        let token_sac_client = token::StellarAssetClient::new(env, &token_info.token_address);
                         let deadline = env.ledger().timestamp() + 300;
 
                         // Mint tokens to factory (so add_liquidity can transfer them to AMM)
                         // Factory already has ASTRO from the swap above
-                        token_sac_client.mint(&factory_address, &allocation.tokens_for_astro_pool);
+                        // Check if this is a pure Soroban token (V2) or SAC (V1)
+                        if token_info.issuer.is_empty() {
+                            // Pure Soroban token (V2) - use launchpad_token_client
+                            launchpad_token_client::mint(env, &token_info.token_address, &factory_address, allocation.tokens_for_astro_pool);
+                        } else {
+                            // SAC token (V1) - use StellarAssetClient
+                            let token_sac_client = token::StellarAssetClient::new(env, &token_info.token_address);
+                            token_sac_client.mint(&factory_address, &allocation.tokens_for_astro_pool);
+                        }
 
                         // CRITICAL: Authorize the transfers that AMM's add_liquidity will make on our behalf
                         env.authorize_as_current_contract(soroban_sdk::vec![
@@ -1713,34 +1748,27 @@ impl SacFactory {
         // We must pass amounts in the SAME ORDER the AMM expects them!
         #[cfg(not(test))]
         {
-            let token_sac_client = token::StellarAssetClient::new(env, &token_info.token_address);
             let deadline = env.ledger().timestamp() + 300;
 
             // Mint tokens to factory (so add_liquidity can transfer them to AMM)
-            token_sac_client.mint(&factory_address, &allocation.tokens_for_xlm_pool);
-
-            // CRITICAL: The AMM sorts tokens by address.
-            // We must determine which is token_0 and token_1, and pass amounts in correct order.
-            let xlm_is_token_0 = xlm_address < token_info.token_address;
-
-            // Set up amounts in the order the AMM expects (token_0 first, token_1 second)
-            let (amount_0, amount_1, token_0_contract, token_1_contract) = if xlm_is_token_0 {
-                // XLM < TOKEN: XLM is token_0, TOKEN is token_1
-                (
-                    allocation.xlm_for_xlm_pool,
-                    allocation.tokens_for_xlm_pool,
-                    xlm_address.clone(),
-                    token_info.token_address.clone(),
-                )
+            // Check if this is a pure Soroban token (V2) or SAC (V1)
+            if token_info.issuer.is_empty() {
+                // Pure Soroban token (V2) - use launchpad_token_client
+                launchpad_token_client::mint(env, &token_info.token_address, &factory_address, allocation.tokens_for_xlm_pool);
             } else {
-                // TOKEN < XLM: TOKEN is token_0, XLM is token_1
-                (
-                    allocation.tokens_for_xlm_pool,
-                    allocation.xlm_for_xlm_pool,
-                    token_info.token_address.clone(),
-                    xlm_address.clone(),
-                )
-            };
+                // SAC token (V1) - use StellarAssetClient
+                let token_sac_client = token::StellarAssetClient::new(env, &token_info.token_address);
+                token_sac_client.mint(&factory_address, &allocation.tokens_for_xlm_pool);
+            }
+
+            // CRITICAL: The AMM does NOT sort tokens by address internally.
+            // It uses whatever order was passed to initialize().
+            // We initialized with: token_0 = XLM, token_1 = graduated token
+            // So we must use the SAME order here for authorization and add_liquidity.
+            let amount_0 = allocation.xlm_for_xlm_pool;           // XLM amount (token_0)
+            let amount_1 = allocation.tokens_for_xlm_pool;        // Token amount (token_1)
+            let token_0_contract = xlm_address.clone();           // XLM is token_0
+            let token_1_contract = token_info.token_address.clone(); // Graduated token is token_1
 
             // CRITICAL: Authorize the transfers that AMM's add_liquidity will make on our behalf
             // The AMM contract will call transfer() on both tokens in order: token_0 then token_1
@@ -1857,10 +1885,17 @@ impl SacFactory {
         };
 
         // Mint tokens to factory for transfer to Bridge
+        // Check if this is a pure Soroban token (V2) or SAC (V1)
         #[cfg(not(test))]
         {
-            let token_sac_client = token::StellarAssetClient::new(env, &token_info.token_address);
-            token_sac_client.mint(&factory_address, &total_tokens);
+            if token_info.issuer.is_empty() {
+                // Pure Soroban token (V2) - use launchpad_token_client
+                launchpad_token_client::mint(env, &token_info.token_address, &factory_address, total_tokens);
+            } else {
+                // SAC token (V1) - use StellarAssetClient
+                let token_sac_client = token::StellarAssetClient::new(env, &token_info.token_address);
+                token_sac_client.mint(&factory_address, &total_tokens);
+            }
         }
 
         // Authorize transfers from factory to Bridge

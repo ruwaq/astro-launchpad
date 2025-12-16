@@ -18,6 +18,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { ArrowDown } from 'lucide-react';
 import { useWallet } from '@/contexts/WalletContext';
 import { tradingLogger } from '@/lib/logger';
+import { emitBalanceRefresh } from '@/lib/events/balanceRefresh';
 import { sacFactoryService, toStroopsBigInt, type TokenInfo } from '@/lib/stellar/services/sac-factory.service';
 import { stellarClient, getClientDeadline } from '@/lib/stellar/client';
 import { TransactionBuilder, rpc } from '@stellar/stellar-sdk';
@@ -268,6 +269,9 @@ export function TradingWidget() {
     // Set processing state IMMEDIATELY to prevent race conditions
     setState((prev) => ({ ...prev, isProcessing: true }));
 
+    // Track loading toast for proper cleanup on error
+    let loadingToast = '';
+
     try {
       const config = getNetworkConfig();
       const inputAmount = parseFloat(state.inputAmount);
@@ -275,8 +279,6 @@ export function TradingWidget() {
       // MIN_OUTPUT_TOLERANCE protects against race conditions (another tx changing reserves)
       // This is NOT slippage - bonding curve pricing is deterministic
       const minOutput = outputAmount * (1 - MIN_OUTPUT_TOLERANCE / 100);
-
-      let loadingToast = '';
 
       if (tokenInfo) {
         const soroban = stellarClient.getSoroban();
@@ -457,6 +459,9 @@ export function TradingWidget() {
       // PERFORMANCE: Confetti loaded dynamically only on success
       triggerConfetti();
 
+      // Trigger balance refresh across all components (wallet balance, leaderboard, etc.)
+      emitBalanceRefresh();
+
       setState((prev) => ({
         ...prev,
         inputAmount: '',
@@ -468,6 +473,10 @@ export function TradingWidget() {
         loadTokenInfo(state.selectedToken.address);
       }
     } catch (error) {
+      // CRITICAL: Dismiss loading toast before showing error
+      if (loadingToast) {
+        toast.dismiss(loadingToast);
+      }
       const err = error as { message?: string };
       toast.error(err.message || `Failed to ${state.type}`);
       setState((prev) => ({ ...prev, isProcessing: false }));

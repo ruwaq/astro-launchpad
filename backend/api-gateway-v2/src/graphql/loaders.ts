@@ -32,6 +32,7 @@ export interface DataLoaders {
   tokensByCreatorLoader: DataLoader<string, Token[]>
   poolsByTokenLoader: DataLoader<string, Pool[]>
   achievementsByUserIdLoader: DataLoader<string, Achievement[]>
+  graduationEventLoader: DataLoader<string, string | null>
 }
 
 /**
@@ -182,6 +183,33 @@ function createAchievementsByUserIdLoader(prisma: PrismaClientWithAdapter): Data
 }
 
 /**
+ * Graduation Event Loader
+ * Batches graduation event lookups by token address
+ * Returns ammPairAddress for each graduated token
+ */
+function createGraduationEventLoader(prisma: PrismaClientWithAdapter): DataLoader<string, string | null> {
+  return new DataLoader<string, string | null>(async (tokenAddresses: readonly string[]) => {
+    const events = await prisma.graduationEvent.findMany({
+      where: {
+        tokenAddress: { in: [...tokenAddresses] },
+        type: { in: ['GRADUATED', 'GRADUATION_DETAILED', 'GRADUATION_WITH_ASTRO'] },
+        ammPairAddress: { not: null },
+      },
+      orderBy: { timestamp: 'desc' },
+      distinct: ['tokenAddress'],
+    })
+
+    // Create a map for O(1) lookups
+    const eventMap = new Map<string, string | null>(
+      events.map((event) => [event.tokenAddress, event.ammPairAddress])
+    )
+
+    // Return ammPairAddress in the same order as requested token addresses
+    return tokenAddresses.map((address) => eventMap.get(address) ?? null)
+  })
+}
+
+/**
  * Create all DataLoaders for a request
  * Called once per GraphQL request
  *
@@ -197,6 +225,7 @@ export function createLoaders(prisma: PrismaClientWithAdapter): DataLoaders {
     tokensByCreatorLoader: createTokensByCreatorLoader(prisma),
     poolsByTokenLoader: createPoolsByTokenLoader(prisma),
     achievementsByUserIdLoader: createAchievementsByUserIdLoader(prisma),
+    graduationEventLoader: createGraduationEventLoader(prisma),
   }
 }
 

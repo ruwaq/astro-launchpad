@@ -62,6 +62,7 @@ export {
 export enum TokenStatus {
   Bonding = 'Bonding',
   Graduated = 'Graduated',
+  GraduationFailed = 'GraduationFailed',
 }
 
 /**
@@ -1448,6 +1449,385 @@ export class SacFactoryService extends BaseContractService {
     const prepared = await this.prepareTransaction(adminAddress, operation);
 
     return { txXDR: prepared.txXDR };
+  }
+
+  // ========== AMM Swap Methods (for Graduated Tokens) ==========
+
+  /**
+   * Get the AMM pair address for a graduated token
+   *
+   * When a token graduates, liquidity moves to an AMM pair.
+   * This method retrieves that AMM pair address.
+   *
+   * @param tokenAddress - Address of the graduated token
+   * @returns AMM pair address or null if not graduated
+   */
+  async getAmmPairAddress(tokenAddress: string): Promise<string | null> {
+    try {
+      const result = await this.callReadOnly(
+        'get_amm_pair',
+        addressToScVal(tokenAddress)
+      );
+
+      if (!result) return null;
+
+      const address = fromScVal(result);
+      return address ? String(address) : null;
+    } catch (error) {
+      logger.error('Error fetching AMM pair address:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get AMM reserves for a graduated token
+   *
+   * @param ammPairAddress - Address of the AMM pair contract
+   * @returns Reserves (reserve0, reserve1, timestamp) or null on error
+   */
+  async getAmmReserves(ammPairAddress: string): Promise<{
+    reserve0: bigint;
+    reserve1: bigint;
+    timestamp: number;
+  } | null> {
+    try {
+      // Call the AMM pair contract directly
+      const result = await this.callContractReadOnly(
+        ammPairAddress,
+        'get_reserves'
+      );
+
+      if (!result) return null;
+
+      const [reserve0, reserve1, timestamp] = fromScVal(result) as [bigint, bigint, bigint];
+      return {
+        reserve0: BigInt(reserve0),
+        reserve1: BigInt(reserve1),
+        timestamp: Number(timestamp),
+      };
+    } catch (error) {
+      logger.error('Error fetching AMM reserves:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get AMM pair info (tokens, reserves, total supply)
+   *
+   * @param ammPairAddress - Address of the AMM pair contract
+   * @returns Full pair info or null on error
+   */
+  async getAmmPairInfo(ammPairAddress: string): Promise<{
+    token0: string;
+    token1: string;
+    reserve0: bigint;
+    reserve1: bigint;
+    totalSupply: bigint;
+  } | null> {
+    try {
+      const result = await this.callContractReadOnly(
+        ammPairAddress,
+        'get_pair_info'
+      );
+
+      if (!result) return null;
+
+      const pairInfo = fromScVal(result) as {
+        token_0: string;
+        token_1: string;
+        reserve_0: bigint;
+        reserve_1: bigint;
+        total_supply: bigint;
+      };
+
+      return {
+        token0: String(pairInfo.token_0),
+        token1: String(pairInfo.token_1),
+        reserve0: BigInt(pairInfo.reserve_0),
+        reserve1: BigInt(pairInfo.reserve_1),
+        totalSupply: BigInt(pairInfo.total_supply),
+      };
+    } catch (error) {
+      logger.error('Error fetching AMM pair info:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Calculate swap output for AMM pair (constant product formula)
+   *
+   * Uses x * y = k formula with 0.3% fee
+   *
+   * @param amountIn - Input amount in stroops
+   * @param reserveIn - Reserve of input token
+   * @param reserveOut - Reserve of output token
+   * @returns Output amount after 0.3% fee
+   */
+  calculateAmmSwapOutput(
+    amountIn: bigint,
+    reserveIn: bigint,
+    reserveOut: bigint
+  ): bigint {
+    if (amountIn <= 0n || reserveIn <= 0n || reserveOut <= 0n) {
+      return 0n;
+    }
+
+    // 0.3% fee (997/1000)
+    const amountInWithFee = amountIn * 997n;
+    const numerator = amountInWithFee * reserveOut;
+    const denominator = reserveIn * 1000n + amountInWithFee;
+
+    return numerator / denominator;
+  }
+
+  /**
+   * Build swap operation for AMM pair
+   *
+   * This is used for trading graduated tokens.
+   *
+   * @param ammPairAddress - Address of the AMM pair contract
+   * @param senderAddress - Address performing the swap
+   * @param amountIn - Exact amount of input token
+   * @param minAmountOut - Minimum output (slippage protection)
+   * @param tokenIn - Address of input token (XLM SAC or token address)
+   * @param deadline - Unix timestamp for MEV protection
+   * @returns Transaction operation
+   */
+  buildAmmSwapOperation(
+    ammPairAddress: string,
+    senderAddress: string,
+    amountIn: bigint,
+    minAmountOut: bigint,
+    tokenIn: string,
+    deadline: bigint
+  ): xdr.Operation {
+    return Operation.invokeContractFunction({
+      contract: ammPairAddress,
+      function: 'swap',
+      args: [
+        addressToScVal(senderAddress),
+        nativeToScVal(amountIn, { type: 'i128' }),
+        nativeToScVal(minAmountOut, { type: 'i128' }),
+        addressToScVal(tokenIn),
+        nativeToScVal(deadline, { type: 'u64' }),
+      ],
+    });
+  }
+
+  /**
+   * Check if a token is graduated (trading on AMM instead of bonding curve)
+   *
+   * @param tokenInfo - Token information
+   * @returns true if token is graduated
+   */
+  isTokenGraduated(tokenInfo: TokenInfo): boolean {
+    return tokenInfo.status === TokenStatus.Graduated;
+  }
+
+  /**
+   * Check if a token's graduation failed
+   *
+   * GraduationFailed means:
+   * - The graduation was triggered but failed (e.g., AMM creation failed)
+   * - Token can still be traded on bonding curve
+   * - Owner can retry graduation via contract admin function
+   *
+   * @param tokenInfo - Token information
+   * @returns true if graduation failed
+   */
+  isGraduationFailed(tokenInfo: TokenInfo): boolean {
+    return tokenInfo.status === TokenStatus.GraduationFailed;
+  }
+
+  /**
+   * Get complete trading info for a token (handles bonding curve, AMM, and failed graduation)
+   *
+   * Trading modes:
+   * - 'bonding': Token is in bonding curve phase (Bonding status)
+   * - 'bonding': Token graduation failed (GraduationFailed status) - still uses bonding curve
+   * - 'amm': Token graduated successfully (Graduated status)
+   * - 'disabled': Token info not found or other error
+   *
+   * @param tokenAddress - Token address
+   * @returns Trading context with all necessary info for trading
+   */
+  async getTradingContext(tokenAddress: string): Promise<{
+    tokenInfo: TokenInfo | null;
+    isGraduated: boolean;
+    isGraduationFailed: boolean;
+    ammPairAddress: string | null;
+    ammPairInfo: {
+      token0: string;
+      token1: string;
+      reserve0: bigint;
+      reserve1: bigint;
+      totalSupply: bigint;
+    } | null;
+    tradingEnabled: boolean;
+    tradingMode: 'bonding' | 'amm' | 'disabled';
+  }> {
+    try {
+      const tokenInfo = await this.getTokenInfo(tokenAddress);
+
+      if (!tokenInfo) {
+        return {
+          tokenInfo: null,
+          isGraduated: false,
+          isGraduationFailed: false,
+          ammPairAddress: null,
+          ammPairInfo: null,
+          tradingEnabled: false,
+          tradingMode: 'disabled',
+        };
+      }
+
+      const isGraduated = this.isTokenGraduated(tokenInfo);
+      const isGraduationFailed = this.isGraduationFailed(tokenInfo);
+
+      // GraduationFailed: Token tried to graduate but failed
+      // Still tradeable on bonding curve
+      if (isGraduationFailed) {
+        logger.warn('Token graduation failed, using bonding curve', { tokenAddress });
+        return {
+          tokenInfo,
+          isGraduated: false,
+          isGraduationFailed: true,
+          ammPairAddress: null,
+          ammPairInfo: null,
+          tradingEnabled: true,
+          tradingMode: 'bonding',
+        };
+      }
+
+      if (!isGraduated) {
+        // Normal bonding curve trading
+        return {
+          tokenInfo,
+          isGraduated: false,
+          isGraduationFailed: false,
+          ammPairAddress: null,
+          ammPairInfo: null,
+          tradingEnabled: true,
+          tradingMode: 'bonding',
+        };
+      }
+
+      // Token is graduated - get AMM info
+      const ammPairAddress = await this.getAmmPairAddress(tokenAddress);
+
+      if (!ammPairAddress) {
+        // Graduated but no AMM (shouldn't happen in normal flow)
+        logger.warn('Token graduated but no AMM pair found', { tokenAddress });
+        return {
+          tokenInfo,
+          isGraduated: true,
+          isGraduationFailed: false,
+          ammPairAddress: null,
+          ammPairInfo: null,
+          tradingEnabled: false,
+          tradingMode: 'disabled',
+        };
+      }
+
+      const ammPairInfo = await this.getAmmPairInfo(ammPairAddress);
+
+      return {
+        tokenInfo,
+        isGraduated: true,
+        isGraduationFailed: false,
+        ammPairAddress,
+        ammPairInfo,
+        tradingEnabled: !!ammPairInfo,
+        tradingMode: 'amm',
+      };
+    } catch (error) {
+      logger.error('Error getting trading context:', error);
+      return {
+        tokenInfo: null,
+        isGraduated: false,
+        isGraduationFailed: false,
+        ammPairAddress: null,
+        ammPairInfo: null,
+        tradingEnabled: false,
+        tradingMode: 'disabled',
+      };
+    }
+  }
+
+  /**
+   * Call a read-only method on a specific contract (not the factory)
+   *
+   * @param contractAddress - Contract to call
+   * @param method - Method name
+   * @param args - Method arguments
+   * @returns Result or null on error
+   */
+  private async callContractReadOnly(
+    contractAddress: string,
+    method: string,
+    ...args: xdr.ScVal[]
+  ): Promise<xdr.ScVal | null> {
+    try {
+      // Import stellarClient to get server
+      const { stellarClient } = await import('../client');
+      const soroban = stellarClient.getSoroban();
+      const server = soroban.getServer();
+      const horizon = stellarClient.getHorizon();
+
+      // Import network config
+      const { getNetworkConfig } = await import('../../config/network');
+      const config = getNetworkConfig();
+
+      // Use a known funded testnet account for simulation (read-only, no signing needed)
+      // This is just for building the transaction - simulation doesn't require actual funds
+      const source = 'GCDNJUBQSX7AJWLJACMJ7I4BC3Z47BQUTMHEICZLE6MU4KQBRYG5JY6B';
+
+      // Get a real account from Horizon to build transaction
+      let account: unknown;
+      try {
+        account = await horizon.loadAccount(source);
+      } catch {
+        // If account doesn't exist, create a mock account for simulation
+        const mockAccount = {
+          accountId: () => source,
+          sequenceNumber: () => '0',
+          incrementSequenceNumber: () => { /* no-op */ },
+        };
+        account = mockAccount;
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const transaction = new TransactionBuilder(account as any, {
+        fee: '100',
+        networkPassphrase: config.passphrase,
+      })
+        .addOperation(
+          Operation.invokeContractFunction({
+            contract: contractAddress,
+            function: method,
+            args: args,
+          })
+        )
+        .setTimeout(30)
+        .build();
+
+      const simulated = await server.simulateTransaction(transaction);
+
+      if ('error' in simulated && simulated.error) {
+        logger.error('Simulation error:', simulated.error);
+        return null;
+      }
+
+      if ('result' in simulated && simulated.result) {
+        const result = simulated.result as { retval?: xdr.ScVal };
+        return result.retval || null;
+      }
+
+      return null;
+    } catch (error) {
+      logger.error(`Error calling ${method} on contract:`, error);
+      return null;
+    }
   }
 }
 

@@ -7,6 +7,15 @@
  * To enable sounds:
  * 1. Add MP3 files to /public/sounds/ directory
  * 2. Set SOUNDS_ENABLED to true
+ *
+ * Sound files needed:
+ * - /public/sounds/buy.mp3 - Success sound for buy transactions
+ * - /public/sounds/sell.mp3 - Success sound for sell transactions
+ * - /public/sounds/notification.mp3 - Soft ping for new events
+ * - /public/sounds/milestone.mp3 - Celebration sound for achievements (graduation)
+ * - /public/sounds/error.mp3 - Error feedback
+ * - /public/sounds/click.mp3 - UI interaction feedback
+ * - /public/sounds/whoosh.mp3 - Transition sound
  */
 
 'use client';

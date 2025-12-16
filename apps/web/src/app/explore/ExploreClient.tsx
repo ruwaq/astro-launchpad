@@ -23,7 +23,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { TokenCardPremium } from '@/components/token/TokenCardPremium';
 import { LiveActivityFeed } from '@/components/activity/LiveActivityFeed';
-import { Search, TrendingUp, Loader2, Flame, Sparkles, Activity, Filter, ChevronDown } from 'lucide-react';
+import { Search, TrendingUp, Loader2, Flame, Sparkles, Activity, Filter, ChevronDown, GraduationCap, Zap } from 'lucide-react';
 import { useWallet } from '@/contexts/WalletContext';
 import toast from 'react-hot-toast';
 import { useQuery, gql } from '@apollo/client';
@@ -175,6 +175,13 @@ export function ExploreClient({ initialTokens }: ExploreClientProps) {
     return tokensConnection.edges.map((edge: TokenEdge) => edge.node);
   }, [tokensConnection]);
 
+  // Separate graduated tokens for featured section
+  const { graduatedTokens, bondingTokens } = useMemo(() => {
+    const graduated = tokens.filter((token: Token) => token.graduated);
+    const bonding = tokens.filter((token: Token) => !token.graduated);
+    return { graduatedTokens: graduated, bondingTokens: bonding };
+  }, [tokens]);
+
   const handleConnect = async () => {
     try {
       await connect();
@@ -226,20 +233,35 @@ export function ExploreClient({ initialTokens }: ExploreClientProps) {
           >
             <div>
               <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-ui-text-primary flex items-center gap-3">
-                <Flame className="h-8 w-8 text-brand-primary" />
-                Explore Tokens
+                {statusFilter === 'GRADUATED' ? (
+                  <GraduationCap className="h-8 w-8 text-green-600" />
+                ) : (
+                  <Flame className="h-8 w-8 text-brand-primary" />
+                )}
+                {statusFilter === 'GRADUATED' ? 'Graduated Tokens' : 'Explore Tokens'}
               </h1>
               <p className="text-ui-text-secondary mt-1">
-                Discover and trade real SAC tokens on Stellar Testnet
+                {statusFilter === 'GRADUATED'
+                  ? 'Tokens that successfully graduated to DEX with locked liquidity'
+                  : 'Discover and trade real SAC tokens on Stellar Testnet'}
               </p>
             </div>
 
             {/* Quick Stats */}
-            <div className="flex gap-3">
+            <div className="flex flex-wrap gap-3">
               <div className="bg-white rounded-xl px-4 py-2 border border-ui-border">
                 <p className="text-xs text-ui-text-secondary">Total Tokens</p>
                 <p className="text-lg font-bold text-ui-text-primary">{totalCount}</p>
               </div>
+              {graduatedTokens.length > 0 && statusFilter === 'ALL' && (
+                <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl px-4 py-2 border border-green-200">
+                  <p className="text-xs text-green-600 font-medium">Graduated</p>
+                  <p className="text-lg font-bold text-green-700 flex items-center gap-1">
+                    {graduatedTokens.length}
+                    <GraduationCap className="h-4 w-4" />
+                  </p>
+                </div>
+              )}
               <button
                 onClick={() => setShowActivity(!showActivity)}
                 className={`hidden lg:flex items-center gap-2 px-4 py-2.5 min-h-[44px] rounded-xl border transition-colors ${
@@ -274,22 +296,22 @@ export function ExploreClient({ initialTokens }: ExploreClientProps) {
                 />
               </div>
 
-              {/* Filters */}
+              {/* Filters - Enhanced with Icons */}
               <div className="flex gap-2">
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
-                  className="px-4 py-3 border border-ui-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-primary bg-white"
+                  className="px-4 py-3 border border-ui-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-primary bg-white font-medium"
                   aria-label="Filter tokens by status"
                 >
-                  <option value="ALL">All Status</option>
-                  <option value="BONDING">Bonding</option>
-                  <option value="GRADUATED">Graduated</option>
+                  <option value="ALL">All Tokens</option>
+                  <option value="BONDING">📈 Bonding Curve</option>
+                  <option value="GRADUATED">🎓 Graduated (DEX)</option>
                 </select>
               </div>
             </div>
 
-            {/* Sort Tabs */}
+            {/* Sort Tabs - Enhanced */}
             <div className="flex items-center gap-4 mt-4 pt-4 border-t border-ui-border" role="group" aria-label="Sort options">
               <span className="text-sm font-medium text-ui-text-secondary flex items-center gap-1">
                 <Filter className="h-4 w-4" aria-hidden="true" />
@@ -298,9 +320,9 @@ export function ExploreClient({ initialTokens }: ExploreClientProps) {
               <div className="flex flex-wrap gap-2">
                 {[
                   { id: 'new', label: 'New', icon: <Sparkles className="h-3.5 w-3.5" aria-hidden="true" /> },
-                  { id: 'trending', label: 'Trending', icon: <Flame className="h-3.5 w-3.5" aria-hidden="true" /> },
+                  { id: 'trending', label: 'Hot', icon: <Flame className="h-3.5 w-3.5" aria-hidden="true" /> },
                   { id: 'marketCap', label: 'Market Cap', icon: <TrendingUp className="h-3.5 w-3.5" aria-hidden="true" /> },
-                  { id: 'graduation', label: 'Graduation %', icon: null },
+                  { id: 'graduation', label: 'Near Graduation', icon: <Zap className="h-3.5 w-3.5" aria-hidden="true" /> },
                 ].map((option) => (
                   <button
                     key={option.id}
@@ -399,6 +421,72 @@ export function ExploreClient({ initialTokens }: ExploreClientProps) {
           ) : (
             // Premium Tokens Grid with staggered animation - responsive for mobile
             <>
+              {/* Graduated Tokens Featured Section */}
+              {graduatedTokens.length > 0 && statusFilter === 'ALL' && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mb-8"
+                >
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="flex items-center gap-2 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg px-4 py-2">
+                      <GraduationCap className="h-5 w-5 text-green-600" />
+                      <h2 className="text-lg font-bold text-green-700">Graduated Tokens</h2>
+                      <span className="bg-green-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                        {graduatedTokens.length}
+                      </span>
+                    </div>
+                    <div className="flex-1 h-px bg-gradient-to-r from-green-200 to-transparent" />
+                  </div>
+                  <motion.div
+                    variants={containerVariants}
+                    initial="hidden"
+                    animate="visible"
+                    className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4"
+                  >
+                    {graduatedTokens.slice(0, 6).map((token: Token) => {
+                      const metadata = getTokenMetadata[token.address] || { isNew: false, trendingRank: 0 };
+                      return (
+                        <motion.div
+                          key={token.address}
+                          variants={itemVariants}
+                        >
+                          <TokenCardPremium
+                            token={token}
+                            isNew={metadata.isNew}
+                            trendingRank={sortBy === 'trending' ? metadata.trendingRank : undefined}
+                            showQuickActions={true}
+                          />
+                        </motion.div>
+                      );
+                    })}
+                  </motion.div>
+                  {graduatedTokens.length > 6 && (
+                    <div className="mt-4 text-center">
+                      <button
+                        onClick={() => setStatusFilter('GRADUATED')}
+                        className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-green-600 hover:text-green-700 hover:bg-green-50 rounded-lg transition-colors"
+                      >
+                        View all {graduatedTokens.length} graduated tokens
+                        <ChevronDown className="h-4 w-4 rotate-[-90deg]" />
+                      </button>
+                    </div>
+                  )}
+                </motion.div>
+              )}
+
+              {/* All Tokens Section Header */}
+              {graduatedTokens.length > 0 && statusFilter === 'ALL' && (
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="flex items-center gap-2 px-4 py-2">
+                    <Flame className="h-5 w-5 text-brand-primary" />
+                    <h2 className="text-lg font-bold text-ui-text-primary">All Tokens</h2>
+                  </div>
+                  <div className="flex-1 h-px bg-ui-border" />
+                </div>
+              )}
+
+              {/* Main Token Grid */}
               <motion.div
                 variants={containerVariants}
                 initial="hidden"

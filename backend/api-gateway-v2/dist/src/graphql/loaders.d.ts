@@ -30,6 +30,7 @@ export interface DataLoaders {
     tokensByCreatorLoader: DataLoader<string, Token[]>;
     poolsByTokenLoader: DataLoader<string, Pool[]>;
     achievementsByUserIdLoader: DataLoader<string, Achievement[]>;
+    graduationEventLoader: DataLoader<string, string | null>;
 }
 /**
  * Create all DataLoaders for a request

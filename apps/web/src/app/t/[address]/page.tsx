@@ -37,6 +37,7 @@ import { stroopsToXlm, formatStroopsDisplay, formatCompactNumber, GRADUATION_THR
 import { apolloClient } from '@/lib/graphql/client';
 import { gql } from '@apollo/client';
 import type { Token } from '@/lib/graphql/types';
+import { showGraduationToast } from '@/lib/notifications/graduationToast';
 
 // GraphQL query to fetch token by address (fallback)
 const GET_TOKEN_BY_ADDRESS = gql`
@@ -78,6 +79,7 @@ export default function TokenTradingPage({ params }: PageProps) {
   const [token, setToken] = useState<TokenInfo | null>(null);
   const [graphqlToken, setGraphqlToken] = useState<Token | null>(null);
   const [astroConfig, setAstroConfig] = useState<AstroConfig | null>(null);
+  const [ammPairAddress, setAmmPairAddress] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [dataSource, setDataSource] = useState<DataSource>('none');
@@ -85,6 +87,10 @@ export default function TokenTradingPage({ params }: PageProps) {
   // FIX: Use ref to track dataSource for polling to avoid race condition
   const dataSourceRef = useRef<DataSource>('none');
   const isMountedRef = useRef(true);
+
+  // Track previous graduation status for detection
+  const previousGraduationStatusRef = useRef<boolean | null>(null);
+  const hasShownGraduationToastRef = useRef(false);
 
   // Refresh trigger for child components (chart, activity feed)
   const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -100,17 +106,52 @@ export default function TokenTradingPage({ params }: PageProps) {
       const results = await Promise.allSettled([
         sacFactoryService.getTokenInfo(address),
         sacFactoryService.getAstroConfig(),
+        sacFactoryService.getAmmPairAddress(address),
       ]);
 
       // FIX: Check if still mounted after async operation
       if (!isMountedRef.current) return;
 
-      const [tokenResult, configResult] = results;
+      const [tokenResult, configResult, ammPairResult] = results;
 
       // Handle token info from contract
       if (tokenResult.status === 'fulfilled' && tokenResult.value) {
         // SUCCESS: Token found on chain
-        setToken(tokenResult.value);
+        const newToken = tokenResult.value;
+        const isGraduated = newToken.status === 'Graduated';
+
+        // GRADUATION DETECTION: Check if token just graduated
+        if (
+          !isInitialFetch &&
+          previousGraduationStatusRef.current === false &&
+          isGraduated &&
+          !hasShownGraduationToastRef.current
+        ) {
+          // Token just graduated! Show celebration toast
+          const ammPair = ammPairResult.status === 'fulfilled' ? ammPairResult.value : null;
+
+          console.log('Token graduation detected via polling!', {
+            tokenSymbol: newToken.symbol,
+            ammPairAddress: ammPair,
+          });
+
+          showGraduationToast({
+            tokenSymbol: newToken.symbol,
+            tokenName: newToken.name,
+            ammPairAddress: ammPair || undefined,
+            onCtaClick: () => {
+              // Refresh to show AMM interface
+              window.location.reload();
+            },
+          });
+
+          hasShownGraduationToastRef.current = true;
+        }
+
+        // Update graduation status tracking
+        previousGraduationStatusRef.current = isGraduated;
+
+        setToken(newToken);
         setDataSource('contract');
         dataSourceRef.current = 'contract';
 
@@ -118,6 +159,14 @@ export default function TokenTradingPage({ params }: PageProps) {
         if (configResult.status === 'fulfilled') {
           setAstroConfig(configResult.value);
         }
+
+        // Handle AMM pair address (for graduated tokens)
+        if (ammPairResult.status === 'fulfilled' && ammPairResult.value) {
+          setAmmPairAddress(ammPairResult.value);
+        } else {
+          setAmmPairAddress(null);
+        }
+
         if (isInitialFetch) setLoading(false);
         return;
       }
@@ -391,6 +440,7 @@ export default function TokenTradingPage({ params }: PageProps) {
         xlmRaised: token!.xlm_raised,
         xlmReserve: token!.bonding_curve?.xlm_reserve || '0',
         graduated: token!.status === 'Graduated',
+        ammPairAddress: ammPairAddress || undefined,
         createdAt: token!.created_at.toString(),
         updatedAt: new Date().toISOString(),
       }
@@ -414,6 +464,7 @@ export default function TokenTradingPage({ params }: PageProps) {
         xlmRaised: graphqlToken!.xlmRaised || '0',
         xlmReserve: graphqlToken!.xlmReserve || '0',
         graduated: graphqlToken!.graduated || false,
+        ammPairAddress: undefined,
         createdAt: graphqlToken!.createdAt,
         updatedAt: graphqlToken!.updatedAt || new Date().toISOString(),
       };
@@ -508,6 +559,8 @@ export default function TokenTradingPage({ params }: PageProps) {
                     tokenAddress={address}
                     symbol={formattedToken.symbol}
                     refreshTrigger={refreshTrigger}
+                    graduated={formattedToken.graduated}
+                    ammPairAddress={formattedToken.ammPairAddress}
                   />
                 </CardErrorBoundary>
               ) : (

@@ -31,26 +31,29 @@ impl<'a> AmmPairClient<'a> {
     /// * `token_a` - Address of first token (XLM)
     /// * `token_b` - Address of second token (graduated token)
     /// * `factory` - Address of factory contract (this contract)
-    /// * `fee_to` - Address to send protocol fees (treasury)
+    /// * `_fee_to` - Address to send protocol fees (unused - astro-swap handles fees internally)
     ///
     /// # Returns
     /// Result indicating success or failure
+    ///
+    /// # Note
+    /// astro-swap AMM pair signature: initialize(factory, token_0, token_1)
     pub fn initialize(
         &self,
         token_a: &Address,
         token_b: &Address,
         factory: &Address,
-        fee_to: &Address,
+        _fee_to: &Address,
     ) -> Result<(), Error> {
-        // Call AMM initialize method
+        // Call AMM initialize method - matches astro-swap pair interface
+        // astro-swap expects: (factory, token_0, token_1)
         let result: Result<(), Error> = self.env.invoke_contract(
             &self.address,
             &Symbol::new(self.env, "initialize"),
             (
+                factory.clone(),
                 token_a.clone(),
                 token_b.clone(),
-                factory.clone(),
-                fee_to.clone(),
             )
                 .into_val(self.env),
         );
@@ -66,10 +69,14 @@ impl<'a> AmmPairClient<'a> {
     /// * `amount_1_desired` - Amount of token1 (graduated token)
     /// * `amount_0_min` - Minimum amount of token0 (slippage = 0 for initial)
     /// * `amount_1_min` - Minimum amount of token1 (slippage = 0 for initial)
-    /// * `deadline` - Transaction deadline
+    /// * `_deadline` - Transaction deadline (unused - astro-swap handles internally)
     ///
     /// # Returns
     /// Tuple of (amount0, amount1, liquidity_minted)
+    ///
+    /// # Note
+    /// astro-swap uses `deposit` instead of `add_liquidity`
+    /// astro-swap signature: deposit(user, amount_0_desired, amount_1_desired, amount_0_min, amount_1_min)
     pub fn add_liquidity(
         &self,
         sender: &Address,
@@ -77,19 +84,18 @@ impl<'a> AmmPairClient<'a> {
         amount_1_desired: i128,
         amount_0_min: i128,
         amount_1_min: i128,
-        deadline: u64,
+        _deadline: u64,
     ) -> Result<(i128, i128, i128), Error> {
-        // Call AMM add_liquidity method
+        // Call AMM deposit method - matches astro-swap pair interface
         let result: Result<(i128, i128, i128), Error> = self.env.invoke_contract(
             &self.address,
-            &Symbol::new(self.env, "add_liquidity"),
+            &Symbol::new(self.env, "deposit"),
             (
                 sender.clone(),
                 amount_0_desired,
                 amount_1_desired,
                 amount_0_min,
                 amount_1_min,
-                deadline,
             )
                 .into_val(self.env),
         );
