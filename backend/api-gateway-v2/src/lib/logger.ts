@@ -9,9 +9,12 @@ import { env, isDevelopment } from '../config/env.js'
 /**
  * Create logger instance
  */
+// Only use pino-pretty transport in development - it's a dev dependency
+const usePrettyTransport = env.LOG_PRETTY && isDevelopment;
+
 export const logger = pino({
   level: env.LOG_LEVEL,
-  transport: env.LOG_PRETTY
+  transport: usePrettyTransport
     ? {
         target: 'pino-pretty',
         options: {
