@@ -2,25 +2,25 @@
  * GraphQL API Endpoint - Vercel Serverless Function
  *
  * This handler serves GraphQL requests on Vercel's serverless platform.
- * It imports directly from the TypeScript source files.
+ * It imports from the compiled TypeScript (dist/) source files.
  *
  * Architecture:
  * - Schema & Resolvers: src/graphql/ (SINGLE SOURCE OF TRUTH)
+ * - Compiled to: dist/src/graphql/ (vercel-build)
  * - This file: Vercel serverless handler
  *
  * @version 2.1.0
  */
 
-import type { NextApiRequest, NextApiResponse } from 'next';
 import { ApolloServer } from '@apollo/server';
 import { startServerAndCreateNextHandler } from '@as-integrations/next';
-import { schema } from '../src/graphql/schema';
-import { resolvers } from '../src/graphql/resolvers/index';
-import { createContext, type GraphQLContext } from '../src/graphql/context';
-import { validationRules, createComplexityPlugin } from '../src/graphql/validation';
-import { createRateLimitPlugin } from '../src/lib/rate-limiter';
-import { logger } from '../src/lib/logger';
-import { initializeSentry, captureException } from '../src/lib/sentry';
+import { schema } from '../dist/src/graphql/schema.js';
+import { resolvers } from '../dist/src/graphql/resolvers/index.js';
+import { createContext } from '../dist/src/graphql/context.js';
+import { validationRules, createComplexityPlugin } from '../dist/src/graphql/validation.js';
+import { createRateLimitPlugin } from '../dist/src/lib/rate-limiter.js';
+import { logger } from '../dist/src/lib/logger.js';
+import { initializeSentry, captureException } from '../dist/src/lib/sentry.js';
 
 // ============================================================================
 // Configuration
@@ -28,7 +28,7 @@ import { initializeSentry, captureException } from '../src/lib/sentry';
 
 const isProduction = process.env.NODE_ENV === 'production';
 
-const ALLOWED_ORIGINS: string[] = [
+const ALLOWED_ORIGINS = [
   'https://astroshiba.io',
   'https://app.astroshiba.io',
   'https://www.astroshiba.io',
@@ -55,14 +55,14 @@ const ALLOWED_HEADERS = [
 // CORS Utilities
 // ============================================================================
 
-function isOriginAllowed(origin: string | undefined): boolean {
+function isOriginAllowed(origin) {
   if (!origin) return false;
   if (ALLOWED_ORIGINS.includes(origin)) return true;
   if (origin.endsWith('.vercel.app')) return true;
   return false;
 }
 
-function setCorsHeaders(res: NextApiResponse, origin: string | undefined): void {
+function setCorsHeaders(res, origin) {
   if (origin && isOriginAllowed(origin)) {
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Allow-Origin', origin);
@@ -73,7 +73,7 @@ function setCorsHeaders(res: NextApiResponse, origin: string | undefined): void 
   }
 }
 
-function setSecurityHeaders(res: NextApiResponse): void {
+function setSecurityHeaders(res) {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('X-XSS-Protection', '1; mode=block');
@@ -84,9 +84,9 @@ function setSecurityHeaders(res: NextApiResponse): void {
 // Apollo Server
 // ============================================================================
 
-const server = new ApolloServer<GraphQLContext>({
+const server = new ApolloServer({
   typeDefs: schema,
-  resolvers: resolvers as any,
+  resolvers: resolvers,
   introspection: !isProduction || process.env.GRAPHQL_INTROSPECTION === 'true',
   includeStacktraceInErrorResponses: !isProduction,
   validationRules,
@@ -129,20 +129,17 @@ const server = new ApolloServer<GraphQLContext>({
 // Handler
 // ============================================================================
 
-const apolloHandler = startServerAndCreateNextHandler(server as any, {
+const apolloHandler = startServerAndCreateNextHandler(server, {
   context: async (req) => {
     initializeSentry();
-    return createContext(req as any);
+    return createContext(req);
   },
 });
 
-export default async function graphqlHandler(
-  req: NextApiRequest,
-  res: NextApiResponse
-): Promise<void> {
+export default async function graphqlHandler(req, res) {
   const startTime = Date.now();
-  const requestId = (req.headers['x-request-id'] as string) || crypto.randomUUID();
-  const origin = req.headers.origin as string | undefined;
+  const requestId = req.headers['x-request-id'] || crypto.randomUUID();
+  const origin = req.headers.origin;
 
   setSecurityHeaders(res);
   setCorsHeaders(res, origin);
@@ -184,7 +181,7 @@ export default async function graphqlHandler(
     if (!res.writableEnded) {
       res.status(500).json({
         errors: [{
-          message: isProduction ? 'Internal server error' : (error as Error).message,
+          message: isProduction ? 'Internal server error' : error.message,
           extensions: { code: 'INTERNAL_SERVER_ERROR', requestId },
         }],
       });

@@ -14,10 +14,9 @@
  * @version 2.1.0
  */
 
-import type { NextApiRequest, NextApiResponse } from 'next';
-import { prisma } from '../src/lib/prisma';
-import { getCacheStats } from '../src/lib/cache';
-import { logger } from '../src/lib/logger';
+import { prisma } from '../dist/src/lib/prisma.js';
+import { getCacheStats } from '../dist/src/lib/cache.js';
+import { logger } from '../dist/src/lib/logger.js';
 
 const API_VERSION = '2.1.0';
 const startTime = Date.now();
@@ -36,20 +35,12 @@ async function checkDatabase() {
   }
 }
 
-interface CountResult {
-  count: number;
-}
-
-interface NameResult {
-  name: string;
-}
-
 async function getTokenStats() {
   try {
     const [totalResult, activeResult, deletedResult] = await Promise.all([
-      prisma.$queryRaw<CountResult[]>`SELECT COUNT(*)::int as count FROM "Token"`,
-      prisma.$queryRaw<CountResult[]>`SELECT COUNT(*)::int as count FROM "Token" WHERE "deletedAt" IS NULL`,
-      prisma.$queryRaw<NameResult[]>`SELECT name FROM "Token" WHERE "deletedAt" IS NOT NULL LIMIT 10`,
+      prisma.$queryRaw`SELECT COUNT(*)::int as count FROM "Token"`,
+      prisma.$queryRaw`SELECT COUNT(*)::int as count FROM "Token" WHERE "deletedAt" IS NULL`,
+      prisma.$queryRaw`SELECT name FROM "Token" WHERE "deletedAt" IS NOT NULL LIMIT 10`,
     ]);
 
     const totalTokens = totalResult[0]?.count || 0;
@@ -67,10 +58,7 @@ async function getTokenStats() {
   }
 }
 
-export default async function healthHandler(
-  req: NextApiRequest,
-  res: NextApiResponse
-): Promise<void> {
+export default async function healthHandler(req, res) {
   res.setHeader('Content-Type', 'application/json');
   res.setHeader('Cache-Control', 'no-store, max-age=0');
   res.setHeader('Access-Control-Allow-Origin', '*');
