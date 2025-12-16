@@ -77,7 +77,8 @@ export function SimpleChart({
       const now = Math.floor(Date.now() / 1000);
 
       // Add new data point with both price AND xlmRaised
-      if (currentPrice > 0) {
+      // FIX: Add data when EITHER price OR xlmRaised is available (cap mode uses xlmRaised)
+      if (currentPrice > 0 || xlmRaised > 0) {
         setDataHistory(prev => {
           const lastTime = prev.length > 0 ? prev[prev.length - 1].time : 0;
           // Only add if time has advanced
