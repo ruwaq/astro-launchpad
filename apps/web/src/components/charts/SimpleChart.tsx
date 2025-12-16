@@ -142,9 +142,8 @@ export function SimpleChart({
     return data;
   }, [dataHistory, viewMode]);
 
-  // Initialize chart when container is available
-  // FIX: Add loading dependency so effect re-runs when loading state changes
-  // (chart container isn't in DOM during loading spinner state)
+  // Initialize chart once when component mounts
+  // Chart container is always rendered (with loading overlay), so ref is always available
   useEffect(() => {
     if (!chartContainerRef.current || isInitializedRef.current) return;
 
@@ -216,7 +215,7 @@ export function SimpleChart({
       chart.remove();
       isInitializedRef.current = false;
     };
-  }, [loading]); // Re-run when loading changes (chart container becomes available)
+  }, []); // Run once on mount - container is always in DOM now
 
   // Update chart data when data changes
   useEffect(() => {
@@ -243,17 +242,7 @@ export function SimpleChart({
     chartRef.current.timeScale().fitContent();
   }, [chartData, viewMode, graduationTarget]);
 
-  if (loading && dataHistory.length === 0) {
-    return (
-      <div className="bg-white rounded-xl border border-ui-border overflow-hidden">
-        <div className="h-[340px] flex items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-green-500" />
-        </div>
-      </div>
-    );
-  }
-
-  // Show graduated state
+  // Show graduated state (before main chart to avoid rendering chart for graduated tokens)
   if (graduated) {
     const dexUrl = ammPairAddress
       ? `https://astroswap.stellar.org/pool/${ammPairAddress}`
@@ -338,8 +327,16 @@ export function SimpleChart({
         </div>
       </div>
 
-      {/* Chart Container */}
-      <div ref={chartContainerRef} className="w-full h-[260px]" />
+      {/* Chart Container - always render for ref availability */}
+      <div className="relative w-full h-[260px]">
+        <div ref={chartContainerRef} className="w-full h-full" />
+        {/* Loading overlay */}
+        {loading && dataHistory.length === 0 && (
+          <div className="absolute inset-0 flex items-center justify-center bg-white/80">
+            <Loader2 className="h-8 w-8 animate-spin text-green-500" />
+          </div>
+        )}
+      </div>
 
       {/* Progress Bar */}
       <div className="px-3 pb-3 pt-2">
