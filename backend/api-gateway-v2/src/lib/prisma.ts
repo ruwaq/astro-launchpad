@@ -60,15 +60,37 @@ function createPrismaClient() {
 
     // For find operations, automatically filter out deleted records
     if (params.action === 'findMany' || params.action === 'findFirst' || params.action === 'count') {
-      // Don't override if explicitly querying for deleted records
-      if (params.args?.where?.deletedAt !== undefined) {
+      params.args = params.args || {}
+      params.args.where = params.args.where || {}
+
+      // Check if deletedAt is already specified anywhere in the where clause
+      const hasDeletedAtFilter = (obj: any): boolean => {
+        if (!obj || typeof obj !== 'object') return false
+        if ('deletedAt' in obj) return true
+        if (Array.isArray(obj.AND)) return obj.AND.some(hasDeletedAtFilter)
+        if (Array.isArray(obj.OR)) return obj.OR.some(hasDeletedAtFilter)
+        return false
+      }
+
+      if (hasDeletedAtFilter(params.args.where)) {
         return next(params)
       }
 
-      // Add deletedAt: null filter
-      params.args = params.args || {}
-      params.args.where = params.args.where || {}
-      params.args.where.deletedAt = null
+      // Add deletedAt IS NULL filter
+      // Handle both simple where and AND conditions
+      if (Array.isArray(params.args.where.AND)) {
+        // If using AND array, add to the array
+        params.args.where.AND.push({ deletedAt: null })
+      } else if (Object.keys(params.args.where).length === 0) {
+        // Empty where clause
+        params.args.where.deletedAt = null
+      } else {
+        // Has other conditions but no AND - wrap in AND
+        const existingConditions = { ...params.args.where }
+        params.args.where = {
+          AND: [existingConditions, { deletedAt: null }]
+        }
+      }
     }
 
     return next(params)
