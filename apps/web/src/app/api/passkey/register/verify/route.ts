@@ -11,7 +11,7 @@ import {
 } from '@simplewebauthn/server';
 import type { RegistrationResponseJSON } from '@simplewebauthn/types';
 import crypto from 'crypto';
-import { getSecretKey } from '../secret.js';
+import { getSecretKey } from '../../secret';
 
 const RP_ID = process.env.NEXT_PUBLIC_RP_ID || 'localhost';
 const ORIGIN = process.env.NEXT_PUBLIC_ORIGIN || 'http://localhost:3000';

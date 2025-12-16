@@ -11,7 +11,7 @@ import {
   type GenerateRegistrationOptionsOpts,
 } from '@simplewebauthn/server';
 import crypto from 'crypto';
-import { getSecretKey } from '../secret.js';
+import { getSecretKey } from '../../secret';
 
 // In production, store these in environment variables
 const RP_NAME = process.env.NEXT_PUBLIC_APP_NAME || 'Astro Shiba';
