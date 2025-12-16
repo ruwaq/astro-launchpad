@@ -1,259 +1,500 @@
-# Plan de Unificación: GraphQL API Gateway
+# Plan de Unificacion: GraphQL API Gateway v2
+
+> **Estado**: Revisado y corregido
+> **Fecha**: 2024-12-16
+> **Autor**: Claude Code
 
 ## Estado Actual (Problema)
 
-Existen **dos implementaciones separadas** de GraphQL que no están sincronizadas:
+Existen **dos implementaciones separadas** de GraphQL que no estan sincronizadas:
 
-| Archivo | Descripción | Usado por |
-|---------|-------------|-----------|
-| `api/graphql.js` | Archivo JavaScript standalone (~1200 líneas) | Vercel Serverless Functions |
-| `src/graphql/` | Implementación TypeScript modular | Desarrollo local (Express) |
+| Archivo | Descripcion | Lineas | Usado por |
+|---------|-------------|--------|-----------|
+| `api/graphql.js` | JavaScript monolitico con schema inline | ~1150 | Vercel Serverless |
+| `src/graphql/` | TypeScript modular con DataLoaders | ~2500 | Desarrollo local (Express) |
 
-### Por qué es un problema
+### Por que es un problema critico
 
-1. **Duplicación de código**: Cada cambio debe hacerse en dos lugares
-2. **Desincronización**: Los cambios en `src/` no afectan producción
-3. **Bugs difíciles de detectar**: Como el soft-delete que funcionaba local pero no en producción
-4. **No escalable**: A medida que crece el proyecto, mantener dos implementaciones es insostenible
+1. **Duplicacion de logica**: Cada cambio debe hacerse en dos lugares
+2. **Feature gap**: `src/` tiene features que `api/` no tiene:
+   - DataLoaders (prevencion N+1)
+   - Rate limiting
+   - Fee management completo
+   - Validacion con Zod
+   - Logging estructurado (Pino)
+   - Sentry monitoring
+3. **Bugs en produccion**: El soft-delete funcionaba local pero no en produccion
+4. **No escalable**: Mantener dos implementaciones es insostenible
+
+### Analisis del Problema Raiz
+
+| Implementacion | Framework | Serverless Compatible |
+|----------------|-----------|----------------------|
+| `api/graphql.js` | `@as-integrations/next` | ✅ Si - diseñado para serverless |
+| `src/app.ts` | Express + `@as-integrations/express4` | ❌ No - Express es para servidores siempre activos |
+
+**El error del plan original**: Intentaba usar Express compilado en Vercel, pero Express no es compatible con el modelo serverless de Vercel.
 
 ---
 
-## Solución Recomendada
+## Solucion: Handler Hibrido con @as-integrations/next
 
-**Eliminar `api/graphql.js` y configurar Vercel para usar el código compilado de `src/`**
+### Arquitectura Propuesta
+
+```
+src/graphql/              <- SINGLE SOURCE OF TRUTH (ya existe)
+├── schema.ts             <- Schema GraphQL completo
+├── resolvers/            <- Resolvers modulares con validacion
+├── context.ts            <- Context factory con auth
+├── loaders.ts            <- DataLoaders para N+1
+├── validation.ts         <- Rate limiting, complexity
+└── cache-helpers.ts      <- Redis caching
+
+src/handlers/             <- NUEVO: Handlers por entorno
+├── vercel.ts             <- Handler para Vercel (usa @as-integrations/next)
+└── express.ts            <- Handler para desarrollo local (Express)
+
+api/                      <- SE ELIMINA (despues de migracion)
+└── graphql.js            <- OBSOLETO - reemplazado por dist/handlers/vercel.js
+```
 
 ### Beneficios
 
-- TypeScript con type-safety
-- Código modular y mantenible
-- Un solo lugar para hacer cambios
-- Tests automatizados
-- Middleware de Prisma para soft-delete automático
+| Antes | Despues |
+|-------|---------|
+| 2 schemas duplicados | 1 schema en `src/graphql/schema.ts` |
+| 2 sets de resolvers | 1 set en `src/graphql/resolvers/` |
+| Cambios en 2 lugares | Cambios en 1 lugar |
+| Sin DataLoaders en prod | DataLoaders en todos los entornos |
+| Sin rate limiting en prod | Rate limiting unificado |
 
 ---
 
-## Pasos de Implementación
+## Implementacion Paso a Paso
 
-### Fase 1: Preparación (30 min)
+### Fase 1: Crear Handler Vercel (30 min)
 
-#### 1.1 Verificar que `src/graphql/` tiene todas las funcionalidades
-
-```bash
-# Comparar schemas
-diff <(grep -E "type|query|mutation" api/graphql.js) <(grep -E "type|query|mutation" src/graphql/schema.ts)
-```
-
-Funcionalidades a verificar:
-- [ ] Todas las queries (tokens, token, trendingTokens, pools, users, etc.)
-- [ ] Todas las mutations (createToken, syncToken, etc.)
-- [ ] Soft-delete filtering en todas las queries de Token y Pool
-- [ ] Paginación Relay-style
-- [ ] Resolvers de relaciones (Token.pools, Pool.token0, etc.)
-
-#### 1.2 Asegurar que el soft-delete funciona en `src/`
-
-El middleware en `src/lib/prisma.ts` ya implementa soft-delete automático:
+#### 1.1 Crear `src/handlers/vercel.ts`
 
 ```typescript
-// Ya implementado en src/lib/prisma.ts
-client.$use(async (params, next) => {
-  if (SOFT_DELETE_MODELS.includes(params.model)) {
-    if (['findMany', 'findFirst', 'count'].includes(params.action)) {
-      params.args.where = { ...params.args.where, deletedAt: null }
+/**
+ * Vercel Serverless Handler for GraphQL API
+ * Uses @as-integrations/next for serverless compatibility
+ *
+ * This is the PRODUCTION handler - uses all features from src/graphql/
+ */
+import type { NextApiRequest, NextApiResponse } from 'next';
+import { ApolloServer } from '@apollo/server';
+import { startServerAndCreateNextHandler } from '@as-integrations/next';
+import { schema } from '../graphql/schema.js';
+import { resolvers } from '../graphql/resolvers/index.js';
+import { createContext, GraphQLContext } from '../graphql/context.js';
+import { validationRules, createComplexityPlugin } from '../graphql/validation.js';
+import { createRateLimitPlugin } from '../lib/rate-limiter.js';
+import { logger } from '../lib/logger.js';
+
+// Environment
+const isProduction = process.env.NODE_ENV === 'production';
+
+// CORS Configuration
+const ALLOWED_ORIGINS = [
+  'https://astroshiba.io',
+  'https://app.astroshiba.io',
+  'https://www.astroshiba.io',
+  'https://staging.astroshiba.io',
+  'https://astro-launchpad-topaz.vercel.app',
+  ...(isProduction ? [] : [
+    'http://localhost:3000',
+    'http://localhost:3001',
+    'http://127.0.0.1:3000',
+  ]),
+];
+
+function isOriginAllowed(origin: string | undefined): boolean {
+  if (!origin) return false;
+  return ALLOWED_ORIGINS.some(allowed =>
+    origin === allowed || origin.endsWith('.vercel.app')
+  );
+}
+
+// Create Apollo Server with all production features
+const server = new ApolloServer<GraphQLContext>({
+  typeDefs: schema,
+  resolvers: resolvers as any,
+  introspection: !isProduction || process.env.GRAPHQL_INTROSPECTION === 'true',
+  includeStacktraceInErrorResponses: !isProduction,
+  validationRules,
+  plugins: [
+    createComplexityPlugin(),
+    createRateLimitPlugin(),
+  ],
+  formatError: (formattedError, error) => {
+    if (isProduction) {
+      logger.error({ error }, 'GraphQL Error');
+      return {
+        message: formattedError.message,
+        path: formattedError.path,
+        extensions: {
+          code: formattedError.extensions?.code || 'INTERNAL_SERVER_ERROR',
+        },
+      };
     }
-  }
-  return next(params)
-})
-```
-
-### Fase 2: Configurar Vercel (15 min)
-
-#### 2.1 Modificar `vercel.json`
-
-```json
-{
-  "version": 2,
-  "buildCommand": "pnpm run vercel-build",
-  "outputDirectory": "dist",
-  "functions": {
-    "dist/api/**/*.js": {
-      "memory": 1024,
-      "maxDuration": 30
-    }
+    logger.error({ error }, 'GraphQL Error');
+    return formattedError;
   },
-  "rewrites": [
-    { "source": "/graphql", "destination": "/dist/api/graphql.js" },
-    { "source": "/health", "destination": "/dist/api/health.js" }
-  ]
+});
+
+// Create Next.js compatible handler
+const handler = startServerAndCreateNextHandler(server, {
+  context: async (req) => createContext(req),
+});
+
+// Export handler with CORS
+export default async function graphqlHandler(
+  req: NextApiRequest,
+  res: NextApiResponse
+) {
+  const requestOrigin = req.headers.origin;
+
+  // Set CORS headers
+  if (requestOrigin && isOriginAllowed(requestOrigin)) {
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Allow-Origin', requestOrigin);
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers',
+      'Content-Type, Authorization, X-Request-ID, X-Stellar-Address, X-Stellar-Signature, X-Stellar-Timestamp, X-Admin-Key'
+    );
+    res.setHeader('Vary', 'Origin');
+  }
+
+  // Handle preflight
+  if (req.method === 'OPTIONS') {
+    if (requestOrigin && isOriginAllowed(requestOrigin)) {
+      res.status(204).end();
+    } else {
+      res.status(403).json({ error: 'CORS origin not allowed' });
+    }
+    return;
+  }
+
+  return handler(req, res);
 }
+
+// Disable body parser (Apollo handles it)
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+};
 ```
 
-#### 2.2 Crear archivo de entrada para Vercel
-
-Crear `src/api/graphql.ts`:
+#### 1.2 Crear `src/handlers/health.ts`
 
 ```typescript
-import { createApp } from '../app.js'
+/**
+ * Health Check Handler for Vercel
+ */
+import type { NextApiRequest, NextApiResponse } from 'next';
+import { prisma } from '../lib/prisma.js';
 
-// Export handler for Vercel
-export default async function handler(req, res) {
-  const app = await createApp()
-  return app(req, res)
+export default async function healthHandler(
+  req: NextApiRequest,
+  res: NextApiResponse
+) {
+  let dbHealthy = false;
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    dbHealthy = true;
+  } catch (e) {
+    console.error('DB health check failed:', e);
+  }
+
+  res.json({
+    status: dbHealthy ? 'healthy' : 'degraded',
+    timestamp: new Date().toISOString(),
+    version: '2.1.0',
+    database: dbHealthy,
+    environment: process.env.NODE_ENV || 'development',
+  });
 }
 ```
 
-#### 2.3 Actualizar `tsconfig.json`
+### Fase 2: Actualizar Configuracion (15 min)
+
+#### 2.1 Actualizar `tsconfig.json`
 
 ```json
 {
   "compilerOptions": {
     "outDir": "./dist",
-    "rootDir": "./src"
+    "rootDir": "./src",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "types": ["node"],
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "resolveJsonModule": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true
   },
-  "include": ["src/**/*"]
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", ".turbo", "api"]
+}
+```
+
+#### 2.2 Actualizar `vercel.json`
+
+```json
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "version": 2,
+  "installCommand": "npx pnpm@9 install",
+  "buildCommand": "pnpm run vercel-build",
+  "outputDirectory": ".",
+  "cleanUrls": true,
+  "trailingSlash": false,
+  "regions": ["iad1"],
+  "functions": {
+    "dist/handlers/*.js": {
+      "memory": 1024,
+      "maxDuration": 30
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/graphql",
+      "destination": "/dist/handlers/vercel.js"
+    },
+    {
+      "source": "/health",
+      "destination": "/dist/handlers/health.js"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/graphql",
+      "headers": [
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "X-Frame-Options", "value": "DENY" },
+        { "key": "X-XSS-Protection", "value": "1; mode=block" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+        { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'none'; object-src 'none'" }
+      ]
+    }
+  ]
+}
+```
+
+#### 2.3 Actualizar `package.json` scripts
+
+```json
+{
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "rm -rf dist && tsc",
+    "vercel-build": "prisma generate && rm -rf dist && tsc",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit"
+  }
 }
 ```
 
 ### Fase 3: Testing (20 min)
 
-#### 3.1 Test local
+#### 3.1 Test Local con Build
 
 ```bash
-# Build
+# Build TypeScript
 pnpm run build
 
-# Test endpoint
-curl -X POST http://localhost:3001/graphql \
+# Verificar que los handlers se compilaron
+ls -la dist/handlers/
+# Debe mostrar: vercel.js, health.js
+
+# Test con Vercel CLI (simula entorno serverless)
+npx vercel dev
+```
+
+#### 3.2 Test Queries Criticas
+
+```bash
+# Health check
+curl http://localhost:3000/health
+
+# Tokens (debe excluir soft-deleted)
+curl -X POST http://localhost:3000/graphql \
   -H "Content-Type: application/json" \
-  -d '{"query":"{ tokens(limit: 5) { totalCount } }"}'
+  -d '{"query":"{ tokens(limit: 5) { totalCount edges { node { name symbol } } } }"}'
+
+# Token individual
+curl -X POST http://localhost:3000/graphql \
+  -H "Content-Type: application/json" \
+  -d '{"query":"{ token(address: \"CXXXX...\") { name symbol graduated xlmRaised } }"}'
 ```
 
-#### 3.2 Deploy a preview
+#### 3.3 Checklist de Paridad
+
+- [ ] `tokens` query devuelve mismo `totalCount` (sin soft-deleted)
+- [ ] `token` query devuelve `xlmRaised` para graduation progress
+- [ ] `trendingTokens` query funciona con cache
+- [ ] `leaderboard` query funciona con agregaciones SQL
+- [ ] `syncToken` mutation funciona con rate limiting
+- [ ] `deleteToken` mutation requiere X-Admin-Key header
+- [ ] Fee queries (`globalFeeStats`, `feeDashboard`) funcionan
+
+### Fase 4: Deploy Preview (15 min)
 
 ```bash
-# Deploy sin afectar producción
-git checkout -b feat/unify-graphql
-git push origin feat/unify-graphql
-# Vercel creará un preview deployment automáticamente
-```
+# Crear branch de feature
+git checkout -b feat/unify-graphql-handlers
 
-#### 3.3 Verificar en preview
+# Commit cambios
+git add -A
+git commit -m "feat(api): unify GraphQL to single TypeScript source"
 
-```bash
+# Push (Vercel creara preview automaticamente)
+git push origin feat/unify-graphql-handlers
+
 # Test preview deployment
 curl -X POST https://[preview-url]/graphql \
   -H "Content-Type: application/json" \
-  -d '{"query":"{ tokens(limit: 5) { totalCount } }"}'
-
-# Debe retornar totalCount: 9 (sin tokens eliminados)
+  -d '{"query":"{ health { status database tokenStats { totalTokens activeTokens } } }"}'
 ```
 
-### Fase 4: Migración (10 min)
+### Fase 5: Migracion a Produccion (10 min)
 
-#### 4.1 Eliminar archivos obsoletos
+#### 5.1 Backup del codigo actual
 
 ```bash
-# Mover a backup temporal (por seguridad)
-mkdir -p .backup
-mv api/graphql.js .backup/
-mv api/health.js .backup/
-mv api/index.js .backup/
-
-# Mantener solo el README
-# api/README.md se actualiza con nueva documentación
+mkdir -p .backup/api-legacy
+mv api/graphql.js .backup/api-legacy/
+mv api/health.js .backup/api-legacy/
+mv api/index.js .backup/api-legacy/
 ```
 
-#### 4.2 Actualizar documentación
-
-Actualizar `api/README.md`:
+#### 5.2 Actualizar api/README.md
 
 ```markdown
-# API Gateway - Vercel Serverless Functions
+# API Directory (Legacy)
 
-Este directorio ya no contiene código.
-El código fuente está en `src/` y se compila a `dist/`.
+Este directorio ya no contiene codigo de produccion.
 
-Ver `src/graphql/` para la implementación de GraphQL.
+El codigo fuente esta en `src/` y se compila a `dist/`.
+
+## Estructura
+
+- `src/graphql/` - Schema y resolvers (SINGLE SOURCE OF TRUTH)
+- `src/handlers/vercel.ts` - Handler para Vercel serverless
+- `src/handlers/health.ts` - Health check endpoint
+- `dist/` - Codigo compilado (generado por `pnpm build`)
+
+## Endpoints
+
+| Endpoint | Handler |
+|----------|---------|
+| `/graphql` | `dist/handlers/vercel.js` |
+| `/health` | `dist/handlers/health.js` |
 ```
 
-#### 4.3 Commit y deploy a producción
+#### 5.3 Merge a main
 
 ```bash
-git add -A
-git commit -m "refactor(api): unify GraphQL implementations to src/"
+git checkout main
+git merge feat/unify-graphql-handlers
 git push origin main
-```
-
-### Fase 5: Verificación Post-Deploy (10 min)
-
-```bash
-# Verificar producción
-curl -X POST https://api-gateway-v2.vercel.app/graphql \
-  -H "Content-Type: application/json" \
-  -d '{"query":"{ health { status database } }"}'
-
-# Verificar soft-delete
-curl -X POST https://api-gateway-v2.vercel.app/graphql \
-  -H "Content-Type: application/json" \
-  -d '{"query":"{ tokens(limit: 20) { totalCount } }"}'
-# Debe retornar 9, no 13
 ```
 
 ---
 
 ## Rollback Plan
 
-Si algo falla:
+Si algo falla en produccion:
 
 ```bash
-# Restaurar archivos de backup
-cp .backup/graphql.js api/
-cp .backup/health.js api/
-cp .backup/index.js api/
+# 1. Restaurar archivos legacy
+cp .backup/api-legacy/* api/
 
-# Revertir vercel.json
+# 2. Revertir vercel.json
 git checkout HEAD~1 -- vercel.json
 
-# Deploy
+# 3. Deploy de emergencia
 git add -A
-git commit -m "rollback: restore api/ files"
+git commit -m "rollback: restore api/ legacy handlers"
 git push origin main
+
+# 4. Verificar
+curl https://api-gateway-v2.vercel.app/health
+```
+
+---
+
+## Verificacion Post-Deploy
+
+```bash
+# 1. Health check completo
+curl -s https://api-gateway-v2.vercel.app/graphql \
+  -H "Content-Type: application/json" \
+  -d '{"query":"{ health { status database tokenStats { totalTokens activeTokens deletedTokens } } }"}' | jq
+
+# 2. Tokens count (debe ser 9, no 13)
+curl -s https://api-gateway-v2.vercel.app/graphql \
+  -H "Content-Type: application/json" \
+  -d '{"query":"{ tokens(limit: 1) { totalCount } }"}' | jq '.data.tokens.totalCount'
+
+# 3. Fee dashboard (feature nueva)
+curl -s https://api-gateway-v2.vercel.app/graphql \
+  -H "Content-Type: application/json" \
+  -d '{"query":"{ feeDashboard { revenue { totalRevenue { total day } } } }"}' | jq
+
+# 4. Leaderboard con cache
+curl -s https://api-gateway-v2.vercel.app/graphql \
+  -H "Content-Type: application/json" \
+  -d '{"query":"{ leaderboard(type: TRADERS, limit: 5) { rank address volume24h } }"}' | jq
 ```
 
 ---
 
 ## Checklist Final
 
-- [ ] Todas las queries funcionan igual que antes
-- [ ] Soft-delete filtra correctamente (totalCount = 9)
-- [ ] Health check responde correctamente
+- [ ] Todos los queries funcionan igual o mejor que antes
+- [ ] Soft-delete filtra correctamente (`totalCount` = tokens activos)
+- [ ] Health check muestra `tokenStats` para debugging
+- [ ] DataLoaders previenen N+1 queries
+- [ ] Rate limiting funciona en `syncToken`
+- [ ] Admin mutations requieren X-Admin-Key header
+- [ ] Fee management queries funcionan
 - [ ] No hay errores en Vercel logs
-- [ ] Performance similar o mejor
 - [ ] Tests pasan
+- [ ] Preview deployment verificado
 
 ---
 
-## Tiempo Estimado Total
+## Tiempo Estimado
 
 | Fase | Tiempo |
 |------|--------|
-| Preparación | 30 min |
-| Configurar Vercel | 15 min |
-| Testing | 20 min |
-| Migración | 10 min |
-| Verificación | 10 min |
+| Crear handlers | 30 min |
+| Actualizar config | 15 min |
+| Testing local | 20 min |
+| Deploy preview | 15 min |
+| Migracion prod | 10 min |
+| Verificacion | 10 min |
 | **Total** | **~1.5 horas** |
 
 ---
 
-## Notas Importantes
+## Referencias
 
-1. **Hacer en horario de bajo tráfico**: La migración puede causar breve downtime
-2. **Tener acceso a Vercel dashboard**: Para monitorear logs en tiempo real
-3. **Backup de DATABASE_URL**: Por si hay que verificar conexión
-4. **No borrar `.backup/` hasta verificar que todo funciona por 24h**
+- [Apollo Server Integration for Next.js](https://github.com/apollo-server-integrations/apollo-server-integration-next)
+- [Vercel Serverless Functions](https://vercel.com/docs/functions/serverless-functions)
+- [Deploy Apollo GraphQL to Vercel](https://gebna.gg/blog/how-to-deploy-apollo-graphql-api-on-vercel-serverless-functions)
+- [TypeScript Path Aliases in Vercel](https://dev.to/ozanbolel/deploying-apollo-server-with-typescript-path-aliases-to-vercel-4k5l)
 
 ---
 
-*Documento creado: 2024-12-16*
-*Autor: Claude Code*
+*Documento actualizado: 2024-12-16*
+*Revision: v2.0 - Solucion con @as-integrations/next*
