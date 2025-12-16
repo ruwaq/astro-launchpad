@@ -148,6 +148,9 @@ stellar contract deploy --network testnet
 | `apps/web/src/lib/stellar/services/sac-factory.service.ts` | Main contract service |
 | `apps/web/src/hooks/useApi.ts` | Apollo hooks for data fetching |
 | `apps/web/src/components/widgets/TradingWidget.tsx` | Trading interface |
+| **Charts** | |
+| `apps/web/src/components/charts/SimpleChart.tsx` | Price/Cap chart (lightweight-charts) |
+| `apps/web/src/components/charts/TradingViewChart.tsx` | Advanced TradingView chart |
 | **Backend** | |
 | `backend/api-gateway-v2/src/graphql/schema.ts` | GraphQL schema |
 | `backend/indexer/src/services/dead-letter-queue.ts` | Failed event retry system |
@@ -300,6 +303,71 @@ stellar contract deploy \
 - `token(address)` - Single token
 - `transactions(tokenId)` - Token transactions
 - `globalStats` - Platform statistics
+
+## Recent Changes (Dec 2025)
+
+### Chart Component Fix (SimpleChart.tsx)
+**Location**: `apps/web/src/components/charts/SimpleChart.tsx`
+
+Fixed issues with chart not rendering:
+1. **Data condition** - Changed from `currentPrice > 0` to `currentPrice > 0 || xlmRaised > 0` to show chart in Cap mode when price is 0
+2. **Container rendering** - Always render chart container with loading overlay instead of conditional early return
+3. **Ref availability** - Chart container now always in DOM for lightweight-charts initialization
+
+**Chart Architecture**:
+- Uses `lightweight-charts` library (TradingView)
+- Two view modes: Cap (XLM raised) and Price
+- Graduation target line at 30,000 XLM
+- Real-time updates via 3-second polling
+- Green area chart with line overlay
+
+### Build Configuration
+- `playwright.config.ts` and `e2e/**/*` excluded from TypeScript build in `tsconfig.json`
+- Prevents build failures when `@playwright/test` not installed
+
+### Token Page Data Flow
+**Location**: `apps/web/src/app/t/[address]/page.tsx`
+
+Data source priority:
+1. **PRIMARY**: Stellar contract (via `sac-factory.service.ts`)
+2. **FALLBACK**: GraphQL API (read-only mode)
+
+```typescript
+const isReadOnlyMode = hasGraphqlData && !hasContractData;
+```
+
+### Production Audit Status
+Last audit: December 16, 2025
+
+**Completed**:
+- Security audit (contracts, API, frontend)
+- Performance analysis
+- Database/Prisma review
+- GraphQL API audit
+- Indexer reliability check
+- Frontend architecture review
+- Testing coverage analysis
+
+**Key Findings Addressed**:
+- Chart rendering fixed
+- Build errors resolved
+- Lockfile synced
+
+## Known Issues
+
+### Pending Vercel Deployment
+After pushing fixes, Vercel deployment takes 1-2 minutes to build + CDN propagation time.
+
+### IPFS Gateway Errors
+`gateway.pinata.cloud` occasionally returns `ERR_FAILED`. This affects token images but not core functionality.
+
+### Peer Dependency Warnings
+Non-blocking warnings in pnpm install:
+- `@trezor/connect-plugin-stellar` expects `@stellar/stellar-sdk@^13.3.0` (using 14.4.0)
+- `@as-integrations/express4` expects `express@^4.0.0` (using 5.1.0)
+- `apollo-server-micro` expects `micro@^9.3.4` (using 10.0.1)
+
+These are compatibility warnings, not errors.
 
 ---
 
