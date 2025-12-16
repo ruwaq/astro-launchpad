@@ -17,6 +17,8 @@ import { GraduationEventHandler } from './handlers/graduation-events.js'
 import { AstroEventHandler } from './handlers/astro-events.js'
 import { ConfigEventHandler } from './handlers/config-events.js'
 import { DeadLetterQueue, DEFAULT_DLQ_CONFIG, type DLQStats } from './dead-letter-queue.js'
+import { wsBroadcaster } from './websocket-server.js'
+import { EventDeduplicationService, type EventData } from '../lib/event-deduplication.js'
 import {
   recordEventReceived,
   recordEventFailed,
@@ -118,6 +120,9 @@ export class OptimizedEventIndexer {
   private dlq: DeadLetterQueue
   private dlqRetryInterval: NodeJS.Timeout | null = null
 
+  // Event deduplication service
+  private eventDedup: EventDeduplicationService
+
   constructor(private prisma: PrismaClient) {
     const rpcUrl = process.env.STELLAR_RPC_URL!
     this.sorobanRpc = new SorobanRpc.Server(rpcUrl)
@@ -153,6 +158,13 @@ export class OptimizedEventIndexer {
 
     // Initialize Dead Letter Queue for failed event handling
     this.dlq = new DeadLetterQueue(prisma, DEFAULT_DLQ_CONFIG)
+
+    // Initialize event deduplication service
+    this.eventDedup = new EventDeduplicationService(prisma, {
+      cacheSize: 10000,
+      cacheTtlMs: 3600000, // 1 hour
+      enableDatabaseCheck: true,
+    })
 
     // Start memory metrics collection
     startMemoryMetrics(10000) // Every 10 seconds
@@ -299,6 +311,7 @@ export class OptimizedEventIndexer {
     const cbStats = this.circuitBreaker.getStats()
     const batchStats = this.batchProcessor.getStats()
     const stateCache = this.stateManager.getCacheStats()
+    const dedupMetrics = this.eventDedup.getMetrics()
 
     return {
       isRunning: !this.isShuttingDown,
@@ -306,6 +319,7 @@ export class OptimizedEventIndexer {
       circuitBreaker: cbStats,
       batchProcessor: batchStats,
       stateCache,
+      deduplication: dedupMetrics,
       health: cbStats.state === CircuitState.CLOSED ? 'healthy' : 'degraded',
     }
   }
@@ -560,13 +574,30 @@ export class OptimizedEventIndexer {
 
   /**
    * Handle Token Factory event
-   * Adds event to batch processor queue
+   * Adds event to batch processor queue with deduplication
    */
   private async handleTokenFactoryEvent(event: any) {
     const eventType = this.getEventType(event)
 
     // Record event received
     recordEventReceived('token_factory', eventType)
+
+    // Check for duplicate event using deduplication service
+    const dedupEvent: EventData = {
+      ledger: event.ledger,
+      contractId: this.tokenFactory,
+      txHash: event.txHash || event.id,
+      eventIndex: event.eventIndex,
+      type: eventType,
+      timestamp: event.ledger_close_time,
+    }
+
+    const isDuplicate = await this.eventDedup.isDuplicate(dedupEvent)
+    if (isDuplicate) {
+      logger.debug(`Skipping duplicate event: ${eventType} at ledger ${event.ledger}`)
+      recordEventFailed('token_factory', eventType, 'duplicate')
+      return
+    }
 
     // Create batch event
     const batchEvent: BatchEvent = {
@@ -607,6 +638,8 @@ export class OptimizedEventIndexer {
         case normalizedType === 'created':
           logger.info(`📥 Processing TokenCreated event...`)
           await this.tokenHandler.handleTokenCreated(event)
+          // Broadcast token created event via WebSocket
+          this.broadcastTokenCreated(event)
           break
 
         // Token buy events
@@ -614,17 +647,23 @@ export class OptimizedEventIndexer {
         case normalizedType === 'tokensboughtdetailed':
         case normalizedType === 'buy':
           await this.tokenHandler.handleTokenBuy(event)
+          // Broadcast trade executed event via WebSocket
+          this.broadcastTradeExecuted(event, 'buy')
           break
 
         // Token sell events
         case normalizedType === 'tokenssold':
         case normalizedType === 'sell':
           await this.tokenHandler.handleTokenSell(event)
+          // Broadcast trade executed event via WebSocket
+          this.broadcastTradeExecuted(event, 'sell')
           break
 
         // Graduation events (basic)
         case normalizedType === 'tokengraduated':
           await this.tokenHandler.handleTokenGraduated(event)
+          // Broadcast token graduated event via WebSocket
+          this.broadcastTokenGraduated(event)
           break
 
         // Graduation events (detailed) - use dedicated handler
@@ -681,19 +720,114 @@ export class OptimizedEventIndexer {
         default:
           logger.debug(`Unhandled Token Factory event type: ${eventType}`)
       }
+
+      // Mark event as processed in deduplication service after successful handling
+      await this.eventDedup.markProcessed(dedupEvent)
     } catch (error) {
       logger.error(`Error processing ${eventType} event:`, error)
       // Event is still in batch processor queue, will be retried
     }
   }
 
+  // ============================================================================
+  // WebSocket Broadcasting Helpers
+  // ============================================================================
+
   /**
-   * Handle AMM event
+   * Broadcast token created event
+   */
+  private broadcastTokenCreated(event: any): void {
+    try {
+      const data = event.data || event.value || {}
+      const tokenAddress = data.token?.toString?.() || data.tokenAddress?.toString?.() || ''
+      const name = data.name?.toString?.() || ''
+      const symbol = data.symbol?.toString?.() || ''
+      const creator = data.creator?.toString?.() || ''
+
+      if (tokenAddress) {
+        wsBroadcaster.broadcastTokenCreated({ address: tokenAddress, name, symbol, creator })
+        logger.debug(`📡 Broadcasted token:created for ${symbol} (${tokenAddress})`)
+      }
+    } catch (error) {
+      logger.debug('Failed to broadcast token created:', error)
+    }
+  }
+
+  /**
+   * Broadcast trade executed event
+   */
+  private broadcastTradeExecuted(event: any, type: 'buy' | 'sell'): void {
+    try {
+      const data = event.data || event.value || {}
+      const tokenAddress = data.token?.toString?.() || data.tokenAddress?.toString?.() || ''
+      const amount = data.amount?.toString?.() || data.tokens?.toString?.() || '0'
+      const price = data.price?.toString?.() || '0'
+      const trader = data.buyer?.toString?.() || data.seller?.toString?.() || ''
+      const txHash = event.txHash || event.id || ''
+
+      if (tokenAddress) {
+        wsBroadcaster.broadcastTradeExecuted({ tokenAddress, type, amount, price, trader, txHash })
+        logger.debug(`📡 Broadcasted trade:executed ${type} for ${tokenAddress}`)
+      }
+    } catch (error) {
+      logger.debug('Failed to broadcast trade executed:', error)
+    }
+  }
+
+  /**
+   * Broadcast token graduated event
+   */
+  private broadcastTokenGraduated(event: any): void {
+    try {
+      const data = event.data || event.value || {}
+      const tokenAddress = data.token?.toString?.() || data.tokenAddress?.toString?.() || ''
+      const name = data.name?.toString?.() || ''
+      const finalPrice = data.finalPrice?.toString?.() || data.price?.toString?.() || '0'
+
+      if (tokenAddress) {
+        wsBroadcaster.broadcastTokenGraduated({ address: tokenAddress, name, finalPrice })
+        logger.debug(`📡 Broadcasted token:graduated for ${tokenAddress}`)
+      }
+    } catch (error) {
+      logger.debug('Failed to broadcast token graduated:', error)
+    }
+  }
+
+  /**
+   * Broadcast price update
+   */
+  private broadcastPriceUpdate(tokenAddress: string, price: string, change24h: number): void {
+    try {
+      wsBroadcaster.broadcastPriceUpdate({ tokenAddress, price, change24h })
+    } catch (error) {
+      logger.debug('Failed to broadcast price update:', error)
+    }
+  }
+
+  /**
+   * Handle AMM event with deduplication
    */
   private async handleAMMEvent(event: any) {
     const eventType = this.getEventType(event)
 
     recordEventReceived('amm_factory', eventType)
+
+    // Check for duplicate event using deduplication service
+    const dedupEvent: EventData = {
+      ledger: event.ledger,
+      contractId: this.ammFactory!,
+      txHash: event.txHash || event.id,
+      eventIndex: event.eventIndex,
+      type: eventType,
+      timestamp: event.ledger_close_time,
+    }
+
+    const isDuplicate = await this.eventDedup.isDuplicate(dedupEvent)
+    if (isDuplicate) {
+      logger.debug(`Skipping duplicate AMM event: ${eventType} at ledger ${event.ledger}`)
+      recordEventFailed('amm_factory', eventType, 'duplicate')
+      return
+    }
 
     const batchEvent: BatchEvent = {
       id: event.id,
@@ -733,6 +867,9 @@ export class OptimizedEventIndexer {
         default:
           logger.warn(`Unknown AMM event type: ${eventType}`)
       }
+
+      // Mark event as processed in deduplication service
+      await this.eventDedup.markProcessed(dedupEvent)
     } catch (error) {
       logger.error(`Error processing ${eventType} event:`, error)
     }

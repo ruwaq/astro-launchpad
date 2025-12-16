@@ -67,11 +67,18 @@ export class MetricsCalculator {
         // Store for cache update
         currentPrices.set(token.address, currentPrice);
 
-        // Calculate market cap: price * circulating supply (both in stroops)
-        const circulatingSupply = BigInt(token.circulatingSupply || '0');
-        const marketCap = circulatingSupply > 0n
-          ? (currentPrice * circulatingSupply) / BigInt(10_000_000)
-          : 0n;
+        // Market cap comes from blockchain sync service - don't overwrite if already set
+        // Only calculate fallback if blockchain marketCap is 0 and we have valid data
+        const existingMarketCap = BigInt(token.marketCap || '0');
+        let marketCap = existingMarketCap;
+
+        if (existingMarketCap === 0n) {
+          // Fallback: calculate from price * circulating supply
+          const circulatingSupply = BigInt(token.circulatingSupply || '0');
+          if (circulatingSupply > 0n && currentPrice > 0n) {
+            marketCap = (currentPrice * circulatingSupply) / BigInt(10_000_000);
+          }
+        }
 
         // Calculate 24h price change percentage
         const price24hAgo = prices24hAgo.get(token.address);
@@ -83,14 +90,26 @@ export class MetricsCalculator {
 
         const holders = holderMap.get(token.address) || 1;
 
+        // Build update data - only include marketCap if we calculated a new value
+        const updateData: {
+          currentPrice: string;
+          priceChange24h: number;
+          holders: number;
+          marketCap?: string;
+        } = {
+          currentPrice: currentPrice.toString(),
+          priceChange24h,
+          holders,
+        };
+
+        // Only update marketCap if we calculated a non-zero value and it differs
+        if (marketCap > 0n && marketCap !== existingMarketCap) {
+          updateData.marketCap = marketCap.toString();
+        }
+
         return this.prisma.token.update({
           where: { id: token.id },
-          data: {
-            currentPrice: currentPrice.toString(),
-            marketCap: marketCap.toString(),
-            priceChange24h,
-            holders,
-          },
+          data: updateData,
         });
       } catch (error) {
         logger.error({ error, tokenAddress: token.address }, 'Error preparing metrics for token');
@@ -283,29 +302,39 @@ export class MetricsCalculator {
   }
 
   /**
-   * Calculate token price from bonding curve formula
-   * Price = (virtualXlm + xlmReserve) / circulatingSupply
+   * Calculate token price using multiple strategies:
+   * 1. From bonding curve: (virtualXlm + xlmReserve) / circulatingSupply
+   * 2. Fallback: marketCap / totalSupply
    *
-   * @param token Token data with reserves and supply
+   * @param token Token data with reserves, supply, and marketCap
    * @returns Price in stroops (1 XLM = 10^7 stroops)
    */
   private calculateBondingCurvePrice(token: {
     xlmReserve?: string | null;
     circulatingSupply?: string | null;
+    marketCap?: string | null;
   }): bigint {
+    const TOTAL_SUPPLY = BigInt('10000000000000000'); // 1 billion * 10^7 decimals
+
     try {
       const xlmReserve = BigInt(token.xlmReserve || '0');
       const circulatingSupply = BigInt(token.circulatingSupply || '0');
+      const marketCap = BigInt(token.marketCap || '0');
 
-      // Avoid division by zero
-      if (circulatingSupply === 0n) {
-        return 0n;
+      // Strategy 1: Calculate from bonding curve reserves
+      if (circulatingSupply > 0n) {
+        // Price = (VIRTUAL_XLM + xlmReserve) * 10^7 / circulatingSupply
+        const totalXlm = VIRTUAL_XLM + xlmReserve;
+        return (totalXlm * BigInt(10_000_000)) / circulatingSupply;
       }
 
-      // Price = (VIRTUAL_XLM + xlmReserve) * 10^7 / circulatingSupply
-      // Multiply by 10^7 first to maintain precision (stroops per token unit)
-      const totalXlm = VIRTUAL_XLM + xlmReserve;
-      return (totalXlm * BigInt(10_000_000)) / circulatingSupply;
+      // Strategy 2: Calculate from market cap / total supply
+      // When circulatingSupply = 0 (all tokens sold), use marketCap
+      if (marketCap > 0n) {
+        return (marketCap * BigInt(10_000_000)) / TOTAL_SUPPLY;
+      }
+
+      return 0n;
     } catch {
       return 0n;
     }

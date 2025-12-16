@@ -163,7 +163,8 @@ const queryResolvers = {
       }
 
       // Build where clause for search and status filter
-      const whereConditions: any[] = []
+      // Always exclude soft-deleted tokens
+      const whereConditions: any[] = [{ deletedAt: null }]
 
       // Search filter
       if (search) {
@@ -184,9 +185,7 @@ const queryResolvers = {
         }
       }
 
-      const where = whereConditions.length > 0
-        ? { AND: whereConditions }
-        : {}
+      const where = { AND: whereConditions }
 
       // Build orderBy
       const orderByMap: Record<string, any> = {
@@ -276,6 +275,7 @@ const queryResolvers = {
         // PERFORMANCE: Select only fields needed for trending list
         const tokens = await context.prisma.token.findMany({
           where: {
+            deletedAt: null,
             createdAt: { gte: sevenDaysAgo },
           },
           orderBy: [{ volume24h: 'desc' }, { holders: 'desc' }],

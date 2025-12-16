@@ -79,19 +79,32 @@ export class BootstrapService {
       const tokenCount = await this.contractReader.getTokenCount();
       logger.info(`📊 Contract reports ${tokenCount} tokens`);
 
-      // Step 2: Get all token addresses (from events if direct method not available)
-      let tokenAddresses: string[] = [];
+      // Step 2: Get all token addresses using multiple strategies
+      const tokenAddressSet = new Set<string>();
 
-      // Try direct method first
-      tokenAddresses = await this.contractReader.getAllTokens(0, 1000);
+      // Strategy 1: Try direct contract method
+      const contractTokens = await this.contractReader.getAllTokens(0, 1000);
+      contractTokens.forEach(addr => tokenAddressSet.add(addr));
+      logger.info(`  - Contract method: ${contractTokens.length} tokens`);
 
-      // If empty, try events
-      if (tokenAddresses.length === 0) {
+      // Strategy 2: Try events if contract method returned empty
+      if (tokenAddressSet.size === 0) {
         logger.info('Using event-based token discovery...');
-        tokenAddresses = await this.contractReader.getTokensFromEvents();
+        const eventTokens = await this.contractReader.getTokensFromEvents();
+        eventTokens.forEach(addr => tokenAddressSet.add(addr));
+        logger.info(`  - Events method: ${eventTokens.length} tokens`);
       }
 
-      logger.info(`📋 Found ${tokenAddresses.length} token addresses to sync`);
+      // Strategy 3: Include existing database tokens (for re-sync)
+      const dbTokens = await this.prisma.token.findMany({
+        where: { deletedAt: null },
+        select: { address: true },
+      });
+      dbTokens.forEach(t => tokenAddressSet.add(t.address));
+      logger.info(`  - Database: ${dbTokens.length} existing tokens`);
+
+      const tokenAddresses = Array.from(tokenAddressSet);
+      logger.info(`📋 Found ${tokenAddresses.length} unique token addresses to sync`);
 
       if (tokenAddresses.length === 0) {
         logger.warn('No tokens found to sync');
