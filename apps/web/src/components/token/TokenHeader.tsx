@@ -13,9 +13,10 @@ import { useState } from 'react';
 import { getIpfsUrl as getImageUrl } from '@/lib/utils/ipfs';
 import { getNetworkConfig } from '@/lib/config/network';
 import { motion } from 'framer-motion';
+import type { Token } from '@/lib/graphql/types';
 
 interface TokenHeaderProps {
-  token: any; // Token object from GraphQL
+  token: Token;
 }
 
 export function TokenHeader({ token }: TokenHeaderProps) {

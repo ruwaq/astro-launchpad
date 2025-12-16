@@ -225,18 +225,23 @@ export class OptimizedEventIndexer {
           await this.dlq.markRetrying(failedEvent.eventId)
 
           // Reconstruct event and process based on contract
-          const eventData = failedEvent.eventData as Record<string, unknown>
+          // Cast to SorobanEvent - the stored eventData contains the serialized event
+          const eventData = failedEvent.eventData as Record<string, unknown>;
+          const reconstructedEvent = {
+            id: failedEvent.eventId,
+            ...eventData,
+          } as import('../types/events.js').SorobanEvent;
 
           if (failedEvent.contract === 'token_factory') {
             // Route to appropriate token handler based on event type
             if (failedEvent.eventType === 'token_created') {
-              await this.tokenHandler.handleTokenCreated(eventData)
+              await this.tokenHandler.handleTokenCreated(reconstructedEvent);
             } else if (failedEvent.eventType === 'token_buy') {
-              await this.tokenHandler.handleTokenBuy(eventData)
+              await this.tokenHandler.handleTokenBuy(reconstructedEvent);
             } else if (failedEvent.eventType === 'token_sell') {
-              await this.tokenHandler.handleTokenSell(eventData)
+              await this.tokenHandler.handleTokenSell(reconstructedEvent);
             } else if (failedEvent.eventType === 'token_graduated') {
-              await this.tokenHandler.handleTokenGraduated(eventData)
+              await this.tokenHandler.handleTokenGraduated(reconstructedEvent);
             }
           }
 

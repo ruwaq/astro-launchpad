@@ -18,7 +18,7 @@ import { PrismaClient } from '@astroshibapop/shared/prisma';
 import { Networks } from '@stellar/stellar-sdk';
 import { logger } from '../lib/logger.js';
 import { wsBroadcaster } from './websocket-server.js';
-import { ContractReader, type TokenInfo } from './contract-reader.js';
+import { ContractReader } from './contract-reader.js';
 
 // ============================================================================
 // Configuration

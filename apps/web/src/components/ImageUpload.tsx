@@ -217,10 +217,11 @@ export function ImageUpload({ value, onChange, disabled }: ImageUploadProps) {
         setUploadStatus('idle');
       }, 2000);
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error uploading image:', error);
       setUploadStatus('error');
-      toast.error(error.message || 'Failed to upload image to IPFS');
+      const message = error instanceof Error ? error.message : 'Failed to upload image to IPFS';
+      toast.error(message);
 
       // Don't clear preview on error - user can see what they selected and retry
       // Only clear the onChange value so form knows upload failed

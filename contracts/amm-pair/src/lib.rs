@@ -103,7 +103,7 @@ impl AMMPair {
         sender.require_auth();
 
         // REENTRANCY PROTECTION: Acquire lock for entire function
-        let _guard = reentrancy::ReentrancyGuard::new(&env);
+        let _guard = reentrancy::ReentrancyGuard::new(&env)?;
 
         // Check deadline (MEV protection)
         if env.ledger().timestamp() > deadline {
@@ -239,7 +239,7 @@ impl AMMPair {
         sender.require_auth();
 
         // REENTRANCY PROTECTION: Acquire lock for entire function
-        let _guard = reentrancy::ReentrancyGuard::new(&env);
+        let _guard = reentrancy::ReentrancyGuard::new(&env)?;
 
         // Check deadline (MEV protection)
         if env.ledger().timestamp() > deadline {
@@ -328,7 +328,7 @@ impl AMMPair {
         sender.require_auth();
 
         // REENTRANCY PROTECTION: Acquire lock for entire function
-        let _guard = reentrancy::ReentrancyGuard::new(&env);
+        let _guard = reentrancy::ReentrancyGuard::new(&env)?;
 
         // Check deadline (MEV protection)
         if env.ledger().timestamp() > deadline {

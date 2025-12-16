@@ -320,10 +320,11 @@ export async function POST(request: NextRequest) {
       timestamp: new Date().toISOString(),
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error processing/uploading image:', error);
+    const message = error instanceof Error ? error.message : 'Failed to process and upload image';
     return NextResponse.json(
-      { error: error.message || 'Failed to process and upload image' },
+      { error: message },
       { status: 500 }
     );
   }

@@ -271,7 +271,6 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     stopHeartbeat,
     processMessageQueue,
     subscribedTokens,
-    sendMessage,
     handleMessage,
   ]);
 

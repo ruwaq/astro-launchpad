@@ -84,7 +84,7 @@ export class WebSocketBroadcaster {
 
     try {
       wsManager.broadcastTrade(trade.tokenAddress, {
-        type: 'trade',
+        eventType: 'trade',
         ...trade,
       });
 

@@ -8,6 +8,54 @@
 import { logger } from '../logger';
 import toast from 'react-hot-toast';
 
+// ============================================================================
+// Type-safe Error Utilities
+// ============================================================================
+
+/**
+ * Type guard to check if value is an Error instance
+ */
+export function isError(value: unknown): value is Error {
+    return value instanceof Error;
+}
+
+/**
+ * Type guard to check if value is an AppError instance
+ */
+export function isAppError(value: unknown): value is AppError {
+    return value instanceof AppError;
+}
+
+/**
+ * Safely extract error message from unknown error type
+ * Use this instead of (err as any).message or catch (err: any)
+ */
+export function getErrorMessage(error: unknown): string {
+    if (isError(error)) {
+        return error.message;
+    }
+    if (typeof error === 'string') {
+        return error;
+    }
+    if (error && typeof error === 'object' && 'message' in error) {
+        return String((error as { message: unknown }).message);
+    }
+    return 'An unknown error occurred';
+}
+
+/**
+ * Safely extract error code from unknown error type
+ */
+export function getErrorCode(error: unknown): string {
+    if (isAppError(error)) {
+        return error.code;
+    }
+    if (error && typeof error === 'object' && 'code' in error) {
+        return String((error as { code: unknown }).code);
+    }
+    return 'UNKNOWN_ERROR';
+}
+
 /**
  * Base error class for all custom errors
  */
@@ -324,10 +372,6 @@ export async function withRetry<T>(
 /**
  * Type guard for checking error types
  */
-export function isAppError(error: unknown): error is AppError {
-    return error instanceof AppError;
-}
-
 export function isStellarError(error: unknown): error is StellarError {
     return error instanceof StellarError;
 }

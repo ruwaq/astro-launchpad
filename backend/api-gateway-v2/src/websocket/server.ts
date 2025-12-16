@@ -121,7 +121,7 @@ class WebSocketManager {
 
     subscribers.forEach((clientId) => {
       const client = this.clients.get(clientId);
-      if (client?.ws.readyState === OPEN_STATE) {
+      if (client && client.ws.readyState === OPEN_STATE) {
         try {
           client.ws.send(message);
           sentCount++;

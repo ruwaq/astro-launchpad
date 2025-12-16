@@ -47,11 +47,11 @@ export async function validateTokenOnChain(
     const tokenInfo = await sacFactoryService.getTokenInfo(tokenAddress);
     result.existsOnChain = !!tokenInfo;
     result.isValid = !!tokenInfo;
-  } catch (error: any) {
+  } catch (error: unknown) {
     // Token not found or contract error
     result.existsOnChain = false;
     result.isValid = false;
-    result.error = error.message || 'Failed to validate token';
+    result.error = error instanceof Error ? error.message : 'Failed to validate token';
   }
 
   return result;

@@ -115,7 +115,7 @@ export function useUserHoldings(address: string | null): UseUserHoldingsReturn {
         const tokenMap = new Map<string, TokenData>();
 
         // Process all transactions to calculate net balances
-        txData?.transactions?.edges?.forEach((edge: any) => {
+        txData?.transactions?.edges?.forEach((edge) => {
           const tx = edge?.node;
           if (!tx?.token) return;
 

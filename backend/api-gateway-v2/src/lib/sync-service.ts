@@ -13,7 +13,7 @@
 
 import { SorobanRpc, Contract, Address, scValToNative, TransactionBuilder, Account } from '@stellar/stellar-sdk';
 import { randomUUID } from 'crypto';
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClientWithAdapter } from './prisma.js';
 
 // ============================================================================
 // Configuration
@@ -311,7 +311,7 @@ async function getTokenInfoFromContract(tokenAddress: string): Promise<TokenInfo
  */
 export async function syncTokenToDatabase(
   tokenAddress: string,
-  prisma: PrismaClient
+  prisma: PrismaClientWithAdapter
 ): Promise<SyncResult> {
   console.log(`[SyncService] Syncing token: ${tokenAddress}`);
 
@@ -467,7 +467,7 @@ export async function syncTokenToDatabase(
  * Use this for initial sync or catching up
  */
 export async function syncAllTokensFromContract(
-  prisma: PrismaClient
+  prisma: PrismaClientWithAdapter
 ): Promise<{ synced: number; failed: number; total: number }> {
   console.log('[SyncService] Starting full token sync...');
 

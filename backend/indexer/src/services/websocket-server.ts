@@ -111,7 +111,7 @@ export class WebSocketBroadcaster {
       try {
         const message = JSON.parse(data.toString());
         this.handleClientMessage(ws, message);
-      } catch (error) {
+      } catch {
         this.sendToClient(ws, {
           type: 'error',
           payload: { message: 'Invalid message format' },

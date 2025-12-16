@@ -49,7 +49,8 @@ const envSchema = z.object({
   ADMIN_ADDRESSES: z.string().optional(),
 
   // Admin API Key (required in production for admin mutations)
-  ADMIN_API_KEY: z.string().min(32, 'ADMIN_API_KEY must be at least 32 characters').optional(),
+  // SECURITY: Minimum 32 characters required for cryptographic security
+  ADMIN_API_KEY: z.string().min(32, 'ADMIN_API_KEY must be at least 32 characters for security').optional(),
 
   // Rate Limiting
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60000), // 1 minute

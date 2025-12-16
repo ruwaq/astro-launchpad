@@ -311,10 +311,22 @@ export function validateAdminKeyFromHeader(context: GraphQLContext): {
   adminKey?: string;
 } {
   const ADMIN_KEY = process.env.ADMIN_API_KEY;
+  const isProduction = process.env.NODE_ENV === 'production';
 
   if (!ADMIN_KEY) {
-    console.error('[Security] ADMIN_API_KEY environment variable not configured');
+    // In production, this is a critical security issue
+    if (isProduction) {
+      console.error('[CRITICAL SECURITY] ADMIN_API_KEY environment variable not configured in production');
+    } else {
+      console.warn('[Security] ADMIN_API_KEY not configured - admin operations disabled');
+    }
     return { valid: false, error: 'Admin API key not configured on server' };
+  }
+
+  // SECURITY: Runtime validation of key length (defense in depth)
+  if (ADMIN_KEY.length < 32) {
+    console.error('[CRITICAL SECURITY] ADMIN_API_KEY is too short - must be at least 32 characters');
+    return { valid: false, error: 'Admin API key configuration error' };
   }
 
   // Extract admin key from X-Admin-Key header

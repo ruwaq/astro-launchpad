@@ -11,28 +11,10 @@ import {
 } from '@simplewebauthn/server';
 import type { RegistrationResponseJSON } from '@simplewebauthn/types';
 import crypto from 'crypto';
+import { getSecretKey } from '../secret.js';
 
 const RP_ID = process.env.NEXT_PUBLIC_RP_ID || 'localhost';
 const ORIGIN = process.env.NEXT_PUBLIC_ORIGIN || 'http://localhost:3000';
-
-// Same secret as options endpoint (MUST be set in production)
-// SECURITY: In production, this MUST be set via environment variable
-function getSecretKey(): string {
-  const secret = process.env.PASSKEY_CHALLENGE_SECRET;
-
-  if (secret) {
-    return secret;
-  }
-
-  // In production, require the secret (checked at runtime, not build time)
-  if (process.env.NODE_ENV === 'production') {
-    console.error('CRITICAL: PASSKEY_CHALLENGE_SECRET environment variable is required in production');
-    throw new Error('Server configuration error');
-  }
-
-  // Development-only insecure fallback
-  return 'dev-only-insecure-secret-' + (process.pid || 'build');
-}
 
 interface ChallengePayload {
   challenge: string;
@@ -142,7 +124,7 @@ export async function POST(request: NextRequest) {
         credentialBackedUp: verification.registrationInfo?.credentialBackedUp,
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     // SECURITY: Log detailed error server-side but return generic message to client
     console.error('Error verifying registration:', error);
     return NextResponse.json(

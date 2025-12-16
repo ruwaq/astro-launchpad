@@ -67,9 +67,9 @@ export function PasskeyAuth({ onSuccess, onError }: PasskeyAuthProps) {
       } else {
         throw new Error(result.error || 'Registration failed');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error('Registration error', { error });
-      const errorMsg = error.message || 'Failed to create passkey';
+      const errorMsg = error instanceof Error ? error.message : 'Failed to create passkey';
       toast.error(errorMsg);
       onError?.(errorMsg);
     } finally {
@@ -94,9 +94,9 @@ export function PasskeyAuth({ onSuccess, onError }: PasskeyAuthProps) {
       } else {
         throw new Error(result.error || 'Authentication failed');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error('Authentication error', { error });
-      const errorMsg = error.message || 'Failed to authenticate';
+      const errorMsg = error instanceof Error ? error.message : 'Failed to authenticate';
       toast.error(errorMsg);
       onError?.(errorMsg);
     } finally {

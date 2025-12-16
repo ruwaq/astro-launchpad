@@ -229,19 +229,20 @@ export function WalletProvider({ children }: { children: ReactNode }) {
           ? 'Open LOBSTR or xBull app to connect your wallet.'
           : 'Wallet extension not installed. Install Freighter, xBull, or Albedo.',
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       walletLogger.error('Failed to connect wallet', err);
 
       let errorMessage = 'Failed to connect wallet';
+      const errorObj = err as { code?: number; message?: string };
 
-      if (err.code === -1) {
+      if (errorObj.code === -1) {
         errorMessage = isMobile
           ? 'Please install LOBSTR or xBull wallet app to connect.'
           : 'Wallet extension not installed. Please install Freighter, xBull, or Albedo.';
-      } else if (err.code === -3) {
+      } else if (errorObj.code === -3) {
         errorMessage = 'Please select a wallet from the modal.';
-      } else if (err.message) {
-        errorMessage = err.message;
+      } else if (errorObj.message) {
+        errorMessage = errorObj.message;
       }
 
       setError(errorMessage);
@@ -287,9 +288,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       });
 
       return signedTxXdr;
-    } catch (err: any) {
+    } catch (err: unknown) {
       walletLogger.error('Failed to sign transaction', err);
-      throw new Error(err.message || 'Failed to sign transaction');
+      const message = err instanceof Error ? err.message : 'Failed to sign transaction';
+      throw new Error(message);
     }
   }, [kit, address]);
 
@@ -320,9 +322,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         signature: signedBlob,
         timestamp,
       };
-    } catch (err: any) {
+    } catch (err: unknown) {
       // Many wallets don't support signBlob - this is expected
-      walletLogger.debug('Wallet does not support message signing', { message: err.message });
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      walletLogger.debug('Wallet does not support message signing', { message });
       return null;
     }
   }, [kit, address]);

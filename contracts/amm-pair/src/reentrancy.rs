@@ -4,8 +4,11 @@
 //!
 //! The reentrancy guard ensures that critical functions cannot be called
 //! recursively through external contract calls.
+//!
+//! **Updated:** Now uses Result instead of panic for better error handling.
 
 use soroban_sdk::{Env, Symbol, symbol_short};
+use crate::errors::Error;
 
 /// Storage key for the reentrancy lock
 const LOCK_KEY: Symbol = symbol_short!("LOCK");
@@ -20,13 +23,14 @@ pub fn is_locked(env: &Env) -> bool {
 
 /// Acquire the reentrancy lock
 ///
-/// # Panics
-/// Panics if the lock is already acquired (reentrancy detected)
-pub fn acquire_lock(env: &Env) {
+/// # Errors
+/// Returns `Error::Reentrancy` if the lock is already acquired
+pub fn acquire_lock(env: &Env) -> Result<(), Error> {
     if is_locked(env) {
-        panic!("reentrancy detected");
+        return Err(Error::Reentrancy);
     }
     env.storage().temporary().set(&LOCK_KEY, &true);
+    Ok(())
 }
 
 /// Release the reentrancy lock
@@ -36,7 +40,7 @@ pub fn release_lock(env: &Env) {
 
 /// RAII guard that automatically releases the lock when dropped
 ///
-/// This ensures the lock is always released, even if the function panics.
+/// This ensures the lock is always released, even if the function returns an error.
 pub struct ReentrancyGuard<'a> {
     env: &'a Env,
 }
@@ -44,11 +48,11 @@ pub struct ReentrancyGuard<'a> {
 impl<'a> ReentrancyGuard<'a> {
     /// Create a new reentrancy guard and acquire the lock
     ///
-    /// # Panics
-    /// Panics if a lock is already held (reentrancy attack)
-    pub fn new(env: &'a Env) -> Self {
-        acquire_lock(env);
-        Self { env }
+    /// # Errors
+    /// Returns `Error::Reentrancy` if a lock is already held (reentrancy attack)
+    pub fn new(env: &'a Env) -> Result<Self, Error> {
+        acquire_lock(env)?;
+        Ok(Self { env })
     }
 }
 
@@ -58,5 +62,16 @@ impl<'a> Drop for ReentrancyGuard<'a> {
     }
 }
 
-// Reentrancy tests are in the main lib.rs integration tests
-// since temporary storage requires contract context
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Note: Full reentrancy tests require contract context
+    // These are basic unit tests for the guard logic
+
+    #[test]
+    fn test_error_code() {
+        // Verify error code matches expected value
+        assert_eq!(Error::Reentrancy as u32, 51);
+    }
+}

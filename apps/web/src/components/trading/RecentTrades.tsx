@@ -43,15 +43,22 @@ interface RecentTradesProps {
   tokenAddress: string;
 }
 
+interface TradeNode {
+  id: string;
+  hash?: string;
+  type: string;
+  from?: string;
+  amount?: string;
+  timestamp: string;
+}
+
+interface TradeEdge {
+  cursor: string;
+  node: TradeNode;
+}
+
 interface TradeItemProps {
-  trade: {
-    id: string;
-    hash?: string;
-    type: string;
-    from?: string;
-    amount?: string;
-    timestamp: string;
-  };
+  trade: TradeNode;
   tokenSymbol: string;
 }
 
@@ -189,8 +196,8 @@ export const RecentTrades = memo(function RecentTrades({ tokenAddress }: RecentT
       </div>
 
       <div className="space-y-2 max-h-96 overflow-y-auto">
-        {trades.map(({ node: trade }: any) => (
-          <TradeItem key={trade.id} trade={trade} tokenSymbol={tokenSymbol} />
+        {trades.map((edge: TradeEdge) => (
+          <TradeItem key={edge.node.id} trade={edge.node} tokenSymbol={tokenSymbol} />
         ))}
       </div>
 

@@ -21,10 +21,11 @@ export function Navbar() {
     try {
       await connect();
       toast.success(t('common.walletConnected'));
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Stellar Wallets Kit handles wallet selection modal
       // User will see available wallets in the modal
-      toast.error(error.message || 'Failed to connect wallet');
+      const message = error instanceof Error ? error.message : 'Failed to connect wallet';
+      toast.error(message);
     }
   };
 

@@ -18,6 +18,14 @@ import { motion, AnimatePresence, useSpring, useTransform } from 'framer-motion'
 import { Rocket, Trophy, Flame, Zap, Star, PartyPopper, TrendingUp, Target, Droplets, Info } from 'lucide-react';
 import { GRADUATION_THRESHOLD_XLM } from '@/lib/stellar/utils';
 
+// Progress milestones (static constant outside component)
+const MILESTONES = [
+  { percent: 25, label: '25%', icon: Flame, emoji: '🔥' },
+  { percent: 50, label: '50%', icon: Zap, emoji: '⚡' },
+  { percent: 75, label: '75%', icon: Star, emoji: '⭐' },
+  { percent: 100, label: 'DEX!', icon: Trophy, emoji: '🏆' },
+] as const;
+
 /**
  * Format XLM amounts consistently (using en-US locale)
  * This ensures consistent display regardless of browser locale
@@ -143,17 +151,9 @@ export function GraduationProgressAnimated({
   const springProgress = useSpring(percentComplete, { stiffness: 50, damping: 20 });
   const progressWidth = useTransform(springProgress, (v) => `${v}%`);
 
-  // Milestones
-  const milestones = [
-    { percent: 25, label: '25%', icon: Flame, emoji: '🔥' },
-    { percent: 50, label: '50%', icon: Zap, emoji: '⚡' },
-    { percent: 75, label: '75%', icon: Star, emoji: '⭐' },
-    { percent: 100, label: 'DEX!', icon: Trophy, emoji: '🏆' },
-  ];
-
   // Detect milestone crossings and create particles
   useEffect(() => {
-    milestones.forEach((milestone) => {
+    MILESTONES.forEach((milestone) => {
       if (percentComplete >= milestone.percent && prevProgress < milestone.percent) {
         // Milestone reached! Create particles with unique IDs
         const baseId = particleCounter;
@@ -333,7 +333,7 @@ export function GraduationProgressAnimated({
       <div className="relative mb-6">
         {/* Milestones */}
         <div className="absolute top-0 left-0 right-0 h-full flex">
-          {milestones.map((milestone) => (
+          {MILESTONES.map((milestone) => (
             <div
               key={milestone.percent}
               className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 z-10"

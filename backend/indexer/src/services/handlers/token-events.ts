@@ -3,6 +3,13 @@ import { scValToNative } from '@stellar/stellar-sdk';
 import { logger } from '../../lib/logger.js';
 import { createContractReader } from '../contract-reader.js';
 import { wsBroadcaster } from '../websocket-server.js';
+import type {
+  SorobanEvent,
+  TokenCreatedEventData,
+  TokenBuyEventData,
+  TokenSellEventData,
+} from '../../types/events.js';
+import { toEventString, toEventAmount } from '../../types/events.js';
 
 export class TokenEventHandler {
   private contractReader;
@@ -11,16 +18,16 @@ export class TokenEventHandler {
     this.contractReader = createContractReader();
   }
 
-  async handleTokenCreated(event: any) {
+  async handleTokenCreated(event: SorobanEvent): Promise<void> {
     try {
-      const data = this.parseEventData(event);
+      const data = this.parseEventData(event) as Partial<TokenCreatedEventData>;
 
       // Contract emits: { creator, token, name, symbol }
       // Note: field is 'token' not 'tokenAddress' from contract events
-      const creator = data.creator?.toString() || '';
-      const tokenAddress = data.token?.toString() || data.tokenAddress?.toString() || '';
-      const name = data.name?.toString() || '';
-      const symbol = data.symbol?.toString() || '';
+      const creator = toEventString(data.creator);
+      const tokenAddress = toEventString(data.token || data.tokenAddress);
+      const name = toEventString(data.name);
+      const symbol = toEventString(data.symbol);
 
       if (!tokenAddress) {
         logger.error('TokenCreated event missing token address:', data);
@@ -131,16 +138,16 @@ export class TokenEventHandler {
     }
   }
 
-  async handleTokenBuy(event: any) {
+  async handleTokenBuy(event: SorobanEvent): Promise<void> {
     try {
-      const data = this.parseEventData(event);
+      const data = this.parseEventData(event) as Partial<TokenBuyEventData>;
 
       // Contract emits: { buyer, token, xlm_amount, tokens_received }
       // Handle both snake_case (from Soroban) and camelCase
-      const buyer = data.buyer?.toString() || '';
-      const tokenAddress = data.token?.toString() || '';
-      const xlmAmount = data.xlm_amount?.toString() || data.xlmAmount?.toString() || '0';
-      const tokensReceived = data.tokens_received?.toString() || data.tokensReceived?.toString() || '0';
+      const buyer = toEventString(data.buyer);
+      const tokenAddress = toEventString(data.token);
+      const xlmAmount = toEventAmount(data.xlm_amount ?? data.xlmAmount);
+      const tokensReceived = toEventAmount(data.tokens_received ?? data.tokensReceived);
 
       if (!tokenAddress || !buyer) {
         logger.warn('TokenBuy event missing required fields:', data);
@@ -239,16 +246,16 @@ export class TokenEventHandler {
     }
   }
 
-  async handleTokenSell(event: any) {
+  async handleTokenSell(event: SorobanEvent): Promise<void> {
     try {
-      const data = this.parseEventData(event);
+      const data = this.parseEventData(event) as Partial<TokenSellEventData>;
 
       // Contract emits: { seller, token, tokens_sold, xlm_received }
       // Handle both snake_case (from Soroban) and camelCase
-      const seller = data.seller?.toString() || '';
-      const tokenAddress = data.token?.toString() || '';
-      const tokensSold = data.tokens_sold?.toString() || data.tokensSold?.toString() || '0';
-      const xlmReceived = data.xlm_received?.toString() || data.xlmReceived?.toString() || '0';
+      const seller = toEventString(data.seller);
+      const tokenAddress = toEventString(data.token);
+      const tokensSold = toEventAmount(data.token_amount ?? data.tokenAmount);
+      const xlmReceived = toEventAmount(data.xlm_received ?? data.xlmReceived);
 
       if (!tokenAddress || !seller) {
         logger.warn('TokenSell event missing required fields:', data);
@@ -344,13 +351,13 @@ export class TokenEventHandler {
     }
   }
 
-  async handleTokenGraduated(event: any) {
+  async handleTokenGraduated(event: SorobanEvent): Promise<void> {
     try {
-      const data = this.parseEventData(event);
+      const data = this.parseEventData(event) as Record<string, unknown>;
 
       // Contract emits: { token, xlm_raised }
-      const tokenAddress = data.token?.toString() || '';
-      const xlmRaised = data.xlm_raised?.toString() || data.xlmRaised?.toString() || '0';
+      const tokenAddress = toEventString(data.token);
+      const xlmRaised = toEventAmount(data.xlm_raised ?? data.xlmRaised);
 
       if (!tokenAddress) {
         logger.warn('TokenGraduated event missing token address:', data);
@@ -383,7 +390,7 @@ export class TokenEventHandler {
    * Parse Soroban event data using scValToNative
    * Handles both raw XDR values and already-decoded objects
    */
-  private parseEventData(event: any): any {
+  private parseEventData(event: SorobanEvent): Record<string, unknown> {
     try {
       // Get the event value
       const value = event.value;
@@ -393,18 +400,27 @@ export class TokenEventHandler {
         return {};
       }
 
-      // If value is already a plain object, return it
-      if (typeof value === 'object' && !value._switch && !value._arm) {
+      // Check if value looks like an XDR ScVal (has _switch or _arm which are internal XDR properties)
+      const valueObj = value as Record<string, unknown>;
+      const isXdrValue = typeof value === 'object' &&
+        value !== null &&
+        ('_switch' in valueObj || '_arm' in valueObj || 'switch' in valueObj);
+
+      // If value is already a plain object (not XDR), return it
+      if (typeof value === 'object' && value !== null && !isXdrValue) {
         logger.debug('Event value already decoded:', value);
-        return value;
+        return value as Record<string, unknown>;
       }
 
       // Decode XDR using Stellar SDK
       // scValToNative handles the XDR->JS conversion
-      const decoded = scValToNative(value);
+      const decoded = scValToNative(value as Parameters<typeof scValToNative>[0]);
       logger.debug('Decoded event data:', decoded);
 
-      return decoded;
+      if (typeof decoded === 'object' && decoded !== null) {
+        return decoded as Record<string, unknown>;
+      }
+      return { value: decoded };
     } catch (error) {
       logger.error('Error parsing event data:', error);
       logger.debug('Raw event:', JSON.stringify(event, null, 2));
@@ -412,8 +428,13 @@ export class TokenEventHandler {
       // Attempt fallback parsing
       try {
         // Sometimes the value is in a different format
-        if (event.value?.value) {
-          return scValToNative(event.value.value);
+        const eventValue = event.value as Record<string, unknown> | undefined;
+        if (eventValue?.value) {
+          const fallbackDecoded = scValToNative(eventValue.value as Parameters<typeof scValToNative>[0]);
+          if (typeof fallbackDecoded === 'object' && fallbackDecoded !== null) {
+            return fallbackDecoded as Record<string, unknown>;
+          }
+          return { value: fallbackDecoded };
         }
       } catch {
         // Ignore fallback errors
@@ -427,7 +448,7 @@ export class TokenEventHandler {
    * Get event type from topic
    * Soroban events have topics as an array where first element is the event name
    */
-  getEventType(event: any): string {
+  getEventType(event: SorobanEvent): string {
     try {
       if (event.topic && Array.isArray(event.topic) && event.topic.length > 0) {
         const firstTopic = event.topic[0];
@@ -439,13 +460,13 @@ export class TokenEventHandler {
 
         // Try to decode if it's an XDR value
         try {
-          const decoded = scValToNative(firstTopic);
+          const decoded = scValToNative(firstTopic as Parameters<typeof scValToNative>[0]);
           if (typeof decoded === 'string') {
             return decoded;
           }
           return decoded?.toString() || 'unknown';
         } catch {
-          return firstTopic?.toString() || 'unknown';
+          return String(firstTopic) || 'unknown';
         }
       }
       return 'unknown';

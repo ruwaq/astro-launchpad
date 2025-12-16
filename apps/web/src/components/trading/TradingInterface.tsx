@@ -44,8 +44,9 @@ export function TradingInterface({ tokenAddress, token }: TradingInterfaceProps)
     try {
       await connect();
       toast.success('Wallet connected!');
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to connect wallet');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to connect wallet';
+      toast.error(message);
     }
   };
 
@@ -164,16 +165,18 @@ export function TradingInterface({ tokenAddress, token }: TradingInterfaceProps)
       } else {
         throw new Error(result.error || 'Transaction failed');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error('Trade error', { error });
       toast.dismiss();
 
+      const errorMessage = error instanceof Error ? error.message : '';
+
       // Handle specific error types
-      if (error.message?.includes('User rejected') || error.message?.includes('cancelled')) {
+      if (errorMessage.includes('User rejected') || errorMessage.includes('cancelled')) {
         toast.error('Transaction cancelled by user');
-      } else if (error.message?.includes('insufficient')) {
+      } else if (errorMessage.includes('insufficient')) {
         toast.error('Insufficient balance for this transaction');
-      } else if (error.message?.includes('MissingValue') || error.message?.includes('non-existing value')) {
+      } else if (errorMessage.includes('MissingValue') || errorMessage.includes('non-existing value')) {
         // This error occurs when the buyer has never held this token before.
         // The SAC token's transfer function requires the recipient to have a balance entry.
         // This is a limitation of the current contract - it needs to use mint() for first-time buyers.
@@ -183,7 +186,7 @@ export function TradingInterface({ tokenAddress, token }: TradingInterfaceProps)
           { duration: 8000 }
         );
       } else {
-        toast.error(error.message || `Failed to ${tradeType}`);
+        toast.error(errorMessage || `Failed to ${tradeType}`);
       }
     } finally {
       setIsProcessing(false);

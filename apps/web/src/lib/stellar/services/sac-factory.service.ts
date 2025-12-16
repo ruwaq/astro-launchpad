@@ -18,6 +18,7 @@ import {
   Operation,
   TransactionBuilder,
   Horizon,
+  Account,
 } from '@stellar/stellar-sdk';
 import { BaseContractService } from './base-contract.service';
 import { CONTRACT_IDS } from '../config';
@@ -1796,8 +1797,7 @@ export class SacFactoryService extends BaseContractService {
         account = mockAccount;
       }
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const transaction = new TransactionBuilder(account as any, {
+      const transaction = new TransactionBuilder(account as Account, {
         fee: '100',
         networkPassphrase: config.passphrase,
       })

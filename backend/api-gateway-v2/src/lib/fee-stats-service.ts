@@ -13,7 +13,8 @@
  * be moved to @astroshibapop/shared.
  */
 
-import { PrismaClient, Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
+import type { PrismaClientWithAdapter } from './prisma.js';
 import { logger } from './logger.js';
 
 /**
@@ -122,7 +123,7 @@ interface FeeAggregation {
  * Fee Statistics Service
  */
 export class FeeStatsService {
-  constructor(private prisma: PrismaClient) { }
+  constructor(private prisma: PrismaClientWithAdapter) { }
 
   /**
    * Get global fee statistics

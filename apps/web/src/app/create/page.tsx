@@ -160,12 +160,13 @@ export default function CreatePage() {
     try {
       await connect();
       toast.success('Wallet connected! You can now create tokens.');
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to connect wallet');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to connect wallet';
+      toast.error(message);
     }
   };
 
-  const validateForm = (): boolean => {
+  const validateForm = useCallback((): boolean => {
     if (!name || name.length === 0 || name.length > 32) {
       setError('Token name must be 1-32 characters');
       return false;
@@ -193,7 +194,7 @@ export default function CreatePage() {
 
     setError('');
     return true;
-  };
+  }, [name, symbol, imageUrl, description]);
 
   const handleCreateToken = useCallback(async () => {
     // CRITICAL: Immediate check to prevent double-submission race condition
@@ -335,11 +336,12 @@ export default function CreatePage() {
           } else if (getResponse.status !== 'NOT_FOUND') {
             logger.warn('Unexpected transaction status', { status: getResponse.status });
           }
-        } catch (err: any) {
+        } catch (err: unknown) {
           // Handle "Bad union switch" error from SDK version incompatibility
           // This error means the SDK can't parse the response, NOT that the tx failed
           // We need to use Horizon API as fallback to verify transaction status
-          if (err.message?.includes('Bad union switch')) {
+          const errorMessage = err instanceof Error ? err.message : '';
+          if (errorMessage.includes('Bad union switch')) {
             logger.warn('SDK version incompatibility detected, verifying via Horizon API');
             try {
               // Use Horizon API to check transaction status directly
@@ -361,7 +363,7 @@ export default function CreatePage() {
             } catch (horizonErr) {
               logger.warn('Horizon fallback check failed, continuing to poll', { error: horizonErr });
             }
-          } else if (err.message?.includes('NOT_FOUND')) {
+          } else if (errorMessage.includes('NOT_FOUND')) {
             // Transaction not yet processed, continue polling
           } else {
             throw err;
@@ -403,7 +405,7 @@ export default function CreatePage() {
             logger.info('Token synced successfully');
             updateStep('sync', 'completed');
             toast.success('Token synced! It will appear in Explore.');
-          } catch (syncError: any) {
+          } catch (syncError: unknown) {
             logger.error('Failed to sync token', { error: syncError });
             updateStep('sync', 'error');
             toast.error('Token created but sync may have failed.');
@@ -480,7 +482,7 @@ export default function CreatePage() {
         throw new Error('Transaction confirmation timeout - please check Stellar Expert');
       }
 
-    } catch (err: any) {
+    } catch (err: unknown) {
       logger.error('Error creating token', { error: err });
       setFormState('error');
 
@@ -489,11 +491,7 @@ export default function CreatePage() {
         s.status === 'active' ? { ...s, status: 'error' as StepStatus } : s
       ));
 
-      let errorMessage = 'Failed to create token';
-
-      if (err.message) {
-        errorMessage = err.message;
-      }
+      const errorMessage = err instanceof Error ? err.message : 'Failed to create token';
 
       setError(errorMessage);
       toast.error(errorMessage);
@@ -509,7 +507,7 @@ export default function CreatePage() {
       }, 5000);
       timeoutsRef.current.add(resetTimeout);
     }
-  }, [address, isConnected, name, symbol, imageUrl, description, website, telegram, signTransaction, syncToken, clearFormStorage, router]);
+  }, [address, isConnected, name, symbol, imageUrl, description, website, telegram, signTransaction, syncToken, clearFormStorage, router, validateForm]);
 
   const isProcessing = ['validating', 'building', 'signing', 'submitting', 'confirming'].includes(formState);
   const isSuccess = formState === 'success';

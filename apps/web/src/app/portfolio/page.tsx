@@ -119,8 +119,8 @@ function CreatedTokensSection({ address }: { address: string }) {
 
   // Filter for token creation transactions
   const createdTokens = data?.transactions?.edges
-    ?.filter((edge: any) => edge?.node?.type === 'TOKEN_CREATED')
-    ?.map((edge: any) => edge.node) || [];
+    ?.filter((edge) => edge?.node?.type === 'TOKEN_CREATED')
+    ?.map((edge) => edge.node) || [];
 
   if (createdTokens.length === 0) {
     return (
@@ -138,7 +138,7 @@ function CreatedTokensSection({ address }: { address: string }) {
 
   return (
     <div className="space-y-3">
-      {createdTokens.map((tx: any) => (
+      {createdTokens.map((tx) => (
         <Link
           key={tx.id}
           href={`/t/${tx.token?.address}`}

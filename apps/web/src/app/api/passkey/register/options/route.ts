@@ -11,29 +11,11 @@ import {
   type GenerateRegistrationOptionsOpts,
 } from '@simplewebauthn/server';
 import crypto from 'crypto';
+import { getSecretKey } from '../secret.js';
 
 // In production, store these in environment variables
 const RP_NAME = process.env.NEXT_PUBLIC_APP_NAME || 'Astro Shiba';
 const RP_ID = process.env.NEXT_PUBLIC_RP_ID || 'localhost';
-
-// Secret for signing challenge tokens (MUST be set in production)
-// SECURITY: In production, this MUST be set via environment variable
-function getSecretKey(): string {
-  const secret = process.env.PASSKEY_CHALLENGE_SECRET;
-
-  if (secret) {
-    return secret;
-  }
-
-  // In production, require the secret (checked at runtime, not build time)
-  if (process.env.NODE_ENV === 'production') {
-    console.error('CRITICAL: PASSKEY_CHALLENGE_SECRET environment variable is required in production');
-    throw new Error('Server configuration error');
-  }
-
-  // Development-only insecure fallback
-  return 'dev-only-insecure-secret-' + (process.pid || 'build');
-}
 
 /**
  * Sign a challenge with expiration for stateless verification
@@ -103,7 +85,7 @@ export async function POST(request: NextRequest) {
       // Include the signed token for the client to send back
       challengeToken,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error generating registration options:', error);
     return NextResponse.json(
       { error: 'Failed to generate registration options' },

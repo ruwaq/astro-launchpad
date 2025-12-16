@@ -56,9 +56,9 @@ export function resetApolloCache() {
 
 const errorLink = onError(({ graphQLErrors, networkError }) => {
   if (graphQLErrors) {
-    graphQLErrors.forEach(({ message, locations, path }: any) => {
+    graphQLErrors.forEach((error) => {
       console.error(
-        `[GraphQL error]: Message: ${message}, Location: ${locations}, Path: ${path}`
+        `[GraphQL error]: Message: ${error.message}, Location: ${error.locations}, Path: ${error.path}`
       );
     });
   }

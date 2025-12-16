@@ -26,7 +26,7 @@ import {
   Zap,
   Wallet,
 } from 'lucide-react';
-import { useUserHoldings } from '@/hooks/useUserHoldings';
+import { useUserHoldings, type TokenHolding } from '@/hooks/useUserHoldings';
 import { stroopsToXlm, formatCompactNumber } from '@/lib/stellar/utils';
 import { getIpfsUrl as getImageUrl } from '@/lib/utils/ipfs';
 
@@ -142,7 +142,7 @@ export function HoldingsSection({ address }: HoldingsSectionProps) {
 }
 
 interface HoldingCardProps {
-  holding: any;
+  holding: TokenHolding;
 }
 
 function HoldingCard({ holding }: HoldingCardProps) {

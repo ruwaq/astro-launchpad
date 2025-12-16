@@ -15,13 +15,16 @@ process.env.DATABASE_URL = 'postgresql://test:test@localhost:5432/test'
 process.env.DIRECT_DATABASE_URL = 'postgresql://test:test@localhost:5432/test'
 process.env.TOKEN_FACTORY_CONTRACT_ID = 'CBGTG6EKTQ3T2AKZJSQ2CDKUUATWRKGCQXVP6QWXXXXXXXXXXXXXXXXXXX'
 
-// Mock Prisma Client
+// Mock Prisma Client with $extends support (Prisma 5.x)
 vi.mock('@prisma/client', () => {
-  const mockPrismaClient = {
+  // Create the extended client mock (returned by $extends)
+  const mockExtendedClient = {
     $connect: vi.fn().mockResolvedValue(undefined),
     $disconnect: vi.fn().mockResolvedValue(undefined),
+    $queryRaw: vi.fn().mockResolvedValue([{ '?column?': 1 }]),
     token: {
       findUnique: vi.fn(),
+      findFirst: vi.fn(),
       findMany: vi.fn(),
       count: vi.fn(),
       create: vi.fn(),
@@ -29,18 +32,27 @@ vi.mock('@prisma/client', () => {
     },
     pool: {
       findUnique: vi.fn(),
+      findFirst: vi.fn(),
       findMany: vi.fn(),
       count: vi.fn(),
     },
     user: {
       findUnique: vi.fn(),
+      findFirst: vi.fn(),
       findMany: vi.fn(),
       count: vi.fn(),
     },
     transaction: {
+      findFirst: vi.fn(),
       findMany: vi.fn(),
       count: vi.fn(),
     },
+  }
+
+  // Base client mock with $extends that returns extended client
+  const mockPrismaClient = {
+    ...mockExtendedClient,
+    $extends: vi.fn(() => mockExtendedClient),
   }
 
   return {

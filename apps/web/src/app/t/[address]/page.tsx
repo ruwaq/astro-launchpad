@@ -37,6 +37,7 @@ import { stroopsToXlm, formatStroopsDisplay, formatCompactNumber, GRADUATION_THR
 import { apolloClient } from '@/lib/graphql/client';
 import { gql } from '@apollo/client';
 import type { Token } from '@/lib/graphql/types';
+import { BondingCurveType } from '@/lib/graphql/types';
 import { showGraduationToast } from '@/lib/notifications/graduationToast';
 
 // GraphQL query to fetch token by address (fallback)
@@ -203,10 +204,11 @@ export default function TokenTradingPage({ params }: PageProps) {
         setError('Token not found in contract or database');
       }
 
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Unexpected error fetching token:', err);
       if (isMountedRef.current) {
-        setError(err.message || 'Failed to load token data');
+        const message = err instanceof Error ? err.message : 'Failed to load token data';
+        setError(message);
         setDataSource('none');
         dataSourceRef.current = 'none';
       }
@@ -432,6 +434,8 @@ export default function TokenTradingPage({ params }: PageProps) {
         issuer: token!.issuer,
         logoUrl: token!.image_url || null,
         currentPrice: '0',
+        initialPrice: '0.0000001', // Initial bonding curve price
+        bondingCurve: BondingCurveType.LINEAR,
         marketCap: token!.market_cap || '0',
         volume24h: '0',
         priceChange24h: '0',
@@ -456,6 +460,8 @@ export default function TokenTradingPage({ params }: PageProps) {
         issuer: '', // Not available in GraphQL
         logoUrl: graphqlToken!.logoUrl || graphqlToken!.imageUrl || null,
         currentPrice: graphqlToken!.currentPrice || '0',
+        initialPrice: graphqlToken!.initialPrice || '0.0000001',
+        bondingCurve: graphqlToken!.bondingCurve || BondingCurveType.LINEAR,
         marketCap: graphqlToken!.marketCap || '0',
         volume24h: graphqlToken!.volume24h || '0',
         priceChange24h: graphqlToken!.priceChange24h || '0',
