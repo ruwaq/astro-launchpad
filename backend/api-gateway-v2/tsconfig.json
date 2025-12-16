@@ -20,6 +20,6 @@
     "declarationMap": true,
     "sourceMap": true
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", ".turbo", "api", "src/websocket/example-integration.ts"]
+  "include": ["src/**/*", "api/**/*.ts"],
+  "exclude": ["node_modules", "dist", ".turbo", "src/websocket/example-integration.ts"]
 }

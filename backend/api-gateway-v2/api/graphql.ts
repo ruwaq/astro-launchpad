@@ -2,20 +2,21 @@
  * GraphQL API Endpoint - Vercel Serverless Function
  *
  * This handler serves GraphQL requests on Vercel's serverless platform.
- * It imports directly from the TypeScript source files which Vercel compiles.
+ * It imports directly from the TypeScript source files.
  *
  * Architecture:
  * - Schema & Resolvers: src/graphql/ (SINGLE SOURCE OF TRUTH)
- * - This file: Thin wrapper that creates the Apollo Server
+ * - This file: Vercel serverless handler
  *
  * @version 2.1.0
  */
 
+import type { NextApiRequest, NextApiResponse } from 'next';
 import { ApolloServer } from '@apollo/server';
 import { startServerAndCreateNextHandler } from '@as-integrations/next';
 import { schema } from '../src/graphql/schema.js';
 import { resolvers } from '../src/graphql/resolvers/index.js';
-import { createContext } from '../src/graphql/context.js';
+import { createContext, type GraphQLContext } from '../src/graphql/context.js';
 import { validationRules, createComplexityPlugin } from '../src/graphql/validation.js';
 import { createRateLimitPlugin } from '../src/lib/rate-limiter.js';
 import { logger } from '../src/lib/logger.js';
@@ -26,9 +27,8 @@ import { initializeSentry, captureException } from '../src/lib/sentry.js';
 // ============================================================================
 
 const isProduction = process.env.NODE_ENV === 'production';
-const API_VERSION = '2.1.0';
 
-const ALLOWED_ORIGINS = [
+const ALLOWED_ORIGINS: string[] = [
   'https://astroshiba.io',
   'https://app.astroshiba.io',
   'https://www.astroshiba.io',
@@ -55,14 +55,14 @@ const ALLOWED_HEADERS = [
 // CORS Utilities
 // ============================================================================
 
-function isOriginAllowed(origin) {
+function isOriginAllowed(origin: string | undefined): boolean {
   if (!origin) return false;
   if (ALLOWED_ORIGINS.includes(origin)) return true;
   if (origin.endsWith('.vercel.app')) return true;
   return false;
 }
 
-function setCorsHeaders(res, origin) {
+function setCorsHeaders(res: NextApiResponse, origin: string | undefined): void {
   if (origin && isOriginAllowed(origin)) {
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Allow-Origin', origin);
@@ -73,7 +73,7 @@ function setCorsHeaders(res, origin) {
   }
 }
 
-function setSecurityHeaders(res) {
+function setSecurityHeaders(res: NextApiResponse): void {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('X-XSS-Protection', '1; mode=block');
@@ -84,9 +84,9 @@ function setSecurityHeaders(res) {
 // Apollo Server
 // ============================================================================
 
-const server = new ApolloServer({
+const server = new ApolloServer<GraphQLContext>({
   typeDefs: schema,
-  resolvers: resolvers,
+  resolvers: resolvers as any,
   introspection: !isProduction || process.env.GRAPHQL_INTROSPECTION === 'true',
   includeStacktraceInErrorResponses: !isProduction,
   validationRules,
@@ -129,17 +129,20 @@ const server = new ApolloServer({
 // Handler
 // ============================================================================
 
-const apolloHandler = startServerAndCreateNextHandler(server, {
+const apolloHandler = startServerAndCreateNextHandler(server as any, {
   context: async (req) => {
     initializeSentry();
-    return createContext(req);
+    return createContext(req as any);
   },
 });
 
-export default async function graphqlHandler(req, res) {
+export default async function graphqlHandler(
+  req: NextApiRequest,
+  res: NextApiResponse
+): Promise<void> {
   const startTime = Date.now();
-  const requestId = req.headers['x-request-id'] || crypto.randomUUID();
-  const origin = req.headers.origin;
+  const requestId = (req.headers['x-request-id'] as string) || crypto.randomUUID();
+  const origin = req.headers.origin as string | undefined;
 
   setSecurityHeaders(res);
   setCorsHeaders(res, origin);
@@ -181,7 +184,7 @@ export default async function graphqlHandler(req, res) {
     if (!res.writableEnded) {
       res.status(500).json({
         errors: [{
-          message: isProduction ? 'Internal server error' : error.message,
+          message: isProduction ? 'Internal server error' : (error as Error).message,
           extensions: { code: 'INTERNAL_SERVER_ERROR', requestId },
         }],
       });
