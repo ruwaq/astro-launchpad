@@ -9,10 +9,18 @@ const ws = require('ws');
 const WebSocketServer = ws.WebSocketServer || ws.Server;
 const OPEN_STATE = ws.OPEN || 1;
 
+// SECURITY: Maximum subscriptions per client to prevent memory exhaustion
+const MAX_SUBSCRIPTIONS_PER_CLIENT = 50;
+// SECURITY: Heartbeat timeout (should be <= 2x ping interval for fast zombie detection)
+const HEARTBEAT_TIMEOUT_MS = 30000;
+// SECURITY: Maximum connections per IP (basic DoS protection)
+const MAX_CONNECTIONS_PER_IP = 10;
+
 interface Client {
   ws: any; // WebSocket instance
   subscriptions: Set<string>;
   lastPing: number;
+  ip: string;
 }
 
 interface TokenUpdate {
@@ -24,6 +32,7 @@ class WebSocketManager {
   private wss: any; // WebSocketServer instance
   private clients: Map<string, Client> = new Map();
   private tokenSubscribers: Map<string, Set<string>> = new Map();
+  private connectionsByIp: Map<string, number> = new Map();
 
   constructor(server: ReturnType<typeof createServer>) {
     this.wss = new WebSocketServer({ server, path: '/ws' });
@@ -33,14 +42,26 @@ class WebSocketManager {
 
   private setupHandlers() {
     this.wss.on('connection', (wsClient: any, req: any) => {
+      const ip = req.socket.remoteAddress || 'unknown';
+
+      // SECURITY: Rate limit connections per IP
+      const currentConnections = this.connectionsByIp.get(ip) || 0;
+      if (currentConnections >= MAX_CONNECTIONS_PER_IP) {
+        logger.warn({ ip, currentConnections }, 'Connection rejected: too many connections from IP');
+        wsClient.close(4429, 'Too many connections');
+        return;
+      }
+      this.connectionsByIp.set(ip, currentConnections + 1);
+
       const clientId = crypto.randomUUID();
       this.clients.set(clientId, {
         ws: wsClient,
         subscriptions: new Set(),
         lastPing: Date.now(),
+        ip,
       });
 
-      logger.info({ clientId, ip: req.socket.remoteAddress }, 'WebSocket client connected');
+      logger.info({ clientId, ip }, 'WebSocket client connected');
 
       wsClient.on('message', (data: any) => this.handleMessage(clientId, data.toString()));
       wsClient.on('close', () => this.handleDisconnect(clientId));
@@ -78,6 +99,13 @@ class WebSocketManager {
     const client = this.clients.get(clientId);
     if (!client) return;
 
+    // SECURITY: Limit subscriptions per client to prevent memory exhaustion
+    if (client.subscriptions.size >= MAX_SUBSCRIPTIONS_PER_CLIENT) {
+      logger.warn({ clientId, channel, current: client.subscriptions.size }, 'Subscription rejected: limit exceeded');
+      client.ws.send(JSON.stringify({ type: 'error', message: 'Maximum subscriptions exceeded' }));
+      return;
+    }
+
     client.subscriptions.add(channel);
 
     if (!this.tokenSubscribers.has(channel)) {
@@ -104,12 +132,21 @@ class WebSocketManager {
     const client = this.clients.get(clientId);
     if (!client) return;
 
+    // Clean up subscriptions
     client.subscriptions.forEach((channel) => {
       this.tokenSubscribers.get(channel)?.delete(clientId);
     });
-    this.clients.delete(clientId);
 
-    logger.info({ clientId }, 'WebSocket client disconnected');
+    // SECURITY: Decrement IP connection count
+    const currentCount = this.connectionsByIp.get(client.ip) || 0;
+    if (currentCount <= 1) {
+      this.connectionsByIp.delete(client.ip);
+    } else {
+      this.connectionsByIp.set(client.ip, currentCount - 1);
+    }
+
+    this.clients.delete(clientId);
+    logger.info({ clientId, ip: client.ip }, 'WebSocket client disconnected');
   }
 
   broadcast(channel: string, data: unknown) {
@@ -152,7 +189,7 @@ class WebSocketManager {
     setInterval(() => {
       const now = Date.now();
       this.clients.forEach((client, clientId) => {
-        if (now - client.lastPing > 60000) {
+        if (now - client.lastPing > HEARTBEAT_TIMEOUT_MS) {
           logger.warn({ clientId }, 'Client ping timeout, terminating');
           client.ws.terminate();
           this.handleDisconnect(clientId);

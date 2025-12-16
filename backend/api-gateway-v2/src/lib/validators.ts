@@ -114,9 +114,10 @@ export function validateSearchString(
   // Trim and limit length
   const trimmed = search.trim().slice(0, maxLength);
 
-  // Remove potentially dangerous characters for SQL
-  // Prisma uses parameterized queries, but this adds defense in depth
-  const sanitized = trimmed.replace(/[;'"\\]/g, '');
+  // SECURITY: Use allow-list pattern for search input (defense in depth)
+  // Only allow alphanumeric, spaces, hyphens, underscores, and dots
+  // Prisma uses parameterized queries, but this provides additional protection
+  const sanitized = trimmed.replace(/[^a-zA-Z0-9\s\-_.$]/g, '');
 
   return sanitized || undefined;
 }
