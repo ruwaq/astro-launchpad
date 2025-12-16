@@ -33,13 +33,48 @@ declare global {
 }
 
 /**
- * Create standard Prisma Client
+ * Models that support soft-delete (have deletedAt field)
+ */
+const SOFT_DELETE_MODELS = ['Token', 'Pool']
+
+/**
+ * Create standard Prisma Client with soft-delete middleware
+ *
+ * Professional approach: Use $use middleware to automatically filter
+ * soft-deleted records on findMany, findFirst, and count operations.
+ *
+ * @see https://www.prisma.io/docs/orm/prisma-client/client-extensions/middleware/soft-delete-middleware
  */
 function createPrismaClient() {
-  return new PrismaClient({
+  const client = new PrismaClient({
     log: logConfig as any,
     errorFormat: isDevelopment ? 'pretty' : 'minimal',
   })
+
+  // Soft-delete middleware: automatically filter deleted records
+  client.$use(async (params, next) => {
+    // Only apply to soft-delete enabled models
+    if (!params.model || !SOFT_DELETE_MODELS.includes(params.model)) {
+      return next(params)
+    }
+
+    // For find operations, automatically filter out deleted records
+    if (params.action === 'findMany' || params.action === 'findFirst' || params.action === 'count') {
+      // Don't override if explicitly querying for deleted records
+      if (params.args?.where?.deletedAt !== undefined) {
+        return next(params)
+      }
+
+      // Add deletedAt: null filter
+      params.args = params.args || {}
+      params.args.where = params.args.where || {}
+      params.args.where.deletedAt = null
+    }
+
+    return next(params)
+  })
+
+  return client
 }
 
 /**
