@@ -35,6 +35,7 @@ model Token {
   holders           Int           @default(0)
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
+  deletedAt         DateTime?
   poolsToken0       Pool[]        @relation("Token0")
   poolsToken1       Pool[]        @relation("Token1")
   transactions      Transaction[]
@@ -53,6 +54,8 @@ model Token {
   @@index([graduated, createdAt(sort: Desc)])
   // PERFORMANCE: Composite for trending/volume queries
   @@index([graduated, volume24h(sort: Desc)])
+  // Soft delete index
+  @@index([deletedAt])
 }
 
 model Pool {
@@ -68,8 +71,10 @@ model Pool {
   volume7d        String           @default("0")
   apr             Float?
   feeRate         Float            @default(0.003) // 0.3% default fee
+  fees24h         String           @default("0")
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
+  deletedAt       DateTime?
   liquidityEvents LiquidityEvent[]
   token0          Token            @relation("Token0", fields: [token0Address], references: [address])
   token1          Token            @relation("Token1", fields: [token1Address], references: [address])
@@ -83,6 +88,8 @@ model Pool {
   @@index([token1Address, createdAt(sort: Desc)])
   // PERFORMANCE: Index for TVL-based ordering
   @@index([tvl(sort: Desc), createdAt(sort: Desc)])
+  // Soft delete index
+  @@index([deletedAt])
 }
 
 model User {
