@@ -1,50 +1,47 @@
 # API Directory - Vercel Serverless Functions
 
-> **Architecture**: Thin wrappers that re-export compiled TypeScript handlers
-
 ## Overview
 
-This directory contains thin JavaScript wrappers for Vercel's serverless function discovery.
-The actual logic lives in TypeScript at `src/handlers/` and is compiled to `dist/src/handlers/`.
-
-## UNIFIED ARCHITECTURE (v2.1.0)
-
-**Single Source of Truth**: All GraphQL logic is now in `src/graphql/` (TypeScript).
-
-```
-api/                          <- Vercel serverless functions
-├── graphql.js                <- GraphQL handler (imports from src/)
-├── health.js                 <- Health check (imports from src/)
-└── index.js                  <- Root endpoint (API info)
-
-src/graphql/                  <- SINGLE SOURCE OF TRUTH
-├── schema.ts                 <- GraphQL schema definition
-├── resolvers/                <- Modular resolvers
-├── context.ts                <- Request context with auth
-├── loaders.ts                <- DataLoaders (N+1 prevention)
-└── validation.ts             <- Rate limiting, complexity
-
-src/lib/                      <- Shared utilities
-├── prisma.ts                 <- Database client
-├── cache.ts                  <- Redis cache
-├── logger.ts                 <- Pino logger
-└── sentry.ts                 <- Error tracking
-```
+This directory contains JavaScript handlers for Vercel's serverless function discovery.
+The actual logic is written in TypeScript at `src/` and compiled to `dist/`.
 
 ## Architecture
 
-1. **Vercel's function discovery** looks for files in `api/` directory
-2. **api/*.js handlers** import directly from `src/` TypeScript files
-3. **Vercel compiles** everything during deployment
+```
+api/                          <- Vercel serverless entry points
+├── graphql.js                <- GraphQL handler
+├── health.js                 <- Health check endpoint
+└── index.js                  <- Root endpoint (API info)
 
-## Flow
+src/                          <- TypeScript source code
+├── graphql/                  <- GraphQL implementation
+│   ├── schema.ts             <- Schema definition
+│   ├── resolvers/            <- Modular resolvers
+│   ├── context.ts            <- Request context with auth
+│   ├── loaders.ts            <- DataLoaders (N+1 prevention)
+│   └── validation.ts         <- Rate limiting, complexity
+├── lib/                      <- Shared utilities
+│   ├── prisma.ts             <- Database client
+│   ├── cache.ts              <- Redis/KV cache
+│   └── logger.ts             <- Pino logger
+└── config/
+    └── env.ts                <- Environment validation (Zod)
+
+dist/                         <- Compiled JavaScript (from tsc)
+└── src/                      <- Mirrors src/ structure
+```
+
+## How It Works
+
+1. **TypeScript Compilation**: `pnpm build` runs `tsc` to compile `src/` → `dist/`
+2. **Vercel Function Discovery**: Vercel looks for files in `api/` directory
+3. **Runtime Imports**: `api/*.js` handlers import from compiled `dist/src/`
+4. **vercel.json**: Configured to include `dist/**/*` in function bundle
 
 ```
-Request → api/graphql.js → src/graphql/schema.ts
-                         → src/graphql/resolvers/
-                         → src/graphql/context.ts
-                         → src/lib/prisma.ts
-                         → src/lib/cache.ts
+Request → api/graphql.js → dist/src/graphql/schema.js
+                         → dist/src/graphql/resolvers/
+                         → dist/src/lib/prisma.js
 ```
 
 ## Endpoints
@@ -52,49 +49,54 @@ Request → api/graphql.js → src/graphql/schema.ts
 | Endpoint | Handler | Description |
 |----------|---------|-------------|
 | `/graphql` | `api/graphql.js` | Apollo GraphQL API |
-| `/health` | `api/health.js` | Health check |
-| `/api` | `api/index.js` | API info |
+| `/health` | `api/health.js` | Health check with DB/cache status |
+| `/api` | `api/index.js` | API info and version |
 
 ## Development
 
 ```bash
 # Build TypeScript
-pnpm run build
+pnpm build
 
-# Test locally with Vercel CLI
-npx vercel dev
+# Test locally
+pnpm dev
 
 # Test GraphQL endpoint
-curl -X POST http://localhost:3000/graphql \
+curl -X POST http://localhost:4000/graphql \
   -H "Content-Type: application/json" \
-  -d '{"query":"{ health { status database tokenStats { activeTokens } } }"}'
+  -d '{"query":"{ health { status database } }"}'
 ```
 
-## Important Notes
+## Deployment
 
-1. **All GraphQL logic lives in `src/graphql/`** - Schema, resolvers, context, loaders
-2. **api/*.js handlers import from `src/`** - Vercel compiles TypeScript automatically
-3. **No manual build needed** - Vercel runs `vercel-build` during deployment
-4. **Local development** uses `pnpm dev` which runs Express with same `src/` files
+Vercel automatically:
+1. Runs `pnpm install`
+2. Runs `pnpm vercel-build` (which runs `tsc`)
+3. Deploys `api/*.js` with `dist/**/*` included
 
-## Features Included
+## Key Configuration
 
-- DataLoaders (N+1 prevention)
-- Rate limiting
+**vercel.json**:
+```json
+{
+  "functions": {
+    "api/*.js": {
+      "memory": 1024,
+      "maxDuration": 30,
+      "includeFiles": "dist/**/*"
+    }
+  }
+}
+```
+
+## Features
+
+- Apollo Server with `@as-integrations/next`
+- DataLoaders (N+1 query prevention)
+- Rate limiting per IP
 - Query complexity validation
 - CORS with origin whitelist
-- Sentry error tracking
-- Structured logging (Pino)
+- Pino structured logging
 - Prisma database access
-- Redis cache support
+- Redis/Vercel KV cache support
 - Soft-delete filtering (automatic)
-
-## Soft-Delete Implementation
-
-Tokens and Pools support soft-delete via the `deletedAt` field.
-The filtering is handled automatically in `src/graphql/resolvers/` using raw SQL queries
-that always include `WHERE "deletedAt" IS NULL`.
-
----
-
-*Updated: 2024-12-16 - Unified architecture v2.1.0*
