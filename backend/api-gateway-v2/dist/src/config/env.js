@@ -8,13 +8,13 @@ import { z } from 'zod';
  * Add all required environment variables here with validation rules
  */
 const envSchema = z.object({
-    // Node Environment
-    NODE_ENV: z.enum(['development', 'production', 'test']).default('production'),
+    // Node Environment (preprocess to trim whitespace from env values)
+    NODE_ENV: z.preprocess((val) => (typeof val === 'string' ? val.trim() : val), z.enum(['development', 'production', 'test']).default('production')),
     // Database
     DATABASE_URL: z.string().min(1, 'DATABASE_URL is required').default('postgresql://localhost:5432/astro'),
     DIRECT_DATABASE_URL: z.string().optional(),
-    // Stellar/Soroban
-    STELLAR_NETWORK: z.enum(['testnet', 'mainnet']).default('testnet'),
+    // Stellar/Soroban (preprocess to trim whitespace from env values)
+    STELLAR_NETWORK: z.preprocess((val) => (typeof val === 'string' ? val.trim() : val), z.enum(['testnet', 'mainnet']).default('testnet')),
     STELLAR_RPC_URL: z.string().default('https://soroban-testnet.stellar.org'),
     // Contracts
     TOKEN_FACTORY_CONTRACT_ID: z.string().default(''),

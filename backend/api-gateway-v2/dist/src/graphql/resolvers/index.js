@@ -40,12 +40,30 @@ const scalarResolvers = {
  * Query resolvers
  */
 const queryResolvers = {
-    // Health check - real implementation
+    // Health check - real implementation with token stats for debugging
     health: async (_parent, _args, context) => {
         const [dbHealth, cacheStats] = await Promise.all([
             checkDatabaseHealth().catch(() => false),
             getCacheStats().catch(() => ({ available: false, type: 'none' })),
         ]);
+        // Get token stats for debugging soft-delete
+        let tokenStats = null;
+        try {
+            const [totalResult, activeResult, deletedResult] = await Promise.all([
+                context.prisma.$queryRaw `SELECT COUNT(*)::int as count FROM "Token"`,
+                context.prisma.$queryRaw `SELECT COUNT(*)::int as count FROM "Token" WHERE "deletedAt" IS NULL`,
+                context.prisma.$queryRaw `SELECT name FROM "Token" WHERE "deletedAt" IS NOT NULL`,
+            ]);
+            tokenStats = {
+                totalTokens: totalResult[0]?.count || 0,
+                activeTokens: activeResult[0]?.count || 0,
+                deletedTokens: (totalResult[0]?.count || 0) - (activeResult[0]?.count || 0),
+                deletedTokenNames: deletedResult.map(r => r.name),
+            };
+        }
+        catch (error) {
+            logger.error({ error }, '[Health] Failed to get token stats');
+        }
         const isHealthy = dbHealth && cacheStats.available;
         return {
             status: isHealthy ? 'healthy' : 'degraded',
@@ -53,6 +71,7 @@ const queryResolvers = {
             version: '2.0.0',
             database: dbHealth,
             cache: cacheStats,
+            tokenStats,
         };
     },
     // Token queries
@@ -116,68 +135,60 @@ const queryResolvers = {
             else {
                 offset = validateOffset(args.offset);
             }
-            // Build where clause for search and status filter
-            const whereConditions = [];
+            // Build ORDER BY clause
+            const orderByMap = {
+                CREATED_AT_DESC: '"createdAt" DESC',
+                CREATED_AT_ASC: '"createdAt" ASC',
+                MARKET_CAP_DESC: '"marketCap" DESC NULLS LAST',
+                VOLUME_DESC: '"volume24h" DESC',
+                HOLDERS_DESC: 'holders DESC',
+                GRADUATION_DESC: '"xlmRaised" DESC',
+            };
+            const orderByClause = orderByMap[orderByKey] || '"createdAt" DESC';
+            // Build WHERE conditions using raw SQL to guarantee soft-delete filtering
+            // This bypasses any Prisma client generation issues
+            const whereConditions = ['"deletedAt" IS NULL'];
+            const params = [];
+            let paramIndex = 1;
             // Search filter
             if (search) {
-                whereConditions.push({
-                    OR: [
-                        { name: { contains: search, mode: 'insensitive' } },
-                        { symbol: { contains: search, mode: 'insensitive' } },
-                    ],
-                });
+                whereConditions.push(`(LOWER(name) LIKE $${paramIndex} OR LOWER(symbol) LIKE $${paramIndex})`);
+                params.push(`%${search.toLowerCase()}%`);
+                paramIndex++;
             }
-            // Status filter (bonding = not graduated, graduated = graduated)
+            // Status filter
             if (args.status && args.status !== 'ALL') {
                 if (args.status === 'BONDING') {
-                    whereConditions.push({ graduated: false });
+                    whereConditions.push('graduated = false');
                 }
                 else if (args.status === 'GRADUATED') {
-                    whereConditions.push({ graduated: true });
+                    whereConditions.push('graduated = true');
                 }
             }
-            const where = whereConditions.length > 0
-                ? { AND: whereConditions }
-                : {};
-            // Build orderBy
-            const orderByMap = {
-                CREATED_AT_DESC: { createdAt: 'desc' },
-                CREATED_AT_ASC: { createdAt: 'asc' },
-                MARKET_CAP_DESC: { marketCap: 'desc' },
-                VOLUME_DESC: { volume24h: 'desc' },
-                HOLDERS_DESC: { holders: 'desc' },
-                GRADUATION_DESC: { xlmRaised: 'desc' }, // Sort by XLM raised (graduation progress)
-            };
-            const orderBy = orderByMap[orderByKey];
-            // PERFORMANCE: Select only fields needed for token list
-            const tokenSelect = {
-                id: true,
-                address: true,
-                name: true,
-                symbol: true,
-                imageUrl: true,
-                currentPrice: true,
-                priceChange24h: true,
-                volume24h: true,
-                marketCap: true,
-                holders: true,
-                graduated: true,
-                creator: true,
-                createdAt: true,
-            };
+            const whereClause = whereConditions.join(' AND ');
+            params.push(limit, offset);
+            // Execute raw SQL queries for guaranteed soft-delete filtering
+            const tokensQuery = `
+        SELECT id, address, name, symbol, "imageUrl", "currentPrice", "priceChange24h",
+               "volume24h", "marketCap", holders, graduated, creator, "createdAt"
+        FROM "Token"
+        WHERE ${whereClause}
+        ORDER BY ${orderByClause}
+        LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+      `;
+            const countQuery = `
+        SELECT COUNT(*)::int as count
+        FROM "Token"
+        WHERE ${whereClause}
+      `;
+            logger.info({ whereClause, params: params.slice(0, -2) }, '[Tokens] Raw SQL query');
             // Execute queries in parallel
-            const [edges, total] = await Promise.all([
-                context.prisma.token.findMany({
-                    where,
-                    take: limit,
-                    skip: offset,
-                    orderBy,
-                    select: tokenSelect,
-                }),
-                context.prisma.token.count({
-                    where,
-                }),
+            const [tokensResult, countResult] = await Promise.all([
+                context.prisma.$queryRawUnsafe(tokensQuery, ...params),
+                context.prisma.$queryRawUnsafe(countQuery, ...params.slice(0, -2)),
             ]);
+            const edges = tokensResult || [];
+            const total = countResult[0]?.count || 0;
             return {
                 edges: (edges || []).map((node, index) => ({
                     cursor: Buffer.from(`${offset + index}`).toString('base64'),
@@ -218,6 +229,7 @@ const queryResolvers = {
                 // PERFORMANCE: Select only fields needed for trending list
                 const tokens = await context.prisma.token.findMany({
                     where: {
+                        deletedAt: null,
                         createdAt: { gte: sevenDaysAgo },
                     },
                     orderBy: [{ volume24h: 'desc' }, { holders: 'desc' }],

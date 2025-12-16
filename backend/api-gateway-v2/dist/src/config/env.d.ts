@@ -8,10 +8,10 @@ import { z } from 'zod';
  * Add all required environment variables here with validation rules
  */
 declare const envSchema: z.ZodObject<{
-    NODE_ENV: z.ZodDefault<z.ZodEnum<["development", "production", "test"]>>;
+    NODE_ENV: z.ZodEffects<z.ZodDefault<z.ZodEnum<["development", "production", "test"]>>, "development" | "production" | "test", unknown>;
     DATABASE_URL: z.ZodDefault<z.ZodString>;
     DIRECT_DATABASE_URL: z.ZodOptional<z.ZodString>;
-    STELLAR_NETWORK: z.ZodDefault<z.ZodEnum<["testnet", "mainnet"]>>;
+    STELLAR_NETWORK: z.ZodEffects<z.ZodDefault<z.ZodEnum<["testnet", "mainnet"]>>, "testnet" | "mainnet", unknown>;
     STELLAR_RPC_URL: z.ZodDefault<z.ZodString>;
     TOKEN_FACTORY_CONTRACT_ID: z.ZodDefault<z.ZodString>;
     AMM_FACTORY_CONTRACT_ID: z.ZodOptional<z.ZodString>;
@@ -43,9 +43,9 @@ declare const envSchema: z.ZodObject<{
     GITHUB_OWNER: z.ZodOptional<z.ZodString>;
     GITHUB_REPO: z.ZodOptional<z.ZodString>;
 }, "strip", z.ZodTypeAny, {
-    NODE_ENV?: "production" | "test" | "development";
     ADMIN_ADDRESSES?: string;
     ADMIN_API_KEY?: string;
+    NODE_ENV?: "development" | "production" | "test";
     DATABASE_URL?: string;
     DIRECT_DATABASE_URL?: string;
     STELLAR_NETWORK?: "testnet" | "mainnet";
@@ -78,12 +78,12 @@ declare const envSchema: z.ZodObject<{
     GITHUB_OWNER?: string;
     GITHUB_REPO?: string;
 }, {
-    NODE_ENV?: "production" | "test" | "development";
     ADMIN_ADDRESSES?: string;
     ADMIN_API_KEY?: string;
+    NODE_ENV?: unknown;
     DATABASE_URL?: string;
     DIRECT_DATABASE_URL?: string;
-    STELLAR_NETWORK?: "testnet" | "mainnet";
+    STELLAR_NETWORK?: unknown;
     STELLAR_RPC_URL?: string;
     TOKEN_FACTORY_CONTRACT_ID?: string;
     AMM_FACTORY_CONTRACT_ID?: string;
@@ -122,9 +122,9 @@ export type Env = z.infer<typeof envSchema>;
  * Import this in your application code
  */
 export declare const env: {
-    NODE_ENV?: "production" | "test" | "development";
     ADMIN_ADDRESSES?: string;
     ADMIN_API_KEY?: string;
+    NODE_ENV?: "development" | "production" | "test";
     DATABASE_URL?: string;
     DIRECT_DATABASE_URL?: string;
     STELLAR_NETWORK?: "testnet" | "mainnet";

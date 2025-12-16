@@ -22,10 +22,6 @@
     {
       "source": "/health",
       "destination": "/api/health"
-    },
-    {
-      "source": "/debug",
-      "destination": "/api/debug"
     }
   ],
   "headers": [

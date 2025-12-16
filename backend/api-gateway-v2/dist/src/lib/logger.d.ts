@@ -3,9 +3,6 @@
  * Optimized for development and production
  */
 import pino from 'pino';
-/**
- * Create logger instance
- */
 export declare const logger: pino.Logger<never, boolean>;
 /**
  * Child logger for specific contexts

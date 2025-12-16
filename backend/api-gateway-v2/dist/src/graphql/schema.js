@@ -1,6 +1,7 @@
 /**
  * GraphQL Schema Definition
  * Defines all types, queries, mutations for the API
+ * @version 2.1.0 - Added tokenStats to HealthCheck for soft-delete debugging
  */
 export const schema = `#graphql
   scalar DateTime
@@ -79,6 +80,15 @@ export const schema = `#graphql
     version: String!
     database: Boolean!
     cache: CacheStatus!
+    # Debug info for soft-delete
+    tokenStats: TokenStats
+  }
+
+  type TokenStats {
+    totalTokens: Int!
+    activeTokens: Int!
+    deletedTokens: Int!
+    deletedTokenNames: [String!]!
   }
 
   type CacheStatus {
