@@ -142,7 +142,9 @@ export function SimpleChart({
     return data;
   }, [dataHistory, viewMode]);
 
-  // Initialize chart ONCE
+  // Initialize chart when container is available
+  // FIX: Add loading dependency so effect re-runs when loading state changes
+  // (chart container isn't in DOM during loading spinner state)
   useEffect(() => {
     if (!chartContainerRef.current || isInitializedRef.current) return;
 
@@ -214,7 +216,7 @@ export function SimpleChart({
       chart.remove();
       isInitializedRef.current = false;
     };
-  }, []);
+  }, [loading]); // Re-run when loading changes (chart container becomes available)
 
   // Update chart data when data changes
   useEffect(() => {
