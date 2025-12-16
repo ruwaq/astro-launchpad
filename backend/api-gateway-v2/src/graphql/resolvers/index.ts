@@ -66,12 +66,30 @@ const scalarResolvers = {
  * Query resolvers
  */
 const queryResolvers = {
-  // Health check - real implementation
+  // Health check - real implementation with token stats for debugging
   health: async (_parent: any, _args: any, context: GraphQLContext) => {
     const [dbHealth, cacheStats] = await Promise.all([
       checkDatabaseHealth().catch(() => false),
       getCacheStats().catch(() => ({ available: false, type: 'none' as const })),
     ])
+
+    // Get token stats for debugging soft-delete
+    let tokenStats = null
+    try {
+      const [totalResult, activeResult, deletedResult] = await Promise.all([
+        context.prisma.$queryRaw`SELECT COUNT(*)::int as count FROM "Token"` as Promise<{count: number}[]>,
+        context.prisma.$queryRaw`SELECT COUNT(*)::int as count FROM "Token" WHERE "deletedAt" IS NULL` as Promise<{count: number}[]>,
+        context.prisma.$queryRaw`SELECT name FROM "Token" WHERE "deletedAt" IS NOT NULL` as Promise<{name: string}[]>,
+      ])
+      tokenStats = {
+        totalTokens: totalResult[0]?.count || 0,
+        activeTokens: activeResult[0]?.count || 0,
+        deletedTokens: (totalResult[0]?.count || 0) - (activeResult[0]?.count || 0),
+        deletedTokenNames: deletedResult.map(r => r.name),
+      }
+    } catch (error) {
+      logger.error({ error }, '[Health] Failed to get token stats')
+    }
 
     const isHealthy = dbHealth && cacheStats.available
 
@@ -81,6 +99,7 @@ const queryResolvers = {
       version: '2.0.0',
       database: dbHealth,
       cache: cacheStats,
+      tokenStats,
     }
   },
 

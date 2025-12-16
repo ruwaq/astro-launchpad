@@ -80,6 +80,15 @@ export const schema = `#graphql
     version: String!
     database: Boolean!
     cache: CacheStatus!
+    # Debug info for soft-delete
+    tokenStats: TokenStats
+  }
+
+  type TokenStats {
+    totalTokens: Int!
+    activeTokens: Int!
+    deletedTokens: Int!
+    deletedTokenNames: [String!]!
   }
 
   type CacheStatus {
