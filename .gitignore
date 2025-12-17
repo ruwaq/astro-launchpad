@@ -58,9 +58,11 @@ Cargo.lock
 .stellar/identity/
 **/.stellar/identity/
 *.toml
-# Allow Railway configuration (safe to commit)
+# Allow Railway/Nixpacks configuration (safe to commit)
 !railway.toml
 !**/railway.toml
+!nixpacks.toml
+!**/nixpacks.toml
 
 # Database
 *.db

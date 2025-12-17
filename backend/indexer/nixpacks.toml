@@ -1,0 +1,18 @@
+# Nixpacks configuration for Railway deployment
+# https://nixpacks.com/docs/configuration/file
+
+[phases.setup]
+nixPkgs = ["nodejs_18", "nodePackages.pnpm"]
+
+[phases.install]
+cmds = ["cd ../.. && pnpm install"]
+
+[phases.build]
+cmds = [
+  "cd ../.. && pnpm --filter @astroshibapop/shared exec prisma generate",
+  "cd ../.. && pnpm --filter @astroshibapop/shared build",
+  "cd ../.. && pnpm --filter @astroshibapop/indexer build"
+]
+
+[start]
+cmd = "node dist/index.js"
