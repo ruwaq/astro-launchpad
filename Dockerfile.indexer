@@ -1,0 +1,47 @@
+# Dockerfile for Astro Indexer
+# Build: docker build -f Dockerfile.indexer -t astro-indexer .
+# Run: docker run -p 9090:9090 --env-file .env astro-indexer
+
+FROM node:20-alpine AS base
+RUN corepack enable && corepack prepare pnpm@9 --activate
+WORKDIR /app
+
+# Install dependencies
+FROM base AS deps
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY backend/shared/package.json ./backend/shared/
+COPY backend/indexer/package.json ./backend/indexer/
+COPY packages/shared-types/package.json ./packages/shared-types/
+RUN pnpm install --frozen-lockfile
+
+# Build
+FROM base AS builder
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/backend/shared/node_modules ./backend/shared/node_modules
+COPY --from=deps /app/backend/indexer/node_modules ./backend/indexer/node_modules
+COPY --from=deps /app/packages/shared-types/node_modules ./packages/shared-types/node_modules
+COPY . .
+
+# Generate Prisma client and build
+RUN pnpm --filter @astroshibapop/shared exec prisma generate
+RUN pnpm --filter @astroshibapop/shared build
+RUN pnpm --filter @astroshibapop/indexer build
+
+# Production
+FROM node:20-alpine AS runner
+WORKDIR /app
+
+# Copy built artifacts
+COPY --from=builder /app/backend/indexer/dist ./backend/indexer/dist
+COPY --from=builder /app/backend/indexer/package.json ./backend/indexer/
+COPY --from=builder /app/backend/shared/dist ./backend/shared/dist
+COPY --from=builder /app/backend/shared/package.json ./backend/shared/
+COPY --from=builder /app/node_modules ./node_modules
+
+# Set production environment
+ENV NODE_ENV=production
+ENV PORT=9090
+
+EXPOSE 9090
+
+CMD ["node", "backend/indexer/dist/index.js"]
