@@ -392,14 +392,6 @@ export default function CreatePage() {
             await syncToken({
               variables: {
                 tokenAddress: extractedTokenAddress,
-                // Provide fallback data in case contract lookup fails
-                name,
-                symbol,
-                creator: address,
-                imageUrl,
-                description,
-                website,
-                telegram,
               }
             });
             logger.info('Token synced successfully');
@@ -430,20 +422,12 @@ export default function CreatePage() {
               logger.info('Newest token address found', { tokenAddress: extractedTokenAddress });
 
               // V2: No admin setup needed - factory is already the admin!
-              // Just sync the token to database with fallback data
+              // Just sync the token to database
               logger.info('Syncing newest token to database');
               try {
                 await syncToken({
                   variables: {
                     tokenAddress: extractedTokenAddress,
-                    // Provide fallback data in case contract lookup fails
-                    name,
-                    symbol,
-                    creator: address,
-                    imageUrl,
-                    description,
-                    website,
-                    telegram,
                   }
                 });
                 logger.info('Token synced successfully');
