@@ -3,47 +3,46 @@
 import { useState, useEffect, useCallback } from 'react';
 import { locales, defaultLocale, type Locale, localeNames, localeFlags } from './config';
 
+// Static imports for all locales (ensures bundling works in production)
+import messagesEn from '../../messages/en.json';
+import messagesEs from '../../messages/es.json';
+import messagesPt from '../../messages/pt.json';
+
 const LOCALE_STORAGE_KEY = 'astro-locale';
+
+// Pre-loaded messages map
+const messagesMap: Record<Locale, Record<string, unknown>> = {
+  en: messagesEn,
+  es: messagesEs,
+  pt: messagesPt,
+};
 
 export function useLocale() {
   const [locale, setLocaleState] = useState<Locale>(defaultLocale);
-  const [messages, setMessages] = useState<Record<string, unknown>>({});
-  const [isLoading, setIsLoading] = useState(true);
+  // Initialize with default locale messages immediately (no loading state needed)
+  const [messages, setMessages] = useState<Record<string, unknown>>(messagesMap[defaultLocale]);
+  const [isLoading, setIsLoading] = useState(false);
 
   // Load locale from localStorage on mount
   useEffect(() => {
     const stored = localStorage.getItem(LOCALE_STORAGE_KEY) as Locale | null;
     if (stored && locales.includes(stored)) {
       setLocaleState(stored);
+      setMessages(messagesMap[stored]);
     } else {
       // Detect browser language
       const browserLang = navigator.language.split('-')[0] as Locale;
       if (locales.includes(browserLang)) {
         setLocaleState(browserLang);
+        setMessages(messagesMap[browserLang]);
       }
     }
   }, []);
 
-  // Load messages when locale changes
-  useEffect(() => {
-    setIsLoading(true);
-    import(`../../messages/${locale}.json`)
-      .then((mod) => {
-        setMessages(mod.default);
-        setIsLoading(false);
-      })
-      .catch(() => {
-        // Fallback to English
-        import(`../../messages/en.json`).then((mod) => {
-          setMessages(mod.default);
-          setIsLoading(false);
-        });
-      });
-  }, [locale]);
-
   const setLocale = useCallback((newLocale: Locale) => {
     localStorage.setItem(LOCALE_STORAGE_KEY, newLocale);
     setLocaleState(newLocale);
+    setMessages(messagesMap[newLocale]);
   }, []);
 
   // Simple translation function
