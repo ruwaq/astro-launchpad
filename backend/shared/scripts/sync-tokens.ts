@@ -17,6 +17,13 @@
  *   pnpm sync-tokens
  */
 
+// Load environment variables from root .env (single source of truth)
+import { config } from 'dotenv';
+import { resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
+const __dirname = dirname(fileURLToPath(import.meta.url));
+config({ path: resolve(__dirname, '../../../.env') });
+
 import { PrismaClient } from '@prisma/client';
 import { SorobanRpc, Contract, Address, scValToNative } from '@stellar/stellar-sdk';
 

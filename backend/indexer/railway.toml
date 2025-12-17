@@ -1,0 +1,30 @@
+# Railway Configuration for AstroShibaPop Indexer
+# =================================================
+# This indexer runs continuously to sync blockchain events with the database.
+# It provides health checks, metrics, and WebSocket real-time updates.
+#
+# Required Environment Variables (set in Railway dashboard):
+# - DATABASE_URL: PostgreSQL connection string (Supabase)
+# - STELLAR_RPC_URL: Soroban RPC endpoint
+# - TOKEN_FACTORY_CONTRACT_ID: V7 contract address
+#
+# Optional:
+# - REDIS_URL: Redis/Upstash URL
+# - REDIS_TOKEN: Redis/Upstash token
+# - INDEXER_ADMIN_API_KEY: API key for admin endpoints
+
+[build]
+# Build from monorepo root to resolve workspace dependencies
+builder = "nixpacks"
+buildCommand = "cd ../.. && pnpm install --frozen-lockfile && pnpm --filter @astroshibapop/shared build && pnpm --filter @astroshibapop/shared-types build && pnpm --filter @astroshibapop/indexer build"
+watchPatterns = ["backend/indexer/**", "backend/shared/**", "packages/shared-types/**"]
+
+[deploy]
+# Start the compiled indexer
+startCommand = "node dist/index.js"
+# Use Railway's auto-assigned PORT for health checks
+healthcheckPath = "/health"
+healthcheckTimeout = 30
+# Keep running - this is a long-running service
+restartPolicyType = "always"
+restartPolicyMaxRetries = 3

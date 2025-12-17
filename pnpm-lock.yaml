@@ -377,6 +377,9 @@ importers:
       '@stellar/stellar-sdk':
         specifier: ^11.2.2
         version: 11.3.0
+      dotenv:
+        specifier: ^16.3.1
+        version: 16.6.1
       zod:
         specifier: ^3.23.8
         version: 3.25.76

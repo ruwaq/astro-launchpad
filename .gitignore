@@ -58,6 +58,9 @@ Cargo.lock
 .stellar/identity/
 **/.stellar/identity/
 *.toml
+# Allow Railway configuration (safe to commit)
+!railway.toml
+!**/railway.toml
 
 # Database
 *.db

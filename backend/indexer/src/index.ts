@@ -125,7 +125,8 @@ async function main() {
     logger.info('✓ DLQ maintenance service started');
 
     // Start HTTP server for metrics endpoint
-    const metricsPort = parseInt(process.env.METRICS_PORT || '9090', 10);
+    // Railway provides PORT, we also support METRICS_PORT for local dev
+    const metricsPort = parseInt(process.env.PORT || process.env.METRICS_PORT || '9090', 10);
     const server = http.createServer(async (req, res) => {
       if (req.url === '/metrics' && req.method === 'GET') {
         try {
