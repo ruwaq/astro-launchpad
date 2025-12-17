@@ -31,16 +31,22 @@ RUN pnpm --filter @astroshibapop/indexer build
 FROM node:20-alpine AS runner
 WORKDIR /app
 
-# Copy built artifacts
+# Copy package files for proper module resolution
+COPY --from=builder /app/package.json ./
+COPY --from=builder /app/pnpm-workspace.yaml ./
+
+# Copy node_modules with Prisma client
+COPY --from=builder /app/node_modules ./node_modules
+
+# Copy shared package (built + prisma schema)
+COPY --from=builder /app/backend/shared ./backend/shared
+
+# Copy indexer package (built)
 COPY --from=builder /app/backend/indexer/dist ./backend/indexer/dist
 COPY --from=builder /app/backend/indexer/package.json ./backend/indexer/
-COPY --from=builder /app/backend/shared/dist ./backend/shared/dist
-COPY --from=builder /app/backend/shared/package.json ./backend/shared/
-COPY --from=builder /app/node_modules ./node_modules
 
 # Set production environment
 ENV NODE_ENV=production
-ENV PORT=9090
 
 EXPOSE 9090
 
