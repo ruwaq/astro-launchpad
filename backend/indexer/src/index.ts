@@ -362,7 +362,8 @@ async function main() {
       logger.error('Unhandled rejection:', reason);
     });
   } catch (error) {
-    logger.error('Failed to start indexer:', error);
+    logger.error({ err: error }, 'Failed to start indexer');
+    console.error('Startup error details:', error);
     await prisma.$disconnect();
     process.exit(1);
   }
