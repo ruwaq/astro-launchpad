@@ -4,10 +4,18 @@
   "private": true,
   "type": "module",
   "exports": {
-    "./prisma": "./prisma/index.ts",
-    "./types": "./types/index.ts",
-    "./config": "./config/env.ts",
-    "./utils": "./utils/index.ts"
+    "./prisma": {
+      "import": "./dist/prisma/index.js",
+      "default": "./dist/prisma/index.js"
+    },
+    "./types": {
+      "import": "./dist/types/index.js",
+      "default": "./dist/types/index.js"
+    },
+    "./config": {
+      "import": "./dist/config/env.js",
+      "default": "./dist/config/env.js"
+    }
   },
   "scripts": {
     "build": "pnpm run db:generate && tsc",
