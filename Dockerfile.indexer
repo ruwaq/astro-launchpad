@@ -33,7 +33,11 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY backend/shared/package.json ./backend/shared/
 COPY backend/indexer/package.json ./backend/indexer/
 COPY packages/shared-types/package.json ./packages/shared-types/
+# Copy prisma schema for generation
+COPY backend/shared/prisma ./backend/shared/prisma
 RUN pnpm install --frozen-lockfile --prod
+# Generate Prisma client with production deps
+RUN pnpm --filter @astroshibapop/shared exec prisma generate
 
 # Production
 FROM node:20-alpine AS runner
@@ -43,11 +47,13 @@ WORKDIR /app
 COPY --from=builder /app/package.json ./
 COPY --from=builder /app/pnpm-workspace.yaml ./
 
-# Copy production node_modules (with proper symlinks)
+# Copy production node_modules (with Prisma generated)
 COPY --from=prod-deps /app/node_modules ./node_modules
 
-# Copy shared package (built + prisma schema + node_modules)
-COPY --from=builder /app/backend/shared ./backend/shared
+# Copy shared package (built code from builder, node_modules from prod-deps)
+COPY --from=builder /app/backend/shared/dist ./backend/shared/dist
+COPY --from=builder /app/backend/shared/package.json ./backend/shared/
+COPY --from=builder /app/backend/shared/prisma ./backend/shared/prisma
 COPY --from=prod-deps /app/backend/shared/node_modules ./backend/shared/node_modules
 
 # Copy indexer package (built + node_modules)
