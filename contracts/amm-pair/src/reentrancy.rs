@@ -1,48 +1,18 @@
 //! Reentrancy Guard for AMM Pair Contract
 //!
-//! **Sprint 1 Day 4:** Protection against reentrancy attacks
+//! Re-exports from astro-core-shared with local error conversion.
 //!
 //! The reentrancy guard ensures that critical functions cannot be called
 //! recursively through external contract calls.
-//!
-//! **Updated:** Now uses Result instead of panic for better error handling.
 
-use soroban_sdk::{Env, Symbol, symbol_short};
 use crate::errors::Error;
-
-/// Storage key for the reentrancy lock
-const LOCK_KEY: Symbol = symbol_short!("LOCK");
-
-/// Check if the contract is currently locked (in a critical section)
-pub fn is_locked(env: &Env) -> bool {
-    env.storage()
-        .temporary()
-        .get(&LOCK_KEY)
-        .unwrap_or(false)
-}
-
-/// Acquire the reentrancy lock
-///
-/// # Errors
-/// Returns `Error::Reentrancy` if the lock is already acquired
-pub fn acquire_lock(env: &Env) -> Result<(), Error> {
-    if is_locked(env) {
-        return Err(Error::Reentrancy);
-    }
-    env.storage().temporary().set(&LOCK_KEY, &true);
-    Ok(())
-}
-
-/// Release the reentrancy lock
-pub fn release_lock(env: &Env) {
-    env.storage().temporary().remove(&LOCK_KEY);
-}
+use soroban_sdk::Env;
 
 /// RAII guard that automatically releases the lock when dropped
 ///
-/// This ensures the lock is always released, even if the function returns an error.
+/// This wraps astro-core's SimpleReentrancyGuard with local error conversion.
 pub struct ReentrancyGuard<'a> {
-    env: &'a Env,
+    inner: astro_core_shared::reentrancy::SimpleReentrancyGuard<'a>,
 }
 
 impl<'a> ReentrancyGuard<'a> {
@@ -51,23 +21,51 @@ impl<'a> ReentrancyGuard<'a> {
     /// # Errors
     /// Returns `Error::Reentrancy` if a lock is already held (reentrancy attack)
     pub fn new(env: &'a Env) -> Result<Self, Error> {
-        acquire_lock(env)?;
-        Ok(Self { env })
+        let inner = astro_core_shared::reentrancy::SimpleReentrancyGuard::acquire(env)
+            .map_err(|_| Error::Reentrancy)?;
+        Ok(Self { inner })
     }
 }
 
-impl<'a> Drop for ReentrancyGuard<'a> {
-    fn drop(&mut self) {
-        release_lock(self.env);
+// Note: Drop is handled by the inner guard - lock is automatically released
+
+// Legacy functions for backwards compatibility
+// These are no longer needed but kept for reference
+
+/// Check if the contract is currently locked (in a critical section)
+#[allow(dead_code)]
+pub fn is_locked(env: &Env) -> bool {
+    use soroban_sdk::{symbol_short, Symbol};
+    const LOCK_KEY: Symbol = symbol_short!("LOCK");
+    env.storage()
+        .temporary()
+        .get(&LOCK_KEY)
+        .unwrap_or(false)
+}
+
+/// Acquire the reentrancy lock (legacy - prefer ReentrancyGuard::new)
+#[allow(dead_code)]
+pub fn acquire_lock(env: &Env) -> Result<(), Error> {
+    use soroban_sdk::{symbol_short, Symbol};
+    const LOCK_KEY: Symbol = symbol_short!("LOCK");
+    if is_locked(env) {
+        return Err(Error::Reentrancy);
     }
+    env.storage().temporary().set(&LOCK_KEY, &true);
+    Ok(())
+}
+
+/// Release the reentrancy lock (legacy - prefer RAII guard)
+#[allow(dead_code)]
+pub fn release_lock(env: &Env) {
+    use soroban_sdk::{symbol_short, Symbol};
+    const LOCK_KEY: Symbol = symbol_short!("LOCK");
+    env.storage().temporary().remove(&LOCK_KEY);
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    // Note: Full reentrancy tests require contract context
-    // These are basic unit tests for the guard logic
 
     #[test]
     fn test_error_code() {
