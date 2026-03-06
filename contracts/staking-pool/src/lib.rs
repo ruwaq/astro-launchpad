@@ -63,11 +63,45 @@ pub struct StakingPool;
 
 #[contractimpl]
 impl StakingPool {
-    // ────────────────────────────────────────────────────────────────────────
-    // Initialization
-    // ────────────────────────────────────────────────────────────────────────
+    // ════════════════════════════════════════════════════════════════════════
+    // CONSTRUCTOR (CAP-58 Protocol 22+)
+    // ════════════════════════════════════════════════════════════════════════
 
-    /// Initialize the staking pool
+    /// Constructor - runs atomically with contract deployment
+    /// Prevents front-running attacks during initialization
+    pub fn __constructor(
+        env: Env,
+        admin: Address,
+        stake_token: Address,
+        fee_distributor: Address,
+        config: StakingConfig,
+    ) {
+        // Validate config
+        if config.min_stake_amount <= 0 {
+            panic!("invalid min stake amount");
+        }
+
+        // Store initial state
+        env.storage().instance().set(&DataKey::Admin, &admin);
+        env.storage().instance().set(&DataKey::StakeToken, &stake_token);
+        env.storage().instance().set(&DataKey::FeeDistributor, &fee_distributor);
+        env.storage().instance().set(&DataKey::Config, &config);
+        env.storage().instance().set(&DataKey::Initialized, &true);
+        env.storage().instance().set(&DataKey::Paused, &false);
+        env.storage().instance().set(&DataKey::TotalStaked, &0_i128);
+        env.storage().instance().set(&DataKey::RewardTokens, &Vec::<Address>::new(&env));
+
+        extend_instance_ttl(&env);
+
+        let events = EventBuilder::new(&env);
+        events.publish("staking", "initialized", (admin.clone(), stake_token, env.ledger().timestamp()));
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // LEGACY INITIALIZATION (backwards compatibility)
+    // ════════════════════════════════════════════════════════════════════════
+
+    /// Initialize the staking pool (LEGACY - use constructor for new deployments)
     pub fn initialize(
         env: Env,
         admin: Address,

@@ -75,7 +75,39 @@ pub struct SacFactory;
 
 #[contractimpl]
 impl SacFactory {
-    /// Initialize the SAC Factory
+    /// Constructor - atomic initialization with deployment (CAP-58)
+    ///
+    /// Prevents front-running of initialization.
+    /// Called automatically when contract is deployed via deploy_v2.
+    ///
+    /// # Arguments
+    /// * `admin` - Admin address (can pause, update fees)
+    /// * `treasury` - Treasury address (receives fees)
+    /// * `xlm_token_address` - Native XLM SAC address (network-specific)
+    pub fn __constructor(
+        env: Env,
+        admin: Address,
+        treasury: Address,
+        xlm_token_address: Address,
+    ) {
+        // Initialize storage
+        storage::set_admin(&env, &admin);
+        storage::set_treasury(&env, &treasury);
+        storage::set_token_count(&env, 0);
+        storage::set_xlm_token_address(&env, &xlm_token_address);
+
+        // Initialize modules
+        access_control::initialize_access_control(&env, &admin);
+        state_management::initialize_state(&env);
+
+        // Initialize fee config (unwrap safe in constructor - panics abort deployment)
+        let _ = fee_management::initialize_fee_config(&env, treasury);
+
+        // Initialize anti-whale protection
+        anti_whale::initialize_anti_whale(&env);
+    }
+
+    /// Legacy Initialize (for backwards compatibility with existing deployments)
     ///
     /// # Arguments
     /// * `admin` - Admin address (can pause, update fees)

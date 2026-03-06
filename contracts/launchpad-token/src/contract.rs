@@ -24,7 +24,33 @@ pub struct Token;
 
 #[contractimpl]
 impl Token {
+    // ════════════════════════════════════════════════════════════════════════
+    // CONSTRUCTOR (CAP-58 Protocol 22+)
+    // ════════════════════════════════════════════════════════════════════════
+
+    /// Constructor - runs atomically with contract deployment
+    /// Prevents front-running attacks during initialization
+    pub fn __constructor(e: Env, admin: Address, decimal: u32, name: String, symbol: String) {
+        if decimal > 18 {
+            panic!("Decimal must not be greater than 18");
+        }
+        write_administrator(&e, &admin);
+        write_metadata(
+            &e,
+            TokenMetadata {
+                decimal,
+                name,
+                symbol,
+            },
+        )
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // LEGACY INITIALIZATION (backwards compatibility)
+    // ════════════════════════════════════════════════════════════════════════
+
     /// Initialize a new token with admin, decimals, name, and symbol
+    /// (LEGACY - use constructor for new deployments)
     /// Called by the factory when deploying a new token
     pub fn initialize(e: Env, admin: Address, decimal: u32, name: String, symbol: String) {
         if has_administrator(&e) {
