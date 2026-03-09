@@ -196,6 +196,11 @@ impl SacFactory {
             return Err(Error::InvalidSymbol);
         }
 
+        // FIX #M8: Check symbol uniqueness to prevent scams
+        if storage::is_symbol_used(&env, &symbol) {
+            return Err(Error::DuplicateSymbol);
+        }
+
         // Collect creation fee
         let fee_paid = fee_management::collect_creation_fee(&env, &creator)?;
 
@@ -230,6 +235,9 @@ impl SacFactory {
         storage::set_token_info(&env, &token_address, &token_info);
         storage::add_creator_token(&env, &creator, &token_address);
         storage::increment_token_count(&env);
+
+        // FIX #M8: Mark symbol as used
+        storage::mark_symbol_used(&env, &symbol);
 
         // Emit events (both basic and detailed)
         events::token_launched(&env, &creator, &token_address, &name, &symbol);
@@ -283,6 +291,11 @@ impl SacFactory {
         }
         if symbol.is_empty() || symbol.len() > 12 {
             return Err(Error::InvalidSymbol);
+        }
+
+        // FIX #M8: Check symbol uniqueness to prevent scams
+        if storage::is_symbol_used(&env, &symbol) {
+            return Err(Error::DuplicateSymbol);
         }
 
         // Verify token WASM hash is set
@@ -344,6 +357,9 @@ impl SacFactory {
         storage::set_token_info(&env, &token_address, &token_info);
         storage::add_creator_token(&env, &creator, &token_address);
         storage::increment_token_count(&env);
+
+        // FIX #M8: Mark symbol as used
+        storage::mark_symbol_used(&env, &symbol);
 
         // Emit events (both basic and detailed)
         events::token_launched(&env, &creator, &token_address, &name, &symbol);

@@ -45,6 +45,7 @@ pub enum PersistentKey {
     CreatorTokens(Address),       // creator -> Vec<token_addresses>
     AmmPairAddress(Address),      // token_address -> XLM/TOKEN amm_pair_address (primary pool)
     AstroAmmPairAddress(Address), // token_address -> ASTRO/TOKEN amm_pair_address (ecosystem pool)
+    UsedSymbol(soroban_sdk::String), // FIX #M8: Track used symbols to prevent duplicates
 }
 
 /// Token status
@@ -457,4 +458,25 @@ pub fn get_bridge_config(env: &Env) -> Option<BridgeConfig> {
         bridge_address,
         enabled: use_bridge_for_graduation(env),
     })
+}
+
+// ========== Symbol Uniqueness (FIX #M8) ==========
+
+/// Check if a symbol is already used
+pub fn is_symbol_used(env: &Env, symbol: &soroban_sdk::String) -> bool {
+    env.storage()
+        .persistent()
+        .has(&PersistentKey::UsedSymbol(symbol.clone()))
+}
+
+/// Mark a symbol as used
+pub fn mark_symbol_used(env: &Env, symbol: &soroban_sdk::String) {
+    env.storage()
+        .persistent()
+        .set(&PersistentKey::UsedSymbol(symbol.clone()), &true);
+
+    // Extend TTL to prevent expiration
+    env.storage()
+        .persistent()
+        .extend_ttl(&PersistentKey::UsedSymbol(symbol.clone()), 200_000, 200_000);
 }

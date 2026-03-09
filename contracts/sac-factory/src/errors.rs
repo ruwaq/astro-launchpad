@@ -18,6 +18,7 @@ pub enum Error {
     InvalidName = 20,
     InvalidSymbol = 21,
     InvalidAmount = 22,
+    DuplicateSymbol = 23,  // FIX #M8: Symbol already used by another token
 
     // Token state
     TokenNotFound = 30,
