@@ -284,8 +284,10 @@ pub fn has_xlm_token_address(env: &Env) -> bool {
 
 // ========== Oracle Configuration ==========
 
-/// Default max age for oracle prices: 1 hour in seconds
-const DEFAULT_ORACLE_PRICE_MAX_AGE: u64 = 3600;
+/// Default max age for oracle prices: 5 minutes in seconds
+/// Reduced from 3600 (1 hour) to 300 (5 min) for security (VULN #H3)
+/// XLM/USD can fluctuate significantly in 1 hour, risking graduation with stale prices
+const DEFAULT_ORACLE_PRICE_MAX_AGE: u64 = 300;
 
 /// Get oracle price max age (staleness threshold)
 pub fn get_oracle_price_max_age(env: &Env) -> u64 {
