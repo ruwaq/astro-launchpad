@@ -52,6 +52,7 @@ interface GraduationProgressAnimatedProps {
   threshold?: number;
   tokenSymbol?: string;
   astroConfig?: AstroAllocationConfig;
+  className?: string;
 }
 
 // Particle component for effects
@@ -115,6 +116,7 @@ export function GraduationProgressAnimated({
   threshold = GRADUATION_THRESHOLD_XLM,
   tokenSymbol = 'TOKEN',
   astroConfig,
+  className = '',
 }: GraduationProgressAnimatedProps) {
   const [particles, setParticles] = useState<{ id: string; x: number; y: number; emoji: string }[]>([]);
   const [particleCounter, setParticleCounter] = useState(0);
@@ -206,7 +208,7 @@ export function GraduationProgressAnimated({
   if (graduated) {
     return (
       <motion.div
-        className="relative bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl border-2 border-green-300 p-6 overflow-hidden"
+        className={`relative bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl border-2 border-green-300 p-6 overflow-hidden ${className}`}
         initial={{ scale: 0.95 }}
         animate={{ scale: 1 }}
         transition={{ type: 'spring', stiffness: 200 }}
@@ -292,7 +294,7 @@ export function GraduationProgressAnimated({
   }
 
   return (
-    <div className="bg-white rounded-2xl border border-ui-border p-6 relative overflow-hidden">
+    <div className={`bg-white rounded-2xl border border-ui-border p-6 relative overflow-hidden ${className}`}>
       {/* Particles */}
       <AnimatePresence>
         {particles.map((p) => (

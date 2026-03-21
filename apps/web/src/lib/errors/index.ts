@@ -273,12 +273,14 @@ export class ErrorHandler {
      * Report error to monitoring service
      */
     private static reportToMonitoring(error: unknown, context?: string): void {
-        // TODO: Integrate with Sentry
-        // if (process.env.NODE_ENV === 'production') {
-        //   Sentry.captureException(error, {
-        //     tags: { context },
-        //   });
-        // }
+        // Send to Sentry if configured (browser environment only)
+        if (typeof window !== 'undefined' && process.env.NEXT_PUBLIC_SENTRY_DSN) {
+            import('@/lib/sentry').then(({ captureError }) => {
+                captureError(error as Error, { context });
+            }).catch(() => {
+                // Silently fail if Sentry module not available
+            });
+        }
     }
 
     /**

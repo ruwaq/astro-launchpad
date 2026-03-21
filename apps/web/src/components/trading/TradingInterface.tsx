@@ -21,7 +21,7 @@ import toast from 'react-hot-toast';
 import confetti from 'canvas-confetti';
 import type { TokenGraphQLData } from '@/lib/stellar/types';
 import { logger } from '@/lib/logger';
-import { GraduationProgress } from '@/components/widgets/trading/GraduationProgress';
+import { GraduationProgressAnimated } from '@/components/token/GraduationProgressAnimated';
 
 interface TradingInterfaceProps {
   tokenAddress: string;
@@ -344,9 +344,10 @@ export function TradingInterface({ tokenAddress, token }: TradingInterfaceProps)
 
       {/* Graduation Progress - Bonding Curve Status */}
       {token.xlmRaised && (
-        <GraduationProgress
+        <GraduationProgressAnimated
           xlmRaised={token.xlmRaised}
-          isGraduated={token.graduated ?? false}
+          graduated={token.graduated ?? false}
+          tokenSymbol={token.symbol}
           className="mt-4"
         />
       )}

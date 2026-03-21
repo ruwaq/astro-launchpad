@@ -5,6 +5,7 @@
  * Features:
  * - Singleton pattern (prevents connection exhaustion in serverless/dev)
  * - Standard PostgreSQL connection
+ * - Soft-delete via Prisma Client Extensions (Prisma 5.x+)
  * - Type exports for the API Gateway
  */
 import { PrismaClient } from '@prisma/client';
@@ -14,75 +15,111 @@ export * from '@prisma/client';
 const isDevelopment = process.env.NODE_ENV !== 'production';
 const isTest = process.env.NODE_ENV === 'test';
 // Logging configuration
-// Enable query logging in all environments to debug soft-delete issue
-const logConfig = ['query', 'error', 'warn'];
+const logConfig = isDevelopment
+    ? ['query', 'error', 'warn']
+    : ['error', 'warn'];
 /**
- * Models that support soft-delete (have deletedAt field)
- */
-const SOFT_DELETE_MODELS = ['Token', 'Pool'];
-/**
- * Create standard Prisma Client with soft-delete middleware
+ * Create Prisma Client with soft-delete extension (Prisma 5.x+)
  *
- * Professional approach: Use $use middleware to automatically filter
- * soft-deleted records on findMany, findFirst, and count operations.
+ * Uses Prisma Client Extensions to automatically filter soft-deleted records.
+ * This replaces the deprecated $use middleware.
  *
- * @see https://www.prisma.io/docs/orm/prisma-client/client-extensions/middleware/soft-delete-middleware
+ * @see https://www.prisma.io/docs/orm/prisma-client/client-extensions
  */
 function createPrismaClient() {
-    const client = new PrismaClient({
+    const baseClient = new PrismaClient({
         log: logConfig,
         errorFormat: isDevelopment ? 'pretty' : 'minimal',
     });
-    // Soft-delete middleware: automatically filter deleted records
-    client.$use(async (params, next) => {
-        // Debug: Log all Token queries
-        if (params.model === 'Token' && params.action === 'findMany') {
-            console.log('[Prisma Middleware] Token.findMany called with where:', JSON.stringify(params.args?.where));
-        }
-        // Only apply to soft-delete enabled models
-        if (!params.model || !SOFT_DELETE_MODELS.includes(params.model)) {
-            return next(params);
-        }
-        // For find operations, automatically filter out deleted records
-        if (params.action === 'findMany' || params.action === 'findFirst' || params.action === 'count') {
-            params.args = params.args || {};
-            params.args.where = params.args.where || {};
-            // Check if deletedAt is already specified anywhere in the where clause
-            const hasDeletedAtFilter = (obj) => {
-                if (!obj || typeof obj !== 'object')
-                    return false;
-                if ('deletedAt' in obj)
-                    return true;
-                if (Array.isArray(obj.AND))
-                    return obj.AND.some(hasDeletedAtFilter);
-                if (Array.isArray(obj.OR))
-                    return obj.OR.some(hasDeletedAtFilter);
-                return false;
-            };
-            if (hasDeletedAtFilter(params.args.where)) {
-                return next(params);
-            }
-            // Add deletedAt IS NULL filter
-            // Handle both simple where and AND conditions
-            if (Array.isArray(params.args.where.AND)) {
-                // If using AND array, add to the array
-                params.args.where.AND.push({ deletedAt: null });
-            }
-            else if (Object.keys(params.args.where).length === 0) {
-                // Empty where clause
-                params.args.where.deletedAt = null;
-            }
-            else {
-                // Has other conditions but no AND - wrap in AND
-                const existingConditions = { ...params.args.where };
-                params.args.where = {
-                    AND: [existingConditions, { deletedAt: null }]
-                };
-            }
-        }
-        return next(params);
+    // Extend client with soft-delete filtering
+    const client = baseClient.$extends({
+        name: 'softDelete',
+        query: {
+            token: {
+                async findMany({ args, query }) {
+                    // Only add deletedAt filter if not already specified
+                    if (!hasDeletedAtFilter(args.where)) {
+                        args.where = addDeletedAtFilter(args.where);
+                    }
+                    return query(args);
+                },
+                async findFirst({ args, query }) {
+                    if (!hasDeletedAtFilter(args.where)) {
+                        args.where = addDeletedAtFilter(args.where);
+                    }
+                    return query(args);
+                },
+                async findUnique({ args, query }) {
+                    // For findUnique, we need to check after query if soft-deleted
+                    const result = await query(args);
+                    if (result && 'deletedAt' in result && result.deletedAt !== null) {
+                        return null;
+                    }
+                    return result;
+                },
+                async count({ args, query }) {
+                    if (!hasDeletedAtFilter(args.where)) {
+                        args.where = addDeletedAtFilter(args.where);
+                    }
+                    return query(args);
+                },
+            },
+            pool: {
+                async findMany({ args, query }) {
+                    if (!hasDeletedAtFilter(args.where)) {
+                        args.where = addDeletedAtFilter(args.where);
+                    }
+                    return query(args);
+                },
+                async findFirst({ args, query }) {
+                    if (!hasDeletedAtFilter(args.where)) {
+                        args.where = addDeletedAtFilter(args.where);
+                    }
+                    return query(args);
+                },
+                async findUnique({ args, query }) {
+                    const result = await query(args);
+                    if (result && 'deletedAt' in result && result.deletedAt !== null) {
+                        return null;
+                    }
+                    return result;
+                },
+                async count({ args, query }) {
+                    if (!hasDeletedAtFilter(args.where)) {
+                        args.where = addDeletedAtFilter(args.where);
+                    }
+                    return query(args);
+                },
+            },
+        },
     });
     return client;
+}
+/**
+ * Check if where clause already has a deletedAt filter
+ */
+function hasDeletedAtFilter(where) {
+    if (!where || typeof where !== 'object')
+        return false;
+    if ('deletedAt' in where)
+        return true;
+    if (Array.isArray(where.AND))
+        return where.AND.some(hasDeletedAtFilter);
+    if (Array.isArray(where.OR))
+        return where.OR.some(hasDeletedAtFilter);
+    return false;
+}
+/**
+ * Add deletedAt IS NULL filter to where clause
+ */
+function addDeletedAtFilter(where) {
+    if (!where || Object.keys(where).length === 0) {
+        return { deletedAt: null };
+    }
+    if (Array.isArray(where.AND)) {
+        return { ...where, AND: [...where.AND, { deletedAt: null }] };
+    }
+    return { AND: [where, { deletedAt: null }] };
 }
 /**
  * Get or create Prisma Client singleton

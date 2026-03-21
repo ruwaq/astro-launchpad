@@ -66,42 +66,11 @@ impl LiquidityLocker {
     // CONSTRUCTOR (CAP-58 Protocol 22+)
     // ════════════════════════════════════════════════════════════════════════
 
-    /// Constructor - runs atomically with contract deployment
-    /// Prevents front-running attacks during initialization
-    pub fn __constructor(
-        env: Env,
-        admin: Address,
-        treasury: Address,
-        config: LockConfig,
-    ) {
-        // Validate config
-        if config.min_lock_duration > config.max_lock_duration {
-            panic!("invalid lock duration config");
-        }
-
-        if config.early_unlock_penalty_bps > 5000 {
-            panic!("penalty exceeds 50% max");
-        }
-
-        // Store initial state
-        env.storage().instance().set(&DataKey::Admin, &admin);
-        env.storage().instance().set(&DataKey::Treasury, &treasury);
-        env.storage().instance().set(&DataKey::Config, &config);
-        env.storage().instance().set(&DataKey::Initialized, &true);
-        env.storage().instance().set(&DataKey::Paused, &false);
-        env.storage().instance().set(&DataKey::NextLockId, &1_u64);
-
-        extend_instance_ttl(&env);
-
-        let events = EventBuilder::new(&env);
-        events.publish("locker", "initialized", (admin.clone(), env.ledger().timestamp()));
-    }
-
     // ════════════════════════════════════════════════════════════════════════
-    // LEGACY INITIALIZATION (backwards compatibility)
+    // INITIALIZATION
     // ════════════════════════════════════════════════════════════════════════
 
-    /// Initialize the liquidity locker (LEGACY - use constructor for new deployments)
+    /// Initialize the liquidity locker
     pub fn initialize(
         env: Env,
         admin: Address,

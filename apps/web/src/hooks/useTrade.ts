@@ -230,7 +230,7 @@ export function useTrade({
 
       if ('error' in simulated && simulated.error) {
         const errorMsg = extractSimulationError(simulated);
-        console.error('Simulation error details:', JSON.stringify(simulated, null, 2));
+        tradingLogger.error('Simulation error details:', JSON.stringify(simulated, null, 2));
         throw new Error(errorMsg);
       }
 
@@ -239,7 +239,7 @@ export function useTrade({
       }
 
       if (!rpc.Api.isSimulationSuccess(simulated)) {
-        console.error('Simulation failed:', simulated);
+        tradingLogger.error('Simulation failed:', simulated);
         throw new Error('Transaction simulation failed');
       }
 
@@ -356,7 +356,7 @@ export function useTrade({
 
       const err = error as { message?: string };
       const errorMessage = parseContractError(err);
-      console.error('Trade error:', error);
+      tradingLogger.error('Trade error:', error);
       toast.error(errorMessage);
 
       setTimeout(() => {

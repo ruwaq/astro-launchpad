@@ -20,7 +20,15 @@ export default function ExploreError({ error, reset }: ErrorProps) {
   useEffect(() => {
     // Log error to monitoring service
     console.error('[ExploreError] Page error:', error);
-    // TODO: Send to Sentry/DataDog when integrated
+
+    // Send to Sentry if configured
+    if (typeof window !== 'undefined' && process.env.NEXT_PUBLIC_SENTRY_DSN) {
+      import('@/lib/sentry').then(({ captureError }) => {
+        captureError(error, { context: 'explore_page' });
+      }).catch(() => {
+        // Silently fail if Sentry module not available
+      });
+    }
   }, [error]);
 
   return (

@@ -1,10 +1,14 @@
 use soroban_sdk::{Address, Env};
 
+use crate::errors::Error;
 use crate::storage_types::DataKey;
 
-pub fn read_administrator(e: &Env) -> Address {
+pub fn read_administrator(e: &Env) -> Result<Address, Error> {
     let key = DataKey::Admin;
-    e.storage().instance().get(&key).unwrap()
+    e.storage()
+        .instance()
+        .get(&key)
+        .ok_or(Error::NotInitialized)
 }
 
 pub fn has_administrator(e: &Env) -> bool {

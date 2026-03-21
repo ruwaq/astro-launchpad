@@ -447,7 +447,9 @@ export class OptimizedEventIndexer {
         startLedger,
       }
 
-      const response = await this.sorobanRpc.getEvents(requestParams)
+      const response = await this.circuitBreaker.execute(() =>
+        this.sorobanRpc.getEvents(requestParams)
+      )
 
       if (response.events && response.events.length > 0) {
         logger.info(`Found ${response.events.length} Token Factory events`)
@@ -551,7 +553,9 @@ export class OptimizedEventIndexer {
         startLedger,
       }
 
-      const response = await this.sorobanRpc.getEvents(requestParams)
+      const response = await this.circuitBreaker.execute(() =>
+        this.sorobanRpc.getEvents(requestParams)
+      )
 
       if (response.events && response.events.length > 0) {
         logger.info(`Found ${response.events.length} AMM Factory events`)
@@ -743,6 +747,7 @@ export class OptimizedEventIndexer {
         case normalizedType === 'feebreakdownevent':
         case normalizedType === 'protocolfeecollected':
         case normalizedType === 'lpfeecollected':
+        case normalizedType === 'feeswithdrawn':
           await this.feeHandler.handleEvent(event)
           break
 
@@ -774,6 +779,7 @@ export class OptimizedEventIndexer {
 
         // ASTRO token events
         case normalizedType === 'astroconfigpdated':
+        case normalizedType === 'astroconfigcleared':
         case normalizedType === 'astrobuybackexecuted':
         case normalizedType === 'astroliquidityadded':
           await this.astroHandler.handleEvent(event)

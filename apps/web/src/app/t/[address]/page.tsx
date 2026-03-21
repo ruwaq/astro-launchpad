@@ -39,6 +39,7 @@ import { gql } from '@apollo/client';
 import type { Token } from '@/lib/graphql/types';
 import { BondingCurveType } from '@/lib/graphql/types';
 import { showGraduationToast } from '@/lib/notifications/graduationToast';
+import { logger } from '@/lib/logger';
 
 // GraphQL query to fetch token by address (fallback)
 const GET_TOKEN_BY_ADDRESS = gql`
@@ -131,7 +132,7 @@ export default function TokenTradingPage({ params }: PageProps) {
           // Token just graduated! Show celebration toast
           const ammPair = ammPairResult.status === 'fulfilled' ? ammPairResult.value : null;
 
-          console.log('Token graduation detected via polling!', {
+          logger.info('Token graduation detected via polling!', {
             tokenSymbol: newToken.symbol,
             ammPairAddress: ammPair,
           });
@@ -173,7 +174,7 @@ export default function TokenTradingPage({ params }: PageProps) {
       }
 
       // STEP 2: Contract failed - try GraphQL fallback
-      console.warn('Token not found in contract, trying GraphQL fallback...');
+      logger.warn('Token not found in contract, trying GraphQL fallback...');
 
       try {
         const { data } = await apolloClient.query({
@@ -189,12 +190,12 @@ export default function TokenTradingPage({ params }: PageProps) {
           setGraphqlToken(data.token);
           setDataSource('graphql');
           dataSourceRef.current = 'graphql';
-          console.warn('Token loaded from GraphQL (not on Stellar contract)');
+          logger.warn('Token loaded from GraphQL (not on Stellar contract)');
           if (isInitialFetch) setLoading(false);
           return;
         }
       } catch (graphqlError) {
-        console.error('GraphQL fallback also failed:', graphqlError);
+        logger.error('GraphQL fallback also failed:', graphqlError);
       }
 
       // STEP 3: Both sources failed
@@ -205,7 +206,7 @@ export default function TokenTradingPage({ params }: PageProps) {
       }
 
     } catch (err: unknown) {
-      console.error('Unexpected error fetching token:', err);
+      logger.error('Unexpected error fetching token:', err);
       if (isMountedRef.current) {
         const message = err instanceof Error ? err.message : 'Failed to load token data';
         setError(message);
@@ -548,7 +549,7 @@ export default function TokenTradingPage({ params }: PageProps) {
                   tokenImage={formattedToken.logoUrl || undefined}
                   disabled={isReadOnlyMode || undefined}
                   onTradeSuccess={(type, amount) => {
-                    console.log(`Trade success: ${type} ${amount}`);
+                    logger.info(`Trade success: ${type} ${amount}`);
                     // Trigger immediate refresh of all data
                     fetchToken(false);
                     setRefreshTrigger(prev => prev + 1);

@@ -43,75 +43,75 @@ declare const envSchema: z.ZodObject<{
     GITHUB_OWNER: z.ZodOptional<z.ZodString>;
     GITHUB_REPO: z.ZodOptional<z.ZodString>;
 }, "strip", z.ZodTypeAny, {
-    ADMIN_ADDRESSES?: string;
-    ADMIN_API_KEY?: string;
-    NODE_ENV?: "development" | "production" | "test";
-    DATABASE_URL?: string;
-    DIRECT_DATABASE_URL?: string;
-    STELLAR_NETWORK?: "testnet" | "mainnet";
-    STELLAR_RPC_URL?: string;
-    TOKEN_FACTORY_CONTRACT_ID?: string;
-    AMM_FACTORY_CONTRACT_ID?: string;
-    REDIS_URL?: string;
-    KV_REST_API_URL?: string;
-    KV_REST_API_TOKEN?: string;
-    API_PORT?: number;
-    API_HOST?: string;
-    CORS_ORIGIN?: string;
-    RATE_LIMIT_WINDOW_MS?: number;
-    RATE_LIMIT_MAX_REQUESTS?: number;
-    GRAPHQL_MAX_DEPTH?: number;
-    GRAPHQL_MAX_COMPLEXITY?: number;
-    GRAPHQL_INTROSPECTION?: boolean;
-    GRAPHQL_PLAYGROUND?: boolean;
-    LOG_LEVEL?: "error" | "warn" | "info" | "fatal" | "debug" | "trace";
-    LOG_PRETTY?: boolean;
-    HEALTH_PORT?: number;
-    METRICS_ENABLED?: boolean;
-    METRICS_PORT?: number;
-    PINATA_API_KEY?: string;
-    PINATA_API_SECRET?: string;
-    PINATA_JWT?: string;
-    NUNA_API_KEY?: string;
-    NUNA_API_URL?: string;
-    GITHUB_TOKEN?: string;
-    GITHUB_OWNER?: string;
-    GITHUB_REPO?: string;
+    NODE_ENV: "development" | "production" | "test";
+    DATABASE_URL: string;
+    STELLAR_NETWORK: "testnet" | "mainnet";
+    STELLAR_RPC_URL: string;
+    TOKEN_FACTORY_CONTRACT_ID: string;
+    API_PORT: number;
+    API_HOST: string;
+    CORS_ORIGIN: string;
+    RATE_LIMIT_WINDOW_MS: number;
+    RATE_LIMIT_MAX_REQUESTS: number;
+    GRAPHQL_MAX_DEPTH: number;
+    GRAPHQL_MAX_COMPLEXITY: number;
+    GRAPHQL_INTROSPECTION: boolean;
+    GRAPHQL_PLAYGROUND: boolean;
+    LOG_LEVEL: "info" | "warn" | "error" | "fatal" | "debug" | "trace";
+    LOG_PRETTY: boolean;
+    HEALTH_PORT: number;
+    METRICS_ENABLED: boolean;
+    METRICS_PORT: number;
+    ADMIN_ADDRESSES?: string | undefined;
+    ADMIN_API_KEY?: string | undefined;
+    DIRECT_DATABASE_URL?: string | undefined;
+    AMM_FACTORY_CONTRACT_ID?: string | undefined;
+    REDIS_URL?: string | undefined;
+    KV_REST_API_URL?: string | undefined;
+    KV_REST_API_TOKEN?: string | undefined;
+    PINATA_API_KEY?: string | undefined;
+    PINATA_API_SECRET?: string | undefined;
+    PINATA_JWT?: string | undefined;
+    NUNA_API_KEY?: string | undefined;
+    NUNA_API_URL?: string | undefined;
+    GITHUB_TOKEN?: string | undefined;
+    GITHUB_OWNER?: string | undefined;
+    GITHUB_REPO?: string | undefined;
 }, {
-    ADMIN_ADDRESSES?: string;
-    ADMIN_API_KEY?: string;
+    ADMIN_ADDRESSES?: string | undefined;
+    ADMIN_API_KEY?: string | undefined;
     NODE_ENV?: unknown;
-    DATABASE_URL?: string;
-    DIRECT_DATABASE_URL?: string;
+    DATABASE_URL?: string | undefined;
+    DIRECT_DATABASE_URL?: string | undefined;
     STELLAR_NETWORK?: unknown;
-    STELLAR_RPC_URL?: string;
-    TOKEN_FACTORY_CONTRACT_ID?: string;
-    AMM_FACTORY_CONTRACT_ID?: string;
-    REDIS_URL?: string;
-    KV_REST_API_URL?: string;
-    KV_REST_API_TOKEN?: string;
-    API_PORT?: number;
-    API_HOST?: string;
-    CORS_ORIGIN?: string;
-    RATE_LIMIT_WINDOW_MS?: number;
-    RATE_LIMIT_MAX_REQUESTS?: number;
-    GRAPHQL_MAX_DEPTH?: number;
-    GRAPHQL_MAX_COMPLEXITY?: number;
-    GRAPHQL_INTROSPECTION?: boolean;
-    GRAPHQL_PLAYGROUND?: boolean;
-    LOG_LEVEL?: "error" | "warn" | "info" | "fatal" | "debug" | "trace";
-    LOG_PRETTY?: boolean;
-    HEALTH_PORT?: number;
-    METRICS_ENABLED?: boolean;
-    METRICS_PORT?: number;
-    PINATA_API_KEY?: string;
-    PINATA_API_SECRET?: string;
-    PINATA_JWT?: string;
-    NUNA_API_KEY?: string;
-    NUNA_API_URL?: string;
-    GITHUB_TOKEN?: string;
-    GITHUB_OWNER?: string;
-    GITHUB_REPO?: string;
+    STELLAR_RPC_URL?: string | undefined;
+    TOKEN_FACTORY_CONTRACT_ID?: string | undefined;
+    AMM_FACTORY_CONTRACT_ID?: string | undefined;
+    REDIS_URL?: string | undefined;
+    KV_REST_API_URL?: string | undefined;
+    KV_REST_API_TOKEN?: string | undefined;
+    API_PORT?: number | undefined;
+    API_HOST?: string | undefined;
+    CORS_ORIGIN?: string | undefined;
+    RATE_LIMIT_WINDOW_MS?: number | undefined;
+    RATE_LIMIT_MAX_REQUESTS?: number | undefined;
+    GRAPHQL_MAX_DEPTH?: number | undefined;
+    GRAPHQL_MAX_COMPLEXITY?: number | undefined;
+    GRAPHQL_INTROSPECTION?: boolean | undefined;
+    GRAPHQL_PLAYGROUND?: boolean | undefined;
+    LOG_LEVEL?: "info" | "warn" | "error" | "fatal" | "debug" | "trace" | undefined;
+    LOG_PRETTY?: boolean | undefined;
+    HEALTH_PORT?: number | undefined;
+    METRICS_ENABLED?: boolean | undefined;
+    METRICS_PORT?: number | undefined;
+    PINATA_API_KEY?: string | undefined;
+    PINATA_API_SECRET?: string | undefined;
+    PINATA_JWT?: string | undefined;
+    NUNA_API_KEY?: string | undefined;
+    NUNA_API_URL?: string | undefined;
+    GITHUB_TOKEN?: string | undefined;
+    GITHUB_OWNER?: string | undefined;
+    GITHUB_REPO?: string | undefined;
 }>;
 /**
  * Parsed and validated environment variables
@@ -122,40 +122,40 @@ export type Env = z.infer<typeof envSchema>;
  * Import this in your application code
  */
 export declare const env: {
-    ADMIN_ADDRESSES?: string;
-    ADMIN_API_KEY?: string;
-    NODE_ENV?: "development" | "production" | "test";
-    DATABASE_URL?: string;
-    DIRECT_DATABASE_URL?: string;
-    STELLAR_NETWORK?: "testnet" | "mainnet";
-    STELLAR_RPC_URL?: string;
-    TOKEN_FACTORY_CONTRACT_ID?: string;
-    AMM_FACTORY_CONTRACT_ID?: string;
-    REDIS_URL?: string;
-    KV_REST_API_URL?: string;
-    KV_REST_API_TOKEN?: string;
-    API_PORT?: number;
-    API_HOST?: string;
-    CORS_ORIGIN?: string;
-    RATE_LIMIT_WINDOW_MS?: number;
-    RATE_LIMIT_MAX_REQUESTS?: number;
-    GRAPHQL_MAX_DEPTH?: number;
-    GRAPHQL_MAX_COMPLEXITY?: number;
-    GRAPHQL_INTROSPECTION?: boolean;
-    GRAPHQL_PLAYGROUND?: boolean;
-    LOG_LEVEL?: "error" | "warn" | "info" | "fatal" | "debug" | "trace";
-    LOG_PRETTY?: boolean;
-    HEALTH_PORT?: number;
-    METRICS_ENABLED?: boolean;
-    METRICS_PORT?: number;
-    PINATA_API_KEY?: string;
-    PINATA_API_SECRET?: string;
-    PINATA_JWT?: string;
-    NUNA_API_KEY?: string;
-    NUNA_API_URL?: string;
-    GITHUB_TOKEN?: string;
-    GITHUB_OWNER?: string;
-    GITHUB_REPO?: string;
+    NODE_ENV: "development" | "production" | "test";
+    DATABASE_URL: string;
+    STELLAR_NETWORK: "testnet" | "mainnet";
+    STELLAR_RPC_URL: string;
+    TOKEN_FACTORY_CONTRACT_ID: string;
+    API_PORT: number;
+    API_HOST: string;
+    CORS_ORIGIN: string;
+    RATE_LIMIT_WINDOW_MS: number;
+    RATE_LIMIT_MAX_REQUESTS: number;
+    GRAPHQL_MAX_DEPTH: number;
+    GRAPHQL_MAX_COMPLEXITY: number;
+    GRAPHQL_INTROSPECTION: boolean;
+    GRAPHQL_PLAYGROUND: boolean;
+    LOG_LEVEL: "info" | "warn" | "error" | "fatal" | "debug" | "trace";
+    LOG_PRETTY: boolean;
+    HEALTH_PORT: number;
+    METRICS_ENABLED: boolean;
+    METRICS_PORT: number;
+    ADMIN_ADDRESSES?: string | undefined;
+    ADMIN_API_KEY?: string | undefined;
+    DIRECT_DATABASE_URL?: string | undefined;
+    AMM_FACTORY_CONTRACT_ID?: string | undefined;
+    REDIS_URL?: string | undefined;
+    KV_REST_API_URL?: string | undefined;
+    KV_REST_API_TOKEN?: string | undefined;
+    PINATA_API_KEY?: string | undefined;
+    PINATA_API_SECRET?: string | undefined;
+    PINATA_JWT?: string | undefined;
+    NUNA_API_KEY?: string | undefined;
+    NUNA_API_URL?: string | undefined;
+    GITHUB_TOKEN?: string | undefined;
+    GITHUB_OWNER?: string | undefined;
+    GITHUB_REPO?: string | undefined;
 };
 /**
  * Check if running in production
@@ -174,7 +174,7 @@ export declare const isTest: boolean;
  */
 export declare function getDatabaseConfig(): {
     url: string;
-    directUrl: string;
+    directUrl: string | undefined;
 };
 /**
  * Get Redis configuration
@@ -187,7 +187,7 @@ export declare function getRedisConfig(): {
     type: "redis";
     url: string;
     token?: undefined;
-};
+} | null;
 /**
  * Get Stellar network configuration
  */
@@ -223,31 +223,31 @@ export declare function getApiConfig(): {
  * Get logging configuration
  */
 export declare function getLogConfig(): {
-    level: "error" | "warn" | "info" | "fatal" | "debug" | "trace";
+    level: "info" | "warn" | "error" | "fatal" | "debug" | "trace";
     pretty: boolean;
 };
 /**
  * Get Pinata configuration
  */
 export declare function getPinataConfig(): {
-    apiKey: string;
-    apiSecret: string;
-    jwt: string;
+    apiKey: string | undefined;
+    apiSecret: string | undefined;
+    jwt: string | undefined;
 };
 /**
  * Get Nuna Labs configuration
  */
 export declare function getNunaConfig(): {
-    apiKey: string;
-    apiUrl: string;
+    apiKey: string | undefined;
+    apiUrl: string | undefined;
 };
 /**
  * Get GitHub configuration
  */
 export declare function getGitHubConfig(): {
-    token: string;
-    owner: string;
-    repo: string;
+    token: string | undefined;
+    owner: string | undefined;
+    repo: string | undefined;
 };
 export {};
 //# sourceMappingURL=env.d.ts.map

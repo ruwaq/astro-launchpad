@@ -76,6 +76,30 @@ pub struct TokenInfo {
     pub xlm_raised: i128,
     pub market_cap: i128,
     pub holders_count: u32,
+    // FIX CRITICAL BUG #1: Track exact locked XLM amount for this token
+    // This prevents accounting errors when releasing locked funds on graduation
+    pub locked_xlm_amount: i128,
+}
+
+// ========== TTL Constants for Instance Storage ==========
+
+/// Instance storage TTL threshold: ~30 days in ledgers (5 sec/ledger)
+/// When TTL falls below this, extend it
+pub const INSTANCE_TTL_THRESHOLD: u32 = 518_400;
+
+/// Instance storage TTL extension: ~60 days in ledgers
+/// Extend TTL to this duration
+pub const INSTANCE_TTL_EXTEND: u32 = 1_036_800;
+
+/// Extend Instance storage TTL to prevent expiration
+///
+/// Best Practice (OpenZeppelin 2026):
+/// Instance storage TTL must be managed manually by developers.
+/// Call this in critical functions to keep config alive.
+pub fn extend_instance_ttl(env: &Env) {
+    env.storage()
+        .instance()
+        .extend_ttl(INSTANCE_TTL_THRESHOLD, INSTANCE_TTL_EXTEND);
 }
 
 // ========== Instance Storage (Small, Frequent Access) ==========
@@ -90,6 +114,7 @@ pub fn get_admin(env: &Env) -> Address {
 
 pub fn set_admin(env: &Env, admin: &Address) {
     env.storage().instance().set(&InstanceKey::Admin, admin);
+    extend_instance_ttl(env); // Extend TTL on critical config change
 }
 
 pub fn get_treasury(env: &Env) -> Address {
@@ -98,6 +123,7 @@ pub fn get_treasury(env: &Env) -> Address {
 
 pub fn set_treasury(env: &Env, treasury: &Address) {
     env.storage().instance().set(&InstanceKey::Treasury, treasury);
+    extend_instance_ttl(env); // Extend TTL on critical config change
 }
 
 pub fn get_token_count(env: &Env) -> u32 {
@@ -151,6 +177,7 @@ pub fn get_token_wasm_hash(env: &Env) -> soroban_sdk::BytesN<32> {
 
 pub fn set_token_wasm_hash(env: &Env, wasm_hash: &soroban_sdk::BytesN<32>) {
     env.storage().instance().set(&InstanceKey::TokenWasmHash, wasm_hash);
+    extend_instance_ttl(env); // Extend TTL on critical config change
 }
 
 pub fn get_graduation_threshold(env: &Env) -> i128 {

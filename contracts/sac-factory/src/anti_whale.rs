@@ -31,6 +31,7 @@
 use soroban_sdk::{contracttype, Address, Env, Vec};
 use crate::errors::Error;
 use crate::access_control;
+use crate::input_validation;
 
 /// Storage key for anti-whale configuration
 #[contracttype]
@@ -143,26 +144,16 @@ pub fn set_config(
         return Err(Error::InvalidAmount);
     }
 
-    // Validate tiers are in ascending order and fees are reasonable
-    let thresholds = &config.tier_thresholds;
-    let fees = &config.tier_fees;
+    // Validate fee tiers (DoS prevention - Soroban Best Practice 2026)
+    // This checks: max tiers limit, ascending order, non-negative values, and length match
+    input_validation::validate_fee_tiers(env, &config.tier_thresholds, &config.tier_fees)?;
 
-    if thresholds.len() != fees.len() {
-        return Err(Error::InvalidAmount);
-    }
-
-    let mut prev_threshold: i128 = 0;
-    for i in 0..thresholds.len() {
-        let threshold = thresholds.get(i).unwrap_or(0);
-        let fee = fees.get(i).unwrap_or(0);
-
-        if threshold <= prev_threshold {
-            return Err(Error::InvalidAmount); // Must be ascending
-        }
+    // Additional validation: max 50% fee per tier
+    for i in 0..config.tier_fees.len() {
+        let fee = config.tier_fees.get(i).unwrap_or(0);
         if !(0..=5000).contains(&fee) {
             return Err(Error::InvalidAmount); // Max 50% fee per tier
         }
-        prev_threshold = threshold;
     }
 
     env.storage().instance().set(&AntiWhaleKey::Config, &config);

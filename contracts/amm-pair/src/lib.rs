@@ -43,44 +43,11 @@ impl AMMPair {
     /// Constructor - runs atomically with contract deployment
     /// Prevents front-running attacks during initialization
     ///
-    /// # Arguments
-    /// * `token_a` - Address of first token
-    /// * `token_b` - Address of second token
-    /// * `factory` - Address of factory contract
-    /// * `fee_to` - Address to send protocol fees
-    pub fn __constructor(
-        env: Env,
-        token_a: Address,
-        token_b: Address,
-        factory: Address,
-        fee_to: Address,
-    ) {
-        // Ensure tokens are sorted (A < B) for deterministic pair address
-        let (token_0, token_1) = if token_a < token_b {
-            (token_a, token_b)
-        } else {
-            (token_b, token_a)
-        };
-
-        let pair_info = PairInfo {
-            token_0: token_0.clone(),
-            token_1: token_1.clone(),
-            factory,
-            fee_to,
-            reserve_0: 0,
-            reserve_1: 0,
-            total_supply: 0,
-            k_last: 0,
-        };
-
-        storage::set_pair_info(&env, &pair_info);
-    }
-
     // ═══════════════════════════════════════════════════════════════════════════
-    // LEGACY INITIALIZATION (backwards compatibility)
+    // INITIALIZATION
     // ═══════════════════════════════════════════════════════════════════════════
 
-    /// Initialize the pair contract (LEGACY - use constructor for new deployments)
+    /// Initialize the pair contract
     ///
     /// # Arguments
     /// * `token_a` - Address of first token

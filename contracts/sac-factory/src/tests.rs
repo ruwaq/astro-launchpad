@@ -79,7 +79,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Error(Contract, #1)")]
+    #[should_panic(expected = "Error(Contract, #100)")]
     fn test_initialize_twice_fails() {
         let env = Env::default();
         let (client, admin, treasury, xlm_token_address) = create_factory_contract(&env);
@@ -123,7 +123,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Error(Contract, #20)")]
+    #[should_panic(expected = "Error(Contract, #300)")]
     fn test_launch_token_empty_name_fails() {
         let env = Env::default();
         let (client, _admin, _treasury) = setup_initialized_factory(&env);
@@ -147,7 +147,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Error(Contract, #21)")]
+    #[should_panic(expected = "Error(Contract, #301)")]
     fn test_launch_token_long_symbol_fails() {
         let env = Env::default();
         let (client, _admin, _treasury) = setup_initialized_factory(&env);
@@ -237,7 +237,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Error(Contract, #30)")]
+    #[should_panic(expected = "Error(Contract, #400)")]
     fn test_buy_nonexistent_token_fails() {
         let env = Env::default();
         let (client, _admin, _treasury) = setup_initialized_factory(&env);
@@ -251,7 +251,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Error(Contract, #40)")]
+    #[should_panic(expected = "Error(Contract, #500)")]
     fn test_buy_with_slippage_protection() {
         let env = Env::default();
         let (client, _admin, _treasury) = setup_initialized_factory(&env);
@@ -370,7 +370,11 @@ mod tests {
             } else {
                 String::from_str(&env, "TokenB")
             };
-            let symbol_str = if i % 2 == 0 { "TA" } else { "TB" };
+            // Use unique symbols to avoid DuplicateSymbol error
+            let symbol_str = match i {
+                0 => "TA0", 1 => "TB1", 2 => "TA2", 3 => "TB3", 4 => "TA4",
+                5 => "TB5", 6 => "TA6", 7 => "TB7", 8 => "TA8", _ => "TB9",
+            };
             let symbol = String::from_str(&env, symbol_str);
 
             let serialized_asset = create_test_serialized_asset(&env, &symbol, &creator, i);

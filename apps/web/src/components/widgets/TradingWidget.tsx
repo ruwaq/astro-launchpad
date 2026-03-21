@@ -47,13 +47,13 @@ import {
   ConnectWalletAlert,
   TestnetTokenAlert,
   NoLiquidityAlert,
-  GraduationProgress,
   TESTNET_TOKENS,
   SIMULATED_PRICES,
   DEFAULT_SIMULATED_PRICE,
   type TradeState,
   type TokenOption,
 } from './trading';
+import { GraduationProgressAnimated } from '@/components/token/GraduationProgressAnimated';
 
 const GET_TOKENS_QUERY = gql`
   query GetTokens($limit: Int!, $orderBy: TokenOrderBy!) {
@@ -583,9 +583,9 @@ export const TradingWidget = memo(function TradingWidget() {
 
         {/* Graduation Progress - Show bonding curve progress */}
         {tokenInfo && (
-          <GraduationProgress
+          <GraduationProgressAnimated
             xlmRaised={tokenInfo.xlm_raised}
-            isGraduated={tokenInfo.status === 'Graduated'}
+            graduated={tokenInfo.status === 'Graduated'}
             className="mt-4"
           />
         )}

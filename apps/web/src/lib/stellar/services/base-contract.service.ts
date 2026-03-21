@@ -9,6 +9,13 @@ import { Contract, rpc, xdr, TransactionBuilder, Account } from '@stellar/stella
 import { stellarClient } from '../client';
 import { getNetworkConfig } from '../config';
 import type { ContractCallResult } from '../types';
+import type {
+  StellarTransaction,
+  ContractOperation,
+  GetFailedTransactionResponse,
+} from '../types/sdk.types';
+import { isFailedTransaction } from '../types/sdk.types';
+import { logger } from '@/lib/logger';
 
 export interface PreparedTransaction {
   txXDR: string;
@@ -68,12 +75,12 @@ export abstract class BaseContractService {
           networkPassphrase: getNetworkConfig().networkPassphrase,
         }
       )
-        .addOperation(operation as any)
+        .addOperation(operation as ContractOperation)
         .setTimeout(30)
         .build();
 
       // SAFETY: Wrap simulation in timeout to prevent hanging
-      const simulationPromise = server.simulateTransaction(tx as any);
+      const simulationPromise = server.simulateTransaction(tx as StellarTransaction);
       const timeoutPromise = new Promise<never>((_, reject) => {
         setTimeout(() => reject(new Error(`Contract call ${method} timed out after ${NETWORK_TIMEOUT}ms`)), NETWORK_TIMEOUT);
       });
@@ -90,7 +97,7 @@ export abstract class BaseContractService {
         throw new Error('Unexpected simulation response');
       }
     } catch (error) {
-      console.error(`Error calling ${method}:`, error);
+      logger.error(`Error calling ${method}:`, error);
       throw error;
     }
   }
@@ -127,7 +134,7 @@ export abstract class BaseContractService {
       fee: '100000', // 0.01 XLM base fee (will be adjusted by simulation)
       networkPassphrase: config.networkPassphrase,
     })
-      .addOperation(operation as any)
+      .addOperation(operation as ContractOperation)
       .setTimeout(300) // 5 minutes
       .build();
 
@@ -195,8 +202,8 @@ export abstract class BaseContractService {
       };
     }
 
-    if (getResult.status === rpc.Api.GetTransactionStatus.FAILED) {
-      throw new Error(`Transaction failed: ${(getResult as any).resultXdr || 'Unknown error'}`);
+    if (isFailedTransaction(getResult)) {
+      throw new Error(`Transaction failed: ${getResult.resultXdr || 'Unknown error'}`);
     }
 
     throw new Error('Transaction timed out waiting for confirmation');

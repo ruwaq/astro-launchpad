@@ -107,7 +107,7 @@ export class TokenEventHandler {
         // Create transaction record
         await tx.transaction.create({
           data: {
-            hash: event.id || `tx_${Date.now()}`,
+            hash: event.id || `tx_create_${event.ledger}_${tokenAddress}_${creator}_${symbol}`,
             type: 'TOKEN_CREATED',
             from: creator,
             tokenAddress,
@@ -155,8 +155,8 @@ export class TokenEventHandler {
       }
 
       // CRITICAL: Idempotency check - prevent processing same event twice
-      // Use event.id as unique identifier for this event
-      const eventHash = event.id || `tx_buy_${tokenAddress}_${buyer}_${xlmAmount}_${Date.now()}`;
+      // Use event.id as unique identifier, or deterministic fallback from blockchain data
+      const eventHash = event.id || `tx_buy_${event.ledger}_${tokenAddress}_${buyer}_${xlmAmount}_${tokensReceived}`;
       const existingTx = await this.prisma.transaction.findFirst({
         where: { hash: eventHash },
       });
@@ -263,7 +263,8 @@ export class TokenEventHandler {
       }
 
       // CRITICAL: Idempotency check - prevent processing same event twice
-      const eventHash = event.id || `tx_sell_${tokenAddress}_${seller}_${tokensSold}_${Date.now()}`;
+      // Use event.id as unique identifier, or deterministic fallback from blockchain data
+      const eventHash = event.id || `tx_sell_${event.ledger}_${tokenAddress}_${seller}_${tokensSold}_${xlmReceived}`;
       const existingTx = await this.prisma.transaction.findFirst({
         where: { hash: eventHash },
       });

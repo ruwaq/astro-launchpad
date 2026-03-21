@@ -708,7 +708,7 @@ export function TradingWidgetPremium({
 
       const err = error as { message?: string };
       const errorMessage = parseContractError(err);
-      console.error('Trade error:', error);
+      tradingLogger.error('Trade error:', error);
       toast.error(errorMessage);
 
       setTimeout(() => {
@@ -923,9 +923,26 @@ export function TradingWidgetPremium({
 
         {/* Input Amount */}
         <motion.div variants={itemVariants} className="space-y-2">
-          <label className="text-sm font-medium text-ui-text-secondary">
-            {tradeType === 'buy' ? 'You pay (XLM)' : `You sell (${tokenSymbol})`}
-          </label>
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-medium text-ui-text-secondary">
+              {tradeType === 'buy' ? 'You pay (XLM)' : `You sell (${tokenSymbol})`}
+            </label>
+            {isConnected && (
+              <button
+                onClick={() => {
+                  const maxAmount = tradeType === 'buy'
+                    ? (parseFloat(userXlmBalance) * 0.95).toFixed(2) // Leave 5% for fees
+                    : (parseFloat(stroopsToXlm(userTokenBalance))).toFixed(2);
+                  setInputAmount(maxAmount);
+                }}
+                disabled={isProcessing}
+                className="text-xs font-medium text-brand-primary hover:text-brand-hover active:text-brand-hover/80 disabled:opacity-50 transition-colors touch-manipulation"
+                aria-label="Use maximum balance"
+              >
+                MAX ({tradeType === 'buy' ? `${userXlmBalance} XLM` : `${(parseFloat(stroopsToXlm(userTokenBalance))).toFixed(2)} ${tokenSymbol}`})
+              </button>
+            )}
+          </div>
           <div className="relative">
             <input
               type="number"

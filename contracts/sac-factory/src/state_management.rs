@@ -9,6 +9,7 @@ use soroban_sdk::{contracttype, Address, Env};
 use crate::errors::Error;
 use crate::access_control::{require_role, Role};
 use crate::events;
+use crate::storage_optimization;
 
 /// Contract lifecycle states
 #[contracttype]
@@ -33,6 +34,19 @@ pub enum StateKey {
     State,
 }
 
+/// Persistent storage TTL threshold: ~30 days in ledgers (5 sec/ledger)
+const PERSISTENT_TTL_THRESHOLD: u32 = 518_400;
+
+/// Persistent storage TTL extension: ~60 days in ledgers
+const PERSISTENT_TTL_EXTEND: u32 = 1_036_800;
+
+/// Extend Persistent storage TTL for state (critical config)
+fn extend_state_ttl(env: &Env) {
+    env.storage()
+        .persistent()
+        .extend_ttl(&StateKey::State, PERSISTENT_TTL_THRESHOLD, PERSISTENT_TTL_EXTEND);
+}
+
 /// Get current contract state
 pub fn get_state(env: &Env) -> ContractState {
     env.storage()
@@ -41,9 +55,18 @@ pub fn get_state(env: &Env) -> ContractState {
         .unwrap_or(ContractState::Uninitialized)
 }
 
-/// Set contract state
+/// Set contract state with optimization
+///
+/// Uses check-before-write pattern to reduce gas costs.
+/// Extends TTL when state changes (critical config).
 fn set_state(env: &Env, state: ContractState) {
-    env.storage().persistent().set(&StateKey::State, &state);
+    // Only write if state changed (gas optimization)
+    let was_written = storage_optimization::set_if_changed_persistent(env, &StateKey::State, &state);
+
+    // Extend TTL when state changes (critical config)
+    if was_written {
+        extend_state_ttl(env);
+    }
 }
 
 /// Initialize contract state to Active

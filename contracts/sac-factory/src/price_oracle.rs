@@ -182,8 +182,6 @@ pub fn get_oracle_client(env: &Env) -> Result<DiaOracleClient<'_>, Error> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_calculate_market_cap_usd() {
         // Mock: 10,000 XLM at $0.10 per XLM = $1,000 market cap

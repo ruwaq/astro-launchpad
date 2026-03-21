@@ -75,9 +75,13 @@ function detectMobile(): boolean {
 // Detect standalone PWA mode
 function detectStandalone(): boolean {
   if (typeof window === 'undefined') return false;
+  // Type for iOS standalone mode detection
+  interface IOSNavigator extends Navigator {
+    standalone?: boolean;
+  }
   return (
     window.matchMedia('(display-mode: standalone)').matches ||
-    (window.navigator as any).standalone === true
+    (window.navigator as IOSNavigator).standalone === true
   );
 }
 
@@ -110,7 +114,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [isStandalone, setIsStandalone] = useState(false);
 
   // Ref to track mobile wallet timeout for cleanup (prevents memory leak)
-  const mobileWalletTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  // Browser setTimeout returns number, not NodeJS.Timeout
+  const mobileWalletTimeoutRef = useRef<number | null>(null);
 
   // Get expected network from config
   const expectedNetwork = getCurrentNetwork();
@@ -246,16 +251,27 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       walletLogger.error('Failed to connect wallet', err);
 
       let errorMessage = 'Failed to connect wallet';
-      const errorObj = err as { code?: number; message?: string };
 
-      if (errorObj.code === -1) {
-        errorMessage = isMobile
-          ? 'Please install LOBSTR or xBull wallet app to connect.'
-          : 'Wallet extension not installed. Please install Freighter, xBull, or Albedo.';
-      } else if (errorObj.code === -3) {
-        errorMessage = 'Please select a wallet from the modal.';
-      } else if (errorObj.message) {
-        errorMessage = errorObj.message;
+      // Type-safe error handling
+      interface WalletError {
+        code?: number;
+        message?: string;
+      }
+
+      const isWalletError = (e: unknown): e is WalletError => {
+        return typeof e === 'object' && e !== null && ('code' in e || 'message' in e);
+      };
+
+      if (isWalletError(err)) {
+        if (err.code === -1) {
+          errorMessage = isMobile
+            ? 'Please install LOBSTR or xBull wallet app to connect.'
+            : 'Wallet extension not installed. Please install Freighter, xBull, or Albedo.';
+        } else if (err.code === -3) {
+          errorMessage = 'Please select a wallet from the modal.';
+        } else if (err.message) {
+          errorMessage = err.message;
+        }
       }
 
       setError(errorMessage);
@@ -331,8 +347,12 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
       // Try to sign using the wallet's signBlob method
       // Note: Not all wallets support this - will fall back gracefully
-      // Type assertion needed as signBlob is not in all kit versions' types
-      const { signedBlob } = await (kit as any).signBlob(messageBuffer, {
+      // Extended type for wallets that support message signing
+      interface ExtendedWalletKit extends StellarWalletsKit {
+        signBlob: (blob: Buffer, options: { address: string }) => Promise<{ signedBlob: string }>;
+      }
+
+      const { signedBlob } = await (kit as ExtendedWalletKit).signBlob(messageBuffer, {
         address,
       });
 
@@ -392,7 +412,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     window.location.href = deepLink;
 
     // Fallback to app store after timeout (tracked in ref for cleanup)
-    mobileWalletTimeoutRef.current = setTimeout(() => {
+    // Cast to number for browser setTimeout (TypeScript sees it as NodeJS.Timeout otherwise)
+    mobileWalletTimeoutRef.current = window.setTimeout(() => {
       // Only navigate if timeout wasn't cancelled
       if (mobileWalletTimeoutRef.current !== null) {
         const storeLink = isIOS ? links.appStore : links.playStore;

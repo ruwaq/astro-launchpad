@@ -16,6 +16,7 @@ const FEE_EVENT_TOPICS = {
   FEE_BREAKDOWN: 'fee_breakdown',
   PROTOCOL_FEE_COLLECTED: 'protocol_fee_collected',
   LP_FEE_COLLECTED: 'lp_fee_collected',
+  FEES_WITHDRAWN: 'fees_withdrawn',
   PROTOCOL_FEE_UPDATED: 'protocol_fee_updated',
   LP_FEE_UPDATED: 'lp_fee_updated',
   CREATION_FEE_UPDATED: 'creation_fee_updated',
@@ -74,6 +75,9 @@ export class FeeEventHandler {
           break;
         case FEE_EVENT_TOPICS.LP_FEE_COLLECTED:
           await this.handleLpFeeCollected(event);
+          break;
+        case FEE_EVENT_TOPICS.FEES_WITHDRAWN:
+          await this.handleFeesWithdrawn(event);
           break;
         case FEE_EVENT_TOPICS.PROTOCOL_FEE_UPDATED:
           await this.handleProtocolFeeUpdated(event);
@@ -182,7 +186,7 @@ export class FeeEventHandler {
    */
   private async handleLpFeeCollected(event: any): Promise<void> {
     const data = this.parseLpFeeCollectedEvent(event);
-    
+
     logger.info(`LP fee collected: ${data.amount} stroops`, {
       token: data.tokenAddress,
     });
@@ -192,17 +196,50 @@ export class FeeEventHandler {
         hash: event.txHash || `evt_${event.id}`,
         type: 'LP_FEE',
         transactionType: 'COLLECT',
-        
+
         tokenAddress: data.tokenAddress,
         userAddress: 'system',
-        
+
         amount: data.amount,
         grossAmount: '0',
         netAmount: '0',
         lpFee: data.amount,
-        
+
         treasuryAddress: null,
-        
+
+        timestamp: new Date(event.createdAt || Date.now()),
+        blockNumber: event.ledger ? event.ledger.toString() : '0',
+      },
+    });
+  }
+
+  /**
+   * Handle FeesWithdrawn event
+   * Emitted when admin withdraws accumulated fees from a token
+   */
+  private async handleFeesWithdrawn(event: any): Promise<void> {
+    const data = this.parseFeesWithdrawnEvent(event);
+
+    logger.info(`Fees withdrawn: ${data.amount} stroops from token ${data.tokenAddress}`, {
+      recipient: data.recipient,
+      withdrawnBy: data.withdrawnBy,
+    });
+
+    await this.prisma.feeCollection.create({
+      data: {
+        hash: event.txHash || `evt_${event.id}`,
+        type: 'WITHDRAWAL',
+        transactionType: 'WITHDRAW',
+
+        tokenAddress: data.tokenAddress,
+        userAddress: data.withdrawnBy,
+
+        amount: data.amount,
+        grossAmount: '0',
+        netAmount: data.amount,
+
+        treasuryAddress: data.recipient,
+
         timestamp: new Date(event.createdAt || Date.now()),
         blockNumber: event.ledger ? event.ledger.toString() : '0',
       },
@@ -354,6 +391,16 @@ export class FeeEventHandler {
     return {
       tokenAddress: this.scValToString(value.token),
       amount: this.scValToString(value.amount || '0'),
+    };
+  }
+
+  private parseFeesWithdrawnEvent(event: any): any {
+    const value = event.value?.value || {};
+    return {
+      tokenAddress: this.scValToString(value.token),
+      amount: this.scValToString(value.amount || '0'),
+      recipient: this.scValToString(value.recipient),
+      withdrawnBy: this.scValToString(value.withdrawn_by),
     };
   }
 

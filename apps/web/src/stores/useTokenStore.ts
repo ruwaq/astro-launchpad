@@ -13,6 +13,28 @@ import { persist } from 'zustand/middleware';
 import { sacFactoryService, type TokenInfo } from '@/lib/stellar/services/sac-factory.service';
 import { getGraphQLClient } from '@/lib/graphql/client';
 import { gql } from '@apollo/client';
+import { logger } from '@/lib/logger';
+
+/**
+ * Type guard to safely extract error messages
+ */
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  if (typeof error === 'string') {
+    return error;
+  }
+  return 'Unknown error occurred';
+}
+
+/**
+ * Type for persisted state shape
+ */
+interface PersistedTokenState {
+  tokens: [string, TokenInfo][];
+  tokenCount: number;
+}
 
 interface TokenState {
   // Token data (from contract)
@@ -75,14 +97,14 @@ export const useTokenStore = create<TokenState>()(
           const count = await sacFactoryService.getTokenCount();
           set({ tokenCount: count });
         } catch (error) {
-          console.error('Error fetching token count:', error);
+          logger.error('Error fetching token count:', error);
           // Last resort: try contract directly
           try {
             const count = await sacFactoryService.getTokenCount();
             set({ tokenCount: count });
           } catch (contractError) {
             set((state) => ({
-              errors: new Map(state.errors).set('tokenCount', (error as Error).message),
+              errors: new Map(state.errors).set('tokenCount', getErrorMessage(error)),
             }));
           }
         }
@@ -130,14 +152,14 @@ export const useTokenStore = create<TokenState>()(
             throw new Error('Token not found on contract');
           }
         } catch (error) {
-          console.error(`Error fetching token ${address}:`, error);
+          logger.error(`Error fetching token ${address}:`, error);
 
           set((state) => {
             const newLoadingTokens = new Set(state.loadingTokens);
             newLoadingTokens.delete(address);
 
             const newErrors = new Map(state.errors);
-            newErrors.set(`token-${address}`, (error as Error).message);
+            newErrors.set(`token-${address}`, getErrorMessage(error));
 
             return {
               loadingTokens: newLoadingTokens,
@@ -178,14 +200,22 @@ export const useTokenStore = create<TokenState>()(
     {
       name: 'astro-shiba-tokens',
       // Only persist tokens and tokenCount, not loading states
-      partialize: (state) => ({
+      partialize: (state): PersistedTokenState => ({
         tokens: Array.from(state.tokens.entries()),
         tokenCount: state.tokenCount,
       }),
-      // Convert Map back from storage
+      // Convert Map back from storage with proper typing
       onRehydrateStorage: () => (state) => {
-        if (state && Array.isArray(state.tokens)) {
-          state.tokens = new Map(state.tokens as any);
+        if (state) {
+          // Type guard to check if tokens is in array format from storage
+          const persistedState = state as unknown as {
+            tokens?: [string, TokenInfo][] | Map<string, TokenInfo>;
+            tokenCount?: number;
+          };
+          if (persistedState.tokens && Array.isArray(persistedState.tokens)) {
+            // Convert array back to Map
+            (state as TokenState).tokens = new Map(persistedState.tokens);
+          }
         }
       },
     }

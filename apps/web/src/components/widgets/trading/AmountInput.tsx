@@ -23,6 +23,9 @@ interface AmountInputProps {
   displayMode: 'input' | 'output';
   showQuickAmounts?: boolean;
   onQuickAmount?: (amount: number) => void;
+  maxBalance?: string;
+  onMaxClick?: () => void;
+  showMaxButton?: boolean;
 }
 
 export const AmountInput = memo(function AmountInput({
@@ -42,12 +45,27 @@ export const AmountInput = memo(function AmountInput({
   displayMode,
   showQuickAmounts,
   onQuickAmount,
+  maxBalance,
+  onMaxClick,
+  showMaxButton = false,
 }: AmountInputProps) {
   return (
     <div>
-      <label className="block text-xs font-medium text-ui-text-secondary mb-2">
-        {label}
-      </label>
+      <div className="flex items-center justify-between mb-2">
+        <label className="block text-xs font-medium text-ui-text-secondary">
+          {label}
+        </label>
+        {showMaxButton && maxBalance && onMaxClick && !readOnly && (
+          <button
+            onClick={onMaxClick}
+            disabled={disabled}
+            className="text-xs font-medium text-brand-primary hover:text-brand-hover active:text-brand-hover/80 disabled:opacity-50 transition-colors touch-manipulation"
+            aria-label="Use maximum balance"
+          >
+            MAX ({maxBalance})
+          </button>
+        )}
+      </div>
       <div className="bg-gray-50 rounded-lg p-3 space-y-2">
         <div className="flex items-center gap-2">
           {readOnly ? (

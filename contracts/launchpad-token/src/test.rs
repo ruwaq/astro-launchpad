@@ -153,7 +153,7 @@ fn test_double_initialize() {
 }
 
 #[test]
-#[should_panic(expected = "insufficient balance")]
+#[should_panic(expected = "InsufficientBalance")]
 fn test_burn_insufficient() {
     let e = Env::default();
     e.mock_all_auths();

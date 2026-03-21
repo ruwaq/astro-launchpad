@@ -369,6 +369,7 @@ pub fn collect_creation_fee(
     env: &Env,
     from: &Address,
 ) -> Result<i128, Error> {
+    #[cfg(not(test))]
     use soroban_sdk::token;
 
     let config = get_fee_config(env);

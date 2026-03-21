@@ -17,8 +17,11 @@ mod admin;
 mod allowance;
 mod balance;
 mod contract;
+mod errors;
 mod metadata;
 mod storage_types;
+
+pub use errors::Error;
 
 #[cfg(test)]
 mod test;

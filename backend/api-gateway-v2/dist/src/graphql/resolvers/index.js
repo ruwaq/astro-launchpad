@@ -135,60 +135,64 @@ const queryResolvers = {
             else {
                 offset = validateOffset(args.offset);
             }
-            // Build ORDER BY clause
-            const orderByMap = {
-                CREATED_AT_DESC: '"createdAt" DESC',
-                CREATED_AT_ASC: '"createdAt" ASC',
-                MARKET_CAP_DESC: '"marketCap" DESC NULLS LAST',
-                VOLUME_DESC: '"volume24h" DESC',
-                HOLDERS_DESC: 'holders DESC',
-                GRADUATION_DESC: '"xlmRaised" DESC',
+            const orderByConfig = {
+                CREATED_AT_DESC: { field: 'createdAt', direction: 'desc' },
+                CREATED_AT_ASC: { field: 'createdAt', direction: 'asc' },
+                MARKET_CAP_DESC: { field: 'marketCap', direction: 'desc' },
+                VOLUME_DESC: { field: 'volume24h', direction: 'desc' },
+                HOLDERS_DESC: { field: 'holders', direction: 'desc' },
+                GRADUATION_DESC: { field: 'xlmRaised', direction: 'desc' },
             };
-            const orderByClause = orderByMap[orderByKey] || '"createdAt" DESC';
-            // Build WHERE conditions using raw SQL to guarantee soft-delete filtering
-            // This bypasses any Prisma client generation issues
-            const whereConditions = ['"deletedAt" IS NULL'];
-            const params = [];
-            let paramIndex = 1;
-            // Search filter
+            const orderConfig = orderByConfig[orderByKey] || orderByConfig.CREATED_AT_DESC;
+            const orderBy = { [orderConfig.field]: orderConfig.direction };
+            // Build WHERE conditions using Prisma's type-safe API
+            // Soft-delete filtering is handled by the Prisma client extension
+            const whereConditions = {
+                deletedAt: null, // Explicit soft-delete filter for safety
+            };
+            // Search filter - case-insensitive search on name and symbol
             if (search) {
-                whereConditions.push(`(LOWER(name) LIKE $${paramIndex} OR LOWER(symbol) LIKE $${paramIndex})`);
-                params.push(`%${search.toLowerCase()}%`);
-                paramIndex++;
+                whereConditions.OR = [
+                    { name: { contains: search, mode: 'insensitive' } },
+                    { symbol: { contains: search, mode: 'insensitive' } },
+                ];
             }
             // Status filter
             if (args.status && args.status !== 'ALL') {
                 if (args.status === 'BONDING') {
-                    whereConditions.push('graduated = false');
+                    whereConditions.graduated = false;
                 }
                 else if (args.status === 'GRADUATED') {
-                    whereConditions.push('graduated = true');
+                    whereConditions.graduated = true;
                 }
             }
-            const whereClause = whereConditions.join(' AND ');
-            params.push(limit, offset);
-            // Execute raw SQL queries for guaranteed soft-delete filtering
-            const tokensQuery = `
-        SELECT id, address, name, symbol, "imageUrl", "currentPrice", "priceChange24h",
-               "volume24h", "marketCap", holders, graduated, creator, "createdAt"
-        FROM "Token"
-        WHERE ${whereClause}
-        ORDER BY ${orderByClause}
-        LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
-      `;
-            const countQuery = `
-        SELECT COUNT(*)::int as count
-        FROM "Token"
-        WHERE ${whereClause}
-      `;
-            logger.info({ whereClause, params: params.slice(0, -2) }, '[Tokens] Raw SQL query');
-            // Execute queries in parallel
-            const [tokensResult, countResult] = await Promise.all([
-                context.prisma.$queryRawUnsafe(tokensQuery, ...params),
-                context.prisma.$queryRawUnsafe(countQuery, ...params.slice(0, -2)),
+            logger.info({ where: whereConditions, orderBy }, '[Tokens] Prisma query');
+            // Execute queries in parallel using Prisma's type-safe API
+            const [tokensResult, total] = await Promise.all([
+                context.prisma.token.findMany({
+                    where: whereConditions,
+                    orderBy,
+                    take: limit,
+                    skip: offset,
+                    select: {
+                        id: true,
+                        address: true,
+                        name: true,
+                        symbol: true,
+                        imageUrl: true,
+                        currentPrice: true,
+                        priceChange24h: true,
+                        volume24h: true,
+                        marketCap: true,
+                        holders: true,
+                        graduated: true,
+                        creator: true,
+                        createdAt: true,
+                    },
+                }),
+                context.prisma.token.count({ where: whereConditions }),
             ]);
             const edges = tokensResult || [];
-            const total = countResult[0]?.count || 0;
             return {
                 edges: (edges || []).map((node, index) => ({
                     cursor: Buffer.from(`${offset + index}`).toString('base64'),

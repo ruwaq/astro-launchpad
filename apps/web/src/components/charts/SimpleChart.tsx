@@ -6,11 +6,13 @@
  * - Graduation target line (DEX at 30,000 XLM)
  * - Cap/Price toggle
  * - Real-time updates using series.update()
+ *
+ * PERFORMANCE: Wrapped in React.memo to prevent unnecessary re-renders
  */
 
 'use client';
 
-import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
+import { useEffect, useRef, useState, useMemo, useCallback, memo } from 'react';
 import {
   createChart,
   ColorType,
@@ -23,6 +25,7 @@ import {
 } from 'lightweight-charts';
 import { Loader2 } from 'lucide-react';
 import { sacFactoryService, type TokenInfo } from '@/lib/stellar/services/sac-factory.service';
+import { logger } from '@/lib/logger';
 import { GRADUATION_THRESHOLD_XLM } from '@/lib/stellar/utils';
 
 interface SimpleChartProps {
@@ -39,7 +42,39 @@ interface DataPoint {
   xlmRaised: number;
 }
 
-export function SimpleChart({
+/**
+ * Throttle function to limit how often a function can be called
+ * Used for resize handler to improve performance
+ */
+function throttle<T extends (...args: unknown[]) => void>(
+  func: T,
+  delay: number
+): (...args: Parameters<T>) => void {
+  let timeout: number | null = null;
+  let lastRan = 0;
+
+  return function (...args: Parameters<T>) {
+    const now = Date.now();
+
+    if (!lastRan) {
+      func(...args);
+      lastRan = now;
+    } else {
+      if (timeout !== null) {
+        clearTimeout(timeout);
+      }
+
+      timeout = window.setTimeout(() => {
+        if (now - lastRan >= delay) {
+          func(...args);
+          lastRan = now;
+        }
+      }, delay - (now - lastRan));
+    }
+  };
+}
+
+export const SimpleChart = memo(function SimpleChart({
   tokenAddress,
   symbol = 'TOKEN',
   refreshTrigger = 0,
@@ -50,6 +85,9 @@ export function SimpleChart({
   const chartRef = useRef<IChartApi | null>(null);
   const lineSeriesRef = useRef<ISeriesApi<'Line'> | null>(null);
   const areaSeriesRef = useRef<ISeriesApi<'Area'> | null>(null);
+
+  // PERFORMANCE: Store interval ID in ref to avoid recreating it
+  const pollingIntervalRef = useRef<number | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [tokenInfo, setTokenInfo] = useState<TokenInfo | null>(null);
@@ -92,17 +130,31 @@ export function SimpleChart({
         });
       }
     } catch (err) {
-      console.error('Error fetching data:', err);
+      logger.error('Error fetching data:', err);
     } finally {
       setLoading(false);
     }
   }, [tokenAddress]);
 
   // Initial fetch and polling
+  // PERFORMANCE: Use ref for interval to avoid recreating on every render
   useEffect(() => {
     fetchCurrentData();
-    const interval = setInterval(fetchCurrentData, 3000); // Poll every 3 seconds
-    return () => clearInterval(interval);
+
+    // Clear any existing interval
+    if (pollingIntervalRef.current !== null) {
+      clearInterval(pollingIntervalRef.current);
+    }
+
+    // Start new polling interval
+    pollingIntervalRef.current = window.setInterval(fetchCurrentData, 3000); // Poll every 3 seconds
+
+    return () => {
+      if (pollingIntervalRef.current !== null) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+    };
   }, [fetchCurrentData]);
 
   // Refresh on trigger (after trade)
@@ -199,14 +251,14 @@ export function SimpleChart({
     });
     lineSeriesRef.current = lineSeries;
 
-    // Handle resize
-    const handleResize = () => {
+    // Handle resize with throttling (PERFORMANCE: Avoid too many resize recalculations)
+    const handleResize = throttle(() => {
       if (chartContainerRef.current && chartRef.current) {
         chartRef.current.applyOptions({
           width: chartContainerRef.current.clientWidth,
         });
       }
-    };
+    }, 100); // Throttle to max 10 times per second
 
     window.addEventListener('resize', handleResize);
 
@@ -357,6 +409,6 @@ export function SimpleChart({
       </div>
     </div>
   );
-}
+});
 
 export default SimpleChart;

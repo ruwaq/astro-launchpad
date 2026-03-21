@@ -10,6 +10,7 @@
 import { rpc, Horizon, Transaction, FeeBumpTransaction } from '@stellar/stellar-sdk';
 import { getNetworkConfig, NETWORK } from './config';
 import type { StellarTransaction } from './types';
+import { stellarLogger } from '@/lib/logger';
 
 // RPC timeout configuration (in milliseconds)
 const RPC_TIMEOUTS = {
@@ -103,14 +104,14 @@ export async function withRetry<T>(
 
       // Don't retry if we've exhausted retries
       if (attempt >= maxRetries) {
-        console.error(`[${operationName}] All ${maxRetries} retries exhausted`, error);
+        stellarLogger.error(`[${operationName}] All ${maxRetries} retries exhausted`, error);
         throw error;
       }
 
       const delay = getBackoffDelay(attempt);
-      console.warn(
+      stellarLogger.warn(
         `[${operationName}] Attempt ${attempt + 1}/${maxRetries + 1} failed, retrying in ${Math.round(delay)}ms...`,
-        error instanceof Error ? error.message : error
+        { error: error instanceof Error ? error.message : String(error) }
       );
       await new Promise((resolve) => setTimeout(resolve, delay));
     }
@@ -334,7 +335,7 @@ class StellarClient {
       await this.horizon.fetchBaseFee();
       return true;
     } catch (error) {
-      console.error('Horizon health check failed:', error);
+      stellarLogger.error('Horizon health check failed:', error);
       return false;
     }
   }
@@ -366,7 +367,9 @@ export async function getNetworkDeadline(timeoutSeconds: number = 300): Promise<
     // Otherwise fall back to current time with extra margin
     return BigInt(Math.floor(ledgerTime) + timeoutSeconds);
   } catch (error) {
-    console.warn('[getNetworkDeadline] Failed to get ledger time, using client time with safety margin:', error);
+    stellarLogger.warn('[getNetworkDeadline] Failed to get ledger time, using client time with safety margin:', {
+      error: error instanceof Error ? error.message : String(error)
+    });
     // Fallback: Use client time but add extra 30s margin for clock skew
     const clientTime = Math.floor(Date.now() / 1000);
     return BigInt(clientTime + timeoutSeconds + 30);

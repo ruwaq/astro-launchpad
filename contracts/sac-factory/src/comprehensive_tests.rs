@@ -6,7 +6,7 @@ mod comprehensive_tests {
     use crate::{SacFactory, SacFactoryClient};
     use soroban_sdk::{
         testutils::{Address as _, Ledger},
-        Address, BytesN, Env, String,
+        Address, BytesN, Env,
     };
 
     fn create_factory(env: &Env) -> (SacFactoryClient, Address, Address, Address) {
@@ -32,7 +32,7 @@ mod comprehensive_tests {
     // ========== Initialization Edge Cases ==========
 
     #[test]
-    #[should_panic(expected = "Error(Contract, #1)")]
+    #[should_panic(expected = "Error(Contract, #100)")]
     fn test_cannot_initialize_twice() {
         let env = Env::default();
         let (client, admin, treasury, xlm_token_address) = create_factory(&env);
@@ -135,7 +135,7 @@ mod comprehensive_tests {
     // ========== Input Validation Tests ==========
 
     #[test]
-    #[should_panic(expected = "Error(Contract, #22)")]
+    #[should_panic(expected = "Error(Contract, #302)")]
     fn test_buy_zero_amount() {
         let env = Env::default();
         let (client, _admin, _treasury) = setup_factory(&env);
@@ -150,7 +150,7 @@ mod comprehensive_tests {
     }
 
     #[test]
-    #[should_panic(expected = "Error(Contract, #22)")]
+    #[should_panic(expected = "Error(Contract, #302)")]
     fn test_buy_negative_min_tokens() {
         let env = Env::default();
         let (client, _admin, _treasury) = setup_factory(&env);
@@ -165,7 +165,7 @@ mod comprehensive_tests {
     }
 
     #[test]
-    #[should_panic(expected = "Error(Contract, #22)")]
+    #[should_panic(expected = "Error(Contract, #302)")]
     fn test_sell_zero_amount() {
         let env = Env::default();
         let (client, _admin, _treasury) = setup_factory(&env);
@@ -180,7 +180,7 @@ mod comprehensive_tests {
     }
 
     #[test]
-    #[should_panic(expected = "Error(Contract, #22)")]
+    #[should_panic(expected = "Error(Contract, #302)")]
     fn test_sell_negative_min_xlm() {
         let env = Env::default();
         let (client, _admin, _treasury) = setup_factory(&env);
@@ -197,7 +197,7 @@ mod comprehensive_tests {
     // ========== MEV Protection (Deadline) Tests ==========
 
     #[test]
-    #[should_panic(expected = "Error(Contract, #100)")]
+    #[should_panic(expected = "Error(Contract, #502)")]
     fn test_buy_expired_deadline() {
         let env = Env::default();
         let (client, _admin, _treasury) = setup_factory(&env);
@@ -217,7 +217,7 @@ mod comprehensive_tests {
     }
 
     #[test]
-    #[should_panic(expected = "Error(Contract, #100)")]
+    #[should_panic(expected = "Error(Contract, #502)")]
     fn test_sell_expired_deadline() {
         let env = Env::default();
         let (client, _admin, _treasury) = setup_factory(&env);

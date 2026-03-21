@@ -5,9 +5,10 @@ edition = "2021"
 rust-version = "1.84"
 
 [workspace]
+exclude = ["fuzz"]
 
 [lib]
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]  # rlib needed for fuzzing
 
 [dependencies]
 soroban-sdk = "25.2.0"

@@ -119,10 +119,10 @@ impl AstroToken {
         storage::extend_instance_ttl(&env);
 
         if amount < 0 {
-            panic!("Amount must be non-negative");
+            panic!("Error::InvalidAmount");
         }
 
-        balance::spend_balance(&env, &from, amount);
+        balance::spend_balance(&env, &from, amount).unwrap();
         balance::receive_balance(&env, &to, amount);
 
         events::transfer(&env, &from, &to, amount);
@@ -134,11 +134,11 @@ impl AstroToken {
         storage::extend_instance_ttl(&env);
 
         if amount < 0 {
-            panic!("Amount must be non-negative");
+            panic!("Error::InvalidAmount");
         }
 
-        allowance::spend_allowance(&env, &from, &spender, amount);
-        balance::spend_balance(&env, &from, amount);
+        allowance::spend_allowance(&env, &from, &spender, amount).unwrap();
+        balance::spend_balance(&env, &from, amount).unwrap();
         balance::receive_balance(&env, &to, amount);
 
         events::transfer(&env, &from, &to, amount);
@@ -150,7 +150,7 @@ impl AstroToken {
         storage::extend_instance_ttl(&env);
 
         if amount < 0 {
-            panic!("Amount must be non-negative");
+            panic!("Error::InvalidAmount");
         }
 
         allowance::write_allowance(&env, &from, &spender, amount, expiration_ledger);
@@ -170,10 +170,10 @@ impl AstroToken {
         storage::extend_instance_ttl(&env);
 
         if amount < 0 {
-            panic!("Amount must be non-negative");
+            panic!("Error::InvalidAmount");
         }
 
-        balance::spend_balance(&env, &from, amount);
+        balance::spend_balance(&env, &from, amount).unwrap();
 
         // Update total supply
         let total = storage::get_total_supply(&env);
@@ -188,11 +188,11 @@ impl AstroToken {
         storage::extend_instance_ttl(&env);
 
         if amount < 0 {
-            panic!("Amount must be non-negative");
+            panic!("Error::InvalidAmount");
         }
 
-        allowance::spend_allowance(&env, &from, &spender, amount);
-        balance::spend_balance(&env, &from, amount);
+        allowance::spend_allowance(&env, &from, &spender, amount).unwrap();
+        balance::spend_balance(&env, &from, amount).unwrap();
 
         // Update total supply
         let total = storage::get_total_supply(&env);
@@ -231,17 +231,17 @@ impl AstroToken {
         // Verify admin
         let current_admin = admin::read_administrator(&env);
         if admin != current_admin {
-            panic!("Unauthorized");
+            panic!("Error::Unauthorized");
         }
 
         if amount < 0 {
-            panic!("Amount must be non-negative");
+            panic!("Error::InvalidAmount");
         }
 
         // Check max supply
         let total = storage::get_total_supply(&env);
         if total + amount > MAX_SUPPLY {
-            panic!("Max supply exceeded");
+            panic!("Error::MaxSupplyExceeded");
         }
 
         // Mint tokens
@@ -258,7 +258,7 @@ impl AstroToken {
 
         let admin = admin::read_administrator(&env);
         if current_admin != admin {
-            panic!("Unauthorized");
+            panic!("Error::Unauthorized");
         }
 
         admin::write_administrator(&env, &new_admin);
@@ -310,11 +310,11 @@ impl AstroToken {
         storage::extend_instance_ttl(&env);
 
         if amount <= 0 {
-            panic!("Amount must be positive");
+            panic!("Error::InvalidAmount");
         }
 
         // Burn tokens from caller's balance
-        balance::spend_balance(&env, &caller, amount);
+        balance::spend_balance(&env, &caller, amount).unwrap();
 
         // Update total supply
         let total = storage::get_total_supply(&env);

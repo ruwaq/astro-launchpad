@@ -14,6 +14,7 @@ import { logger } from '../../lib/logger.js';
 // ASTRO event types from contract
 const ASTRO_EVENT_TOPICS = {
   ASTRO_CONFIG_UPDATED: 'astroconfigpdated',
+  ASTRO_CONFIG_CLEARED: 'astroconfigcleared',
   ASTRO_BUYBACK_EXECUTED: 'astrobuybackexecuted',
   ASTRO_LIQUIDITY_ADDED: 'astroliquidityadded',
 };
@@ -36,6 +37,9 @@ export class AstroEventHandler {
       switch (eventType) {
         case ASTRO_EVENT_TOPICS.ASTRO_CONFIG_UPDATED:
           await this.handleAstroConfigUpdated(event);
+          break;
+        case ASTRO_EVENT_TOPICS.ASTRO_CONFIG_CLEARED:
+          await this.handleAstroConfigCleared(event);
           break;
         case ASTRO_EVENT_TOPICS.ASTRO_BUYBACK_EXECUTED:
           await this.handleAstroBuybackExecuted(event);
@@ -84,6 +88,40 @@ export class AstroEventHandler {
         type: 'BRIDGE_CONFIG_UPDATED', // Closest match
         newAddress: this.scValToString(data.amm_address),
         updatedBy: this.scValToString(data.updated_by),
+        timestamp: this.getTimestamp(event),
+        txHash: event.id,
+        blockNumber: event.ledger?.toString(),
+      },
+    });
+  }
+
+  /**
+   * Handle AstroConfigCleared event
+   * Emitted when ASTRO integration config is cleared/disabled
+   */
+  private async handleAstroConfigCleared(event: any): Promise<void> {
+    const data = this.parseEventData(event);
+    const clearedBy = this.scValToString(data.cleared_by);
+
+    logger.info('ASTRO config cleared (integration disabled)', {
+      clearedBy,
+    });
+
+    await this.prisma.astroEvent.create({
+      data: {
+        type: 'ASTRO_CONFIG_CLEARED',
+        timestamp: this.getTimestamp(event),
+        txHash: event.id,
+        blockNumber: event.ledger?.toString(),
+      },
+    });
+
+    // Also record in config updates
+    await this.prisma.configUpdateEvent.create({
+      data: {
+        type: 'BRIDGE_CONFIG_UPDATED',
+        newValue: 'disabled',
+        updatedBy: clearedBy,
         timestamp: this.getTimestamp(event),
         txHash: event.id,
         blockNumber: event.ledger?.toString(),

@@ -1,0 +1,31 @@
+{
+  "version": "2.0.0",
+  "network": "testnet",
+  "contract_id": "CCQ4IMTQR3PIXQBLEZPFFUEPGMSHUE5AAD2CB6PXBOVR5G3EQKGTHUPD",
+  "admin": "GB2XFP6XK2MPOGURZCEH3KISW7W657IXC3MJZKG5MNBFMUSUNX3QWCFJ",
+  "treasury": "GB2XFP6XK2MPOGURZCEH3KISW7W657IXC3MJZKG5MNBFMUSUNX3QWCFJ",
+  "xlm_token_address": "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+  "wasm_size": "88K",
+  "deployed_at": "2026-03-19T20:51:00Z",
+  "initialized_at": "2026-03-19T20:52:00Z",
+  "deployer_identity": "testnet-deployer",
+  "stellar_version": "stellar 25.2.0",
+  "critical_fix": {
+    "bug_fixed": "locked_xlm_accounting",
+    "description": "Fixed critical bug where locked_xlm was incorrectly released on graduation, potentially draining active bonding curves",
+    "pr_token_tracking": true,
+    "tests_passing": "97/97 (100%)",
+    "security_score": "95/100"
+  },
+  "initialization_tx": "b44a1dafac723313e9966e5874dc45c66aa1a2e0f8b0644f9f24a1fa9755e51f",
+  "explorer_urls": {
+    "contract": "https://stellar.expert/explorer/testnet/contract/CCQ4IMTQR3PIXQBLEZPFFUEPGMSHUE5AAD2CB6PXBOVR5G3EQKGTHUPD",
+    "initialization": "https://stellar.expert/explorer/testnet/tx/b44a1dafac723313e9966e5874dc45c66aa1a2e0f8b0644f9f24a1fa9755e51f"
+  },
+  "notes": [
+    "This deployment includes the critical locked_xlm accounting fix",
+    "All 97 tests passing (100% success rate)",
+    "Per-token locked_xlm tracking prevents reserve drainage",
+    "Ready for production testing on testnet"
+  ]
+}

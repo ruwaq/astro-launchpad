@@ -59,50 +59,11 @@ impl FeeDistributor {
     // CONSTRUCTOR (CAP-58 Protocol 22+)
     // ════════════════════════════════════════════════════════════════════════
 
-    /// Constructor - runs atomically with contract deployment
-    /// Prevents front-running attacks during initialization
-    pub fn __constructor(
-        env: Env,
-        admin: Address,
-        treasury_vault: Address,
-        staking_pool: Address,
-        burn_address: Address,
-    ) {
-        // Validate addresses are different
-        if treasury_vault == staking_pool || treasury_vault == burn_address || staking_pool == burn_address {
-            panic!("addresses must be different");
-        }
-
-        // Create default config (50/30/20 split)
-        let config = DistributionConfig {
-            treasury_vault,
-            staking_pool,
-            burn_address,
-            treasury_bps: 5000,  // 50%
-            staking_bps: 3000,   // 30%
-            burn_bps: 2000,      // 20%
-            min_distribution: 10_000_000, // 1 token minimum (7 decimals)
-        };
-
-        // Store initial state
-        env.storage().instance().set(&DataKey::Admin, &admin);
-        env.storage().instance().set(&DataKey::Config, &config);
-        env.storage().instance().set(&DataKey::Initialized, &true);
-        env.storage().instance().set(&DataKey::Paused, &false);
-        env.storage().instance().set(&DataKey::SupportedTokens, &Vec::<Address>::new(&env));
-
-        extend_instance_ttl(&env);
-
-        // Emit init event
-        let events = EventBuilder::new(&env);
-        events.publish("fee_dist", "initialized", (admin.clone(), env.ledger().timestamp()));
-    }
-
     // ════════════════════════════════════════════════════════════════════════
-    // LEGACY INITIALIZATION (backwards compatibility)
+    // INITIALIZATION
     // ════════════════════════════════════════════════════════════════════════
 
-    /// Initialize the fee distributor (LEGACY - use constructor for new deployments)
+    /// Initialize the fee distributor
     pub fn initialize(
         env: Env,
         admin: Address,

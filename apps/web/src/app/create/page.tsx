@@ -10,6 +10,11 @@ import { sacFactoryService } from '@/lib/stellar/services/sac-factory.service';
 import { stellarClient } from '@/lib/stellar/client';
 import { TransactionBuilder, rpc, Address } from '@stellar/stellar-sdk';
 import { getNetworkConfig } from '@/lib/config/network';
+import type {
+  ContractOperation,
+  StellarTransaction,
+  GetTransactionResult,
+} from '@/lib/stellar/types/sdk.types';
 import toast from 'react-hot-toast';
 import nextDynamic from 'next/dynamic';
 import { ImageUpload } from '@/components/ImageUpload';
@@ -258,7 +263,7 @@ export default function CreatePage() {
         fee: '1000000', // 0.1 XLM fee
         networkPassphrase: config.passphrase,
       })
-        .addOperation(launchOperation as any)
+        .addOperation(launchOperation as ContractOperation)
         .setTimeout(30)
         .build();
 
@@ -290,7 +295,7 @@ export default function CreatePage() {
       updateStep('sign', 'completed');
       updateStep('submit', 'active');
 
-      const sendResponse = await server.sendTransaction(signedTx as any);
+      const sendResponse = await server.sendTransaction(signedTx as StellarTransaction);
 
       if (sendResponse.status === 'ERROR') {
         throw new Error(`Transaction failed: ${sendResponse.errorResult?.toXDR('base64')}`);
@@ -313,7 +318,7 @@ export default function CreatePage() {
       // Poll for transaction with error handling for SDK incompatibility
       while (attempts < maxAttempts) {
         try {
-          const getResponse: any = await server.getTransaction(sendResponse.hash);
+          const getResponse: GetTransactionResult = await server.getTransaction(sendResponse.hash);
 
           if (getResponse.status === 'SUCCESS') {
             transactionSuccess = true;
@@ -333,9 +338,8 @@ export default function CreatePage() {
             break;
           } else if (getResponse.status === 'FAILED') {
             throw new Error('Transaction failed on the network');
-          } else if (getResponse.status !== 'NOT_FOUND') {
-            logger.warn('Unexpected transaction status', { status: getResponse.status });
           }
+          // NOT_FOUND status is expected while polling - transaction not yet confirmed
         } catch (err: unknown) {
           // Handle "Bad union switch" error from SDK version incompatibility
           // This error means the SDK can't parse the response, NOT that the tx failed

@@ -6,6 +6,7 @@
 use crate::admin::{has_administrator, read_administrator, write_administrator};
 use crate::allowance::{read_allowance, spend_allowance, write_allowance};
 use crate::balance::{read_balance, receive_balance, spend_balance};
+use crate::errors::Error;
 use crate::metadata::{read_decimal, read_name, read_symbol, write_metadata};
 use crate::storage_types::{INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD};
 use soroban_sdk::token::{self, Interface as _};
@@ -13,10 +14,11 @@ use soroban_sdk::{contract, contractimpl, Address, Env, MuxedAddress, String};
 use soroban_token_sdk::metadata::TokenMetadata;
 use soroban_token_sdk::TokenUtils;
 
-fn check_nonnegative_amount(amount: i128) {
+fn check_nonnegative_amount(amount: i128) -> Result<(), Error> {
     if amount < 0 {
-        panic!("negative amount is not allowed: {}", amount)
+        return Err(Error::NegativeAmount);
     }
+    Ok(())
 }
 
 #[contract]
@@ -25,39 +27,17 @@ pub struct Token;
 #[contractimpl]
 impl Token {
     // ════════════════════════════════════════════════════════════════════════
-    // CONSTRUCTOR (CAP-58 Protocol 22+)
-    // ════════════════════════════════════════════════════════════════════════
-
-    /// Constructor - runs atomically with contract deployment
-    /// Prevents front-running attacks during initialization
-    pub fn __constructor(e: Env, admin: Address, decimal: u32, name: String, symbol: String) {
-        if decimal > 18 {
-            panic!("Decimal must not be greater than 18");
-        }
-        write_administrator(&e, &admin);
-        write_metadata(
-            &e,
-            TokenMetadata {
-                decimal,
-                name,
-                symbol,
-            },
-        )
-    }
-
-    // ════════════════════════════════════════════════════════════════════════
-    // LEGACY INITIALIZATION (backwards compatibility)
+    // INITIALIZATION
     // ════════════════════════════════════════════════════════════════════════
 
     /// Initialize a new token with admin, decimals, name, and symbol
-    /// (LEGACY - use constructor for new deployments)
     /// Called by the factory when deploying a new token
     pub fn initialize(e: Env, admin: Address, decimal: u32, name: String, symbol: String) {
         if has_administrator(&e) {
-            panic!("already initialized");
+            panic!("Error::AlreadyInitialized: Contract already initialized");
         }
         if decimal > 18 {
-            panic!("Decimal must not be greater than 18");
+            panic!("Error::InvalidDecimals: Decimal must not be greater than 18");
         }
         write_administrator(&e, &admin);
         write_metadata(
@@ -67,14 +47,14 @@ impl Token {
                 name,
                 symbol,
             },
-        )
+        );
     }
 
     /// Mint tokens to an address (admin only)
     /// This is the key function that allows the factory to mint without SAC restrictions
-    pub fn mint(e: Env, to: Address, amount: i128) {
-        check_nonnegative_amount(amount);
-        let admin = read_administrator(&e);
+    pub fn mint(e: Env, to: Address, amount: i128) -> Result<(), Error> {
+        check_nonnegative_amount(amount)?;
+        let admin = read_administrator(&e)?;
         admin.require_auth();
 
         e.storage()
@@ -83,11 +63,12 @@ impl Token {
 
         receive_balance(&e, to.clone(), amount);
         TokenUtils::new(&e).events().mint(admin, to, amount);
+        Ok(())
     }
 
     /// Set a new admin (admin only)
-    pub fn set_admin(e: Env, new_admin: Address) {
-        let admin = read_administrator(&e);
+    pub fn set_admin(e: Env, new_admin: Address) -> Result<(), Error> {
+        let admin = read_administrator(&e)?;
         admin.require_auth();
 
         e.storage()
@@ -96,26 +77,28 @@ impl Token {
 
         write_administrator(&e, &new_admin);
         TokenUtils::new(&e).events().set_admin(admin, new_admin);
+        Ok(())
     }
 
     /// Get the current admin address
-    pub fn admin(e: Env) -> Address {
+    pub fn admin(e: Env) -> Result<Address, Error> {
         read_administrator(&e)
     }
 
     /// Admin burn - allows admin to burn tokens from any address
     /// Used by the factory for sell operations on the bonding curve
-    pub fn admin_burn(e: Env, from: Address, amount: i128) {
-        check_nonnegative_amount(amount);
-        let admin = read_administrator(&e);
+    pub fn admin_burn(e: Env, from: Address, amount: i128) -> Result<(), Error> {
+        check_nonnegative_amount(amount)?;
+        let admin = read_administrator(&e)?;
         admin.require_auth();
 
         e.storage()
             .instance()
             .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
-        spend_balance(&e, from.clone(), amount);
+        spend_balance(&e, from.clone(), amount)?;
         TokenUtils::new(&e).events().burn(from, amount);
+        Ok(())
     }
 }
 
@@ -131,13 +114,14 @@ impl token::Interface for Token {
     fn approve(e: Env, from: Address, spender: Address, amount: i128, expiration_ledger: u32) {
         from.require_auth();
 
-        check_nonnegative_amount(amount);
+        check_nonnegative_amount(amount).unwrap();
 
         e.storage()
             .instance()
             .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
-        write_allowance(&e, from.clone(), spender.clone(), amount, expiration_ledger);
+        write_allowance(&e, from.clone(), spender.clone(), amount, expiration_ledger)
+            .unwrap();
         TokenUtils::new(&e)
             .events()
             .approve(from, spender, amount, expiration_ledger);
@@ -153,14 +137,14 @@ impl token::Interface for Token {
     fn transfer(e: Env, from: Address, to: MuxedAddress, amount: i128) {
         from.require_auth();
 
-        check_nonnegative_amount(amount);
+        check_nonnegative_amount(amount).unwrap();
 
         e.storage()
             .instance()
             .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
         let to_address: Address = to.address();
-        spend_balance(&e, from.clone(), amount);
+        spend_balance(&e, from.clone(), amount).unwrap();
         receive_balance(&e, to_address.clone(), amount);
         TokenUtils::new(&e).events().transfer(from, to_address, amount);
     }
@@ -168,14 +152,14 @@ impl token::Interface for Token {
     fn transfer_from(e: Env, spender: Address, from: Address, to: Address, amount: i128) {
         spender.require_auth();
 
-        check_nonnegative_amount(amount);
+        check_nonnegative_amount(amount).unwrap();
 
         e.storage()
             .instance()
             .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
-        spend_allowance(&e, from.clone(), spender, amount);
-        spend_balance(&e, from.clone(), amount);
+        spend_allowance(&e, from.clone(), spender, amount).unwrap();
+        spend_balance(&e, from.clone(), amount).unwrap();
         receive_balance(&e, to.clone(), amount);
         TokenUtils::new(&e).events().transfer(from, to, amount)
     }
@@ -183,27 +167,27 @@ impl token::Interface for Token {
     fn burn(e: Env, from: Address, amount: i128) {
         from.require_auth();
 
-        check_nonnegative_amount(amount);
+        check_nonnegative_amount(amount).unwrap();
 
         e.storage()
             .instance()
             .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
-        spend_balance(&e, from.clone(), amount);
+        spend_balance(&e, from.clone(), amount).unwrap();
         TokenUtils::new(&e).events().burn(from, amount);
     }
 
     fn burn_from(e: Env, spender: Address, from: Address, amount: i128) {
         spender.require_auth();
 
-        check_nonnegative_amount(amount);
+        check_nonnegative_amount(amount).unwrap();
 
         e.storage()
             .instance()
             .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
-        spend_allowance(&e, from.clone(), spender, amount);
-        spend_balance(&e, from.clone(), amount);
+        spend_allowance(&e, from.clone(), spender, amount).unwrap();
+        spend_balance(&e, from.clone(), amount).unwrap();
         TokenUtils::new(&e).events().burn(from, amount)
     }
 

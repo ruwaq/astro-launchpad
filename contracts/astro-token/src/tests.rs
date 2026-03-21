@@ -102,7 +102,7 @@ fn test_transfer() {
 }
 
 #[test]
-#[should_panic(expected = "Insufficient balance")]
+#[should_panic(expected = "InsufficientBalance")]
 fn test_transfer_insufficient_balance_fails() {
     let (env, _admin, user, client) = create_initialized_token();
     let recipient = Address::generate(&env);
@@ -112,7 +112,7 @@ fn test_transfer_insufficient_balance_fails() {
 }
 
 #[test]
-#[should_panic(expected = "Amount must be non-negative")]
+#[should_panic(expected = "Error::InvalidAmount")]
 fn test_transfer_negative_amount_fails() {
     let (env, _admin, user, client) = create_initialized_token();
     let recipient = Address::generate(&env);
@@ -151,7 +151,7 @@ fn test_transfer_from() {
 }
 
 #[test]
-#[should_panic(expected = "Insufficient allowance")]
+#[should_panic(expected = "InsufficientAllowance")]
 fn test_transfer_from_exceeds_allowance_fails() {
     let (env, _admin, user, client) = create_initialized_token();
     let spender = Address::generate(&env);
@@ -214,7 +214,7 @@ fn test_burn_from() {
 }
 
 #[test]
-#[should_panic(expected = "Insufficient balance")]
+#[should_panic(expected = "InsufficientBalance")]
 fn test_burn_exceeds_balance_fails() {
     let (_env, _admin, user, client) = create_initialized_token();
     let too_much = 200_000_0000000i128;
@@ -237,7 +237,7 @@ fn test_mint() {
 }
 
 #[test]
-#[should_panic(expected = "Unauthorized")]
+#[should_panic(expected = "Error::Unauthorized")]
 fn test_mint_non_admin_fails() {
     let (env, _admin, user, client) = create_initialized_token();
     let not_admin = Address::generate(&env);
@@ -247,7 +247,7 @@ fn test_mint_non_admin_fails() {
 }
 
 #[test]
-#[should_panic(expected = "Max supply exceeded")]
+#[should_panic(expected = "Error::MaxSupplyExceeded")]
 fn test_mint_exceeds_max_supply_fails() {
     let (_env, admin, user, client) = create_initialized_token();
     let max_supply = 1_000_000_000_0000000i128;
@@ -268,7 +268,7 @@ fn test_set_admin() {
 }
 
 #[test]
-#[should_panic(expected = "Unauthorized")]
+#[should_panic(expected = "Error::Unauthorized")]
 fn test_set_admin_non_admin_fails() {
     let (env, _admin, _user, client) = create_initialized_token();
     let not_admin = Address::generate(&env);
@@ -302,7 +302,7 @@ fn test_buyback_burn() {
 }
 
 #[test]
-#[should_panic(expected = "Amount must be positive")]
+#[should_panic(expected = "Error::InvalidAmount")]
 fn test_buyback_burn_zero_fails() {
     let (_env, _admin, user, client) = create_initialized_token();
 
@@ -310,7 +310,7 @@ fn test_buyback_burn_zero_fails() {
 }
 
 #[test]
-#[should_panic(expected = "Insufficient balance")]
+#[should_panic(expected = "InsufficientBalance")]
 fn test_buyback_burn_exceeds_balance_fails() {
     let (_env, _admin, user, client) = create_initialized_token();
     let too_much = 200_000_0000000i128;

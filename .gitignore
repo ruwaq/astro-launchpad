@@ -54,6 +54,13 @@ Cargo.lock
 *.wasm
 *.optimized.wasm
 
+# Fuzzing (cargo-fuzz)
+fuzz/target/
+fuzz/corpus/
+fuzz/artifacts/*.profdata
+# Keep crash artifacts for regression testing
+!fuzz/artifacts/**/crash-*
+
 # SECURITY: Stellar identity files contain secret keys
 .stellar/identity/
 **/.stellar/identity/
@@ -94,3 +101,42 @@ temp/
 !/README.md
 /docs/
 .pnpm-store/
+
+# ============================================
+# Claude Code / AI - NO COMMITEAR
+# ============================================
+
+# Configuración de Claude
+.claude/
+CLAUDE*.md
+*CLAUDE*.md
+
+# Reportes de sesión
+*SESSION*.md
+SESSION_*.md
+
+# Reportes generados por AI
+*COMPREHENSIVE*AUDIT*.md
+*AUDIT*REPORT*.md
+PROJECT_STATUS_*.md
+BUGFIX_SUMMARY.md
+CRITICAL_BUGS_REPORT.md
+ECOSYSTEM_*_REPORT.md
+TESTNET_DEPLOYMENT_*.md
+COMPLETE_ECOSYSTEM_*.md
+TEST_COMPLETION_REPORT.md
+AI_EXPOSURE_REPORT.md
+FRONTEND_*AUDIT*.md
+FRONTEND_STATUS_REPORT.md
+ERROR_HANDLING_AUDIT.md
+
+# Settings locales de Claude
+settings.local.json
+.claude/settings*.json
+
+# Scripts de limpieza
+cleanup-ai-exposure.sh
+update-gitignore.sh
+
+# ============================================
+

@@ -5,6 +5,7 @@
 import { prisma } from '../lib/prisma.js';
 import { createLoaders } from './loaders.js';
 import { StrKey, Keypair } from '@stellar/stellar-base';
+import { checkAndUseNonce } from '../lib/nonce-store.js';
 // Configuration for signature verification
 // SECURITY: Reduced from 5 minutes to 30 seconds to minimize replay attack window
 const SIGNATURE_MAX_AGE_MS = 30 * 1000; // 30 seconds - production-secure
@@ -47,7 +48,10 @@ function extractUser(request) {
                 if (signature && timestamp) {
                     const signatureStr = Array.isArray(signature) ? signature[0] : signature;
                     const timestampStr = Array.isArray(timestamp) ? timestamp[0] : timestamp;
-                    const verificationResult = verifyStellarSignature(address, signatureStr, timestampStr);
+                    // SECURITY: Nonce is required to prevent replay attacks
+                    const nonce = request.headers['x-stellar-nonce'];
+                    const nonceStr = nonce ? (Array.isArray(nonce) ? nonce[0] : nonce) : undefined;
+                    const verificationResult = verifyStellarSignature(address, signatureStr, timestampStr, nonceStr);
                     if (verificationResult.valid) {
                         const isAdmin = checkAdminStatus(address);
                         return { address, authenticated: true, isAdmin };
@@ -128,14 +132,18 @@ function checkAdminStatus(address) {
 }
 /**
  * Verify Stellar signature for authentication
- * The message format is: "stellar:auth:{address}:{timestamp}"
+ * The message format is: "stellar:auth:{address}:{timestamp}:{nonce}"
+ *
+ * SECURITY: Nonce is REQUIRED to prevent replay attacks within the 30-second window.
+ * Without nonce, an attacker could capture a valid signature and replay it.
  *
  * @param address - The claimed Stellar address (G...)
  * @param signature - Base64-encoded Ed25519 signature
  * @param timestamp - Unix timestamp in milliseconds as string
+ * @param nonce - Unique random string (8-64 chars) - REQUIRED for production
  * @returns Verification result with valid flag and optional error
  */
-function verifyStellarSignature(address, signature, timestamp) {
+function verifyStellarSignature(address, signature, timestamp, nonce) {
     try {
         // 1. Validate timestamp is recent (prevent replay attacks)
         const timestampMs = parseInt(timestamp, 10);
@@ -150,11 +158,32 @@ function verifyStellarSignature(address, signature, timestamp) {
         if (age > SIGNATURE_MAX_AGE_MS) {
             return { valid: false, error: `Signature expired (age: ${Math.round(age / 1000)}s)` };
         }
-        // 2. Construct the message that was signed
-        // Format: "stellar:auth:{address}:{timestamp}"
-        const message = `stellar:auth:${address}:${timestamp}`;
+        // 2. SECURITY: Validate nonce to prevent replay attacks
+        // In production, nonce is REQUIRED. In development, we allow without nonce for testing.
+        const isProduction = process.env.NODE_ENV === 'production';
+        if (nonce) {
+            // Check and mark nonce as used (atomic operation)
+            const nonceResult = checkAndUseNonce(nonce);
+            if (!nonceResult.valid) {
+                return { valid: false, error: nonceResult.error };
+            }
+        }
+        else if (isProduction) {
+            // SECURITY: In production, nonce is mandatory
+            return { valid: false, error: 'Missing X-Stellar-Nonce header (required for authentication)' };
+        }
+        else {
+            // Development: warn but allow
+            console.warn('[Auth] Missing nonce in signature verification - this would fail in production');
+        }
+        // 3. Construct the message that was signed
+        // Format WITH nonce: "stellar:auth:{address}:{timestamp}:{nonce}"
+        // Format WITHOUT nonce (dev only): "stellar:auth:{address}:{timestamp}"
+        const message = nonce
+            ? `stellar:auth:${address}:${timestamp}:${nonce}`
+            : `stellar:auth:${address}:${timestamp}`;
         const messageBuffer = Buffer.from(message, 'utf8');
-        // 3. Decode the signature from base64
+        // 4. Decode the signature from base64
         let signatureBuffer;
         try {
             signatureBuffer = Buffer.from(signature, 'base64');
@@ -166,7 +195,7 @@ function verifyStellarSignature(address, signature, timestamp) {
         if (signatureBuffer.length !== 64) {
             return { valid: false, error: `Invalid signature length: ${signatureBuffer.length} (expected 64)` };
         }
-        // 4. Get the public key from the address and verify
+        // 5. Get the public key from the address and verify
         // Stellar G... addresses encode Ed25519 public keys
         if (!address.startsWith('G')) {
             return { valid: false, error: 'Only G... addresses support signature verification' };
@@ -253,9 +282,21 @@ export function getUserAddress(context) {
  */
 export function validateAdminKeyFromHeader(context) {
     const ADMIN_KEY = process.env.ADMIN_API_KEY;
+    const isProduction = process.env.NODE_ENV === 'production';
     if (!ADMIN_KEY) {
-        console.error('[Security] ADMIN_API_KEY environment variable not configured');
+        // In production, this is a critical security issue
+        if (isProduction) {
+            console.error('[CRITICAL SECURITY] ADMIN_API_KEY environment variable not configured in production');
+        }
+        else {
+            console.warn('[Security] ADMIN_API_KEY not configured - admin operations disabled');
+        }
         return { valid: false, error: 'Admin API key not configured on server' };
+    }
+    // SECURITY: Runtime validation of key length (defense in depth)
+    if (ADMIN_KEY.length < 32) {
+        console.error('[CRITICAL SECURITY] ADMIN_API_KEY is too short - must be at least 32 characters');
+        return { valid: false, error: 'Admin API key configuration error' };
     }
     // Extract admin key from X-Admin-Key header
     const headerKey = context.request?.headers?.['x-admin-key'];

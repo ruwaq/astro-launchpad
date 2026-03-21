@@ -46,6 +46,27 @@ export function AreaChart({
     return { path: linePath, area: areaPath, min, max };
   }, [data, height]);
 
+  // Memoize data point circles to prevent re-rendering on every update
+  const dataPoints = useMemo(() => {
+    return data.map((point, index) => {
+      const x = (index / (data.length - 1 || 1)) * 100;
+      const y = height - ((point.value - min) / (max - min || 1)) * height;
+
+      return (
+        <circle
+          key={`point-${index}-${point.timestamp}`}
+          cx={x}
+          cy={y}
+          r="0.8"
+          fill={color}
+          className="hover:r-2 transition-all"
+        >
+          <title>{`${point.timestamp}: ${point.value.toFixed(2)}`}</title>
+        </circle>
+      );
+    });
+  }, [data, height, min, max, color]);
+
   if (data.length === 0) {
     return (
       <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
@@ -90,24 +111,8 @@ export function AreaChart({
           vectorEffect="non-scaling-stroke"
         />
 
-        {/* Data points */}
-        {data.map((point, index) => {
-          const x = (index / (data.length - 1 || 1)) * 100;
-          const y = height - ((point.value - min) / (max - min || 1)) * height;
-
-          return (
-            <circle
-              key={index}
-              cx={x}
-              cy={y}
-              r="0.8"
-              fill={color}
-              className="hover:r-2 transition-all"
-            >
-              <title>{`${point.timestamp}: ${point.value.toFixed(2)}`}</title>
-            </circle>
-          );
-        })}
+        {/* Data points (memoized to prevent unnecessary re-renders) */}
+        {dataPoints}
       </svg>
 
       {/* X-axis labels */}

@@ -60,33 +60,11 @@ impl TreasuryVault {
     // CONSTRUCTOR (CAP-58 Protocol 22+)
     // ════════════════════════════════════════════════════════════════════════
 
-    /// Constructor - runs atomically with contract deployment
-    /// Prevents front-running attacks during initialization
-    pub fn __constructor(env: Env, admin: Address) {
-        // Store admin
-        env.storage().instance().set(&DataKey::Admin, &admin);
-
-        // Initialize empty token list
-        let empty_list: Vec<Address> = Vec::new(&env);
-        env.storage().instance().set(&DataKey::TokenList, &empty_list);
-        env.storage().instance().set(&DataKey::AllowedSpenders, &empty_list);
-
-        // Initialize state
-        env.storage().instance().set(&DataKey::Initialized, &true);
-        env.storage().instance().set(&DataKey::Paused, &false);
-
-        extend_instance_ttl(&env);
-
-        let events = EventBuilder::new(&env);
-        events.publish("treasury", "initialized", (admin.clone(), env.ledger().timestamp()));
-    }
-
     // ════════════════════════════════════════════════════════════════════════
-    // LEGACY INITIALIZATION (backwards compatibility)
+    // INITIALIZATION
     // ════════════════════════════════════════════════════════════════════════
 
     /// Initialize the treasury vault with an admin address.
-    /// (LEGACY - use constructor for new deployments)
     ///
     /// # Arguments
     /// * `admin` - Address that will have withdrawal permissions

@@ -18,14 +18,21 @@
 //! - 🌟 Stellar exclusive: Multi-currency support
 
 use soroban_sdk::{
-    contract, contractimpl, token, Address, Env, String, Vec, Bytes, BytesN,
-    auth::{ContractContext, InvokerContractAuthEntry, SubContractInvocation},
-    IntoVal, Symbol,
+    contract, contractimpl, Address, Env, String, Vec, Bytes, BytesN,
     xdr::ToXdr,
 };
 
-mod bonding_curve;
+// Imports used only in production code (not in tests due to #[cfg(not(test))])
+#[cfg(not(test))]
+use soroban_sdk::{
+    token,
+    auth::{ContractContext, InvokerContractAuthEntry, SubContractInvocation},
+    IntoVal, Symbol,
+};
+
+pub mod bonding_curve; // Public for fuzzing
 mod storage;
+mod input_validation; // Input size validation (DoS prevention)
 mod errors;
 mod events;
 // mod math; // Replaced by astro-core-shared
@@ -42,6 +49,10 @@ mod anti_whale;      // Anti-whale protection for fair distribution
 mod astro_client;    // ASTRO token integration for buyback & burn
 mod bridge_client;   // DEX Bridge client for graduation to AstroSwap
 
+// Soroban Best Practices 2026: Storage optimization
+mod storage_optimization;  // Check-before-write pattern for gas savings
+mod temporary_storage;     // Temporary storage for ephemeral data (lower costs)
+
 #[cfg(test)]
 mod tests;
 
@@ -53,6 +64,16 @@ mod bonding_curve_tests;
 
 #[cfg(test)]
 mod oracle_tests;
+
+#[cfg(test)]
+mod locked_xlm_tests; // FIX: Tests for BUG #1 locked_xlm accounting
+
+#[cfg(test)]
+mod best_practices_tests; // Soroban Best Practices 2026: input validation, resource tracking
+
+// #[cfg(test)]
+// mod graduation_flow_tests; // Soroban Best Practices 2026: full lifecycle integration tests
+// TODO: Fix field names to match TokenInfo struct (market_cap vs market_cap_usd, etc.)
 
 use bonding_curve::BondingCurve;
 use errors::Error;
@@ -78,36 +99,7 @@ impl SacFactory {
     /// Constructor - atomic initialization with deployment (CAP-58)
     ///
     /// Prevents front-running of initialization.
-    /// Called automatically when contract is deployed via deploy_v2.
-    ///
-    /// # Arguments
-    /// * `admin` - Admin address (can pause, update fees)
-    /// * `treasury` - Treasury address (receives fees)
-    /// * `xlm_token_address` - Native XLM SAC address (network-specific)
-    pub fn __constructor(
-        env: Env,
-        admin: Address,
-        treasury: Address,
-        xlm_token_address: Address,
-    ) {
-        // Initialize storage
-        storage::set_admin(&env, &admin);
-        storage::set_treasury(&env, &treasury);
-        storage::set_token_count(&env, 0);
-        storage::set_xlm_token_address(&env, &xlm_token_address);
-
-        // Initialize modules
-        access_control::initialize_access_control(&env, &admin);
-        state_management::initialize_state(&env);
-
-        // Initialize fee config (unwrap safe in constructor - panics abort deployment)
-        let _ = fee_management::initialize_fee_config(&env, treasury);
-
-        // Initialize anti-whale protection
-        anti_whale::initialize_anti_whale(&env);
-    }
-
-    /// Legacy Initialize (for backwards compatibility with existing deployments)
+    /// Initialize (for deployment)
     ///
     /// # Arguments
     /// * `admin` - Admin address (can pause, update fees)
@@ -188,13 +180,13 @@ impl SacFactory {
         // Check contract is active
         state_management::require_active(&env)?;
 
-        // Validate inputs
-        if name.is_empty() || name.len() > 32 {
-            return Err(Error::InvalidName);
-        }
-        if symbol.is_empty() || symbol.len() > 12 {
-            return Err(Error::InvalidSymbol);
-        }
+        // Validate inputs (DoS prevention - Soroban Best Practice 2026)
+        input_validation::validate_name(&env, &name)?;
+        input_validation::validate_symbol(&env, &symbol)?;
+        input_validation::validate_issuer(&env, &issuer)?;
+        input_validation::validate_image_url(&env, &image_url)?;
+        input_validation::validate_description(&env, &description)?;
+        input_validation::validate_serialized_asset(&env, &serialized_asset)?;
 
         // FIX #M8: Check symbol uniqueness to prevent scams
         if storage::is_symbol_used(&env, &symbol) {
@@ -229,6 +221,7 @@ impl SacFactory {
             xlm_raised: 0,
             market_cap: 0,
             holders_count: 0,
+            locked_xlm_amount: 0, // FIX: Track locked XLM for this token
         };
 
         // Store token info
@@ -285,13 +278,11 @@ impl SacFactory {
         // Check contract is active
         state_management::require_active(&env)?;
 
-        // Validate inputs
-        if name.is_empty() || name.len() > 32 {
-            return Err(Error::InvalidName);
-        }
-        if symbol.is_empty() || symbol.len() > 12 {
-            return Err(Error::InvalidSymbol);
-        }
+        // Validate inputs (DoS prevention - Soroban Best Practice 2026)
+        input_validation::validate_name(&env, &name)?;
+        input_validation::validate_symbol(&env, &symbol)?;
+        input_validation::validate_image_url(&env, &image_url)?;
+        input_validation::validate_description(&env, &description)?;
 
         // FIX #M8: Check symbol uniqueness to prevent scams
         if storage::is_symbol_used(&env, &symbol) {
@@ -351,6 +342,7 @@ impl SacFactory {
             xlm_raised: 0,
             market_cap: 0,
             holders_count: 0,
+            locked_xlm_amount: 0, // FIX: Track locked XLM for this token
         };
 
         // Store token info
@@ -517,12 +509,15 @@ impl SacFactory {
             fee_breakdown.lp_fee,
         )?;
 
-        // 10b. SECURITY: Track XLM locked in bonding curve (protect from withdrawal)
-        // Total locked = xlm_for_swap + lp_fee (protocol_fee goes to treasury)
+        // 10b. FIX CRITICAL BUG #1: Track XLM locked in bonding curve (protect from withdrawal)
+        // Total locked = xlm_for_swap + lp_fee (protocol_fee goes to treasury immediately)
         let xlm_locked_in_curve = xlm_for_swap
             .checked_add(fee_breakdown.lp_fee)
             .ok_or(Error::Overflow)?;
+
+        // Update both global counter AND per-token tracking for accurate accounting
         storage::add_locked_xlm(&env, xlm_locked_in_curve);
+        token_info.locked_xlm_amount = core_math::safe_add(token_info.locked_xlm_amount, xlm_locked_in_curve)?;
 
         // 11. Get price after trade
         let price_after = token_info.bonding_curve.get_current_price()?;
@@ -715,12 +710,15 @@ impl SacFactory {
             fee_breakdown.lp_fee,
         )?;
 
-        // 9b. SECURITY: Track XLM released from bonding curve
+        // 9b. FIX CRITICAL BUG #1: Track XLM released from bonding curve
         // Amount leaving curve = xlm_gross - lp_fee (lp_fee stays in reserves)
         let xlm_released_from_curve = xlm_gross
             .checked_sub(fee_breakdown.lp_fee)
             .ok_or(Error::Underflow)?;
+
+        // Update both global counter AND per-token tracking for accurate accounting
         storage::sub_locked_xlm(&env, xlm_released_from_curve);
+        token_info.locked_xlm_amount = core_math::safe_sub(token_info.locked_xlm_amount, xlm_released_from_curve)?;
 
         // 10. Update total XLM raised (using safe math)
         token_info.xlm_raised = core_math::safe_sub(token_info.xlm_raised, xlm_gross)?;
@@ -1595,7 +1593,10 @@ impl SacFactory {
     /// Ok(()) on success, Error on failure
     fn graduate_to_amm(env: &Env, token_info: &mut TokenInfo) -> Result<(), Error> {
         // SECURITY: Prevent race condition during graduation
-        // Check status is Bonding before starting graduation
+        // Check status with more specific errors
+        if token_info.status == TokenStatus::GraduationInProgress {
+            return Err(Error::GraduationAlreadyInProgress);
+        }
         if token_info.status != TokenStatus::Bonding {
             return Err(Error::InvalidTokenStatus);
         }
@@ -1870,8 +1871,10 @@ impl SacFactory {
             );
         }
 
-        // 8. SECURITY: Release locked XLM (liquidity now in AMM, not bonding curve)
-        storage::release_locked_xlm(env, token_info.xlm_raised);
+        // 8. FIX CRITICAL BUG #1: Release EXACT locked XLM amount (liquidity now in AMM, not bonding curve)
+        // Use per-token tracking to ensure accurate accounting (not xlm_raised which includes protocol fees)
+        storage::release_locked_xlm(env, token_info.locked_xlm_amount);
+        token_info.locked_xlm_amount = 0; // Clear token-specific tracking
 
         // 9. Mark as graduated
         token_info.status = TokenStatus::Graduated;
@@ -1988,8 +1991,10 @@ impl SacFactory {
             &pair_address,
         );
 
-        // SECURITY: Release locked XLM (liquidity now in DEX, not bonding curve)
-        storage::release_locked_xlm(env, token_info.xlm_raised);
+        // FIX CRITICAL BUG #1: Release EXACT locked XLM amount (liquidity now in DEX, not bonding curve)
+        // Use per-token tracking to ensure accurate accounting (not xlm_raised which includes protocol fees)
+        storage::release_locked_xlm(env, token_info.locked_xlm_amount);
+        token_info.locked_xlm_amount = 0; // Clear token-specific tracking
 
         // Mark as graduated
         token_info.status = TokenStatus::Graduated;

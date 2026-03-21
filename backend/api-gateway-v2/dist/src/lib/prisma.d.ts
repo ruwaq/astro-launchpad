@@ -5,9 +5,10 @@
  * Features:
  * - Singleton pattern (prevents connection exhaustion in serverless/dev)
  * - Standard PostgreSQL connection
+ * - Soft-delete via Prisma Client Extensions (Prisma 5.x+)
  * - Type exports for the API Gateway
  */
-import { PrismaClient } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 export * from '@prisma/client';
 /**
  * Global singleton instance
@@ -15,16 +16,49 @@ export * from '@prisma/client';
  * when the same function container is reused
  */
 declare global {
-    var __prisma: PrismaClient | undefined;
+    var __prisma: ReturnType<typeof createPrismaClient> | undefined;
 }
+/**
+ * Create Prisma Client with soft-delete extension (Prisma 5.x+)
+ *
+ * Uses Prisma Client Extensions to automatically filter soft-deleted records.
+ * This replaces the deprecated $use middleware.
+ *
+ * @see https://www.prisma.io/docs/orm/prisma-client/client-extensions
+ */
+declare function createPrismaClient(): import("@prisma/client/runtime/library").DynamicClientExtensionThis<Prisma.TypeMap<import("@prisma/client/runtime/library").InternalArgs & {
+    result: {};
+    model: {};
+    query: {};
+    client: {};
+}, Prisma.PrismaClientOptions>, Prisma.TypeMapCb, {
+    result: {};
+    model: {};
+    query: {};
+    client: {};
+}, {}>;
+/**
+ * Extended Prisma Client type with soft-delete extension
+ */
+export type ExtendedPrismaClient = ReturnType<typeof createPrismaClient>;
 /**
  * Get or create Prisma Client singleton
  */
-export declare function getPrismaClient(): PrismaClient;
+export declare function getPrismaClient(): ExtendedPrismaClient;
 /**
  * Default export: singleton instance
  */
-export declare const prisma: PrismaClient<import("@prisma/client").Prisma.PrismaClientOptions, never, import("@prisma/client/runtime/library").DefaultArgs>;
+export declare const prisma: import("@prisma/client/runtime/library").DynamicClientExtensionThis<Prisma.TypeMap<import("@prisma/client/runtime/library").InternalArgs & {
+    result: {};
+    model: {};
+    query: {};
+    client: {};
+}, Prisma.PrismaClientOptions>, Prisma.TypeMapCb, {
+    result: {};
+    model: {};
+    query: {};
+    client: {};
+}, {}>;
 /**
  * Graceful shutdown helper
  */
@@ -33,7 +67,7 @@ export declare function disconnectPrisma(): Promise<void>;
  * Health check helper
  */
 export declare function checkDatabaseHealth(): Promise<boolean>;
-export type PrismaClientWithAdapter = PrismaClient;
+export type PrismaClientWithAdapter = ExtendedPrismaClient;
 export declare const CACHE_STRATEGIES: {
     readonly SHORT_TTL: {
         readonly ttl: 60;

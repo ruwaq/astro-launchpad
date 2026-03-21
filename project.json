@@ -1,0 +1,99 @@
+{
+  "name": "astro-launchpad",
+  "$schema": "../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "sourceRoot": "astro-launchpad",
+  "tags": ["typescript", "nextjs", "graphql", "rust", "consumer"],
+  "implicitDependencies": ["astro-core"],
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "turbo run build",
+        "cwd": "astro-launchpad"
+      },
+      "dependsOn": ["^build", "build-contracts"],
+      "outputs": [
+        "{projectRoot}/apps/web/.next",
+        "{projectRoot}/packages/*/dist",
+        "{projectRoot}/contracts/*/target/wasm32-unknown-unknown/release"
+      ],
+      "cache": true
+    },
+    "build-contracts": {
+      "executor": "nx:run-commands",
+      "options": {
+        "commands": [
+          "cd contracts/sac-factory && cargo build --release --target wasm32-unknown-unknown",
+          "cd contracts/amm-pair && cargo build --release --target wasm32-unknown-unknown"
+        ],
+        "cwd": "astro-launchpad",
+        "parallel": false
+      },
+      "outputs": ["{projectRoot}/contracts/*/target/wasm32-unknown-unknown/release"],
+      "cache": true
+    },
+    "dev": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "turbo run dev",
+        "cwd": "astro-launchpad"
+      },
+      "dependsOn": ["^build"]
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "turbo run test",
+        "cwd": "astro-launchpad"
+      },
+      "cache": true
+    },
+    "test:coverage": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "turbo run test:coverage",
+        "cwd": "astro-launchpad"
+      },
+      "outputs": ["{projectRoot}/coverage"],
+      "cache": true
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "turbo run lint",
+        "cwd": "astro-launchpad"
+      },
+      "cache": true
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "turbo run type-check",
+        "cwd": "astro-launchpad"
+      },
+      "cache": true
+    },
+    "db:migrate": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "cd backend/shared && pnpm prisma migrate dev",
+        "cwd": "astro-launchpad"
+      }
+    },
+    "db:studio": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "cd backend/shared && pnpm prisma studio",
+        "cwd": "astro-launchpad"
+      }
+    },
+    "clean": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "turbo run clean && cargo clean",
+        "cwd": "astro-launchpad"
+      }
+    }
+  }
+}
