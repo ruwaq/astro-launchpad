@@ -1,9 +1,0 @@
-@@ -85,7 +85,7 @@
-     })
- 
-     const userMap = new Map(users.map(u => [u.id, u]))
--    return ids.map((id) => userMap.get(id) || null)
-+    return ids.map((id) => userMap.get(id) || null) as any
-   })
- }
- 
