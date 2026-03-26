@@ -23,6 +23,9 @@ const startTime = Date.now();
 
 async function checkDatabase() {
   const start = Date.now();
+  const dbUrl = process.env.DATABASE_URL || 'NOT_SET';
+  const hasDbUrl = dbUrl !== 'NOT_SET' && dbUrl.length > 10;
+
   try {
     await prisma.$queryRaw`SELECT 1`;
     return {
@@ -30,8 +33,9 @@ async function checkDatabase() {
       latencyMs: Date.now() - start,
     };
   } catch (error) {
-    logger.error({ error }, '[Health] Database check failed');
-    return { connected: false };
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    logger.error({ error, hasDbUrl, dbUrlLength: dbUrl.length }, '[Health] Database check failed');
+    return { connected: false, error: errorMessage, hasDbUrl };
   }
 }
 
@@ -108,7 +112,8 @@ export default async function healthHandler(req, res) {
 
     if (!dbStatus.connected) {
       status = 'unhealthy';
-      errors.push('Database connection failed');
+      const dbError = dbStatus.error ? `: ${dbStatus.error}` : '';
+      errors.push(`Database connection failed${dbError}`);
     } else if (!cacheStats.available) {
       status = 'degraded';
       errors.push('Cache unavailable');
