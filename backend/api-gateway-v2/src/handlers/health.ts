@@ -49,7 +49,7 @@ export interface HealthResponse {
 // Configuration
 // ============================================================================
 
-export const API_VERSION = '2.1.0';
+export const API_VERSION = '2.1.1';
 const startTime = Date.now();
 
 // ============================================================================
@@ -59,8 +59,18 @@ const startTime = Date.now();
 /**
  * Check database health with latency measurement
  */
-export async function checkDatabase(): Promise<{ connected: boolean; latencyMs?: number }> {
+export async function checkDatabase(): Promise<{ connected: boolean; latencyMs?: number; error?: string }> {
   const start = Date.now();
+  const dbUrl = process.env.DATABASE_URL || 'NOT_SET';
+  const hasDbUrl = dbUrl !== 'NOT_SET' && dbUrl.length > 10;
+  const isSupabase = dbUrl.includes('supabase.co');
+
+  logger.info({
+    hasDbUrl,
+    isSupabase,
+    dbUrlPrefix: hasDbUrl ? dbUrl.substring(0, 30) + '...' : 'N/A',
+  }, '[Health] Database check starting');
+
   try {
     await prisma.$queryRaw`SELECT 1`;
     return {
@@ -68,8 +78,9 @@ export async function checkDatabase(): Promise<{ connected: boolean; latencyMs?:
       latencyMs: Date.now() - start,
     };
   } catch (error) {
-    logger.error({ error }, '[Health] Database check failed');
-    return { connected: false };
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    logger.error({ error, hasDbUrl, isSupabase }, '[Health] Database check failed');
+    return { connected: false, error: errorMessage };
   }
 }
 
@@ -184,7 +195,8 @@ export default async function healthHandler(
 
     if (!dbStatus.connected) {
       status = 'unhealthy';
-      errors.push('Database connection failed');
+      const dbError = dbStatus.error ? `: ${dbStatus.error}` : '';
+      errors.push(`Database connection failed${dbError}`);
     } else if (!cacheStats.available) {
       status = 'degraded';
       errors.push('Cache unavailable');
