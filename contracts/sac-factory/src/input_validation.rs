@@ -181,8 +181,8 @@ pub fn validate_fee_tiers(
     // Validate each tier
     let mut prev_threshold = 0i128;
     for i in 0..tier_thresholds.len() {
-        let threshold = tier_thresholds.get(i).unwrap();
-        let fee = tier_fees.get(i).unwrap();
+        let threshold = tier_thresholds.get(i).ok_or(Error::InvalidAmount)?;
+        let fee = tier_fees.get(i).ok_or(Error::InvalidAmount)?;
 
         // Check non-negative
         if threshold < 0 || fee < 0 {

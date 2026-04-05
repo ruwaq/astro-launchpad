@@ -9,6 +9,7 @@
 
 use soroban_sdk::{contracttype, Address, Env, Vec};
 use crate::bonding_curve::BondingCurve;
+use crate::errors::Error;
 
 /// Storage keys for Instance storage (small, frequently accessed)
 #[contracttype]
@@ -108,8 +109,8 @@ pub fn has_admin(env: &Env) -> bool {
     env.storage().instance().has(&InstanceKey::Admin)
 }
 
-pub fn get_admin(env: &Env) -> Address {
-    env.storage().instance().get(&InstanceKey::Admin).unwrap()
+pub fn get_admin(env: &Env) -> Result<Address, Error> {
+    env.storage().instance().get(&InstanceKey::Admin).ok_or(Error::NotInitialized)
 }
 
 pub fn set_admin(env: &Env, admin: &Address) {
@@ -117,8 +118,8 @@ pub fn set_admin(env: &Env, admin: &Address) {
     extend_instance_ttl(env); // Extend TTL on critical config change
 }
 
-pub fn get_treasury(env: &Env) -> Address {
-    env.storage().instance().get(&InstanceKey::Treasury).unwrap()
+pub fn get_treasury(env: &Env) -> Result<Address, Error> {
+    env.storage().instance().get(&InstanceKey::Treasury).ok_or(Error::NotInitialized)
 }
 
 pub fn set_treasury(env: &Env, treasury: &Address) {
@@ -171,8 +172,8 @@ pub fn has_token_wasm_hash(env: &Env) -> bool {
     env.storage().instance().has(&InstanceKey::TokenWasmHash)
 }
 
-pub fn get_token_wasm_hash(env: &Env) -> soroban_sdk::BytesN<32> {
-    env.storage().instance().get(&InstanceKey::TokenWasmHash).unwrap()
+pub fn get_token_wasm_hash(env: &Env) -> Result<soroban_sdk::BytesN<32>, Error> {
+    env.storage().instance().get(&InstanceKey::TokenWasmHash).ok_or(Error::NotInitialized)
 }
 
 pub fn set_token_wasm_hash(env: &Env, wasm_hash: &soroban_sdk::BytesN<32>) {

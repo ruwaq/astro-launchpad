@@ -1535,10 +1535,8 @@ impl SacFactory {
         salt: soroban_sdk::BytesN<32>,
     ) -> Result<Address, Error> {
         // Get token WASM hash (must be set via set_token_wasm_hash)
-        if !storage::has_token_wasm_hash(env) {
-            return Err(Error::TokenWasmNotSet);
-        }
-        let wasm_hash = storage::get_token_wasm_hash(env);
+        let wasm_hash = storage::get_token_wasm_hash(env)
+            .map_err(|_| Error::TokenWasmNotSet)?;
 
         // Deploy token contract using WASM hash
         // Use with_address with current contract as the deployer
