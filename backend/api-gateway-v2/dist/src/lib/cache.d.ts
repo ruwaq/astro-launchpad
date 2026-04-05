@@ -9,12 +9,13 @@
  * - JSON serialization
  * - Cache warming strategies
  */
-import { kv } from '@vercel/kv';
+import { Redis } from '@upstash/redis';
 import { Redis as IORedis } from 'ioredis';
 /**
  * Cache client type
+ * Supports Upstash Redis (REST) or standard ioredis
  */
-type CacheClient = typeof kv | IORedis | null;
+type CacheClient = Redis | IORedis | null;
 /**
  * Get or initialize cache client
  * SAFETY: Uses mutex pattern to prevent race condition during concurrent initialization
@@ -99,7 +100,7 @@ export declare function disconnectCache(): Promise<void>;
  */
 export declare function getCacheStats(): Promise<{
     available: boolean;
-    type: 'vercel-kv' | 'redis' | 'none';
+    type: 'upstash' | 'redis' | 'none';
     keyCount?: number;
 }>;
 export {};

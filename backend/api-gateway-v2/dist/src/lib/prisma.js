@@ -14,6 +14,19 @@ export * from '@prisma/client';
 // Environment detection
 const isDevelopment = process.env.NODE_ENV !== 'production';
 const isTest = process.env.NODE_ENV === 'test';
+/**
+ * Ensures DATABASE_URL has SSL mode for Supabase connections in production
+ * Supabase requires SSL for external connections
+ */
+function getDatabaseUrl() {
+    const url = process.env.DATABASE_URL || 'postgresql://localhost:5432/astro';
+    // If it's a Supabase URL and doesn't have SSL params, add them
+    if (url.includes('supabase.co') && !url.includes('sslmode=')) {
+        const separator = url.includes('?') ? '&' : '?';
+        return `${url}${separator}sslmode=require`;
+    }
+    return url;
+}
 // Logging configuration
 const logConfig = isDevelopment
     ? ['query', 'error', 'warn']
@@ -27,9 +40,15 @@ const logConfig = isDevelopment
  * @see https://www.prisma.io/docs/orm/prisma-client/client-extensions
  */
 function createPrismaClient() {
+    const databaseUrl = getDatabaseUrl();
     const baseClient = new PrismaClient({
         log: logConfig,
         errorFormat: isDevelopment ? 'pretty' : 'minimal',
+        datasources: {
+            db: {
+                url: databaseUrl,
+            },
+        },
     });
     // Extend client with soft-delete filtering
     const client = baseClient.$extends({

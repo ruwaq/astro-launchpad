@@ -1,21 +1,25 @@
 {
-  "name": "astro-shiba-monorepo",
+  "name": "astro-launchpad",
   "version": "0.0.0",
   "private": true,
-  "description": "Astro Shiba - Enterprise Token Launchpad on Stellar",
+  "description": "Astro Launchpad - Enterprise Token Launchpad on Stellar",
   "scripts": {
-    "dev": "turbo run dev",
-    "build": "turbo run build",
-    "lint": "turbo run lint",
-    "type-check": "turbo run type-check",
-    "typecheck": "turbo run type-check",
-    "test": "turbo run test",
-    "test:coverage": "turbo run test:coverage",
-    "clean": "turbo run clean && rm -rf node_modules .turbo"
+    "dev": "pnpm --filter web dev",
+    "dev:api": "pnpm --filter @astroshibapop/api-gateway-v2 dev",
+    "dev:indexer": "pnpm --filter @astroshibapop/indexer dev",
+    "build": "pnpm -r --filter './apps/*' --filter './packages/*' build",
+    "build:web": "pnpm --filter web build",
+    "build:api": "pnpm --filter @astroshibapop/api-gateway-v2 build",
+    "lint": "pnpm -r lint",
+    "type-check": "pnpm -r type-check",
+    "typecheck": "pnpm -r type-check",
+    "test": "pnpm -r test",
+    "test:run": "pnpm -r test:run",
+    "test:coverage": "pnpm -r test:coverage",
+    "clean": "pnpm -r clean && rm -rf node_modules"
   },
   "devDependencies": {
-    "turbo": "^2.0.12",
-    "@turbo/gen": "^2.0.12"
+    "typescript": "^5.7.2"
   },
   "packageManager": "pnpm@9.7.1",
   "engines": {

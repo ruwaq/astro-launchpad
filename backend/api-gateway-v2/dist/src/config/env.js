@@ -19,8 +19,12 @@ const envSchema = z.object({
     // Contracts
     TOKEN_FACTORY_CONTRACT_ID: z.string().default(''),
     AMM_FACTORY_CONTRACT_ID: z.string().optional(),
-    // Redis/Cache (Vercel KV or Upstash)
+    // Redis/Cache (Upstash or standard Redis)
     REDIS_URL: z.string().optional(),
+    // Upstash Redis REST API (preferred)
+    UPSTASH_REDIS_REST_URL: z.string().optional(),
+    UPSTASH_REDIS_REST_TOKEN: z.string().optional(),
+    // Legacy Vercel KV env vars (backward compat)
     KV_REST_API_URL: z.string().optional(),
     KV_REST_API_TOKEN: z.string().optional(),
     // API Configuration
@@ -124,21 +128,23 @@ export function getDatabaseConfig() {
  * Get Redis configuration
  */
 export function getRedisConfig() {
-    // Vercel KV (REST API) - validate URLs properly
-    if (env.KV_REST_API_URL && env.KV_REST_API_TOKEN) {
+    // Upstash Redis REST API (preferred) - check both naming conventions
+    const restUrl = env.UPSTASH_REDIS_REST_URL || env.KV_REST_API_URL;
+    const restToken = env.UPSTASH_REDIS_REST_TOKEN || env.KV_REST_API_TOKEN;
+    if (restUrl && restToken) {
         try {
-            new URL(env.KV_REST_API_URL); // Validate URL
+            new URL(restUrl); // Validate URL
             return {
-                type: 'vercel-kv',
-                url: env.KV_REST_API_URL,
-                token: env.KV_REST_API_TOKEN,
+                type: 'upstash',
+                url: restUrl,
+                token: restToken,
             };
         }
         catch {
-            console.warn('Invalid KV_REST_API_URL, skipping Redis config');
+            console.warn('Invalid UPSTASH_REDIS_REST_URL, skipping REST config');
         }
     }
-    // Standard Redis or Upstash
+    // Standard Redis (ioredis)
     if (env.REDIS_URL) {
         try {
             new URL(env.REDIS_URL); // Validate URL
@@ -151,7 +157,7 @@ export function getRedisConfig() {
             console.warn('Invalid REDIS_URL, skipping Redis config');
         }
     }
-    console.warn('⚠️  No Redis/KV configuration found - caching will be disabled');
+    console.warn('⚠️  No Redis configuration found - caching will be disabled');
     return null;
 }
 /**

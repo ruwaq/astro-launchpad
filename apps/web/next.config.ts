@@ -108,8 +108,8 @@ const nextConfig: NextConfig = {
               "img-src 'self' data: blob: https://gateway.pinata.cloud https://*.pinata.cloud https://ipfs.io https://cloudflare-ipfs.com https://stellar.org https://*.stellar.org https://ui-avatars.com https:",
               // Fonts: self + Google Fonts
               "font-src 'self' https://fonts.gstatic.com",
-              // API connections: self + API gateway + Stellar Horizon + Stellar RPC + Sentry
-              "connect-src 'self' https://api-gateway-v2.vercel.app https://horizon-testnet.stellar.org https://horizon.stellar.org https://soroban-testnet.stellar.org https://soroban.stellar.org https://*.sentry.io wss://*.stellar.org",
+              // API connections: self + API gateway + Stellar Horizon + Stellar RPC + Sentry + IPFS gateways
+              "connect-src 'self' https://api-gateway-v2.vercel.app https://horizon-testnet.stellar.org https://horizon.stellar.org https://soroban-testnet.stellar.org https://soroban.stellar.org https://*.sentry.io wss://*.stellar.org https://gateway.pinata.cloud https://*.pinata.cloud https://ipfs.io https://cloudflare-ipfs.com",
               // Frames: block all (no iframes)
               "frame-ancestors 'none'",
               // Form actions: self only

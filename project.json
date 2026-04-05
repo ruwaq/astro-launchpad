@@ -3,14 +3,17 @@
   "$schema": "../node_modules/nx/schemas/project-schema.json",
   "projectType": "application",
   "sourceRoot": "astro-launchpad",
-  "tags": ["typescript", "nextjs", "graphql", "rust", "consumer"],
+  "tags": ["scope:launchpad", "type:monorepo", "platform:stellar"],
   "implicitDependencies": ["astro-core"],
   "targets": {
     "build": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "turbo run build",
-        "cwd": "astro-launchpad"
+        "commands": [
+          "pnpm -r --filter './apps/*' --filter './packages/*' build"
+        ],
+        "cwd": "astro-launchpad",
+        "parallel": false
       },
       "dependsOn": ["^build", "build-contracts"],
       "outputs": [
@@ -24,11 +27,15 @@
       "executor": "nx:run-commands",
       "options": {
         "commands": [
-          "cd contracts/sac-factory && cargo build --release --target wasm32-unknown-unknown",
-          "cd contracts/amm-pair && cargo build --release --target wasm32-unknown-unknown"
+          "cargo build --release --target wasm32-unknown-unknown --manifest-path sac-factory/Cargo.toml",
+          "cargo build --release --target wasm32-unknown-unknown --manifest-path amm-pair/Cargo.toml",
+          "cargo build --release --target wasm32-unknown-unknown -p fee-distributor",
+          "cargo build --release --target wasm32-unknown-unknown -p staking-pool",
+          "cargo build --release --target wasm32-unknown-unknown -p liquidity-locker",
+          "cargo build --release --target wasm32-unknown-unknown -p treasury-vault"
         ],
-        "cwd": "astro-launchpad",
-        "parallel": false
+        "cwd": "astro-launchpad/contracts",
+        "parallel": true
       },
       "outputs": ["{projectRoot}/contracts/*/target/wasm32-unknown-unknown/release"],
       "cache": true
@@ -36,15 +43,28 @@
     "dev": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "turbo run dev",
+        "command": "pnpm --filter web dev",
         "cwd": "astro-launchpad"
-      },
-      "dependsOn": ["^build"]
+      }
+    },
+    "dev:api": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "pnpm --filter @astroshibapop/api-gateway-v2 dev",
+        "cwd": "astro-launchpad"
+      }
+    },
+    "dev:indexer": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "pnpm --filter @astroshibapop/indexer dev",
+        "cwd": "astro-launchpad"
+      }
     },
     "test": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "turbo run test",
+        "command": "pnpm -r test:run",
         "cwd": "astro-launchpad"
       },
       "cache": true
@@ -52,7 +72,7 @@
     "test:coverage": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "turbo run test:coverage",
+        "command": "pnpm -r test:coverage",
         "cwd": "astro-launchpad"
       },
       "outputs": ["{projectRoot}/coverage"],
@@ -61,7 +81,7 @@
     "lint": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "turbo run lint",
+        "command": "pnpm -r lint",
         "cwd": "astro-launchpad"
       },
       "cache": true
@@ -69,7 +89,7 @@
     "typecheck": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "turbo run type-check",
+        "command": "pnpm -r type-check",
         "cwd": "astro-launchpad"
       },
       "cache": true
@@ -77,22 +97,26 @@
     "db:migrate": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "cd backend/shared && pnpm prisma migrate dev",
+        "command": "pnpm --filter @astroshibapop/shared prisma migrate dev",
         "cwd": "astro-launchpad"
       }
     },
     "db:studio": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "cd backend/shared && pnpm prisma studio",
+        "command": "pnpm --filter @astroshibapop/shared prisma studio",
         "cwd": "astro-launchpad"
       }
     },
     "clean": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "turbo run clean && cargo clean",
-        "cwd": "astro-launchpad"
+        "commands": [
+          "pnpm -r clean",
+          "cd contracts && cargo clean"
+        ],
+        "cwd": "astro-launchpad",
+        "parallel": false
       }
     }
   }

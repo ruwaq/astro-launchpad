@@ -10,7 +10,7 @@
  * - Cache warming strategies
  */
 
-import { kv } from '@vercel/kv'
+import { Redis } from '@upstash/redis'
 import { Redis as IORedis } from 'ioredis'
 import { env, isDevelopment } from '../config/env.js'
 import { logger } from './logger.js'
@@ -18,8 +18,9 @@ import { recordCacheOperation } from './metrics.js'
 
 /**
  * Cache client type
+ * Supports Upstash Redis (REST) or standard ioredis
  */
-type CacheClient = typeof kv | IORedis | null
+type CacheClient = Redis | IORedis | null
 
 /**
  * Cache client singleton
@@ -41,11 +42,13 @@ function initializeCacheClient(): CacheClient {
   }
 
   try {
-    // Option 1: Vercel KV (REST API)
-    if (env.KV_REST_API_URL && env.KV_REST_API_TOKEN) {
-      logger.info('Initializing Vercel KV cache')
-      isVercelKV = true
-      return kv
+    // Option 1: Upstash Redis (REST API) - supports both Upstash and legacy Vercel KV env vars
+    const restUrl = env.UPSTASH_REDIS_REST_URL || env.KV_REST_API_URL
+    const restToken = env.UPSTASH_REDIS_REST_TOKEN || env.KV_REST_API_TOKEN
+    if (restUrl && restToken) {
+      logger.info('Initializing Upstash Redis cache (REST)')
+      isVercelKV = true // Keep flag name for backward compat
+      return new Redis({ url: restUrl, token: restToken })
     }
 
     // Option 2: Standard Redis / Upstash
@@ -418,7 +421,7 @@ export async function disconnectCache(): Promise<void> {
  */
 export async function getCacheStats(): Promise<{
   available: boolean
-  type: 'vercel-kv' | 'redis' | 'none'
+  type: 'upstash' | 'redis' | 'none'
   keyCount?: number
 }> {
   const client = getCacheClient()
@@ -437,14 +440,14 @@ export async function getCacheStats(): Promise<{
 
     return {
       available: true,
-      type: isVercelKV ? 'vercel-kv' : 'redis',
+      type: isVercelKV ? 'upstash' : 'redis',
       keyCount,
     }
   } catch (error) {
     logger.error({ error }, 'Failed to get cache stats')
     return {
       available: false,
-      type: isVercelKV ? 'vercel-kv' : 'redis',
+      type: isVercelKV ? 'upstash' : 'redis',
     }
   }
 }

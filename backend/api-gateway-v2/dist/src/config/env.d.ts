@@ -16,6 +16,8 @@ declare const envSchema: z.ZodObject<{
     TOKEN_FACTORY_CONTRACT_ID: z.ZodDefault<z.ZodString>;
     AMM_FACTORY_CONTRACT_ID: z.ZodOptional<z.ZodString>;
     REDIS_URL: z.ZodOptional<z.ZodString>;
+    UPSTASH_REDIS_REST_URL: z.ZodOptional<z.ZodString>;
+    UPSTASH_REDIS_REST_TOKEN: z.ZodOptional<z.ZodString>;
     KV_REST_API_URL: z.ZodOptional<z.ZodString>;
     KV_REST_API_TOKEN: z.ZodOptional<z.ZodString>;
     API_PORT: z.ZodDefault<z.ZodNumber>;
@@ -43,8 +45,8 @@ declare const envSchema: z.ZodObject<{
     GITHUB_OWNER: z.ZodOptional<z.ZodString>;
     GITHUB_REPO: z.ZodOptional<z.ZodString>;
 }, "strip", z.ZodTypeAny, {
-    NODE_ENV: "development" | "production" | "test";
     DATABASE_URL: string;
+    NODE_ENV: "development" | "production" | "test";
     STELLAR_NETWORK: "testnet" | "mainnet";
     STELLAR_RPC_URL: string;
     TOKEN_FACTORY_CONTRACT_ID: string;
@@ -67,6 +69,8 @@ declare const envSchema: z.ZodObject<{
     DIRECT_DATABASE_URL?: string | undefined;
     AMM_FACTORY_CONTRACT_ID?: string | undefined;
     REDIS_URL?: string | undefined;
+    UPSTASH_REDIS_REST_URL?: string | undefined;
+    UPSTASH_REDIS_REST_TOKEN?: string | undefined;
     KV_REST_API_URL?: string | undefined;
     KV_REST_API_TOKEN?: string | undefined;
     PINATA_API_KEY?: string | undefined;
@@ -78,16 +82,18 @@ declare const envSchema: z.ZodObject<{
     GITHUB_OWNER?: string | undefined;
     GITHUB_REPO?: string | undefined;
 }, {
+    DATABASE_URL?: string | undefined;
     ADMIN_ADDRESSES?: string | undefined;
     ADMIN_API_KEY?: string | undefined;
     NODE_ENV?: unknown;
-    DATABASE_URL?: string | undefined;
     DIRECT_DATABASE_URL?: string | undefined;
     STELLAR_NETWORK?: unknown;
     STELLAR_RPC_URL?: string | undefined;
     TOKEN_FACTORY_CONTRACT_ID?: string | undefined;
     AMM_FACTORY_CONTRACT_ID?: string | undefined;
     REDIS_URL?: string | undefined;
+    UPSTASH_REDIS_REST_URL?: string | undefined;
+    UPSTASH_REDIS_REST_TOKEN?: string | undefined;
     KV_REST_API_URL?: string | undefined;
     KV_REST_API_TOKEN?: string | undefined;
     API_PORT?: number | undefined;
@@ -122,8 +128,8 @@ export type Env = z.infer<typeof envSchema>;
  * Import this in your application code
  */
 export declare const env: {
-    NODE_ENV: "development" | "production" | "test";
     DATABASE_URL: string;
+    NODE_ENV: "development" | "production" | "test";
     STELLAR_NETWORK: "testnet" | "mainnet";
     STELLAR_RPC_URL: string;
     TOKEN_FACTORY_CONTRACT_ID: string;
@@ -146,6 +152,8 @@ export declare const env: {
     DIRECT_DATABASE_URL?: string | undefined;
     AMM_FACTORY_CONTRACT_ID?: string | undefined;
     REDIS_URL?: string | undefined;
+    UPSTASH_REDIS_REST_URL?: string | undefined;
+    UPSTASH_REDIS_REST_TOKEN?: string | undefined;
     KV_REST_API_URL?: string | undefined;
     KV_REST_API_TOKEN?: string | undefined;
     PINATA_API_KEY?: string | undefined;
@@ -180,7 +188,7 @@ export declare function getDatabaseConfig(): {
  * Get Redis configuration
  */
 export declare function getRedisConfig(): {
-    type: "vercel-kv";
+    type: "upstash";
     url: string;
     token: string;
 } | {

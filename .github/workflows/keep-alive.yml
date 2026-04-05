@@ -1,0 +1,44 @@
+name: Keep Supabase Active
+
+on:
+  schedule:
+    # Run every 5 days to keep Supabase from pausing (7 day limit)
+    - cron: '0 0 */5 * *'
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping API Gateway Health
+        run: |
+          echo "Pinging API Gateway to keep Supabase active..."
+          response=$(curl -s -w "\n%{http_code}" https://api-gateway-v2.vercel.app/health)
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | head -n-1)
+
+          echo "Response: $body"
+          echo "HTTP Code: $http_code"
+
+          if [ "$http_code" -eq 200 ]; then
+            echo "Health check passed - database is active"
+          else
+            echo "Health check failed - database may need attention"
+            exit 1
+          fi
+
+      - name: Ping GraphQL Endpoint
+        run: |
+          echo "Pinging GraphQL endpoint..."
+          response=$(curl -s -X POST \
+            -H "Content-Type: application/json" \
+            -d '{"query":"{ __typename }"}' \
+            https://api-gateway-v2.vercel.app/graphql)
+
+          echo "GraphQL Response: $response"
+
+          if echo "$response" | grep -q "__typename"; then
+            echo "GraphQL endpoint healthy"
+          else
+            echo "GraphQL endpoint may have issues"
+          fi
