@@ -14,8 +14,8 @@
   },
   "build": {
     "env": {
-      "NEXT_PUBLIC_API_URL": "https://api-gateway-v2.vercel.app",
-      "NEXT_PUBLIC_GRAPHQL_ENDPOINT": "https://api-gateway-v2.vercel.app/graphql",
+      "NEXT_PUBLIC_API_URL": "https://api-gateway-v2-nunalabs-projects.vercel.app",
+      "NEXT_PUBLIC_GRAPHQL_ENDPOINT": "https://api-gateway-v2-nunalabs-projects.vercel.app/graphql",
       "NEXT_PUBLIC_NETWORK": "testnet",
       "STELLAR_RPC_URL": "https://soroban-testnet.stellar.org"
     }
@@ -25,7 +25,7 @@
       "source": "/api/(.*)",
       "headers": [
         { "key": "Access-Control-Allow-Credentials", "value": "true" },
-        { "key": "Access-Control-Allow-Origin", "value": "https://astro-launchpad-topaz.vercel.app" },
+        { "key": "Access-Control-Allow-Origin", "value": "https://astro-launchpad-topaz.vercel.app,https://web-nunalabs-projects.vercel.app" },
         { "key": "Access-Control-Allow-Methods", "value": "GET,POST,OPTIONS" },
         { "key": "Access-Control-Allow-Headers", "value": "Content-Type, Authorization, X-Admin-Key, X-Stellar-Address, X-Stellar-Signature, X-Stellar-Timestamp" }
       ]
@@ -34,7 +34,7 @@
   "rewrites": [
     {
       "source": "/graphql",
-      "destination": "https://api-gateway-v2.vercel.app/graphql"
+      "destination": "https://api-gateway-v2-nunalabs-projects.vercel.app/graphql"
     }
   ]
 }
