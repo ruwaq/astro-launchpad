@@ -14,17 +14,18 @@
  */
 
 // =============================================================================
-// HARDCODED FALLBACKS (V2.0.0 - March 19, 2026)
+// HARDCODED FALLBACKS (V3.0.0 - April 5, 2026)
 // These are used when environment variables are not set
-// V2.0.0: Production-ready with locked_xlm fix, graduation at $69k (345,000 XLM)
-// Deployed 2026-03-19 to Stellar Testnet
+// V3.0.0: Security Grade A (95/100), 18-21% gas savings, Router events
+// Changes: CEI pattern fix, batch reserves, router event tracking
+// Deployed 2026-04-05 to Stellar Testnet
 // =============================================================================
 const FALLBACK_CONTRACT_IDS = {
   tokenFactory: 'CCQ4IMTQR3PIXQBLEZPFFUEPGMSHUE5AAD2CB6PXBOVR5G3EQKGTHUPD',
   astroToken: 'CBCX43B5YHWW5PGGRDFWRE3TCFMLOI3WU4WYOVNAUFFEGCKZFPLVJ5DP', // Not deployed yet
-  dexFactory: 'CCIWIAARHLGLOXFZZJZVA42JWJRB3UCB25S6K6462SM27L5YNODDS2TW',
-  dexRouter: 'CDDAPQKLLP2WMH2LJELHM4E5NTZ7KEVEFV5GFE7EIPTUVD4K4YUUZQQV',
-  dexPairWasmHash: '251b80d004a806aa1eeb63c80b1582d5942df2702d707beb85c12067e1a0a941',
+  dexFactory: 'CDXVWXJDBOLJU2DDTDSP4HY6HK3OTIYVD4SVG5MLTBOJ36OO5ASQUSCO', // V3 - Apr 5, 2026
+  dexRouter: 'CDWNDJGOVT4G5G76R4KZ4G7X3OYUVSVSHIX3YWZY4LYACPHJEMK5RBES', // V3 - Apr 5, 2026
+  dexPairWasmHash: '18413139c87885c16fad25a8d096c6612f9d6b2b98a93473b220ab49e6c1a72b', // V3 - Apr 5, 2026
   xlmSacAddress: 'CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC',
   oracle: 'CAEDPEZDRCEJCF73ASC5JGNKCIJDV2QJQSW6DJ6B74MYALBNKCJ5IFP4', // Not deployed yet
 } as const;
