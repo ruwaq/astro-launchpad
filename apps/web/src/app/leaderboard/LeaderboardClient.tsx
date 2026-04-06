@@ -24,6 +24,7 @@ import { TrendingUp, Rocket, Users, Lock, Zap, Plus, Trophy, Coins } from 'lucid
 import type { LeaderboardEntry, Token, GlobalStats } from '@/lib/graphql/types';
 import { useQuery, gql } from '@apollo/client';
 import toast from 'react-hot-toast';
+import { BALANCE_POLL_INTERVAL_MS } from '@/lib/constants/app';
 
 // GraphQL query to fetch top token by volume
 const GET_TOP_TOKEN = gql`
@@ -92,7 +93,7 @@ export function LeaderboardClient({
 
   // Fetch top token for King of the Hill (with polling)
   const { data: topTokenData, loading: topTokenLoading, refetch: refetchTopToken } = useQuery(GET_TOP_TOKEN, {
-    pollInterval: 60000, // Refresh every minute
+    pollInterval: BALANCE_POLL_INTERVAL_MS, // Refresh every minute
   });
 
   // Listen for balance refresh events (triggered after trades) to update leaderboard

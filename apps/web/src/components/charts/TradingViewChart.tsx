@@ -215,7 +215,6 @@ export function TradingViewChart({ tokenAddress, symbol = 'TOKEN', refreshTrigge
       }
     } catch (err: unknown) {
       const error = err as { message?: string };
-      console.error('Error fetching price for chart:', error);
       setError(error.message || 'Failed to load chart data');
     } finally {
       setLoading(false);
@@ -237,7 +236,6 @@ export function TradingViewChart({ tokenAddress, symbol = 'TOKEN', refreshTrigge
   // Refresh when triggered by parent (e.g., after a trade)
   useEffect(() => {
     if (refreshTrigger > 0) {
-      console.log('[TradingViewChart] Refresh triggered, fetching new data...');
       refetchTx();
       fetchCurrentPrice();
     }

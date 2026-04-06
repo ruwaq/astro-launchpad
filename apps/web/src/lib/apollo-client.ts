@@ -37,11 +37,6 @@ const retryLink = new RetryLink({
       const isNetworkError = !!error && !error.result;
       const isServerError = error?.statusCode >= 500;
 
-      // Log retry attempts for debugging
-      if (isNetworkError || isServerError) {
-        console.warn('[Apollo Retry] Retrying request due to:', error?.message || 'Network error');
-      }
-
       return isNetworkError || isServerError;
     },
   },

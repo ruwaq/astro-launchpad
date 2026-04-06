@@ -16,6 +16,7 @@ import { stellarClient } from '@/lib/stellar/client';
 import { formatCompactNumber } from '@/lib/stellar/utils';
 import { sacFactoryService } from '@/lib/stellar/services/sac-factory.service';
 import { useBalanceRefresh } from '@/lib/events/balanceRefresh';
+import { RECENT_TRADES_POLL_INTERVAL_MS } from '@/lib/constants/app';
 
 interface UserBalanceDisplayProps {
   userAddress: string | null;
@@ -73,9 +74,8 @@ export const UserBalanceDisplay = memo(function UserBalanceDisplay({
           setXlmBalance(balance);
           onXlmBalanceChange?.(balance);
         }
-      } catch (horizonErr) {
+      } catch {
         // Account might not exist on Horizon yet (new account)
-        console.warn('Could not load account from Horizon:', horizonErr);
         if (isMountedRef.current) {
           setXlmBalance('0');
           onXlmBalanceChange?.('0');
@@ -106,16 +106,14 @@ export const UserBalanceDisplay = memo(function UserBalanceDisplay({
               onTokenBalanceChange?.('0');
             }
           }
-        } catch (tokenErr) {
-          console.warn('Could not fetch token balance:', tokenErr);
+        } catch {
           if (isMountedRef.current) {
             setTokenBalance('0');
             onTokenBalanceChange?.('0');
           }
         }
       }
-    } catch (err) {
-      console.error('Failed to fetch balances:', err);
+    } catch {
       if (isMountedRef.current) {
         setError('Failed to load balances');
       }
@@ -130,7 +128,7 @@ export const UserBalanceDisplay = memo(function UserBalanceDisplay({
     isMountedRef.current = true;
     fetchBalances();
     // Refresh every 15 seconds for more responsive updates
-    const interval = setInterval(fetchBalances, 15000);
+    const interval = setInterval(fetchBalances, RECENT_TRADES_POLL_INTERVAL_MS);
     return () => {
       isMountedRef.current = false;
       clearInterval(interval);
@@ -278,9 +276,7 @@ async function fetchSorobanTokenBalance(
     }
 
     return BigInt(0);
-  } catch (err) {
-    console.warn('Failed to fetch Soroban token balance:', err);
-
+  } catch {
     // Fallback: Try to get balance from Horizon for SAC tokens with classic issuer
     if (issuer && issuer.startsWith('G')) {
       try {

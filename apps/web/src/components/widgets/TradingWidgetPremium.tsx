@@ -40,6 +40,7 @@ import { TransactionBuilder, rpc, Operation, nativeToScVal, Address } from '@ste
 import { ensureTrustlineExists } from '@/lib/stellar/utils/trustline';
 import { getNetworkConfig } from '@/lib/config/network';
 import { CONTRACT_IDS } from '@/lib/stellar/config';
+import { TRANSACTION_FEE_STROOPS } from '@/lib/constants/app';
 import { stroopsToXlm, GRADUATION_THRESHOLD_XLM, addressToScVal } from '@/lib/stellar/utils';
 import toast from 'react-hot-toast';
 import confetti from 'canvas-confetti';
@@ -537,7 +538,7 @@ export function TradingWidgetPremium({
       // Build transaction
       const account = await server.getAccount(address);
       const txBuilder = new TransactionBuilder(account, {
-        fee: '1000000',
+        fee: TRANSACTION_FEE_STROOPS,
         networkPassphrase: config.passphrase,
       });
 
@@ -604,9 +605,7 @@ export function TradingWidgetPremium({
           if (error.message?.includes('Bad union switch')) {
             tradingLogger.warn('SDK version incompatibility detected, verifying via Horizon API');
             try {
-              const horizonUrl = process.env.NEXT_PUBLIC_STELLAR_NETWORK === 'mainnet'
-                ? 'https://horizon.stellar.org'
-                : 'https://horizon-testnet.stellar.org';
+              const horizonUrl = getNetworkConfig().horizonUrl;
               const horizonResponse = await fetch(`${horizonUrl}/transactions/${sendResponse.hash}`);
               if (horizonResponse.ok) {
                 const txData = await horizonResponse.json();

@@ -86,7 +86,6 @@ async function checkRateLimit(ip: string): Promise<{ allowed: boolean; remaining
       });
 
       if (!response.ok && response.status !== 404) {
-        console.error(`[RateLimit] KV GET failed: ${response.status}`);
         // Fallback to allowing the request on KV errors
         return { allowed: true, remaining: CONFIG.maxUploadsPerHour - 1, resetAt: now + CONFIG.rateLimitWindow * 1000 };
       }
@@ -119,7 +118,6 @@ async function checkRateLimit(ip: string): Promise<{ allowed: boolean; remaining
       });
 
       if (!incrResponse.ok) {
-        console.error(`[RateLimit] KV INCR failed: ${incrResponse.status}`);
       }
 
       return {
@@ -127,13 +125,10 @@ async function checkRateLimit(ip: string): Promise<{ allowed: boolean; remaining
         remaining: CONFIG.maxUploadsPerHour - currentCount - 1,
         resetAt: now + CONFIG.rateLimitWindow * 1000,
       };
-    } catch (error) {
-      console.error('[RateLimit] KV error, falling back to memory:', error);
+    } catch {
       // Fallback to memory on KV errors
     }
   } else if (process.env.NODE_ENV === 'production') {
-    // SECURITY WARNING: Log warning in production if KV is not configured
-    console.warn('[RateLimit] WARNING: Running in production without distributed rate limiting. Set KV_REST_API_URL and KV_REST_API_TOKEN for proper rate limiting across instances.');
   }
 
   // DEVELOPMENT/FALLBACK: In-memory rate limiting
@@ -238,7 +233,6 @@ export async function POST(request: NextRequest) {
 
     // SECURITY: Validate magic numbers to prevent MIME type spoofing
     if (!validateMagicNumber(inputBuffer, file.type)) {
-      console.warn(`[Upload] Magic number mismatch for IP ${ip}, claimed type: ${file.type}`);
       return NextResponse.json(
         { error: 'File content does not match declared type. Please upload a valid image.' },
         { status: 400 }

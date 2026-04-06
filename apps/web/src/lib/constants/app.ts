@@ -17,6 +17,8 @@ export const CREATE_TOKEN_FEE_XLM = 0.01;
 export const PRICE_POLL_INTERVAL_MS = 30_000; // 30 seconds
 export const BALANCE_POLL_INTERVAL_MS = 60_000; // 60 seconds
 export const RECENT_TRADES_POLL_INTERVAL_MS = 15_000; // 15 seconds
+export const TOKEN_TX_POLL_INTERVAL_MS = 10_000; // 10 seconds
+export const LEADERBOARD_POLL_INTERVAL_MS = 60_000; // 60 seconds
 export const WEBSOCKET_RECONNECT_INTERVAL_MS = 5_000; // 5 seconds
 
 // ===== UI Timing (milliseconds) =====
@@ -25,6 +27,10 @@ export const POLL_DELAY_MS = 1_000;
 export const REDIRECT_DELAY_MS = 3_000;
 export const CONFETTI_DELAY_MS = 500;
 export const SUCCESS_REDIRECT_DELAY_MS = 5_000;
+
+// ===== Transaction Confirmation =====
+export const TX_CONFIRMATION_MAX_ATTEMPTS = 30;
+export const TX_CONFIRMATION_POLL_MS = 1_000; // 1 second between polls
 
 // ===== Trading Limits =====
 export const MAX_HOLDINGS_PERCENTAGE = 50;

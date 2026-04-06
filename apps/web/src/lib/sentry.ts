@@ -8,7 +8,6 @@ const SENTRY_DSN = process.env.NEXT_PUBLIC_SENTRY_DSN;
  */
 export function initSentry(): void {
   if (!SENTRY_DSN) {
-    console.log('Sentry DSN not configured - error tracking disabled');
     return;
   }
 
@@ -50,7 +49,6 @@ export function captureError(
   context?: Record<string, unknown>
 ): void {
   if (!SENTRY_DSN) {
-    console.error('Error (Sentry disabled):', error, context);
     return;
   }
 

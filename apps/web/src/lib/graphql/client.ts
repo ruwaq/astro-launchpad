@@ -45,8 +45,7 @@ export function clearAuthHeaders() {
  */
 export function resetApolloCache() {
   // Use clearStore for a complete cache reset (safer than resetStore)
-  apolloClient.clearStore().catch((err) => {
-    console.warn('Failed to clear Apollo cache:', err);
+  apolloClient.clearStore().catch(() => {
   });
 }
 

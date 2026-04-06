@@ -10,6 +10,7 @@ import { sacFactoryService } from '@/lib/stellar/services/sac-factory.service';
 import { stellarClient } from '@/lib/stellar/client';
 import { TransactionBuilder, rpc, Address } from '@stellar/stellar-sdk';
 import { getNetworkConfig } from '@/lib/config/network';
+import { TRANSACTION_FEE_STROOPS, STELLAR_EXPLORER_BASE_URL } from '@/lib/constants/app';
 import type {
   ContractOperation,
   StellarTransaction,
@@ -260,7 +261,7 @@ export default function CreatePage() {
 
       // Create transaction
       const transaction = new TransactionBuilder(account, {
-        fee: '1000000', // 0.1 XLM fee
+        fee: TRANSACTION_FEE_STROOPS,
         networkPassphrase: config.passphrase,
       })
         .addOperation(launchOperation as ContractOperation)
@@ -349,9 +350,7 @@ export default function CreatePage() {
             logger.warn('SDK version incompatibility detected, verifying via Horizon API');
             try {
               // Use Horizon API to check transaction status directly
-              const horizonUrl = process.env.NEXT_PUBLIC_STELLAR_NETWORK === 'mainnet'
-                ? 'https://horizon.stellar.org'
-                : 'https://horizon-testnet.stellar.org';
+              const horizonUrl = getNetworkConfig().horizonUrl;
               const horizonResponse = await fetch(`${horizonUrl}/transactions/${sendResponse.hash}`);
               if (horizonResponse.ok) {
                 const txData = await horizonResponse.json();
@@ -563,7 +562,7 @@ export default function CreatePage() {
                   </button>
                   {transactionHash && (
                     <a
-                      href={`https://stellar.expert/explorer/testnet/tx/${transactionHash}`}
+                      href={`${STELLAR_EXPLORER_BASE_URL}/tx/${transactionHash}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"

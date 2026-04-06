@@ -196,7 +196,6 @@ export const LiveActivityFeed = memo(function LiveActivityFeed({
   // Refresh when triggered by parent (e.g., after a trade)
   useEffect(() => {
     if (refreshTrigger > 0) {
-      console.log('[LiveActivityFeed] Refresh triggered, fetching new data...');
       refetchTx();
     }
   }, [refreshTrigger, refetchTx]);

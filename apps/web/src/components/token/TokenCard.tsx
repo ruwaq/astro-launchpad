@@ -17,6 +17,7 @@ import { TrendingUp, TrendingDown, Users, DollarSign } from 'lucide-react';
 import { useToken } from '@/hooks/useToken';
 import { usePrice } from '@/hooks/usePrice';
 import { stroopsToXlm, formatCompactNumber, GRADUATION_THRESHOLD_STROOPS } from '@/lib/stellar/utils';
+import { PRICE_POLL_INTERVAL_MS, WEBSOCKET_RECONNECT_INTERVAL_MS } from '@/lib/constants/app';
 
 interface TokenCardProps {
   tokenAddress: string;
@@ -36,11 +37,11 @@ interface TokenCardProps {
  */
 export const TokenCard = memo(function TokenCard({ tokenAddress, compact = false, onClick }: TokenCardProps) {
   const { token, isLoading, error } = useToken(tokenAddress, {
-    refreshInterval: 30000, // Refresh every 30s
+    refreshInterval: PRICE_POLL_INTERVAL_MS, // Refresh every 30s
   });
 
   const { price, priceDirection, priceChange24h } = usePrice(tokenAddress, {
-    interval: 5000, // Price updates every 5s
+    interval: WEBSOCKET_RECONNECT_INTERVAL_MS, // Price updates every 5s
   });
 
   // Loading skeleton

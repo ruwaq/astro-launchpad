@@ -216,16 +216,8 @@ export function toStroopsBigInt(amount: number | string, decimals: number = 7): 
  */
 export class SacFactoryService extends BaseContractService {
   constructor() {
-    // Use environment variable or fallback to V7 Contract ID (Dec 3, 2024 - pump.fun style, 30k XLM graduation)
-    const contractId = CONTRACT_IDS.tokenFactory || 'CBNQZ3NE5CUAZVDTI34FGMABOV26EOHGCVXU5F7KLRFSGMC33W7U225Z';
-
-    if (!CONTRACT_IDS.tokenFactory) {
-      logger.warn(
-        'SAC Factory contract ID not configured in env vars. Using fallback: CBNQZ3NE5CUAZVDTI34FGMABOV26EOHGCVXU5F7KLRFSGMC33W7U225Z'
-      );
-    }
-
-    super(contractId);
+    // CONTRACT_IDS.tokenFactory already resolves through env vars with a canonical fallback
+    super(CONTRACT_IDS.tokenFactory);
   }
 
   // ========== Read-Only Methods ==========

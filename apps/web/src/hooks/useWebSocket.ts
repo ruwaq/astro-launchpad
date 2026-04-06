@@ -190,8 +190,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
           // Reset heartbeat timer
           break;
       }
-    } catch (error) {
-      console.error('Failed to parse WebSocket message:', error);
+    } catch {
     }
   }, [onMessage, onPriceUpdate, onTransaction, onGraduation, onNewToken]);
 
@@ -207,7 +206,6 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
       wsRef.current = new WebSocket(url);
 
       wsRef.current.onopen = () => {
-        console.log('WebSocket connected');
         updateConnectionState('connected');
         reconnectAttemptsRef.current = 0;
         startHeartbeat();
@@ -225,7 +223,6 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
       };
 
       wsRef.current.onclose = () => {
-        console.log('WebSocket disconnected');
         updateConnectionState('disconnected');
         stopHeartbeat();
 
@@ -258,8 +255,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
       };
 
       wsRef.current.onmessage = handleMessage;
-    } catch (error) {
-      console.error('Failed to connect WebSocket:', error);
+    } catch {
       updateConnectionState('disconnected');
     }
   }, [

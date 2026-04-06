@@ -14,12 +14,9 @@
 import { LeaderboardClient } from './LeaderboardClient';
 import type { Metadata } from 'next';
 import type { LeaderboardEntry, Token, GlobalStats } from '@/lib/graphql/types';
+import { GRAPHQL_ENDPOINT } from '@/lib/constants/app';
 
-// GraphQL endpoint - use explicit GRAPHQL_ENDPOINT or fallback to production
-const GRAPHQL_URL =
-  process.env.NEXT_PUBLIC_GRAPHQL_ENDPOINT ||
-  (process.env.NEXT_PUBLIC_API_URL ? `${process.env.NEXT_PUBLIC_API_URL}/graphql` : null) ||
-  'https://api-gateway-v2.vercel.app/graphql';
+const GRAPHQL_URL = GRAPHQL_ENDPOINT;
 
 /**
  * Fetch leaderboard data from GraphQL API
@@ -89,14 +86,12 @@ async function getLeaderboardData(): Promise<{
     });
 
     if (!res.ok) {
-      console.error('[SSR] Failed to fetch leaderboard data:', res.status);
       return { leaderboard: [], stats: null, topToken: null };
     }
 
     const { data, errors } = await res.json();
 
     if (errors) {
-      console.error('[SSR] GraphQL errors:', errors);
       return { leaderboard: [], stats: null, topToken: null };
     }
 
@@ -105,8 +100,7 @@ async function getLeaderboardData(): Promise<{
       stats: data?.globalStats || null,
       topToken: data?.tokens?.edges?.[0]?.node || null,
     };
-  } catch (error) {
-    console.error('[SSR] Error fetching leaderboard data:', error);
+  } catch {
     return { leaderboard: [], stats: null, topToken: null };
   }
 }

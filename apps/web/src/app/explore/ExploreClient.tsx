@@ -30,6 +30,7 @@ import { useQuery, gql } from '@apollo/client';
 import type { Token, TokenEdge, PageInfo } from '@/lib/graphql/types';
 import { useDebounce } from '@/hooks/useDebounce';
 import { SearchResultsAnnouncer } from '@/components/accessibility/LiveRegion';
+import { PRICE_POLL_INTERVAL_MS } from '@/lib/constants/app';
 
 type SortOption = 'trending' | 'new' | 'marketCap' | 'volume' | 'graduation';
 type StatusFilter = 'ALL' | 'BONDING' | 'GRADUATED';
@@ -126,7 +127,7 @@ export function ExploreClient({ initialTokens }: ExploreClientProps) {
   // Apollo takes over for real-time updates
   const { data: tokensData, loading: tokensLoading, error: tokensError, fetchMore } = useQuery(GET_TOKENS, {
     variables: queryVariables,
-    pollInterval: 30000,
+    pollInterval: PRICE_POLL_INTERVAL_MS,
     notifyOnNetworkStatusChange: true,
   });
 

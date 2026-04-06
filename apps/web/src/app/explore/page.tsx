@@ -14,12 +14,9 @@
 import { ExploreClient } from './ExploreClient';
 import type { Metadata } from 'next';
 import type { TokenEdge, PageInfo } from '@/lib/graphql/types';
+import { GRAPHQL_ENDPOINT } from '@/lib/constants/app';
 
-// GraphQL endpoint - use explicit GRAPHQL_ENDPOINT or fallback to production
-const GRAPHQL_URL =
-  process.env.NEXT_PUBLIC_GRAPHQL_ENDPOINT ||
-  (process.env.NEXT_PUBLIC_API_URL ? `${process.env.NEXT_PUBLIC_API_URL}/graphql` : null) ||
-  'https://api-gateway-v2.vercel.app/graphql';
+const GRAPHQL_URL = GRAPHQL_ENDPOINT;
 
 interface TokensConnection {
   edges: TokenEdge[];
@@ -79,7 +76,6 @@ async function getInitialTokens(): Promise<TokensConnection> {
     });
 
     if (!res.ok) {
-      console.error('[SSR] Failed to fetch tokens:', res.status);
       return {
         edges: [],
         pageInfo: { hasNextPage: false, hasPreviousPage: false, endCursor: null },
@@ -90,7 +86,6 @@ async function getInitialTokens(): Promise<TokensConnection> {
     const { data, errors } = await res.json();
 
     if (errors) {
-      console.error('[SSR] GraphQL errors:', errors);
       return {
         edges: [],
         pageInfo: { hasNextPage: false, hasPreviousPage: false, endCursor: null },
@@ -103,8 +98,7 @@ async function getInitialTokens(): Promise<TokensConnection> {
       pageInfo: data?.tokens?.pageInfo || { hasNextPage: false, hasPreviousPage: false, endCursor: null },
       totalCount: data?.tokens?.totalCount || 0,
     };
-  } catch (error) {
-    console.error('[SSR] Error fetching tokens:', error);
+  } catch {
     return {
       edges: [],
       pageInfo: { hasNextPage: false, hasPreviousPage: false, endCursor: null },

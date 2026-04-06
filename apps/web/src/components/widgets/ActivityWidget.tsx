@@ -3,6 +3,7 @@
 import { useRecentTransactions } from '@/hooks/useApi';
 import { truncateAddress, getTimeAgo, formatCompactNumber } from '@/lib/stellar/utils';
 import type { Transaction, TransactionEdge } from '@/lib/graphql/types';
+import { getBlockExplorer } from '@/lib/stellar/config';
 
 export function ActivityWidget() {
   const { data, loading } = useRecentTransactions(10);
@@ -102,7 +103,7 @@ export function ActivityWidget() {
                     ${formatCompactNumber(parseFloat(tx.amountUSD || '0'))}
                   </div>
                   <a
-                    href={`https://testnet.stellarchain.io/transactions/${tx.txHash}`}
+                    href={getBlockExplorer().tx(tx.txHash)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-xs text-blue-600 hover:text-blue-800"

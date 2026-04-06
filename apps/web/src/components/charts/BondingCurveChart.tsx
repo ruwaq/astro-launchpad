@@ -55,7 +55,6 @@ export const BondingCurveChart = memo(function BondingCurveChart({
 
       // Token info is required
       if (infoResult.status === 'rejected') {
-        console.error('Failed to fetch token info:', infoResult.reason);
         return;
       }
 
@@ -88,8 +87,7 @@ export const BondingCurveChart = memo(function BondingCurveChart({
       }
 
       lastXlmRef.current = newXlm;
-    } catch (err) {
-      console.error('Error:', err);
+    } catch {
     } finally {
       setLoading(false);
     }

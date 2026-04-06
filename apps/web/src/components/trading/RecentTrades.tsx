@@ -14,6 +14,7 @@ import { useQuery } from '@apollo/client';
 import { gql } from '@apollo/client';
 import { Loader2, TrendingUp, TrendingDown, ExternalLink } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+import { STELLAR_EXPLORER_BASE_URL, RECENT_TRADES_POLL_INTERVAL_MS } from '@/lib/constants/app';
 
 const RECENT_TRADES_QUERY = gql`
   query RecentTrades($tokenAddress: String!) {
@@ -120,7 +121,7 @@ const TradeItem = memo(function TradeItem({ trade, tokenSymbol }: TradeItemProps
         <span className="text-xs text-ui-text-tertiary">{timeAgo}</span>
         {trade.hash && (
           <a
-            href={`https://stellar.expert/explorer/testnet/tx/${trade.hash}`}
+            href={`${STELLAR_EXPLORER_BASE_URL}/tx/${trade.hash}`}
             target="_blank"
             rel="noopener noreferrer"
             className="text-ui-text-tertiary hover:text-brand-primary transition-colors"
@@ -141,7 +142,7 @@ export const RecentTrades = memo(function RecentTrades({ tokenAddress }: RecentT
   // Fetch real trades from GraphQL
   const { data, loading, error } = useQuery(RECENT_TRADES_QUERY, {
     variables: { tokenAddress },
-    pollInterval: 15000, // Update every 15 seconds (reduced from 3s to minimize API load)
+    pollInterval: RECENT_TRADES_POLL_INTERVAL_MS, // Update every 15 seconds (reduced from 3s to minimize API load)
   });
 
   if (loading) {

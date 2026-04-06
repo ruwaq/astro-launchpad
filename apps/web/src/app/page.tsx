@@ -15,12 +15,9 @@
 
 import { HomeClient } from './HomeClient';
 import type { Metadata } from 'next';
+import { GRAPHQL_ENDPOINT } from '@/lib/constants/app';
 
-// GraphQL endpoint - use explicit GRAPHQL_ENDPOINT or fallback to production
-const GRAPHQL_URL =
-  process.env.NEXT_PUBLIC_GRAPHQL_ENDPOINT ||
-  (process.env.NEXT_PUBLIC_API_URL ? `${process.env.NEXT_PUBLIC_API_URL}/graphql` : null) ||
-  'https://api-gateway-v2.vercel.app/graphql';
+const GRAPHQL_URL = GRAPHQL_ENDPOINT;
 
 /**
  * Fetch token count from GraphQL API
@@ -46,20 +43,17 @@ async function getTokenCount(): Promise<number> {
     });
 
     if (!res.ok) {
-      console.error('[SSR] Failed to fetch token count:', res.status);
       return 0;
     }
 
     const { data, errors } = await res.json();
 
     if (errors) {
-      console.error('[SSR] GraphQL errors:', errors);
       return 0;
     }
 
     return data?.globalStats?.totalTokens ?? 0;
-  } catch (error) {
-    console.error('[SSR] Error fetching token count:', error);
+  } catch {
     return 0;
   }
 }

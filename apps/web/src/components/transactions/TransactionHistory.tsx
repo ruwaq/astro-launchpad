@@ -4,6 +4,7 @@ import Image from 'next/image';
 import { useUserTransactions } from '@/hooks/useApi';
 import { truncateAddress, getTimeAgo, formatCompactNumber } from '@/lib/stellar/utils';
 import type { Transaction, TransactionEdge } from '@/lib/graphql/types';
+import { getBlockExplorer } from '@/lib/stellar/config';
 
 interface TransactionHistoryProps {
   userAddress: string;
@@ -141,7 +142,7 @@ export function TransactionHistory({ userAddress, limit = 20 }: TransactionHisto
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-xs">
                       <a
-                        href={`https://testnet.stellarchain.io/transactions/${tx.txHash}`}
+                        href={getBlockExplorer().tx(tx.txHash)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-blue-600 hover:text-blue-800"

@@ -23,6 +23,7 @@ import {
 import { useQuery, gql } from '@apollo/client';
 import { formatCompactNumber, stroopsToXlm } from '@/lib/stellar/utils';
 import { getNetworkConfig } from '@/lib/config/network';
+import { TOKEN_TX_POLL_INTERVAL_MS } from '@/lib/constants/app';
 
 // GraphQL query for token transactions
 const GET_TOKEN_TRANSACTIONS = gql`
@@ -129,14 +130,13 @@ export const TokenTransactionHistory = memo(function TokenTransactionHistory({
 
   const { data, loading, error, refetch } = useQuery(GET_TOKEN_TRANSACTIONS, {
     variables: { tokenAddress, limit },
-    pollInterval: 10000, // Refresh every 10 seconds for better real-time experience
+    pollInterval: TOKEN_TX_POLL_INTERVAL_MS, // Refresh every 10 seconds for better real-time experience
     skip: !tokenAddress,
   });
 
   // Refresh when triggered by parent (e.g., after a trade)
   useEffect(() => {
     if (refreshTrigger > 0) {
-      console.log('[TokenTransactionHistory] Refresh triggered, fetching new data...');
       refetch();
     }
   }, [refreshTrigger, refetch]);

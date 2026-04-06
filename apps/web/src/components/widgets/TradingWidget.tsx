@@ -24,6 +24,7 @@ import { stellarClient, getClientDeadline } from '@/lib/stellar/client';
 import { TransactionBuilder, rpc } from '@stellar/stellar-sdk';
 import { ensureTrustlineExists } from '@/lib/stellar/utils/trustline';
 import { getNetworkConfig } from '@/lib/config/network';
+import { TRANSACTION_FEE_STROOPS } from '@/lib/constants/app';
 import toast from 'react-hot-toast';
 import { useQuery, gql } from '@apollo/client';
 
@@ -323,7 +324,7 @@ export const TradingWidget = memo(function TradingWidget() {
 
         const account = await server.getAccount(address);
         const txBuilder = new TransactionBuilder(account, {
-          fee: '1000000',
+          fee: TRANSACTION_FEE_STROOPS,
           networkPassphrase: config.passphrase,
         });
 
@@ -419,9 +420,7 @@ export const TradingWidget = memo(function TradingWidget() {
             // Don't assume success on SDK errors - verify via Horizon
             if (error.message?.includes('Bad union switch')) {
               try {
-                const horizonUrl = process.env.NEXT_PUBLIC_STELLAR_NETWORK === 'mainnet'
-                  ? 'https://horizon.stellar.org'
-                  : 'https://horizon-testnet.stellar.org';
+                const horizonUrl = getNetworkConfig().horizonUrl;
                 const horizonResponse = await fetch(`${horizonUrl}/transactions/${sendResponse.hash}`);
                 if (horizonResponse.ok) {
                   const txData = await horizonResponse.json();

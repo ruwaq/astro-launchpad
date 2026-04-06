@@ -43,7 +43,6 @@ function verifyAndExtractChallenge(challengeToken: string): ChallengePayload | n
       Buffer.from(signature),
       Buffer.from(expectedSignature)
     )) {
-      console.error('Invalid challenge token signature');
       return null;
     }
 
@@ -52,13 +51,11 @@ function verifyAndExtractChallenge(challengeToken: string): ChallengePayload | n
 
     // Check expiration
     if (parsedPayload.expiresAt < Date.now()) {
-      console.error('Challenge token expired');
       return null;
     }
 
     return parsedPayload;
-  } catch (error) {
-    console.error('Error parsing challenge token:', error);
+  } catch {
     return null;
   }
 }

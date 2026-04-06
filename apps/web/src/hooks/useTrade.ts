@@ -14,6 +14,7 @@ import { tradingLogger } from '@/lib/logger';
 import { sacFactoryService, toStroopsBigInt, type TokenInfo } from '@/lib/stellar/services/sac-factory.service';
 import { stellarClient, getClientDeadline } from '@/lib/stellar/client';
 import { getNetworkConfig } from '@/lib/config/network';
+import { TRANSACTION_FEE_STROOPS } from '@/lib/constants/app';
 import { ensureTrustlineExists } from '@/lib/stellar/utils/trustline';
 import { parseContractError, extractSimulationError } from '@/components/widgets/trading/error-utils';
 import { useRateLimit, RATE_LIMIT_CONFIGS } from '@/hooks/useRateLimit';
@@ -212,7 +213,7 @@ export function useTrade({
       // Build transaction
       const account = await server.getAccount(address);
       const txBuilder = new TransactionBuilder(account, {
-        fee: '1000000',
+        fee: TRANSACTION_FEE_STROOPS,
         networkPassphrase: config.passphrase,
       });
 
@@ -279,9 +280,7 @@ export function useTrade({
           if (error.message?.includes('Bad union switch')) {
             tradingLogger.warn('SDK version incompatibility detected, verifying via Horizon API');
             try {
-              const horizonUrl = process.env.NEXT_PUBLIC_STELLAR_NETWORK === 'mainnet'
-                ? 'https://horizon.stellar.org'
-                : 'https://horizon-testnet.stellar.org';
+              const horizonUrl = getNetworkConfig().horizonUrl;
               const horizonResponse = await fetch(`${horizonUrl}/transactions/${sendResponse.hash}`);
               if (horizonResponse.ok) {
                 const txData = await horizonResponse.json();
