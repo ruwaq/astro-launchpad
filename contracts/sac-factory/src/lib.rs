@@ -1301,10 +1301,14 @@ impl SacFactory {
     /// * `wallet` - Wallet address to reset
     /// * `actual_balance` - The actual token balance (get from token.balance())
     ///
-    /// # Example
+    /// # Usage
     /// If a wallet has 1000 tokens but internal tracking shows 50000:
-    /// ```
-    /// reset_wallet_holdings(admin, wallet, 1000_0000000) // 1000 tokens with 7 decimals
+    /// ```bash
+    /// soroban contract invoke --id $CONTRACT_ID -- \
+    ///   reset_wallet_holdings \
+    ///   --admin $ADMIN_ADDR \
+    ///   --wallet $WALLET_ADDR \
+    ///   --actual_balance 10000000000  # 1000 tokens with 7 decimals
     /// ```
     pub fn reset_wallet_holdings(
         env: Env,
