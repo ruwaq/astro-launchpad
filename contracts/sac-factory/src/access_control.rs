@@ -9,6 +9,17 @@ use soroban_sdk::{contracttype, Address, Env};
 use crate::errors::Error;
 use crate::events;
 
+/// Persistent storage TTL constants (matching storage.rs)
+const PERSISTENT_TTL_THRESHOLD: u32 = 518_400;
+const PERSISTENT_TTL_EXTEND: u32 = 518_400;
+
+/// Extend TTL for a persistent storage key
+fn extend_persistent_ttl(env: &Env, key: &AccessControlKey) {
+    env.storage()
+        .persistent()
+        .extend_ttl(key, PERSISTENT_TTL_THRESHOLD, PERSISTENT_TTL_EXTEND);
+}
+
 /// Available roles in the system
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq, Copy)]
@@ -35,7 +46,11 @@ pub enum AccessControlKey {
 /// Check if an address has a specific role
 pub fn has_role(env: &Env, account: &Address, role: Role) -> bool {
     let key = AccessControlKey::Role(account.clone(), role);
-    env.storage().persistent().get(&key).unwrap_or(false)
+    let has = env.storage().persistent().get(&key).unwrap_or(false);
+    if has {
+        extend_persistent_ttl(env, &key);
+    }
+    has
 }
 
 /// Require that an address has a specific role, panic otherwise
@@ -56,6 +71,7 @@ pub fn grant_role(env: &Env, granter: &Address, account: &Address, role: Role) -
     // Set the role
     let key = AccessControlKey::Role(account.clone(), role);
     env.storage().persistent().set(&key, &true);
+    extend_persistent_ttl(env, &key);
 
     // Emit event
     events::role_granted(env, account, role);
@@ -99,6 +115,7 @@ pub fn transfer_ownership(env: &Env, current_owner: &Address, new_owner: &Addres
     // Grant to new
     let key_new = AccessControlKey::Role(new_owner.clone(), Role::Owner);
     env.storage().persistent().set(&key_new, &true);
+    extend_persistent_ttl(env, &key_new);
 
     // Emit event
     events::ownership_transferred(env, current_owner, new_owner);
@@ -110,6 +127,7 @@ pub fn transfer_ownership(env: &Env, current_owner: &Address, new_owner: &Addres
 pub fn initialize_access_control(env: &Env, owner: &Address) {
     let key = AccessControlKey::Role(owner.clone(), Role::Owner);
     env.storage().persistent().set(&key, &true);
+    extend_persistent_ttl(env, &key);
 }
 
 /// Check if address has any of the specified roles
@@ -157,6 +175,7 @@ pub fn grant_roles_batch(
     for role in roles {
         let key = AccessControlKey::Role(account.clone(), *role);
         env.storage().persistent().set(&key, &true);
+        extend_persistent_ttl(env, &key);
         events::role_granted(env, account, *role);
     }
 

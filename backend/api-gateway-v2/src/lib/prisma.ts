@@ -10,6 +10,7 @@
  */
 
 import { PrismaClient, Prisma } from '@prisma/client'
+import { env } from '../config/env.js'
 
 // Re-export all types from Prisma Client
 export * from '@prisma/client'
@@ -23,7 +24,7 @@ const isTest = process.env.NODE_ENV === 'test'
  * Supabase requires SSL for external connections
  */
 function getDatabaseUrl(): string {
-  const url = process.env.DATABASE_URL || 'postgresql://localhost:5432/astro'
+  const url = env.DATABASE_URL
 
   // If it's a Supabase URL and doesn't have SSL params, add them
   if (url.includes('supabase.co') && !url.includes('sslmode=')) {

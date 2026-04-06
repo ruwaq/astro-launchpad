@@ -227,7 +227,7 @@ impl SacFactory {
         // Store token info
         storage::set_token_info(&env, &token_address, &token_info);
         storage::add_creator_token(&env, &creator, &token_address);
-        storage::increment_token_count(&env);
+        storage::increment_token_count(&env)?;
 
         // FIX #M8: Mark symbol as used
         storage::mark_symbol_used(&env, &symbol);
@@ -348,7 +348,7 @@ impl SacFactory {
         // Store token info
         storage::set_token_info(&env, &token_address, &token_info);
         storage::add_creator_token(&env, &creator, &token_address);
-        storage::increment_token_count(&env);
+        storage::increment_token_count(&env)?;
 
         // FIX #M8: Mark symbol as used
         storage::mark_symbol_used(&env, &symbol);
@@ -1367,7 +1367,9 @@ impl SacFactory {
         }
 
         // Total ASTRO allocation should not exceed 20%
-        let total_bps = liquidity_bps + buyback_bps;
+        let total_bps = liquidity_bps
+            .checked_add(buyback_bps)
+            .ok_or(Error::Overflow)?;
         if total_bps > 2000 {
             return Err(Error::FeeTooHigh);
         }
@@ -1450,7 +1452,11 @@ impl SacFactory {
         }
 
         let buyback_bps = storage::get_astro_buyback_bps(&env);
-        if new_liquidity_bps + buyback_bps > 2000 {
+        if new_liquidity_bps
+            .checked_add(buyback_bps)
+            .ok_or(Error::Overflow)?
+            > 2000
+        {
             return Err(Error::FeeTooHigh);
         }
 
@@ -1472,7 +1478,11 @@ impl SacFactory {
         }
 
         let liquidity_bps = storage::get_astro_liquidity_bps(&env);
-        if liquidity_bps + new_buyback_bps > 2000 {
+        if liquidity_bps
+            .checked_add(new_buyback_bps)
+            .ok_or(Error::Overflow)?
+            > 2000
+        {
             return Err(Error::FeeTooHigh);
         }
 

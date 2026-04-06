@@ -383,7 +383,7 @@ pub fn collect_creation_fee(
     {
         // Get XLM token address from storage (set during initialization)
         let xlm_token_address = crate::storage::get_xlm_token_address(env)
-            .expect("XLM token address not configured - contract not initialized");
+            .ok_or(Error::NotInitialized)?;
 
         let xlm_client = token::Client::new(env, &xlm_token_address);
 

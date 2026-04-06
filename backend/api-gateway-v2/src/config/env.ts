@@ -17,7 +17,7 @@ const envSchema = z.object({
   ),
 
   // Database
-  DATABASE_URL: z.string().min(1, 'DATABASE_URL is required').default('postgresql://localhost:5432/astro'),
+  DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
   DIRECT_DATABASE_URL: z.string().optional(),
 
   // Stellar/Soroban (preprocess to trim whitespace from env values)
@@ -118,7 +118,7 @@ function parseEnv(): Env {
         return envSchema.parse({
           ...process.env,
           NODE_ENV: 'production',
-          DATABASE_URL: process.env.DATABASE_URL || 'postgresql://localhost:5432/astro',
+          DATABASE_URL: process.env.DATABASE_URL || '',
           STELLAR_RPC_URL: process.env.STELLAR_RPC_URL || 'https://soroban-testnet.stellar.org',
           TOKEN_FACTORY_CONTRACT_ID: process.env.TOKEN_FACTORY_CONTRACT_ID || '',
         })

@@ -135,9 +135,11 @@ pub fn set_token_count(env: &Env, count: u32) {
     env.storage().instance().set(&InstanceKey::TokenCount, &count);
 }
 
-pub fn increment_token_count(env: &Env) {
+pub fn increment_token_count(env: &Env) -> Result<(), crate::errors::Error> {
     let count = get_token_count(env);
-    set_token_count(env, count.saturating_add(1));
+    let new_count = count.checked_add(1).ok_or(crate::errors::Error::Overflow)?;
+    set_token_count(env, new_count);
+    Ok(())
 }
 
 pub fn get_oracle_address(env: &Env) -> Option<Address> {

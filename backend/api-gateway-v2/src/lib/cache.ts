@@ -247,9 +247,15 @@ export async function cacheDelPattern(pattern: string): Promise<number> {
       return 0
     }
 
-    // Standard Redis
+    // Standard Redis — use SCAN instead of KEYS to avoid blocking the server
     const redis = client as IORedis
-    const keys = await redis.keys(pattern)
+    const keys: string[] = []
+    let cursor = '0'
+    do {
+      const [nextCursor, batch] = await redis.scan(cursor, 'MATCH', pattern, 'COUNT', 100)
+      cursor = nextCursor
+      keys.push(...batch)
+    } while (cursor !== '0')
     if (keys.length === 0) return 0
 
     await redis.del(...keys)
