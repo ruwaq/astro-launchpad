@@ -3,7 +3,7 @@
  *
  * Minimal chart showing price/cap movement over time
  * - Simple green line chart with area fill
- * - Graduation target line (DEX at 30,000 XLM)
+ * - Graduation target line (DEX at 34,500 XLM)
  * - Cap/Price toggle
  * - Real-time updates using series.update()
  *

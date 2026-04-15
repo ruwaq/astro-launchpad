@@ -4,9 +4,9 @@
  */
 
 // ===== Graduation Thresholds =====
-export const GRADUATION_THRESHOLD_XLM = 30_000;
-export const GRADUATION_THRESHOLD_STROOPS = BigInt(300_000_000_000);
-export const GRADUATION_THRESHOLD_DISPLAY = '30,000 XLM';
+export const GRADUATION_THRESHOLD_XLM = 34_500;
+export const GRADUATION_THRESHOLD_STROOPS = BigInt(345_000_000_000);
+export const GRADUATION_THRESHOLD_DISPLAY = '34,500 XLM';
 
 // ===== Transaction Fees =====
 export const TRANSACTION_FEE_STROOPS = '1000000'; // 0.1 XLM

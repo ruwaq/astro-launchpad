@@ -34,15 +34,15 @@ describe('Stellar Utils - Constants', () => {
   });
 
   it('should have correct GRADUATION_THRESHOLD_XLM', () => {
-    expect(GRADUATION_THRESHOLD_XLM).toBe(30_000);
+    expect(GRADUATION_THRESHOLD_XLM).toBe(34_500);
   });
 
   it('should have correct GRADUATION_THRESHOLD_STROOPS', () => {
-    expect(GRADUATION_THRESHOLD_STROOPS).toBe(300_000_000_000n);
+    expect(GRADUATION_THRESHOLD_STROOPS).toBe(345_000_000_000n);
   });
 
   it('should have consistent graduation thresholds', () => {
-    // 30,000 XLM * 10,000,000 stroops/XLM = 300,000,000,000 stroops
+    // 34,500 XLM * 10,000,000 stroops/XLM = 345,000,000,000 stroops
     expect(BigInt(GRADUATION_THRESHOLD_XLM) * STROOPS_PER_XLM).toBe(
       GRADUATION_THRESHOLD_STROOPS
     );

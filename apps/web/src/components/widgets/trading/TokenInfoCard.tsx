@@ -5,8 +5,8 @@ import { STROOPS_PER_XLM } from './constants';
 import type { TokenOption } from './types';
 
 // Fee constants matching the contract
-const PROTOCOL_FEE_BPS = 5; // 0.05%
-const LP_FEE_BPS = 25; // 0.25%
+const PROTOCOL_FEE_BPS = 15; // 0.15%
+const LP_FEE_BPS = 15; // 0.15%
 const TOTAL_FEE_BPS = PROTOCOL_FEE_BPS + LP_FEE_BPS; // 0.30%
 
 interface TokenInfoCardProps {

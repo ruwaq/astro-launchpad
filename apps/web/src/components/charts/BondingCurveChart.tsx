@@ -2,7 +2,7 @@
  * Bonding Curve Progress Chart
  *
  * Shows graduation progress visually:
- * - Progress bar toward $69k graduation (30k XLM)
+ * - Progress bar toward $69k graduation (34.5k XLM)
  * - Price line showing movement
  * - Green when trending up / Red when trending down
  */
@@ -231,7 +231,7 @@ export const BondingCurveChart = memo(function BondingCurveChart({
           {/* Graduation marker at 100% */}
           <div
             className="absolute top-0 right-0 h-3 w-0.5 bg-green-600 rounded-full"
-            title="Graduation: 30k XLM"
+            title="Graduation: 34.5k XLM"
           />
         </div>
 

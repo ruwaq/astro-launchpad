@@ -24,9 +24,9 @@ const FEE_EVENT_TOPICS = {
 };
 
 // Default fee values (must match contract's fee_management.rs)
-const DEFAULT_PROTOCOL_FEE_BPS = 5;
-const DEFAULT_LP_FEE_BPS = 25;
-const DEFAULT_CREATION_FEE = '100000000'; // 10 XLM in stroops
+const DEFAULT_PROTOCOL_FEE_BPS = 15;
+const DEFAULT_LP_FEE_BPS = 15;
+const DEFAULT_CREATION_FEE = '50000000'; // 5 XLM in stroops
 
 export class FeeEventHandler {
   constructor(private prisma: PrismaClient) {}

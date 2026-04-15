@@ -58,11 +58,11 @@ export const STROOPS_PER_XLM = 10_000_000n;
 /**
  * Graduation threshold for tokens to move from bonding curve to DEX
  * When a token raises this amount of XLM, it "graduates"
- * V7 Contract: 30,000 XLM (pump.fun style)
+ * V6 Contract: 34,500 XLM (pump.fun style)
  */
-export const GRADUATION_THRESHOLD_XLM = 30_000;
-/** Graduation threshold in stroops (30,000 XLM) */
-export const GRADUATION_THRESHOLD_STROOPS = 300_000_000_000n;
+export const GRADUATION_THRESHOLD_XLM = 34_500;
+/** Graduation threshold in stroops (34,500 XLM) */
+export const GRADUATION_THRESHOLD_STROOPS = 345_000_000_000n;
 
 /**
  * Convert stroops to XLM using BigInt for precision

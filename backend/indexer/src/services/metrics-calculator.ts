@@ -5,7 +5,7 @@ import { logger } from '../lib/logger.js';
  * Virtual XLM for bonding curve calculation
  * This provides initial liquidity for price stability
  */
-const VIRTUAL_XLM = BigInt(30_000_0000000); // 30,000 XLM in stroops
+const VIRTUAL_XLM = BigInt(34_500_0000000); // 34,500 XLM in stroops
 
 /**
  * Calculate derived metrics like market cap, TVL, APR, etc.

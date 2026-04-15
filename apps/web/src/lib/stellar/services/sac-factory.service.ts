@@ -100,14 +100,14 @@ export interface TokenInfo {
  * Fee Configuration - Dual Fee Model
  *
  * Matches contract's FeeConfig struct:
- * - Protocol fee (0.05%) → Treasury (team revenue)
- * - LP fee (0.25%) → Bonding curve (liquidity provision)
- * - Creation fee (10 XLM) → Treasury (anti-spam)
+ * - Protocol fee (0.15%) → Treasury (team revenue)
+ * - LP fee (0.15%) → Bonding curve (liquidity provision)
+ * - Creation fee (5 XLM) → Treasury (anti-spam)
  */
 export interface FeeConfig {
   creation_fee: string;
-  protocol_fee_bps: string; // 0.05% = 5 bps
-  lp_fee_bps: string;       // 0.25% = 25 bps
+  protocol_fee_bps: string; // 0.15% = 15 bps
+  lp_fee_bps: string;       // 0.15% = 15 bps
   treasury: string;
 }
 
@@ -413,9 +413,9 @@ export class SacFactoryService extends BaseContractService {
 
       if (!result) {
         return {
-          creation_fee: '100000000', // 10 XLM in stroops
-          protocol_fee_bps: '5',     // 0.05%
-          lp_fee_bps: '25',          // 0.25%
+          creation_fee: '50000000',  // 5 XLM in stroops
+          protocol_fee_bps: '15',    // 0.15%
+          lp_fee_bps: '15',          // 0.15%
           treasury: '',
         };
       }
@@ -436,9 +436,9 @@ export class SacFactoryService extends BaseContractService {
     } catch (error) {
       logger.error('Error fetching fee config:', error);
       return {
-        creation_fee: '100000000', // 10 XLM in stroops
-        protocol_fee_bps: '5',     // 0.05%
-        lp_fee_bps: '25',          // 0.25%
+        creation_fee: '50000000',  // 5 XLM in stroops
+        protocol_fee_bps: '15',    // 0.15%
+        lp_fee_bps: '15',          // 0.15%
         treasury: '',
       };
     }

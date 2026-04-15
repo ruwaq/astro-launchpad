@@ -7,8 +7,8 @@
  * CRITICAL NOTES:
  * - minOutputTolerance is for race condition protection, NOT slippage
  * - Bonding curves are deterministic (no slippage in traditional sense)
- * - Fee: 0.30% total (0.05% protocol + 0.25% LP)
- * - Graduation triggered at $30k XLM raised (pump.fun style)
+ * - Fee: 0.30% total (0.15% protocol + 0.15% LP)
+ * - Graduation triggered at $34.5k XLM raised (pump.fun style)
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';

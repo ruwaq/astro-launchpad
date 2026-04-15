@@ -19,8 +19,8 @@ import type { PrismaClientWithAdapter } from './prisma.js';
 // Configuration
 // ============================================================================
 
-// IMPORTANT: Use the ACTIVE testnet contract ID as default (V7 - Dec 3, 2024 - pump.fun style, 30k XLM graduation)
-const CONTRACT_ID = process.env.TOKEN_FACTORY_CONTRACT_ID || 'CBNQZ3NE5CUAZVDTI34FGMABOV26EOHGCVXU5F7KLRFSGMC33W7U225Z';
+// IMPORTANT: Use the ACTIVE testnet contract ID as default (V6 - pump.fun style, 34.5k XLM graduation)
+const CONTRACT_ID = process.env.TOKEN_FACTORY_CONTRACT_ID || 'CBKLLY6Q25OEAXSFU7TDTECC5NATFO6RZV3ZDVOI6K5XB7KZI4RBZZFO';
 const RPC_URL = process.env.STELLAR_RPC_URL || 'https://soroban-testnet.stellar.org';
 const NETWORK_PASSPHRASE = process.env.STELLAR_NETWORK_PASSPHRASE || 'Test SDF Network ; September 2015';
 

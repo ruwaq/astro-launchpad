@@ -222,18 +222,18 @@ describe('SacFactoryService', () => {
   describe('ASTRO Integration', () => {
     describe('calculateAstroAllocation', () => {
       it('should allocate XLM correctly for graduation', () => {
-        const totalXlm = BigInt(30_000_000_000); // 3000 XLM
+        const totalXlm = BigInt(34_500_000_000); // 3450 XLM
         const liquidityBps = 1000; // 10%
         const buybackBps = 500; // 5%
 
         const allocation = service.calculateAstroAllocation(totalXlm, liquidityBps, buybackBps);
 
-        // Main pool: 85%
-        expect(BigInt(allocation.xlm_for_main_pool)).toBe(BigInt(25_500_000_000));
-        // ASTRO liquidity: 10%
-        expect(BigInt(allocation.xlm_for_astro_liquidity)).toBe(BigInt(3_000_000_000));
-        // Buyback: 5%
-        expect(BigInt(allocation.xlm_for_buyback)).toBe(BigInt(1_500_000_000));
+        // Main pool: 85% of 3450 XLM
+        expect(BigInt(allocation.xlm_for_main_pool)).toBe(BigInt(29_325_000_000));
+        // ASTRO liquidity: 10% of 3450 XLM
+        expect(BigInt(allocation.xlm_for_astro_liquidity)).toBe(BigInt(3_450_000_000));
+        // Buyback: 5% of 3450 XLM
+        expect(BigInt(allocation.xlm_for_buyback)).toBe(BigInt(1_725_000_000));
       });
 
       it('should use default BPS values', () => {

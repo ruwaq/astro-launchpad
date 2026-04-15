@@ -5,8 +5,8 @@
  * Formula: x * y = k (where x = xlm_reserve, y = token_reserve)
  *
  * Fee Model (Uniswap V2 style):
- * - Protocol fee: 0.05% (5 bps) → Treasury
- * - LP fee: 0.25% (25 bps) → Bonding curve
+ * - Protocol fee: 0.15% (15 bps) → Treasury
+ * - LP fee: 0.15% (15 bps) → Bonding curve
  * - Total: 0.30% (30 bps)
  *
  * Fee Application:
@@ -22,8 +22,8 @@ import type { NormalizedBondingCurve } from '../adapters/contract-adapter';
 /**
  * Default fee configuration (matches contract defaults)
  */
-export const DEFAULT_PROTOCOL_FEE_BPS = 5n;   // 0.05%
-export const DEFAULT_LP_FEE_BPS = 25n;        // 0.25%
+export const DEFAULT_PROTOCOL_FEE_BPS = 15n;   // 0.15%
+export const DEFAULT_LP_FEE_BPS = 15n;        // 0.15%
 export const DEFAULT_TOTAL_FEE_BPS = 30n;     // 0.30%
 export const BPS_PRECISION = 10000n;
 
@@ -255,12 +255,12 @@ export function calculateMarketCap(
  * Calculate graduation progress (0-10000 = 0%-100% in basis points)
  *
  * @param xlmRaised - Total XLM raised in bonding curve
- * @param graduationThreshold - Threshold for graduation (default 10,000 XLM)
+ * @param graduationThreshold - Threshold for graduation (default 34,500 XLM)
  * @returns Progress in basis points (0-10000)
  */
 export function calculateGraduationProgress(
   xlmRaised: bigint,
-  graduationThreshold: bigint = BigInt(100_000_000_000) // 10,000 XLM in stroops
+  graduationThreshold: bigint = BigInt(345_000_000_000) // 34,500 XLM in stroops
 ): number {
   if (graduationThreshold === 0n) return 0;
 
@@ -376,8 +376,8 @@ export interface FeeBreakdown {
  * Calculate fee breakdown for a given amount
  *
  * @param amount - Gross amount (XLM in stroops)
- * @param protocolFeeBps - Protocol fee in basis points (default 5)
- * @param lpFeeBps - LP fee in basis points (default 25)
+ * @param protocolFeeBps - Protocol fee in basis points (default 15)
+ * @param lpFeeBps - LP fee in basis points (default 15)
  * @returns Detailed fee breakdown
  */
 export function calculateFeeBreakdown(
@@ -437,8 +437,8 @@ export function calculateBuyOutputWithFees(
  *
  * @param curve - Current bonding curve state
  * @param tokenAmount - Token amount to sell
- * @param protocolFeeBps - Protocol fee in basis points (default 5)
- * @param lpFeeBps - LP fee in basis points (default 25)
+ * @param protocolFeeBps - Protocol fee in basis points (default 15)
+ * @param lpFeeBps - LP fee in basis points (default 15)
  * @returns XLM to receive (after fees applied to output)
  */
 export function calculateSellOutputWithFees(
