@@ -160,7 +160,7 @@
                   "address": "CAOFGSVNPB4BLENA4QOU5YND5RV52B2KUUMN2KXEGTRYZG24BAQI3E3I"
                 },
                 {
-                  "i128": "76155315085933"
+                  "i128": "453305446940075"
                 },
                 {
                   "i128": "0"
@@ -203,7 +203,7 @@
               },
               "durability": "persistent",
               "val": {
-                "i128": "100000000"
+                "i128": "50000000"
               }
             }
           },
@@ -233,7 +233,7 @@
                       "symbol": "creation_fee"
                     },
                     "val": {
-                      "i128": "100000000"
+                      "i128": "50000000"
                     }
                   },
                   {
@@ -241,7 +241,7 @@
                       "symbol": "lp_fee_bps"
                     },
                     "val": {
-                      "i128": "25"
+                      "i128": "15"
                     }
                   },
                   {
@@ -249,7 +249,7 @@
                       "symbol": "protocol_fee_bps"
                     },
                     "val": {
-                      "i128": "5"
+                      "i128": "15"
                     }
                   },
                   {
@@ -309,33 +309,6 @@
               "key": {
                 "vec": [
                   {
-                    "symbol": "LastBuyTime"
-                  },
-                  {
-                    "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMDR4"
-                  }
-                ]
-              },
-              "durability": "persistent",
-              "val": {
-                "u64": "0"
-              }
-            }
-          },
-          "ext": "v0"
-        },
-        "live_until": 120960
-      },
-      {
-        "entry": {
-          "last_modified_ledger_seq": 0,
-          "data": {
-            "contract_data": {
-              "ext": "v0",
-              "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
-              "key": {
-                "vec": [
-                  {
                     "symbol": "Role"
                   },
                   {
@@ -354,7 +327,7 @@
           },
           "ext": "v0"
         },
-        "live_until": 4095
+        "live_until": 518400
       },
       {
         "entry": {
@@ -411,7 +384,7 @@
                             "symbol": "k"
                           },
                           "val": {
-                            "i128": "16805913400082057424864451"
+                            "i128": "100021118609789938162419300"
                           }
                         },
                         {
@@ -419,7 +392,7 @@
                             "symbol": "tokens_remaining"
                           },
                           "val": {
-                            "i128": "1603844684914067"
+                            "i128": "9546694553059925"
                           }
                         },
                         {
@@ -427,7 +400,7 @@
                             "symbol": "tokens_sold"
                           },
                           "val": {
-                            "i128": "76155315085933"
+                            "i128": "453305446940075"
                           }
                         },
                         {
@@ -435,7 +408,7 @@
                             "symbol": "total_supply"
                           },
                           "val": {
-                            "i128": "1680000000000000"
+                            "i128": "10000000000000000"
                           }
                         },
                         {
@@ -443,7 +416,7 @@
                             "symbol": "xlm_reserve"
                           },
                           "val": {
-                            "i128": "10478516753"
+                            "i128": "10477041876"
                           }
                         }
                       ]
@@ -510,7 +483,7 @@
                       "symbol": "locked_xlm_amount"
                     },
                     "val": {
-                      "i128": "478516753"
+                      "i128": "477041876"
                     }
                   },
                   {
@@ -518,7 +491,7 @@
                       "symbol": "market_cap"
                     },
                     "val": {
-                      "i128": "20957033506"
+                      "i128": "20954083752"
                     }
                   },
                   {
@@ -562,7 +535,7 @@
                       "symbol": "xlm_raised"
                     },
                     "val": {
-                      "i128": "477711030"
+                      "i128": "477758513"
                     }
                   }
                 ]
@@ -607,33 +580,6 @@
             "contract_data": {
               "ext": "v0",
               "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
-              "key": {
-                "vec": [
-                  {
-                    "symbol": "WalletHoldings"
-                  },
-                  {
-                    "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMDR4"
-                  }
-                ]
-              },
-              "durability": "persistent",
-              "val": {
-                "i128": "76155315085933"
-              }
-            }
-          },
-          "ext": "v0"
-        },
-        "live_until": 518400
-      },
-      {
-        "entry": {
-          "last_modified_ledger_seq": 0,
-          "data": {
-            "contract_data": {
-              "ext": "v0",
-              "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
               "key": "ledger_key_contract_instance",
               "durability": "persistent",
               "val": {
@@ -670,59 +616,6 @@
                       "key": {
                         "vec": [
                           {
-                            "symbol": "Config"
-                          }
-                        ]
-                      },
-                      "val": {
-                        "map": [
-                          {
-                            "key": {
-                              "symbol": "absolute_max_holdings_bps"
-                            },
-                            "val": {
-                              "i128": "10000"
-                            }
-                          },
-                          {
-                            "key": {
-                              "symbol": "cooldown_seconds"
-                            },
-                            "val": {
-                              "u64": "0"
-                            }
-                          },
-                          {
-                            "key": {
-                              "symbol": "enabled"
-                            },
-                            "val": {
-                              "bool": false
-                            }
-                          },
-                          {
-                            "key": {
-                              "symbol": "tier_fees"
-                            },
-                            "val": {
-                              "vec": []
-                            }
-                          },
-                          {
-                            "key": {
-                              "symbol": "tier_thresholds"
-                            },
-                            "val": {
-                              "vec": []
-                            }
-                          }
-                        ]
-                      }
-                    },
-                    {
-                      "key": {
-                        "vec": [
-                          {
                             "symbol": "TokenCount"
                           }
                         ]
@@ -752,7 +645,7 @@
                         ]
                       },
                       "val": {
-                        "i128": "478516753"
+                        "i128": "477041876"
                       }
                     },
                     {

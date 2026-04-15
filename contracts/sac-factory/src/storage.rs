@@ -36,6 +36,8 @@ pub enum InstanceKey {
     TokenWasmHash,         // WASM hash for launchpad token contract deployment
     // SECURITY: Track total locked XLM to protect bonding curve reserves
     TotalLockedXlm,        // Total XLM locked in active bonding curves (cannot be withdrawn)
+    // V6 Graduation Configuration
+    GraduationDevBonusBps, // Dev bonus in basis points (default: 100 = 1% of XLM and tokens)
 }
 
 /// Storage keys for Persistent storage (unbounded, per-entity)
@@ -194,6 +196,28 @@ pub fn set_graduation_threshold(env: &Env, threshold: i128) {
     env.storage()
         .instance()
         .set(&InstanceKey::GraduationThreshold, &threshold);
+}
+
+// ========== V6 Graduation Configuration ==========
+
+/// Default dev bonus: 1% = 100 basis points
+/// Applies to both XLM raised and tokens remaining at graduation
+const DEFAULT_GRADUATION_DEV_BONUS_BPS: i128 = 100;
+
+/// Get dev bonus basis points at graduation (default: 100 = 1%)
+pub fn get_graduation_dev_bonus_bps(env: &Env) -> i128 {
+    env.storage()
+        .instance()
+        .get(&InstanceKey::GraduationDevBonusBps)
+        .unwrap_or(DEFAULT_GRADUATION_DEV_BONUS_BPS)
+}
+
+/// Set dev bonus basis points at graduation (Owner only)
+pub fn set_graduation_dev_bonus_bps(env: &Env, bps: i128) {
+    env.storage()
+        .instance()
+        .set(&InstanceKey::GraduationDevBonusBps, &bps);
+    extend_instance_ttl(env);
 }
 
 // ========== Total Locked XLM (Security: Protect Bonding Curve Reserves) ==========

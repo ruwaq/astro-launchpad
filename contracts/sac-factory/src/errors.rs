@@ -110,13 +110,14 @@ pub enum Error {
     MathOverflow = 603,
 
     // =============================================================================
-    // 7XX - ANTI-WHALE PROTECTION
+    // 7XX - DEPRECATED (was anti-whale, now removed)
+    // Reserved for backwards compatibility
     // =============================================================================
-    /// Buy amount exceeds anti-whale maximum
+    /// [DEPRECATED] Anti-whale removed in V6
     AntiWhaleMaxBuyExceeded = 700,
-    /// Holdings would exceed anti-whale maximum
+    /// [DEPRECATED] Anti-whale removed in V6
     AntiWhaleMaxHoldingsExceeded = 701,
-    /// Anti-whale cooldown period is active
+    /// [DEPRECATED] Anti-whale removed in V6
     AntiWhaleCooldownActive = 702,
 
     // =============================================================================

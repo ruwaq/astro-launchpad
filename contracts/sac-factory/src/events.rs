@@ -55,6 +55,26 @@ pub struct LiquidityLocked {
     pub lp_tokens: i128,
 }
 
+/// Tokens burned at graduation (deflationary event)
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TokenBurnedAtGraduation {
+    pub token: Address,
+    pub amount_burned: i128,
+    pub supply_before: i128,
+    pub supply_after: i128,
+}
+
+/// Dev bonus paid at graduation
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DevBonusPaid {
+    pub token: Address,
+    pub xlm_amount: i128,
+    pub token_amount: i128,
+    pub treasury: Address,
+}
+
 pub fn token_launched(
     env: &Env,
     creator: &Address,
@@ -119,6 +139,38 @@ pub fn liquidity_locked(
     LiquidityLocked {
         amm_pair: amm_pair.clone(),
         lp_tokens,
+    }.publish(env);
+}
+
+/// Emit event when tokens are burned at graduation
+pub fn token_burned_at_graduation(
+    env: &Env,
+    token: &Address,
+    amount_burned: i128,
+    supply_before: i128,
+    supply_after: i128,
+) {
+    TokenBurnedAtGraduation {
+        token: token.clone(),
+        amount_burned,
+        supply_before,
+        supply_after,
+    }.publish(env);
+}
+
+/// Emit event when dev bonus is paid at graduation
+pub fn dev_bonus_paid(
+    env: &Env,
+    token: &Address,
+    xlm_amount: i128,
+    token_amount: i128,
+    treasury: &Address,
+) {
+    DevBonusPaid {
+        token: token.clone(),
+        xlm_amount,
+        token_amount,
+        treasury: treasury.clone(),
     }.publish(env);
 }
 
@@ -512,14 +564,6 @@ pub struct FeesWithdrawn {
     pub timestamp: u64,
 }
 
-/// Anti-whale config updated event
-#[contractevent]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct AntiWhaleConfigUpdated {
-    pub updated_by: Address,
-    pub timestamp: u64,
-}
-
 pub fn xlm_address_updated(
     env: &Env,
     old_address: Option<&Address>,
@@ -609,13 +653,6 @@ pub fn fees_withdrawn(
         amount,
         recipient: recipient.clone(),
         withdrawn_by: withdrawn_by.clone(),
-        timestamp: env.ledger().timestamp(),
-    }.publish(env);
-}
-
-pub fn anti_whale_config_updated(env: &Env, updated_by: &Address) {
-    AntiWhaleConfigUpdated {
-        updated_by: updated_by.clone(),
         timestamp: env.ledger().timestamp(),
     }.publish(env);
 }

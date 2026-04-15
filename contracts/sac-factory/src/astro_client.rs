@@ -202,6 +202,7 @@ pub fn is_astro_enabled(env: &Env) -> bool {
 ///
 /// This struct holds the calculated allocations for both XLM and token
 /// amounts to be distributed across pools during graduation.
+/// Kept for backward compatibility and future ASTRO integration.
 pub struct DualPoolAllocation {
     /// XLM for the main XLM/TOKEN pool (75%)
     pub xlm_for_xlm_pool: i128,
@@ -213,6 +214,97 @@ pub struct DualPoolAllocation {
     pub tokens_for_astro_pool: i128,
     /// XLM to swap for ASTRO burn (2%)
     pub xlm_for_burn: i128,
+}
+
+/// V6 Simple graduation allocation (Pump.fun style)
+///
+/// At graduation:
+/// - 1% of XLM raised → treasury (dev bonus)
+/// - 1% of remaining tokens → treasury (dev allocation)
+/// - Remaining tokens: pool gets what's needed at current price, rest BURNED
+/// - 99% of XLM raised → AMM pool
+pub struct SimpleGraduationAllocation {
+    /// XLM for the XLM/TOKEN AMM pool (99% of raised)
+    pub xlm_for_pool: i128,
+    /// Tokens for the AMM pool (auto-calculated to match price)
+    pub tokens_for_pool: i128,
+    /// Tokens to BURN at graduation (excess supply)
+    pub tokens_to_burn: i128,
+    /// XLM dev bonus → treasury (1% of raised)
+    pub xlm_dev_bonus: i128,
+    /// Tokens dev allocation → treasury (1% of remaining)
+    pub tokens_dev_allocation: i128,
+}
+
+/// Calculate V6 simple graduation allocation
+///
+/// Pump.fun style with token burn and dev bonus:
+/// 1. Dev gets 1% of XLM raised (treasury bonus)
+/// 2. Dev gets 1% of remaining tokens (team allocation)
+/// 3. AMM pool gets 99% of XLM + tokens needed at current price
+/// 4. All remaining tokens → BURNED (deflationary event!)
+///
+/// # Arguments
+/// * `total_xlm` - Real XLM raised (from bonding curve, NOT xlm_raised field)
+/// * `tokens_remaining` - Tokens remaining in bonding curve
+/// * `xlm_reserve` - Current XLM reserve in bonding curve
+/// * `dev_bonus_bps` - Dev bonus in basis points (default: 100 = 1%)
+///
+/// # Returns
+/// SimpleGraduationAllocation with all calculated amounts
+pub fn calculate_simple_allocation(
+    total_xlm: i128,
+    tokens_remaining: i128,
+    xlm_reserve: i128,
+    dev_bonus_bps: i128,
+) -> Result<SimpleGraduationAllocation, crate::errors::Error> {
+    use crate::errors::Error;
+
+    if total_xlm <= 0 || tokens_remaining <= 0 {
+        return Err(Error::InsufficientLiquidityForGraduation);
+    }
+
+    // 1. Dev XLM bonus (1% of raised XLM → treasury)
+    let xlm_dev_bonus = total_xlm
+        .checked_mul(dev_bonus_bps)
+        .and_then(|v| v.checked_div(10_000))
+        .unwrap_or(0);
+
+    // 2. Dev token allocation (1% of remaining tokens → treasury)
+    let tokens_dev_allocation = tokens_remaining
+        .checked_mul(dev_bonus_bps)
+        .and_then(|v| v.checked_div(10_000))
+        .unwrap_or(0);
+
+    // 3. XLM for pool = total - dev bonus
+    let xlm_for_pool = total_xlm
+        .checked_sub(xlm_dev_bonus)
+        .ok_or(Error::Underflow)?;
+
+    // 4. Calculate tokens needed for AMM pool at current bonding curve price
+    // This ensures the AMM pool starts at the same price as the bonding curve ended
+    // tokens_for_pool = xlm_for_pool * tokens_remaining / xlm_reserve
+    let tokens_for_pool = xlm_for_pool
+        .checked_mul(tokens_remaining)
+        .and_then(|v| v.checked_div(xlm_reserve))
+        .unwrap_or(0);
+
+    // 5. Tokens to burn = remaining - pool tokens - dev allocation
+    let tokens_allocated = tokens_for_pool
+        .checked_add(tokens_dev_allocation)
+        .ok_or(Error::Overflow)?;
+
+    let tokens_to_burn = tokens_remaining
+        .checked_sub(tokens_allocated)
+        .unwrap_or(0); // If underflow, no burn (all tokens needed for pool)
+
+    Ok(SimpleGraduationAllocation {
+        xlm_for_pool,
+        tokens_for_pool,
+        tokens_to_burn,
+        xlm_dev_bonus,
+        tokens_dev_allocation,
+    })
 }
 
 /// Calculate dual-pool allocation amounts for graduation

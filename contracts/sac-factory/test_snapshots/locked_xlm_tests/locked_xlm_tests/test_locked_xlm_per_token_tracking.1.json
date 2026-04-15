@@ -273,7 +273,7 @@
               },
               "durability": "persistent",
               "val": {
-                "i128": "200000000"
+                "i128": "100000000"
               }
             }
           },
@@ -303,7 +303,7 @@
                       "symbol": "creation_fee"
                     },
                     "val": {
-                      "i128": "100000000"
+                      "i128": "50000000"
                     }
                   },
                   {
@@ -311,7 +311,7 @@
                       "symbol": "lp_fee_bps"
                     },
                     "val": {
-                      "i128": "25"
+                      "i128": "15"
                     }
                   },
                   {
@@ -319,7 +319,7 @@
                       "symbol": "protocol_fee_bps"
                     },
                     "val": {
-                      "i128": "5"
+                      "i128": "15"
                     }
                   },
                   {
@@ -410,60 +410,6 @@
               "key": {
                 "vec": [
                   {
-                    "symbol": "LastBuyTime"
-                  },
-                  {
-                    "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAOLZM"
-                  }
-                ]
-              },
-              "durability": "persistent",
-              "val": {
-                "u64": "1000000"
-              }
-            }
-          },
-          "ext": "v0"
-        },
-        "live_until": 120960
-      },
-      {
-        "entry": {
-          "last_modified_ledger_seq": 0,
-          "data": {
-            "contract_data": {
-              "ext": "v0",
-              "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
-              "key": {
-                "vec": [
-                  {
-                    "symbol": "LastBuyTime"
-                  },
-                  {
-                    "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAARQG5"
-                  }
-                ]
-              },
-              "durability": "persistent",
-              "val": {
-                "u64": "1000000"
-              }
-            }
-          },
-          "ext": "v0"
-        },
-        "live_until": 120960
-      },
-      {
-        "entry": {
-          "last_modified_ledger_seq": 0,
-          "data": {
-            "contract_data": {
-              "ext": "v0",
-              "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
-              "key": {
-                "vec": [
-                  {
                     "symbol": "Role"
                   },
                   {
@@ -482,7 +428,7 @@
           },
           "ext": "v0"
         },
-        "live_until": 4095
+        "live_until": 518400
       },
       {
         "entry": {
@@ -539,7 +485,7 @@
                             "symbol": "k"
                           },
                           "val": {
-                            "i128": "16802785488331277440200000"
+                            "i128": "100009948170122789302900000"
                           }
                         },
                         {
@@ -547,7 +493,7 @@
                             "symbol": "tokens_remaining"
                           },
                           "val": {
-                            "i128": "1570405152349028"
+                            "i128": "9347641419963902"
                           }
                         },
                         {
@@ -555,7 +501,7 @@
                             "symbol": "tokens_sold"
                           },
                           "val": {
-                            "i128": "109594847650972"
+                            "i128": "652358580036098"
                           }
                         },
                         {
@@ -563,7 +509,7 @@
                             "symbol": "total_supply"
                           },
                           "val": {
-                            "i128": "1680000000000000"
+                            "i128": "10000000000000000"
                           }
                         },
                         {
@@ -571,7 +517,7 @@
                             "symbol": "xlm_reserve"
                           },
                           "val": {
-                            "i128": "10699650000"
+                            "i128": "10698950000"
                           }
                         }
                       ]
@@ -638,7 +584,7 @@
                       "symbol": "locked_xlm_amount"
                     },
                     "val": {
-                      "i128": "699650000"
+                      "i128": "698950000"
                     }
                   },
                   {
@@ -646,7 +592,7 @@
                       "symbol": "market_cap"
                     },
                     "val": {
-                      "i128": "21399300000"
+                      "i128": "21397900000"
                     }
                   },
                   {
@@ -732,7 +678,7 @@
                             "symbol": "k"
                           },
                           "val": {
-                            "i128": "16801223407870585373250000"
+                            "i128": "100004369313823534621100000"
                           }
                         },
                         {
@@ -740,7 +686,7 @@
                             "symbol": "tokens_remaining"
                           },
                           "val": {
-                            "i128": "1631210494120845"
+                            "i128": "9709586274528842"
                           }
                         },
                         {
@@ -748,7 +694,7 @@
                             "symbol": "tokens_sold"
                           },
                           "val": {
-                            "i128": "48789505879155"
+                            "i128": "290413725471158"
                           }
                         },
                         {
@@ -756,7 +702,7 @@
                             "symbol": "total_supply"
                           },
                           "val": {
-                            "i128": "1680000000000000"
+                            "i128": "10000000000000000"
                           }
                         },
                         {
@@ -764,7 +710,7 @@
                             "symbol": "xlm_reserve"
                           },
                           "val": {
-                            "i128": "10299850000"
+                            "i128": "10299550000"
                           }
                         }
                       ]
@@ -831,7 +777,7 @@
                       "symbol": "locked_xlm_amount"
                     },
                     "val": {
-                      "i128": "299850000"
+                      "i128": "299550000"
                     }
                   },
                   {
@@ -839,7 +785,7 @@
                       "symbol": "market_cap"
                     },
                     "val": {
-                      "i128": "20599700000"
+                      "i128": "20599100000"
                     }
                   },
                   {
@@ -955,60 +901,6 @@
             "contract_data": {
               "ext": "v0",
               "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
-              "key": {
-                "vec": [
-                  {
-                    "symbol": "WalletHoldings"
-                  },
-                  {
-                    "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAOLZM"
-                  }
-                ]
-              },
-              "durability": "persistent",
-              "val": {
-                "i128": "109594847650972"
-              }
-            }
-          },
-          "ext": "v0"
-        },
-        "live_until": 518400
-      },
-      {
-        "entry": {
-          "last_modified_ledger_seq": 0,
-          "data": {
-            "contract_data": {
-              "ext": "v0",
-              "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
-              "key": {
-                "vec": [
-                  {
-                    "symbol": "WalletHoldings"
-                  },
-                  {
-                    "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAARQG5"
-                  }
-                ]
-              },
-              "durability": "persistent",
-              "val": {
-                "i128": "48789505879155"
-              }
-            }
-          },
-          "ext": "v0"
-        },
-        "live_until": 518400
-      },
-      {
-        "entry": {
-          "last_modified_ledger_seq": 0,
-          "data": {
-            "contract_data": {
-              "ext": "v0",
-              "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
               "key": "ledger_key_contract_instance",
               "durability": "persistent",
               "val": {
@@ -1045,59 +937,6 @@
                       "key": {
                         "vec": [
                           {
-                            "symbol": "Config"
-                          }
-                        ]
-                      },
-                      "val": {
-                        "map": [
-                          {
-                            "key": {
-                              "symbol": "absolute_max_holdings_bps"
-                            },
-                            "val": {
-                              "i128": "10000"
-                            }
-                          },
-                          {
-                            "key": {
-                              "symbol": "cooldown_seconds"
-                            },
-                            "val": {
-                              "u64": "0"
-                            }
-                          },
-                          {
-                            "key": {
-                              "symbol": "enabled"
-                            },
-                            "val": {
-                              "bool": false
-                            }
-                          },
-                          {
-                            "key": {
-                              "symbol": "tier_fees"
-                            },
-                            "val": {
-                              "vec": []
-                            }
-                          },
-                          {
-                            "key": {
-                              "symbol": "tier_thresholds"
-                            },
-                            "val": {
-                              "vec": []
-                            }
-                          }
-                        ]
-                      }
-                    },
-                    {
-                      "key": {
-                        "vec": [
-                          {
                             "symbol": "TokenCount"
                           }
                         ]
@@ -1127,7 +966,7 @@
                         ]
                       },
                       "val": {
-                        "i128": "999500000"
+                        "i128": "998500000"
                       }
                     },
                     {

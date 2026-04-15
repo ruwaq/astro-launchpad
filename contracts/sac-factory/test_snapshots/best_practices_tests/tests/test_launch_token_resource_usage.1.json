@@ -95,7 +95,7 @@
               },
               "durability": "persistent",
               "val": {
-                "i128": "100000000"
+                "i128": "50000000"
               }
             }
           },
@@ -125,7 +125,7 @@
                       "symbol": "creation_fee"
                     },
                     "val": {
-                      "i128": "100000000"
+                      "i128": "50000000"
                     }
                   },
                   {
@@ -133,7 +133,7 @@
                       "symbol": "lp_fee_bps"
                     },
                     "val": {
-                      "i128": "25"
+                      "i128": "15"
                     }
                   },
                   {
@@ -141,7 +141,7 @@
                       "symbol": "protocol_fee_bps"
                     },
                     "val": {
-                      "i128": "5"
+                      "i128": "15"
                     }
                   },
                   {
@@ -219,7 +219,7 @@
           },
           "ext": "v0"
         },
-        "live_until": 4095
+        "live_until": 518400
       },
       {
         "entry": {
@@ -276,7 +276,7 @@
                             "symbol": "k"
                           },
                           "val": {
-                            "i128": "16800000000000000000000000"
+                            "i128": "100000000000000000000000000"
                           }
                         },
                         {
@@ -284,7 +284,7 @@
                             "symbol": "tokens_remaining"
                           },
                           "val": {
-                            "i128": "1680000000000000"
+                            "i128": "10000000000000000"
                           }
                         },
                         {
@@ -300,7 +300,7 @@
                             "symbol": "total_supply"
                           },
                           "val": {
-                            "i128": "1680000000000000"
+                            "i128": "10000000000000000"
                           }
                         },
                         {
@@ -490,59 +490,6 @@
                       },
                       "val": {
                         "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
-                      }
-                    },
-                    {
-                      "key": {
-                        "vec": [
-                          {
-                            "symbol": "Config"
-                          }
-                        ]
-                      },
-                      "val": {
-                        "map": [
-                          {
-                            "key": {
-                              "symbol": "absolute_max_holdings_bps"
-                            },
-                            "val": {
-                              "i128": "10000"
-                            }
-                          },
-                          {
-                            "key": {
-                              "symbol": "cooldown_seconds"
-                            },
-                            "val": {
-                              "u64": "0"
-                            }
-                          },
-                          {
-                            "key": {
-                              "symbol": "enabled"
-                            },
-                            "val": {
-                              "bool": false
-                            }
-                          },
-                          {
-                            "key": {
-                              "symbol": "tier_fees"
-                            },
-                            "val": {
-                              "vec": []
-                            }
-                          },
-                          {
-                            "key": {
-                              "symbol": "tier_thresholds"
-                            },
-                            "val": {
-                              "vec": []
-                            }
-                          }
-                        ]
                       }
                     },
                     {
@@ -822,7 +769,7 @@
                     "symbol": "bonding_curve_supply"
                   },
                   "val": {
-                    "i128": "1680000000000000"
+                    "i128": "10000000000000000"
                   }
                 },
                 {
@@ -830,7 +777,7 @@
                     "symbol": "creation_fee_paid"
                   },
                   "val": {
-                    "i128": "100000000"
+                    "i128": "50000000"
                   }
                 },
                 {
@@ -846,7 +793,7 @@
                     "symbol": "initial_supply"
                   },
                   "val": {
-                    "i128": "2100000000000000"
+                    "i128": "10000000000000000"
                   }
                 },
                 {

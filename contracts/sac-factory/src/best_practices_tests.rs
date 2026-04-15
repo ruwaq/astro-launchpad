@@ -10,7 +10,6 @@
 mod tests {
     use crate::{
         SacFactory, SacFactoryClient,
-        anti_whale,
         errors::Error,
         state_management::ContractState,
     };
@@ -182,57 +181,6 @@ mod tests {
             &long_desc,
             &serialized_asset,
         );
-    }
-
-    #[test]
-    #[should_panic(expected = "Error(Contract, #302)")] // InvalidAmount
-    fn test_validate_fee_tiers_too_many() {
-        let env = Env::default();
-        let (client, admin, _treasury) = setup_factory(&env);
-
-        env.mock_all_auths();
-
-        // Create more than MAX_FEE_TIERS (10) tiers
-        let mut thresholds = Vec::new(&env);
-        let mut fees = Vec::new(&env);
-
-        for i in 0..12 {
-            thresholds.push_back((i + 1) * 100);
-            fees.push_back(i * 10);
-        }
-
-        let config = anti_whale::AntiWhaleConfig {
-            absolute_max_holdings_bps: 1000,
-            tier_thresholds: thresholds,
-            tier_fees: fees,
-            cooldown_seconds: 0,
-            enabled: false,
-        };
-
-        client.set_anti_whale_config(&admin, &config);
-    }
-
-    #[test]
-    #[should_panic(expected = "Error(Contract, #302)")] // InvalidAmount
-    fn test_validate_fee_tiers_not_ascending() {
-        let env = Env::default();
-        let (client, admin, _treasury) = setup_factory(&env);
-
-        env.mock_all_auths();
-
-        // Create tiers with non-ascending thresholds
-        let thresholds = Vec::from_array(&env, [1000, 500, 2000]); // Not ascending!
-        let fees = Vec::from_array(&env, [100, 200, 300]);
-
-        let config = anti_whale::AntiWhaleConfig {
-            absolute_max_holdings_bps: 1000,
-            tier_thresholds: thresholds,
-            tier_fees: fees,
-            cooldown_seconds: 0,
-            enabled: false,
-        };
-
-        client.set_anti_whale_config(&admin, &config);
     }
 
     // ====================

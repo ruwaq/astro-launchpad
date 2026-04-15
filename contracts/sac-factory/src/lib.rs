@@ -45,7 +45,6 @@ mod launchpad_token_client;  // Pure Soroban token client (no SAC)
 mod amm_deployment;  // AMM pair deployment for graduation
 mod amm_client;      // AMM client for cross-contract calls
 mod price_oracle;    // DIA Oracle price feed integration
-mod anti_whale;      // Anti-whale protection for fair distribution
 mod astro_client;    // ASTRO token integration for buyback & burn
 mod bridge_client;   // DEX Bridge client for graduation to AstroSwap
 
@@ -71,6 +70,12 @@ mod locked_xlm_tests; // FIX: Tests for BUG #1 locked_xlm accounting
 #[cfg(test)]
 mod best_practices_tests; // Soroban Best Practices 2026: input validation, resource tracking
 
+#[cfg(test)]
+mod multi_user_simulation; // V6 tokenomics: multi-user trading + graduation simulation
+
+#[cfg(test)]
+mod security_tests; // Security attack-vector tests
+
 // #[cfg(test)]
 // mod graduation_flow_tests; // Soroban Best Practices 2026: full lifecycle integration tests
 // TODO: Fix field names to match TokenInfo struct (market_cap vs market_cap_usd, etc.)
@@ -85,11 +90,12 @@ use storage::{TokenInfo, TokenStatus};
 // Note: CREATION_FEE is defined in fee_management.rs as DEFAULT_CREATION_FEE
 // Value: 100_000_000 stroops = 10 XLM
 
-/// Initial token supply (210 million tokens - Bitcoin's number)
-const INITIAL_SUPPLY: i128 = 2_100_000_000_000_000; // 210M with 7 decimals
+/// Initial token supply (1 billion tokens - standard pump.fun model)
+const INITIAL_SUPPLY: i128 = 10_000_000_000_000_000; // 1B with 7 decimals
 
-/// Tokens allocated to bonding curve (80% = 168M)
-const BONDING_CURVE_SUPPLY: i128 = 1_680_000_000_000_000;
+/// Tokens allocated to bonding curve (100% = 1B)
+/// All tokens go into the bonding curve for a fair launch model
+const BONDING_CURVE_SUPPLY: i128 = 10_000_000_000_000_000; // 1B = 100% in curve
 
 #[contract]
 pub struct SacFactory;
@@ -138,9 +144,6 @@ impl SacFactory {
 
         // Initialize fee config with dual-fee system
         fee_management::initialize_fee_config(&env, treasury)?;
-
-        // Initialize anti-whale protection
-        anti_whale::initialize_anti_whale(&env);
 
         Ok(())
     }
@@ -420,27 +423,8 @@ impl SacFactory {
             return Err(Error::AlreadyGraduated);
         }
 
-        // 5b. Calculate expected tokens first (for anti-whale check)
+        // 5b. Calculate expected tokens first
         let expected_tokens = token_info.bonding_curve.calculate_buy(xlm_amount)?;
-
-        // 5c. ANTI-WHALE PROTECTION: Validate the buy
-        let circulating_supply = INITIAL_SUPPLY - token_info.bonding_curve.tokens_remaining;
-        let anti_whale_result = anti_whale::validate_buy(
-            &env,
-            &buyer,
-            expected_tokens,
-            circulating_supply,
-            INITIAL_SUPPLY,
-        );
-
-        if !anti_whale_result.allowed {
-            // Return appropriate error based on reason
-            match anti_whale_result.reason {
-                Some("Cooldown period not elapsed") => return Err(Error::AntiWhaleCooldownActive),
-                Some("Exceeds absolute max holdings (50%)") => return Err(Error::AntiWhaleMaxHoldingsExceeded),
-                _ => return Err(Error::InvalidAmount),
-            }
-        }
 
         // 6. CRITICAL FIX: Transfer XLM from buyer to contract FIRST
         // Note: In production, this performs a real XLM transfer via the native XLM SAC
@@ -462,27 +446,7 @@ impl SacFactory {
         // 7. Apply dual-fee system to XLM INPUT (Uniswap V2 style)
         // This maintains the k=x*y invariant by applying fees BEFORE the swap calculation
         // Fee is taken from XLM input, not token output
-        let mut fee_breakdown = fee_management::apply_trading_fees(&env, xlm_amount)?;
-
-        // 7b. Apply whale tax if applicable (extra fee for large purchases)
-        if anti_whale_result.extra_fee_bps > 0 {
-            let whale_fee = fee_breakdown.net_amount
-                .checked_mul(anti_whale_result.extra_fee_bps)
-                .and_then(|v| v.checked_div(10_000))
-                .ok_or(Error::Overflow)?;
-
-            // Deduct whale fee from net amount
-            fee_breakdown.net_amount = fee_breakdown.net_amount
-                .checked_sub(whale_fee)
-                .ok_or(Error::Underflow)?;
-            fee_breakdown.total_fees = fee_breakdown.total_fees
-                .checked_add(whale_fee)
-                .ok_or(Error::Overflow)?;
-            // Whale fee goes to protocol (treasury)
-            fee_breakdown.protocol_fee = fee_breakdown.protocol_fee
-                .checked_add(whale_fee)
-                .ok_or(Error::Overflow)?;
-        }
+        let fee_breakdown = fee_management::apply_trading_fees(&env, xlm_amount)?;
 
         // 8. Calculate tokens to receive using XLM AFTER fees
         // This ensures k invariant is maintained: new_xlm * new_tokens = k
@@ -535,8 +499,11 @@ impl SacFactory {
         token_info.market_cap = token_info.bonding_curve.get_market_cap()?;
 
         // 15. Check for auto-graduation (using configurable threshold)
+        // BUG FIX: Use get_real_xlm_raised() instead of xlm_raised
+        // xlm_raised includes protocol fees already sent to treasury
+        // get_real_xlm_raised() = xlm_reserve - INITIAL_VIRTUAL_RESERVE = actual XLM held
         let graduation_threshold = storage::get_graduation_threshold(&env);
-        let should_graduate = token_info.xlm_raised >= graduation_threshold;
+        let should_graduate = token_info.bonding_curve.get_real_xlm_raised() >= graduation_threshold;
         if should_graduate {
             // SECURITY: Handle graduation errors gracefully
             // If graduation fails, set status to GraduationFailed (not left in GraduationInProgress)
@@ -549,10 +516,6 @@ impl SacFactory {
 
         // 16. Save state BEFORE any external calls
         storage::set_token_info(&env, &token, &token_info);
-
-        // Record buy for anti-whale tracking (state update)
-        // Track tokens received, not XLM spent
-        anti_whale::record_buy(&env, &buyer, tokens_out);
 
         // ============================================================
         // CEI PATTERN: INTERACTIONS - External calls AFTER state updates
@@ -729,9 +692,6 @@ impl SacFactory {
         // 12. Save state BEFORE any external calls
         storage::set_token_info(&env, &token, &token_info);
 
-        // Record sell for anti-whale tracking (state update)
-        anti_whale::record_sell(&env, &seller, token_amount);
-
         // ============================================================
         // CEI PATTERN: INTERACTIONS - External calls AFTER state updates
         // ============================================================
@@ -814,12 +774,15 @@ impl SacFactory {
     }
 
     /// Get graduation progress (0-10000 = 0%-100%)
+    /// Uses real XLM raised (actual XLM in contract) for accurate progress
     pub fn get_graduation_progress(env: Env, token: Address) -> Result<i128, Error> {
         let token_info = storage::get_token_info(&env, &token)
             .ok_or(Error::TokenNotFound)?;
 
         let graduation_threshold = storage::get_graduation_threshold(&env);
-        let progress = token_info.xlm_raised
+        // BUG FIX: Use get_real_xlm_raised() for accurate progress
+        let real_xlm_raised = token_info.bonding_curve.get_real_xlm_raised();
+        let progress = real_xlm_raised
             .checked_mul(10_000)
             .and_then(|v| v.checked_div(graduation_threshold))
             .unwrap_or(10_000); // If overflow, assume 100%
@@ -854,6 +817,31 @@ impl SacFactory {
 
         // Emit event
         events::graduation_threshold_updated(&env, old_threshold, threshold, &admin);
+
+        Ok(())
+    }
+
+    /// Get graduation dev bonus basis points (default: 100 = 1%)
+    pub fn get_graduation_dev_bonus_bps(env: Env) -> i128 {
+        storage::get_graduation_dev_bonus_bps(&env)
+    }
+
+    /// Set graduation dev bonus basis points (Owner only)
+    ///
+    /// Default is 100 basis points (1%). Applied to both XLM and tokens at graduation.
+    /// Maximum is 1000 basis points (10%).
+    pub fn set_graduation_dev_bonus_bps(env: Env, admin: Address, bps: i128) -> Result<(), Error> {
+        admin.require_auth();
+
+        // Only owner can set dev bonus
+        access_control::require_role(&env, &admin, access_control::Role::Owner)?;
+
+        // Validate: between 0 and 1000 bps (0-10%)
+        if bps < 0 || bps > 1000 {
+            return Err(Error::InvalidAmount);
+        }
+
+        storage::set_graduation_dev_bonus_bps(&env, bps);
 
         Ok(())
     }
@@ -1240,101 +1228,6 @@ impl SacFactory {
         access_control::has_role(&env, &account, role)
     }
 
-    // ========== Anti-Whale Protection ==========
-
-    /// Get current anti-whale configuration
-    pub fn get_anti_whale_config(env: Env) -> anti_whale::AntiWhaleConfig {
-        anti_whale::get_config(&env)
-    }
-
-    /// Set anti-whale configuration (Owner or FeeAdmin only)
-    ///
-    /// # Arguments
-    /// * `admin` - Admin address
-    /// * `config` - New anti-whale configuration
-    ///
-    /// # Configuration Fields
-    /// * `max_buy_per_tx_bps` - Max buy per tx as basis points (e.g., 200 = 2%)
-    /// * `max_wallet_holdings_bps` - Max wallet holdings as basis points (e.g., 500 = 5%)
-    /// * `whale_tax_threshold` - Token amount threshold for whale tax
-    /// * `whale_tax_rate_bps` - Extra fee for whale purchases (e.g., 200 = 2%)
-    /// * `cooldown_seconds` - Minimum time between purchases
-    /// * `enabled` - Whether anti-whale is active
-    pub fn set_anti_whale_config(
-        env: Env,
-        admin: Address,
-        config: anti_whale::AntiWhaleConfig,
-    ) -> Result<(), Error> {
-        let result = anti_whale::set_config(&env, &admin, config);
-
-        // Emit event on success
-        if result.is_ok() {
-            events::anti_whale_config_updated(&env, &admin);
-        }
-
-        result
-    }
-
-    /// Enable or disable anti-whale protection (Owner only)
-    pub fn set_anti_whale_enabled(env: Env, admin: Address, enabled: bool) -> Result<(), Error> {
-        anti_whale::set_enabled(&env, &admin, enabled)
-    }
-
-    /// Check if anti-whale protection is enabled
-    pub fn is_anti_whale_enabled(env: Env) -> bool {
-        anti_whale::is_enabled(&env)
-    }
-
-    /// Get wallet's current tracked holdings
-    pub fn get_wallet_holdings(env: Env, wallet: Address) -> i128 {
-        anti_whale::get_wallet_holdings(&env, &wallet)
-    }
-
-    /// Reset wallet holdings tracking to a specific value (Owner only)
-    ///
-    /// This is useful for fixing desynchronization between internal tracking
-    /// and actual token balances. Use this when a wallet's tracked holdings
-    /// don't match their actual token balance.
-    ///
-    /// # Arguments
-    /// * `admin` - Owner address
-    /// * `wallet` - Wallet address to reset
-    /// * `actual_balance` - The actual token balance (get from token.balance())
-    ///
-    /// # Usage
-    /// If a wallet has 1000 tokens but internal tracking shows 50000:
-    /// ```bash
-    /// soroban contract invoke --id $CONTRACT_ID -- \
-    ///   reset_wallet_holdings \
-    ///   --admin $ADMIN_ADDR \
-    ///   --wallet $WALLET_ADDR \
-    ///   --actual_balance 10000000000  # 1000 tokens with 7 decimals
-    /// ```
-    pub fn reset_wallet_holdings(
-        env: Env,
-        admin: Address,
-        wallet: Address,
-        actual_balance: i128,
-    ) -> Result<(), Error> {
-        anti_whale::reset_wallet_holdings(&env, &admin, &wallet, actual_balance)
-    }
-
-    /// Clear wallet holdings tracking completely (Owner only)
-    ///
-    /// Sets tracked holdings to 0 and clears the last buy timestamp.
-    /// Use this for a complete reset when desync is severe.
-    ///
-    /// # Arguments
-    /// * `admin` - Owner address
-    /// * `wallet` - Wallet address to clear
-    pub fn clear_wallet_holdings(
-        env: Env,
-        admin: Address,
-        wallet: Address,
-    ) -> Result<(), Error> {
-        anti_whale::clear_wallet_holdings(&env, &admin, &wallet)
-    }
-
     // ========== ASTRO Token Integration ==========
 
     /// Configure ASTRO token integration (Owner only)
@@ -1633,12 +1526,15 @@ impl SacFactory {
             }
         }
 
-        // 1. Get liquidity amounts
-        // IMPORTANT: Use xlm_raised (actual XLM deposited), NOT xlm_reserve (virtual reserve)
-        // The bonding curve's xlm_reserve includes a virtual 1000 XLM for price calculation,
-        // but the factory only holds the actual XLM from purchases (xlm_raised)
-        let total_xlm = token_info.xlm_raised;
+        // ═══════════════════════════════════════════════════════════════════════
+        // BUG FIX: Use get_real_xlm_raised() instead of xlm_raised
+        // xlm_raised is cumulative gross (includes protocol fees already sent to treasury)
+        // get_real_xlm_raised() returns xlm_reserve - INITIAL_VIRTUAL_RESERVE
+        // which equals the actual XLM held by the contract for this token
+        // ═══════════════════════════════════════════════════════════════════════
+        let total_xlm = token_info.bonding_curve.get_real_xlm_raised();
         let total_tokens = token_info.bonding_curve.tokens_remaining;
+        let xlm_reserve = token_info.bonding_curve.xlm_reserve;
 
         if total_xlm <= 0 || total_tokens <= 0 {
             return Err(Error::InsufficientLiquidityForGraduation);
@@ -1652,18 +1548,27 @@ impl SacFactory {
         }
 
         // ═══════════════════════════════════════════════════════════════════════
-        // LOCAL AMM: Continue with local AMM deployment (backwards compatible)
+        // V6 GRADUATION: Pump.fun style with token burn and dev bonus
+        // ═══════════════════════════════════════════════════════════════════════
+        // Flow:
+        // 1. Dev gets 1% of XLM raised → treasury
+        // 2. Dev gets 1% of remaining tokens → treasury
+        // 3. AMM pool gets 99% of XLM + tokens needed at current price
+        // 4. All remaining tokens → BURNED (deflationary!)
+        // 5. LP tokens → burned (liquidity locked forever)
         // ═══════════════════════════════════════════════════════════════════════
 
-        // 2. Calculate dual-pool allocation (75% XLM pool, 23% ASTRO pool, 2% burn)
-        let allocation = astro_client::calculate_dual_pool_allocation(env, total_xlm, total_tokens);
+        let dev_bonus_bps = storage::get_graduation_dev_bonus_bps(env);
 
-        // Track amounts for events
-        let mut astro_received_for_pool = 0i128;
-        let mut astro_burned = 0i128;
-        let mut astro_amm_address: Option<Address> = None;
+        // Calculate V6 simple allocation (burn excess tokens)
+        let allocation = astro_client::calculate_simple_allocation(
+            total_xlm,
+            total_tokens,
+            xlm_reserve,
+            dev_bonus_bps,
+        )?;
 
-        // 3. Deploy primary XLM/TOKEN AMM pair
+        // 2. Deploy primary XLM/TOKEN AMM pair
         let xlm_amm_address = amm_deployment::deploy_amm_pair(
             env,
             &xlm_address,
@@ -1672,7 +1577,7 @@ impl SacFactory {
             &fee_config.treasury,
         )?;
 
-        // 4. Initialize XLM/TOKEN AMM
+        // 3. Initialize XLM/TOKEN AMM
         let xlm_amm_client = amm_client::AmmPairClient::new(env, xlm_amm_address.clone());
         xlm_amm_client.initialize(
             &xlm_address,
@@ -1681,161 +1586,87 @@ impl SacFactory {
             &fee_config.treasury,
         )?;
 
-        // 5. ASTRO integration (if configured)
+        // 4. Transfer dev XLM bonus to treasury (1% of raised XLM)
         #[cfg(not(test))]
-        if let Some(astro_config) = storage::get_astro_config(env) {
-            let astro_client = astro_client::AstroTokenClient::new(
+        if allocation.xlm_dev_bonus > 0 {
+            let xlm_client = token::Client::new(env, &xlm_address);
+            xlm_client.transfer(&factory_address, &fee_config.treasury, &allocation.xlm_dev_bonus);
+            events::dev_bonus_paid(
                 env,
-                astro_config.token_address.clone(),
+                &token_info.token_address,
+                allocation.xlm_dev_bonus,
+                allocation.tokens_dev_allocation,
+                &fee_config.treasury,
             );
+        }
 
-            // 5a. Swap XLM → ASTRO for the ASTRO/TOKEN pool (23%)
-            if allocation.xlm_for_astro_swap > 0 {
-                match astro_client.swap_xlm_for_astro(
-                    allocation.xlm_for_astro_swap,
-                    &xlm_address,
-                    &astro_config.amm_address,
-                ) {
-                    Ok(astro_amount) => {
-                        astro_received_for_pool = astro_amount;
-
-                        // 5b. Deploy ASTRO/TOKEN AMM pair
-                        let astro_token_amm = amm_deployment::deploy_amm_pair(
-                            env,
-                            &astro_config.token_address,
-                            &token_info.token_address,
-                            &factory_address,
-                            &fee_config.treasury,
-                        )?;
-
-                        // 5c. Initialize ASTRO/TOKEN AMM
-                        let astro_amm_client = amm_client::AmmPairClient::new(env, astro_token_amm.clone());
-                        astro_amm_client.initialize(
-                            &astro_config.token_address,
-                            &token_info.token_address,
-                            &factory_address,
-                            &fee_config.treasury,
-                        )?;
-
-                        // 5d. Add liquidity to ASTRO/TOKEN pool
-                        // IMPORTANT: AMM's add_liquidity will PULL tokens from factory
-                        // Mint tokens TO FACTORY first, then authorize transfers, then add liquidity
-                        let deadline = env.ledger().timestamp() + 300;
-
-                        // Mint tokens to factory (so add_liquidity can transfer them to AMM)
-                        // Factory already has ASTRO from the swap above
-                        // Check if this is a pure Soroban token (V2) or SAC (V1)
-                        if token_info.issuer.is_empty() {
-                            // Pure Soroban token (V2) - use launchpad_token_client
-                            launchpad_token_client::mint(env, &token_info.token_address, &factory_address, allocation.tokens_for_astro_pool);
-                        } else {
-                            // SAC token (V1) - use StellarAssetClient
-                            let token_sac_client = token::StellarAssetClient::new(env, &token_info.token_address);
-                            token_sac_client.mint(&factory_address, &allocation.tokens_for_astro_pool);
-                        }
-
-                        // CRITICAL: Authorize the transfers that AMM's add_liquidity will make on our behalf
-                        env.authorize_as_current_contract(soroban_sdk::vec![
-                            env,
-                            // Authorize ASTRO transfer from factory to AMM
-                            InvokerContractAuthEntry::Contract(SubContractInvocation {
-                                context: ContractContext {
-                                    contract: astro_config.token_address.clone(),
-                                    fn_name: Symbol::new(env, "transfer"),
-                                    args: (factory_address.clone(), astro_token_amm.clone(), astro_amount).into_val(env),
-                                },
-                                sub_invocations: soroban_sdk::vec![env],
-                            }),
-                            // Authorize TOKEN transfer from factory to AMM
-                            InvokerContractAuthEntry::Contract(SubContractInvocation {
-                                context: ContractContext {
-                                    contract: token_info.token_address.clone(),
-                                    fn_name: Symbol::new(env, "transfer"),
-                                    args: (factory_address.clone(), astro_token_amm.clone(), allocation.tokens_for_astro_pool).into_val(env),
-                                },
-                                sub_invocations: soroban_sdk::vec![env],
-                            }),
-                        ]);
-
-                        // Add liquidity - AMM will transfer ASTRO and tokens from factory to itself
-                        // The transfers are pre-authorized above
-                        let (_a0, _a1, astro_lp_minted) = astro_amm_client.add_liquidity(
-                            &factory_address,
-                            astro_amount,                       // ASTRO received from swap
-                            allocation.tokens_for_astro_pool,   // tokens for ASTRO pool
-                            0,
-                            0,
-                            deadline,
-                        )?;
-
-                        // Emit event for ASTRO pool liquidity lock
-                        events::liquidity_locked(env, &astro_token_amm, astro_lp_minted);
-                        astro_amm_address = Some(astro_token_amm);
-                    }
-                    Err(_) => {
-                        // If ASTRO swap fails, fall back to putting everything in XLM pool
-                        // Don't fail graduation due to ASTRO issues
-                    }
-                }
-            }
-
-            // 5e. Execute ASTRO burn (2%)
-            if allocation.xlm_for_burn > 0 {
-                match astro_client.execute_buyback_burn(
-                    allocation.xlm_for_burn,
-                    &xlm_address,
-                    &astro_config.amm_address,
-                ) {
-                    Ok(burned) => {
-                        astro_burned = burned;
-                        events::astro_buyback_executed(
-                            env,
-                            &token_info.token_address,
-                            allocation.xlm_for_burn,
-                            burned,
-                        );
-                    }
-                    Err(_) => {
-                        // Continue with graduation even if burn fails
-                    }
-                }
+        // 5. Mint dev token allocation to treasury (1% of remaining tokens)
+        #[cfg(not(test))]
+        if allocation.tokens_dev_allocation > 0 {
+            if token_info.issuer.is_empty() {
+                // Pure Soroban token (V2) - use launchpad_token_client
+                launchpad_token_client::mint(env, &token_info.token_address, &fee_config.treasury, allocation.tokens_dev_allocation);
+            } else {
+                // SAC token (V1) - use StellarAssetClient
+                let token_sac_client = token::StellarAssetClient::new(env, &token_info.token_address);
+                token_sac_client.mint(&fee_config.treasury, &allocation.tokens_dev_allocation);
             }
         }
 
-        // 6. Add liquidity to XLM/TOKEN pool (primary pool)
+        // 6. BURN excess tokens (deflationary event!)
+        // Record supply before burn for event
+        #[cfg(not(test))]
+        let supply_before_burn = INITIAL_SUPPLY; // Total supply before burn
+        #[cfg(not(test))]
+        if allocation.tokens_to_burn > 0 {
+            if token_info.issuer.is_empty() {
+                // Pure Soroban token (V2) - use admin_burn
+                // Burn from factory address (tokens were never distributed)
+                launchpad_token_client::admin_burn(env, &token_info.token_address, &factory_address, allocation.tokens_to_burn);
+            } else {
+                // SAC token (V1) - mint negative / burn from supply
+                let token_sac_client = token::StellarAssetClient::new(env, &token_info.token_address);
+                // For SAC, we need to mint to factory first, then burn
+                token_sac_client.mint(&factory_address, &allocation.tokens_to_burn);
+                token_sac_client.burn(&factory_address, &allocation.tokens_to_burn);
+            }
+            events::token_burned_at_graduation(
+                env,
+                &token_info.token_address,
+                allocation.tokens_to_burn,
+                supply_before_burn,
+                supply_before_burn - allocation.tokens_to_burn,
+            );
+        }
+
+        // 7. Add liquidity to XLM/TOKEN pool (primary pool)
         // IMPORTANT: The AMM's add_liquidity expects to PULL tokens from the sender (factory).
-        // We must mint tokens to factory first, then authorize the transfers that AMM will make.
-        // CRITICAL: The AMM sorts tokens by address (smaller first = token_0).
-        // We must pass amounts in the SAME ORDER the AMM expects them!
+        // We must mint tokens to factory first, then authorize the transfers.
         #[cfg(not(test))]
         {
             let deadline = env.ledger().timestamp() + 300;
 
-            // Mint tokens to factory (so add_liquidity can transfer them to AMM)
-            // Check if this is a pure Soroban token (V2) or SAC (V1)
+            // Mint pool tokens to factory (so add_liquidity can transfer them to AMM)
             if token_info.issuer.is_empty() {
                 // Pure Soroban token (V2) - use launchpad_token_client
-                launchpad_token_client::mint(env, &token_info.token_address, &factory_address, allocation.tokens_for_xlm_pool);
+                launchpad_token_client::mint(env, &token_info.token_address, &factory_address, allocation.tokens_for_pool);
             } else {
                 // SAC token (V1) - use StellarAssetClient
                 let token_sac_client = token::StellarAssetClient::new(env, &token_info.token_address);
-                token_sac_client.mint(&factory_address, &allocation.tokens_for_xlm_pool);
+                token_sac_client.mint(&factory_address, &allocation.tokens_for_pool);
             }
 
-            // CRITICAL: The AMM does NOT sort tokens by address internally.
-            // It uses whatever order was passed to initialize().
-            // We initialized with: token_0 = XLM, token_1 = graduated token
-            // So we must use the SAME order here for authorization and add_liquidity.
-            let amount_0 = allocation.xlm_for_xlm_pool;           // XLM amount (token_0)
-            let amount_1 = allocation.tokens_for_xlm_pool;        // Token amount (token_1)
-            let token_0_contract = xlm_address.clone();           // XLM is token_0
+            // CRITICAL: The AMM uses token_0 = XLM, token_1 = graduated token
+            // We must pass amounts in the SAME ORDER
+            let amount_0 = allocation.xlm_for_pool;           // XLM amount (token_0)
+            let amount_1 = allocation.tokens_for_pool;        // Token amount (token_1)
+            let token_0_contract = xlm_address.clone();       // XLM is token_0
             let token_1_contract = token_info.token_address.clone(); // Graduated token is token_1
 
-            // CRITICAL: Authorize the transfers that AMM's add_liquidity will make on our behalf
-            // The AMM contract will call transfer() on both tokens in order: token_0 then token_1
+            // Authorize the transfers that AMM's add_liquidity will make on our behalf
             env.authorize_as_current_contract(soroban_sdk::vec![
                 env,
-                // Authorize token_0 transfer from factory to AMM
+                // Authorize token_0 (XLM) transfer from factory to AMM
                 InvokerContractAuthEntry::Contract(SubContractInvocation {
                     context: ContractContext {
                         contract: token_0_contract.clone(),
@@ -1844,7 +1675,7 @@ impl SacFactory {
                     },
                     sub_invocations: soroban_sdk::vec![env],
                 }),
-                // Authorize token_1 transfer from factory to AMM
+                // Authorize token_1 (graduated token) transfer from factory to AMM
                 InvokerContractAuthEntry::Contract(SubContractInvocation {
                     context: ContractContext {
                         contract: token_1_contract.clone(),
@@ -1869,43 +1700,21 @@ impl SacFactory {
             events::liquidity_locked(env, &xlm_amm_address, xlm_lp_minted);
         }
 
-        // 7. Store AMM pair addresses
+        // 8. Store AMM pair address
         env.storage().persistent().set(
             &storage::PersistentKey::AmmPairAddress(token_info.token_address.clone()),
             &xlm_amm_address,
         );
 
-        // Store ASTRO/TOKEN AMM address if created
-        if let Some(ref astro_amm) = astro_amm_address {
-            env.storage().persistent().set(
-                &storage::PersistentKey::AstroAmmPairAddress(token_info.token_address.clone()),
-                astro_amm,
-            );
-        }
-
-        // 8. FIX CRITICAL BUG #1: Release EXACT locked XLM amount (liquidity now in AMM, not bonding curve)
-        // Use per-token tracking to ensure accurate accounting (not xlm_raised which includes protocol fees)
+        // 9. Release locked XLM (liquidity now in AMM, not bonding curve)
         storage::release_locked_xlm(env, token_info.locked_xlm_amount);
-        token_info.locked_xlm_amount = 0; // Clear token-specific tracking
+        token_info.locked_xlm_amount = 0;
 
-        // 9. Mark as graduated
+        // 10. Mark as graduated
         token_info.status = TokenStatus::Graduated;
 
-        // 10. Emit graduation events
-        events::token_graduated(env, &token_info.token_address, token_info.xlm_raised);
-
-        // Emit detailed dual-pool graduation event if ASTRO is configured
-        if astro_client::is_astro_enabled(env) {
-            events::graduation_with_astro(
-                env,
-                &token_info.token_address,
-                token_info.xlm_raised,
-                allocation.xlm_for_xlm_pool,
-                astro_received_for_pool,
-                allocation.xlm_for_burn,
-                astro_burned,
-            );
-        }
+        // 11. Emit graduation events
+        events::token_graduated(env, &token_info.token_address, total_xlm);
 
         Ok(())
     }
@@ -2012,7 +1821,7 @@ impl SacFactory {
         token_info.status = TokenStatus::Graduated;
 
         // Emit graduation event
-        events::token_graduated(env, &token_info.token_address, token_info.xlm_raised);
+        events::token_graduated(env, &token_info.token_address, total_xlm);
 
         // Emit bridge graduation event
         events::bridge_graduation(env, &token_info.token_address, &pair_address, total_xlm);
@@ -2196,8 +2005,9 @@ impl SacFactory {
         }
 
         // Verify token has reached graduation threshold
+        // BUG FIX: Use get_real_xlm_raised() instead of xlm_raised
         let graduation_threshold = storage::get_graduation_threshold(&env);
-        if token_info.xlm_raised < graduation_threshold {
+        if token_info.bonding_curve.get_real_xlm_raised() < graduation_threshold {
             return Err(Error::InsufficientLiquidity);
         }
 

@@ -22,14 +22,14 @@ use crate::events;
 /// Basis points precision (10000 = 100%)
 const BPS_PRECISION: i128 = 10_000;
 
-/// Default protocol fee: 0.05% = 5 basis points
-const DEFAULT_PROTOCOL_FEE_BPS: i128 = 5;
+/// Default protocol fee: 0.15% = 15 basis points
+const DEFAULT_PROTOCOL_FEE_BPS: i128 = 15;
 
-/// Default LP fee: 0.25% = 25 basis points
-const DEFAULT_LP_FEE_BPS: i128 = 25;
+/// Default LP fee: 0.15% = 15 basis points
+const DEFAULT_LP_FEE_BPS: i128 = 15;
 
-/// Default creation fee: 10 XLM = 100,000,000 stroops
-const DEFAULT_CREATION_FEE: i128 = 100_000_000;
+/// Default creation fee: 5 XLM = 50,000,000 stroops
+const DEFAULT_CREATION_FEE: i128 = 50_000_000;
 
 /// Maximum allowed protocol fee: 1% = 100 basis points
 const MAX_PROTOCOL_FEE_BPS: i128 = 100;
@@ -522,11 +522,11 @@ mod tests {
             DEFAULT_LP_FEE_BPS,
         ).unwrap();
 
-        // Protocol fee: 0.05% of 100M = 50,000 (exact, no rounding)
-        assert_eq!(breakdown.protocol_fee, 50_000);
+        // Protocol fee: 0.15% of 100M = 150,000 (exact, no rounding)
+        assert_eq!(breakdown.protocol_fee, 150_000);
 
-        // LP fee: 0.25% of 100M = 250,000 (exact, no rounding)
-        assert_eq!(breakdown.lp_fee, 250_000);
+        // LP fee: 0.15% of 100M = 150,000 (exact, no rounding)
+        assert_eq!(breakdown.lp_fee, 150_000);
 
         // Total fees: 300,000
         assert_eq!(breakdown.total_fees, 300_000);
