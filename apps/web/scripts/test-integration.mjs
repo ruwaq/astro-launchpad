@@ -43,9 +43,9 @@ function logInfo(message) {
   log(`ℹ ${message}`, 'blue');
 }
 
-// Expected contract addresses from 2026-03-19 deployment
+// Expected contract addresses from 2026-04-16 V6 deployment
 const EXPECTED_CONTRACTS = {
-  tokenFactory: 'CCQ4IMTQR3PIXQBLEZPFFUEPGMSHUE5AAD2CB6PXBOVR5G3EQKGTHUPD',
+  tokenFactory: 'CBB6RCXAUCV6ES7KEK6QINAB3X2NYKW2NKWWBTXBJ2HAP54E7Y6NUJHP',
   dexFactory: 'CCIWIAARHLGLOXFZZJZVA42JWJRB3UCB25S6K6462SM27L5YNODDS2TW',
   dexRouter: 'CDDAPQKLLP2WMH2LJELHM4E5NTZ7KEVEFV5GFE7EIPTUVD4K4YUUZQQV',
   dexBridge: 'CC5XKGMINSIETOQU664ZJQXTZCJYA2KJFUV34UDEVRJNSMQOPKFEHWGM',
@@ -151,7 +151,7 @@ function testConfigFallbacks() {
     }
 
     // Check version comment
-    if (configContent.includes('V2.0.0 - March 19, 2026')) {
+    if (configContent.includes('V3.0.0 - April 5, 2026')) {
       logSuccess('Version comment is up to date');
     } else {
       logWarning('Version comment may be outdated');
@@ -324,7 +324,7 @@ function testGraphQLClient() {
 function main() {
   log('\n╔═══════════════════════════════════════════════════════════╗', 'blue');
   log('║       Astro Launchpad Frontend Integration Test          ║', 'blue');
-  log('║                  Version: v2.0.0                          ║', 'blue');
+  log('║                  Version: v3.0.0                          ║', 'blue');
   log('║                  Network: Stellar Testnet                 ║', 'blue');
   log('╚═══════════════════════════════════════════════════════════╝', 'blue');
 

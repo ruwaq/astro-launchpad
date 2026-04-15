@@ -1,0 +1,54 @@
+{
+  "version": "6.0.0",
+  "network": "testnet",
+  "contract_id": "CBB6RCXAUCV6ES7KEK6QINAB3X2NYKW2NKWWBTXBJ2HAP54E7Y6NUJHP",
+  "admin": "GB2XFP6XK2MPOGURZCEH3KISW7W657IXC3MJZKG5MNBFMUSUNX3QWCFJ",
+  "treasury": "GB2XFP6XK2MPOGURZCEH3KISW7W657IXC3MJZKG5MNBFMUSUNX3QWCFJ",
+  "xlm_token_address": "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+  "wasm_hash": "4d3714663d3acbd7856f334c456674cb46a9a16a6f4ce7ddc2d61096d31476dd",
+  "wasm_size": "105K (optimized with wasm-opt -Oz)",
+  "deployed_at": "2026-04-16",
+  "initialized_at": "2026-04-16",
+  "deployer_identity": "testnet-deployer",
+  "stellar_version": "stellar 25.2.0",
+  "target": "wasm32v1-none",
+  "tokenomics": {
+    "graduation_threshold_stroops": "345000000000",
+    "graduation_threshold_xlm": "34500",
+    "protocol_fee_bps": 15,
+    "lp_fee_bps": 15,
+    "total_fee_bps": 30,
+    "creation_fee_stroops": "50000000",
+    "creation_fee_xlm": "5",
+    "dev_bonus_bps": 100,
+    "token_burn_on_graduation": true
+  },
+  "features": {
+    "launch_token_v2": true,
+    "has_token_wasm_hash": true,
+    "is_active": true,
+    "is_symbol_used": true,
+    "fee_management": true,
+    "per_token_locked_xlm": true,
+    "graduation_to_amm": true,
+    "v6_tokenomics": true,
+    "dev_bonus": true,
+    "token_burn": true
+  },
+  "linked_dex": {
+    "factory": "CCIWIAARHLGLOXFZZJZVA42JWJRB3UCB25S6K6462SM27L5YNODDS2TW",
+    "router": "CDDAPQKLLP2WMH2LJELHM4E5NTZ7KEVEFV5GFE7EIPTUVD4K4YUUZQQV",
+    "bridge": "CC5XKGMINSIETOQU664ZJQXTZCJYA2KJFUV34UDEVRJNSMQOPKFEHWGM",
+    "staking": "CD7TGTMPW4TZAGC6AYEHCK4SMVHP6NC4X4UGTK242GEAXHPPOKWSILG4",
+    "pair_wasm_hash": "251b80d004a806aa1eeb63c80b1582d5942df2702d707beb85c12067e1a0a941"
+  },
+  "explorer_url": "https://stellar.expert/explorer/testnet/contract/CBB6RCXAUCV6ES7KEK6QINAB3X2NYKW2NKWWBTXBJ2HAP54E7Y6NUJHP",
+  "notes": [
+    "V6 deployment with updated tokenomics: 34.5k XLM graduation, 0.15%/0.15% fees, dev bonus, token burn",
+    "All contract functions verified on-chain (state=Active, fee_config, graduation_threshold)",
+    "wasm32v1-none target used (replaces deprecated wasm32-unknown-unknown)",
+    "WASM optimized with wasm-opt -Oz (130K -> 105K)",
+    "171 contract tests passing (137 + 34 security attack-vector tests)",
+    "Ready for production testing on testnet"
+  ]
+}
