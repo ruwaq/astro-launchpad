@@ -103,15 +103,11 @@ export const TokenCard = memo(function TokenCard({ tokenAddress, compact = false
           {/* Token Image */}
           <div className="relative w-12 h-12 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
             <Image
-              src={token.image_url}
+              src={token.image_url || '/images/default-token.svg'}
               alt={token.name}
               fill
               className="object-cover"
               sizes="48px"
-              onError={(e) => {
-                // Fallback to default image on error
-                (e.target as HTMLImageElement).src = '/images/default-token.svg';
-              }}
             />
           </div>
 

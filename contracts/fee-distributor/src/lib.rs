@@ -15,6 +15,7 @@ use soroban_sdk::{
 use astro_core_shared::{
     events::{emit_distribution, EventBuilder},
     math::{safe_add, safe_mul, safe_div, BPS_DENOMINATOR},
+    reentrancy::SimpleReentrancyGuard,
     types::{
         DistributionConfig, DistributionResult, SharedError,
         extend_instance_ttl,
@@ -127,6 +128,7 @@ impl FeeDistributor {
         caller.require_auth();
         Self::require_initialized(&env)?;
         Self::require_not_paused(&env)?;
+        let _guard = SimpleReentrancyGuard::acquire(&env)?;
 
         if amount <= 0 {
             return Err(SharedError::InvalidAmount);
@@ -153,6 +155,7 @@ impl FeeDistributor {
     pub fn distribute(env: Env, token: Address) -> Result<DistributionResult, SharedError> {
         Self::require_initialized(&env)?;
         Self::require_not_paused(&env)?;
+        let _guard = SimpleReentrancyGuard::acquire(&env)?;
 
         let config: DistributionConfig = env.storage().instance().get(&DataKey::Config)
             .ok_or(SharedError::NotInitialized)?;
@@ -285,6 +288,8 @@ impl FeeDistributor {
         env.storage().instance().set(&DataKey::Config, &new_config);
         extend_instance_ttl(&env);
 
+        Self::emit_config_updated(&env, new_config.treasury_bps, new_config.staking_bps, new_config.burn_bps, new_config.min_distribution);
+
         Ok(())
     }
 
@@ -303,6 +308,12 @@ impl FeeDistributor {
 
         extend_instance_ttl(&env);
         Ok(())
+    }
+
+    /// Update configuration event
+    fn emit_config_updated(env: &Env, treasury_bps: u32, staking_bps: u32, burn_bps: u32, min_distribution: i128) {
+        let events = EventBuilder::new(env);
+        events.publish("fee_dist", "config_updated", (treasury_bps, staking_bps, burn_bps, min_distribution, env.ledger().timestamp()));
     }
 
     /// Pause/unpause the contract
@@ -326,6 +337,7 @@ impl FeeDistributor {
         amount: i128,
     ) -> Result<(), SharedError> {
         Self::require_admin(&env)?;
+        let _guard = SimpleReentrancyGuard::acquire(&env)?;
 
         // Only allow emergency withdrawal when paused
         let paused: bool = env.storage().instance().get(&DataKey::Paused).unwrap_or(false);

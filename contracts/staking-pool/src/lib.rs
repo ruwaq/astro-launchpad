@@ -17,6 +17,7 @@ use soroban_sdk::{
 use astro_core_shared::{
     events::{emit_stake, emit_unstake, emit_claim, EventBuilder},
     math::{safe_add, safe_sub, safe_mul, safe_div, PRECISION},
+    reentrancy::SimpleReentrancyGuard,
     types::{
         SharedError, UserStake, StakingConfig,
         extend_instance_ttl,
@@ -116,6 +117,7 @@ impl StakingPool {
         user.require_auth();
         Self::require_initialized(&env)?;
         Self::require_not_paused(&env)?;
+        let _guard = SimpleReentrancyGuard::acquire(&env)?;
 
         let config: StakingConfig = env.storage().instance().get(&DataKey::Config)
             .ok_or(SharedError::NotInitialized)?;
@@ -168,6 +170,7 @@ impl StakingPool {
         user.require_auth();
         Self::require_initialized(&env)?;
         Self::require_not_paused(&env)?;
+        let _guard = SimpleReentrancyGuard::acquire(&env)?;
 
         if amount <= 0 {
             return Err(SharedError::InvalidAmount);
@@ -219,6 +222,7 @@ impl StakingPool {
         user.require_auth();
         Self::require_initialized(&env)?;
         Self::require_not_paused(&env)?;
+        let _guard = SimpleReentrancyGuard::acquire(&env)?;
 
         let mut user_stake = Self::get_user_stake(&env, &user);
         let reward_tokens = Self::get_reward_tokens(&env);
@@ -245,6 +249,7 @@ impl StakingPool {
     pub fn add_rewards(env: Env, caller: Address, reward_token: Address, amount: i128) -> Result<(), SharedError> {
         caller.require_auth();
         Self::require_initialized(&env)?;
+        let _guard = SimpleReentrancyGuard::acquire(&env)?;
 
         // Verify caller is fee distributor
         let fee_distributor: Address = env.storage().instance().get(&DataKey::FeeDistributor)
@@ -308,6 +313,9 @@ impl StakingPool {
         env.storage().instance().set(&DataKey::Config, &new_config);
         extend_instance_ttl(&env);
 
+        let events = EventBuilder::new(&env);
+        events.publish("staking", "config_updated", (new_config.min_stake_amount, env.ledger().timestamp()));
+
         Ok(())
     }
 
@@ -315,8 +323,14 @@ impl StakingPool {
     pub fn set_fee_distributor(env: Env, new_distributor: Address) -> Result<(), SharedError> {
         Self::require_admin(&env)?;
 
+        let old_distributor: Address = env.storage().instance().get(&DataKey::FeeDistributor)
+            .ok_or(SharedError::NotInitialized)?;
+
         env.storage().instance().set(&DataKey::FeeDistributor, &new_distributor);
         extend_instance_ttl(&env);
+
+        let events = EventBuilder::new(&env);
+        events.publish("staking", "fee_distributor_changed", (old_distributor, new_distributor, env.ledger().timestamp()));
 
         Ok(())
     }
@@ -325,8 +339,14 @@ impl StakingPool {
     pub fn set_admin(env: Env, new_admin: Address) -> Result<(), SharedError> {
         Self::require_admin(&env)?;
 
+        let old_admin: Address = env.storage().instance().get(&DataKey::Admin)
+            .ok_or(SharedError::NotInitialized)?;
+
         env.storage().instance().set(&DataKey::Admin, &new_admin);
         extend_instance_ttl(&env);
+
+        let events = EventBuilder::new(&env);
+        events.publish("staking", "admin_changed", (old_admin, new_admin, env.ledger().timestamp()));
 
         Ok(())
     }
@@ -352,6 +372,7 @@ impl StakingPool {
         amount: i128,
     ) -> Result<(), SharedError> {
         Self::require_admin(&env)?;
+        let _guard = SimpleReentrancyGuard::acquire(&env)?;
 
         let paused: bool = env.storage().instance().get(&DataKey::Paused).unwrap_or(false);
         if !paused {

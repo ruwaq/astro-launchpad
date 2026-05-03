@@ -7,9 +7,9 @@
 
 #![allow(dead_code)] // Config helpers for future features (views, oracle, bridge)
 
-use soroban_sdk::{contracttype, Address, Env, Vec};
 use crate::bonding_curve::BondingCurve;
 use crate::errors::Error;
+use soroban_sdk::{contracttype, Address, Env, Vec};
 
 /// Storage keys for Instance storage (small, frequently accessed)
 #[contracttype]
@@ -18,33 +18,33 @@ pub enum InstanceKey {
     Admin,
     Treasury,
     TokenCount,
-    AmmWasmHash,           // WASM hash for AMM pair contract deployment
-    OracleAddress,         // DIA Oracle contract address for price feeds
-    MinMarketCapUsd,       // Minimum market cap in USD (18 decimals) for graduation
-    GraduationThreshold,   // Configurable graduation threshold in stroops
-    XlmTokenAddress,       // Native XLM SAC address (network-specific)
-    OraclePriceMaxAge,     // Max age for oracle price staleness check (seconds)
+    AmmWasmHash,         // WASM hash for AMM pair contract deployment
+    OracleAddress,       // DIA Oracle contract address for price feeds
+    MinMarketCapUsd,     // Minimum market cap in USD (18 decimals) for graduation
+    GraduationThreshold, // Configurable graduation threshold in stroops
+    XlmTokenAddress,     // Native XLM SAC address (network-specific)
+    OraclePriceMaxAge,   // Max age for oracle price staleness check (seconds)
     // ASTRO Token Integration
-    AstroTokenAddress,     // ASTRO protocol token address
-    AstroLiquidityBps,     // Basis points for ASTRO liquidity (default: 1000 = 10%)
-    AstroBuybackBps,       // Basis points for buyback & burn (default: 500 = 5%)
-    AstroAmmAddress,       // Pre-deployed ASTRO/XLM AMM for swaps
+    AstroTokenAddress, // ASTRO protocol token address
+    AstroLiquidityBps, // Basis points for ASTRO liquidity (default: 1000 = 10%)
+    AstroBuybackBps,   // Basis points for buyback & burn (default: 500 = 5%)
+    AstroAmmAddress,   // Pre-deployed ASTRO/XLM AMM for swaps
     // DEX Bridge Integration
-    BridgeAddress,         // AstroSwap Bridge address for graduation to DEX
+    BridgeAddress,          // AstroSwap Bridge address for graduation to DEX
     UseBridgeForGraduation, // Whether to use Bridge (true) or local AMM (false)
     // Launchpad Token WASM (Pure Soroban tokens, not SAC)
-    TokenWasmHash,         // WASM hash for launchpad token contract deployment
+    TokenWasmHash, // WASM hash for launchpad token contract deployment
     // SECURITY: Track total locked XLM to protect bonding curve reserves
-    TotalLockedXlm,        // Total XLM locked in active bonding curves (cannot be withdrawn)
+    TotalLockedXlm, // Total XLM locked in active bonding curves (cannot be withdrawn)
 }
 
 /// Storage keys for Persistent storage (unbounded, per-entity)
 #[contracttype]
 #[derive(Clone)]
 pub enum PersistentKey {
-    TokenInfo(Address),           // token_address -> TokenInfo
-    CreatorTokens(Address),       // creator -> Vec<token_addresses>
-    AmmPairAddress(Address),      // token_address -> XLM/TOKEN amm_pair_address (primary pool)
+    TokenInfo(Address),              // token_address -> TokenInfo
+    CreatorTokens(Address),          // creator -> Vec<token_addresses>
+    AmmPairAddress(Address),         // token_address -> XLM/TOKEN amm_pair_address (primary pool)
     AstroAmmPairAddress(Address), // token_address -> ASTRO/TOKEN amm_pair_address (ecosystem pool)
     UsedSymbol(soroban_sdk::String), // FIX #M8: Track used symbols to prevent duplicates
 }
@@ -53,10 +53,10 @@ pub enum PersistentKey {
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum TokenStatus {
-    Bonding,             // In bonding curve phase
+    Bonding,              // In bonding curve phase
     GraduationInProgress, // Graduation in progress (prevents race conditions)
-    Graduated,           // Successfully moved to AMM
-    GraduationFailed,    // Graduation attempt failed (requires recovery)
+    Graduated,            // Successfully moved to AMM
+    GraduationFailed,     // Graduation attempt failed (requires recovery)
 }
 
 /// Token information
@@ -68,7 +68,7 @@ pub struct TokenInfo {
     pub token_address: Address,
     pub name: soroban_sdk::String,
     pub symbol: soroban_sdk::String,
-    pub issuer: soroban_sdk::String,  // Asset issuer public key (G...) for trustline creation
+    pub issuer: soroban_sdk::String, // Asset issuer public key (G...) for trustline creation
     pub image_url: soroban_sdk::String,
     pub description: soroban_sdk::String,
     pub created_at: u64,
@@ -110,7 +110,10 @@ pub fn has_admin(env: &Env) -> bool {
 }
 
 pub fn get_admin(env: &Env) -> Result<Address, Error> {
-    env.storage().instance().get(&InstanceKey::Admin).ok_or(Error::NotInitialized)
+    env.storage()
+        .instance()
+        .get(&InstanceKey::Admin)
+        .ok_or(Error::NotInitialized)
 }
 
 pub fn set_admin(env: &Env, admin: &Address) {
@@ -119,20 +122,30 @@ pub fn set_admin(env: &Env, admin: &Address) {
 }
 
 pub fn get_treasury(env: &Env) -> Result<Address, Error> {
-    env.storage().instance().get(&InstanceKey::Treasury).ok_or(Error::NotInitialized)
+    env.storage()
+        .instance()
+        .get(&InstanceKey::Treasury)
+        .ok_or(Error::NotInitialized)
 }
 
 pub fn set_treasury(env: &Env, treasury: &Address) {
-    env.storage().instance().set(&InstanceKey::Treasury, treasury);
+    env.storage()
+        .instance()
+        .set(&InstanceKey::Treasury, treasury);
     extend_instance_ttl(env); // Extend TTL on critical config change
 }
 
 pub fn get_token_count(env: &Env) -> u32 {
-    env.storage().instance().get(&InstanceKey::TokenCount).unwrap_or(0)
+    env.storage()
+        .instance()
+        .get(&InstanceKey::TokenCount)
+        .unwrap_or(0)
 }
 
 pub fn set_token_count(env: &Env, count: u32) {
-    env.storage().instance().set(&InstanceKey::TokenCount, &count);
+    env.storage()
+        .instance()
+        .set(&InstanceKey::TokenCount, &count);
 }
 
 pub fn increment_token_count(env: &Env) -> Result<(), crate::errors::Error> {
@@ -147,7 +160,9 @@ pub fn get_oracle_address(env: &Env) -> Option<Address> {
 }
 
 pub fn set_oracle_address(env: &Env, oracle: &Address) {
-    env.storage().instance().set(&InstanceKey::OracleAddress, oracle);
+    env.storage()
+        .instance()
+        .set(&InstanceKey::OracleAddress, oracle);
 }
 
 pub fn get_min_market_cap_usd(env: &Env) -> u128 {
@@ -175,11 +190,16 @@ pub fn has_token_wasm_hash(env: &Env) -> bool {
 }
 
 pub fn get_token_wasm_hash(env: &Env) -> Result<soroban_sdk::BytesN<32>, Error> {
-    env.storage().instance().get(&InstanceKey::TokenWasmHash).ok_or(Error::NotInitialized)
+    env.storage()
+        .instance()
+        .get(&InstanceKey::TokenWasmHash)
+        .ok_or(Error::NotInitialized)
 }
 
 pub fn set_token_wasm_hash(env: &Env, wasm_hash: &soroban_sdk::BytesN<32>) {
-    env.storage().instance().set(&InstanceKey::TokenWasmHash, wasm_hash);
+    env.storage()
+        .instance()
+        .set(&InstanceKey::TokenWasmHash, wasm_hash);
     extend_instance_ttl(env); // Extend TTL on critical config change
 }
 
@@ -246,7 +266,9 @@ pub fn set_token_info(env: &Env, token: &Address, info: &TokenInfo) {
 
     // Extend TTL to 30 days (measured in ledgers, ~5 seconds per ledger)
     // 30 days = 30 * 24 * 60 * 60 / 5 = 518,400 ledgers
-    env.storage().persistent().extend_ttl(&key, 518_400, 518_400);
+    env.storage()
+        .persistent()
+        .extend_ttl(&key, 518_400, 518_400);
 }
 
 /// Get creator's tokens (returns empty Vec if none)
@@ -266,7 +288,9 @@ pub fn add_creator_token(env: &Env, creator: &Address, token: &Address) {
     env.storage().persistent().set(&key, &tokens);
 
     // Extend TTL to 30 days
-    env.storage().persistent().extend_ttl(&key, 518_400, 518_400);
+    env.storage()
+        .persistent()
+        .extend_ttl(&key, 518_400, 518_400);
 }
 
 /// Get paginated creator tokens (DoS prevention)
@@ -283,7 +307,10 @@ pub fn get_creator_tokens_paginated(
         return Vec::new(env);
     }
 
-    let end = offset.saturating_add(limit).min(len).min(offset.saturating_add(100)); // Max 100 per page
+    let end = offset
+        .saturating_add(limit)
+        .min(len)
+        .min(offset.saturating_add(100)); // Max 100 per page
     let start = offset;
 
     let mut result = Vec::new(env);
@@ -305,7 +332,9 @@ pub fn get_xlm_token_address(env: &Env) -> Option<Address> {
 
 /// Set native XLM token address (called once during initialization)
 pub fn set_xlm_token_address(env: &Env, address: &Address) {
-    env.storage().instance().set(&InstanceKey::XlmTokenAddress, address);
+    env.storage()
+        .instance()
+        .set(&InstanceKey::XlmTokenAddress, address);
 }
 
 /// Check if XLM token address is configured
@@ -345,17 +374,23 @@ const DEFAULT_ASTRO_BUYBACK_BPS: i128 = 500;
 
 /// Get ASTRO token address
 pub fn get_astro_token_address(env: &Env) -> Option<Address> {
-    env.storage().instance().get(&InstanceKey::AstroTokenAddress)
+    env.storage()
+        .instance()
+        .get(&InstanceKey::AstroTokenAddress)
 }
 
 /// Set ASTRO token address
 pub fn set_astro_token_address(env: &Env, address: &Address) {
-    env.storage().instance().set(&InstanceKey::AstroTokenAddress, address);
+    env.storage()
+        .instance()
+        .set(&InstanceKey::AstroTokenAddress, address);
 }
 
 /// Check if ASTRO token is configured
 pub fn has_astro_token_address(env: &Env) -> bool {
-    env.storage().instance().has(&InstanceKey::AstroTokenAddress)
+    env.storage()
+        .instance()
+        .has(&InstanceKey::AstroTokenAddress)
 }
 
 /// Get ASTRO liquidity basis points (default 10%)
@@ -395,17 +430,23 @@ pub fn get_astro_amm_address(env: &Env) -> Option<Address> {
 
 /// Set ASTRO AMM address
 pub fn set_astro_amm_address(env: &Env, address: &Address) {
-    env.storage().instance().set(&InstanceKey::AstroAmmAddress, address);
+    env.storage()
+        .instance()
+        .set(&InstanceKey::AstroAmmAddress, address);
 }
 
 /// Clear ASTRO token address (disables ASTRO integration)
 pub fn clear_astro_token_address(env: &Env) {
-    env.storage().instance().remove(&InstanceKey::AstroTokenAddress);
+    env.storage()
+        .instance()
+        .remove(&InstanceKey::AstroTokenAddress);
 }
 
 /// Clear ASTRO AMM address
 pub fn clear_astro_amm_address(env: &Env) {
-    env.storage().instance().remove(&InstanceKey::AstroAmmAddress);
+    env.storage()
+        .instance()
+        .remove(&InstanceKey::AstroAmmAddress);
 }
 
 /// Clear all ASTRO configuration (disables ASTRO integration)
@@ -413,8 +454,12 @@ pub fn clear_astro_config(env: &Env) {
     clear_astro_token_address(env);
     clear_astro_amm_address(env);
     // Also clear the basis points to reset to defaults
-    env.storage().instance().remove(&InstanceKey::AstroLiquidityBps);
-    env.storage().instance().remove(&InstanceKey::AstroBuybackBps);
+    env.storage()
+        .instance()
+        .remove(&InstanceKey::AstroLiquidityBps);
+    env.storage()
+        .instance()
+        .remove(&InstanceKey::AstroBuybackBps);
 }
 
 /// ASTRO integration configuration
@@ -449,7 +494,9 @@ pub fn get_bridge_address(env: &Env) -> Option<Address> {
 
 /// Set DEX Bridge address
 pub fn set_bridge_address(env: &Env, address: &Address) {
-    env.storage().instance().set(&InstanceKey::BridgeAddress, address);
+    env.storage()
+        .instance()
+        .set(&InstanceKey::BridgeAddress, address);
 }
 
 /// Check if Bridge is configured
@@ -506,7 +553,9 @@ pub fn mark_symbol_used(env: &Env, symbol: &soroban_sdk::String) {
         .set(&PersistentKey::UsedSymbol(symbol.clone()), &true);
 
     // Extend TTL to prevent expiration
-    env.storage()
-        .persistent()
-        .extend_ttl(&PersistentKey::UsedSymbol(symbol.clone()), 200_000, 200_000);
+    env.storage().persistent().extend_ttl(
+        &PersistentKey::UsedSymbol(symbol.clone()),
+        200_000,
+        200_000,
+    );
 }

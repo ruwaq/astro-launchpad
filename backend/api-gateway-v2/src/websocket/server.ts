@@ -21,6 +21,7 @@ interface Client {
   subscriptions: Set<string>;
   lastPing: number;
   ip: string;
+  subscriptionCount: number;
 }
 
 interface TokenUpdate {
@@ -33,6 +34,12 @@ class WebSocketManager {
   private clients: Map<string, Client> = new Map();
   private tokenSubscribers: Map<string, Set<string>> = new Map();
   private connectionsByIp: Map<string, number> = new Map();
+  private subscriptionCounts: Map<string, { count: number; lastReset: number }> = new Map();
+
+  private static readonly SUBSCRIPTION_WINDOW_MS = 60000; // 1 minute window
+  private subscriptionCounts: Map<string, { count: number; lastReset: number }> = new Map();
+
+  private static readonly SUBSCRIPTION_WINDOW_MS = 60000; // 1 minute window
 
   constructor(server: ReturnType<typeof createServer>) {
     this.wss = new WebSocketServer({ server, path: '/ws' });
@@ -59,6 +66,7 @@ class WebSocketManager {
         subscriptions: new Set(),
         lastPing: Date.now(),
         ip,
+        subscriptionCount: 0,
       });
 
       logger.info({ clientId, ip }, 'WebSocket client connected');

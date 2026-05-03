@@ -6,8 +6,8 @@
 
 #![allow(dead_code)] // Future features: graduation events, fee config events
 
-use soroban_sdk::{contractevent, Address, Env, String};
 use crate::access_control::Role;
+use soroban_sdk::{contractevent, Address, Env, String};
 
 /// Token launched event
 #[contractevent]
@@ -67,7 +67,8 @@ pub fn token_launched(
         token: token.clone(),
         name: name.clone(),
         symbol: symbol.clone(),
-    }.publish(env);
+    }
+    .publish(env);
 }
 
 pub fn tokens_bought(
@@ -82,7 +83,8 @@ pub fn tokens_bought(
         token: token.clone(),
         xlm_amount,
         tokens_received,
-    }.publish(env);
+    }
+    .publish(env);
 }
 
 pub fn tokens_sold(
@@ -97,29 +99,24 @@ pub fn tokens_sold(
         token: token.clone(),
         tokens_sold,
         xlm_received,
-    }.publish(env);
+    }
+    .publish(env);
 }
 
-pub fn token_graduated(
-    env: &Env,
-    token: &Address,
-    xlm_raised: i128,
-) {
+pub fn token_graduated(env: &Env, token: &Address, xlm_raised: i128) {
     TokenGraduated {
         token: token.clone(),
         xlm_raised,
-    }.publish(env);
+    }
+    .publish(env);
 }
 
-pub fn liquidity_locked(
-    env: &Env,
-    amm_pair: &Address,
-    lp_tokens: i128,
-) {
+pub fn liquidity_locked(env: &Env, amm_pair: &Address, lp_tokens: i128) {
     LiquidityLocked {
         amm_pair: amm_pair.clone(),
         lp_tokens,
-    }.publish(env);
+    }
+    .publish(env);
 }
 
 // ========== Enhanced Events ==========
@@ -296,7 +293,8 @@ pub fn token_launched_detailed(
         bonding_curve_supply,
         timestamp: env.ledger().timestamp(),
         creation_fee_paid,
-    }.publish(env);
+    }
+    .publish(env);
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -323,50 +321,62 @@ pub fn tokens_bought_detailed(
         price_after,
         slippage_bps,
         timestamp: env.ledger().timestamp(),
-    }.publish(env);
+    }
+    .publish(env);
 }
 
 pub fn role_granted(env: &Env, account: &Address, role: Role) {
     RoleGranted {
         account: account.clone(),
         role,
-    }.publish(env);
+    }
+    .publish(env);
 }
 
 pub fn role_revoked(env: &Env, account: &Address, role: Role) {
     RoleRevoked {
         account: account.clone(),
         role,
-    }.publish(env);
+    }
+    .publish(env);
 }
 
 pub fn ownership_transferred(env: &Env, previous_owner: &Address, new_owner: &Address) {
     OwnershipTransferred {
         previous_owner: previous_owner.clone(),
         new_owner: new_owner.clone(),
-    }.publish(env);
+    }
+    .publish(env);
 }
 
 pub fn contract_paused(env: &Env, paused_by: &Address) {
     ContractPaused {
         paused_by: paused_by.clone(),
         timestamp: env.ledger().timestamp(),
-    }.publish(env);
+    }
+    .publish(env);
 }
 
 pub fn contract_unpaused(env: &Env, unpaused_by: &Address) {
     ContractUnpaused {
         unpaused_by: unpaused_by.clone(),
         timestamp: env.ledger().timestamp(),
-    }.publish(env);
+    }
+    .publish(env);
 }
 
-pub fn fee_config_updated(env: &Env, creation_fee: i128, trading_fee_bps: i128, updated_by: &Address) {
+pub fn fee_config_updated(
+    env: &Env,
+    creation_fee: i128,
+    trading_fee_bps: i128,
+    updated_by: &Address,
+) {
     FeeConfigUpdated {
         creation_fee,
         trading_fee_bps,
         updated_by: updated_by.clone(),
-    }.publish(env);
+    }
+    .publish(env);
 }
 
 pub fn protocol_fee_updated(env: &Env, old_fee_bps: i128, new_fee_bps: i128, updated_by: &Address) {
@@ -374,7 +384,8 @@ pub fn protocol_fee_updated(env: &Env, old_fee_bps: i128, new_fee_bps: i128, upd
         old_fee_bps,
         new_fee_bps,
         updated_by: updated_by.clone(),
-    }.publish(env);
+    }
+    .publish(env);
 }
 
 pub fn lp_fee_updated(env: &Env, old_fee_bps: i128, new_fee_bps: i128, updated_by: &Address) {
@@ -382,7 +393,8 @@ pub fn lp_fee_updated(env: &Env, old_fee_bps: i128, new_fee_bps: i128, updated_b
         old_fee_bps,
         new_fee_bps,
         updated_by: updated_by.clone(),
-    }.publish(env);
+    }
+    .publish(env);
 }
 
 pub fn creation_fee_updated(env: &Env, old_fee: i128, new_fee: i128, updated_by: &Address) {
@@ -390,15 +402,22 @@ pub fn creation_fee_updated(env: &Env, old_fee: i128, new_fee: i128, updated_by:
         old_fee,
         new_fee,
         updated_by: updated_by.clone(),
-    }.publish(env);
+    }
+    .publish(env);
 }
 
-pub fn treasury_updated(env: &Env, old_treasury: &Address, new_treasury: &Address, updated_by: &Address) {
+pub fn treasury_updated(
+    env: &Env,
+    old_treasury: &Address,
+    new_treasury: &Address,
+    updated_by: &Address,
+) {
     TreasuryUpdated {
         old_treasury: old_treasury.clone(),
         new_treasury: new_treasury.clone(),
         updated_by: updated_by.clone(),
-    }.publish(env);
+    }
+    .publish(env);
 }
 
 pub fn protocol_fee_collected(env: &Env, token: &Address, amount: i128, treasury: &Address) {
@@ -407,7 +426,8 @@ pub fn protocol_fee_collected(env: &Env, token: &Address, amount: i128, treasury
         amount,
         treasury: treasury.clone(),
         timestamp: env.ledger().timestamp(),
-    }.publish(env);
+    }
+    .publish(env);
 }
 
 pub fn lp_fee_collected(env: &Env, token: &Address, amount: i128) {
@@ -415,7 +435,8 @@ pub fn lp_fee_collected(env: &Env, token: &Address, amount: i128) {
         token: token.clone(),
         amount,
         timestamp: env.ledger().timestamp(),
-    }.publish(env);
+    }
+    .publish(env);
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -438,7 +459,8 @@ pub fn fee_breakdown_event(
         lp_fee,
         net_amount,
         timestamp: env.ledger().timestamp(),
-    }.publish(env);
+    }
+    .publish(env);
 }
 
 // ========== Admin Configuration Events ==========
@@ -531,7 +553,8 @@ pub fn xlm_address_updated(
         new_address: new_address.clone(),
         updated_by: updated_by.clone(),
         timestamp: env.ledger().timestamp(),
-    }.publish(env);
+    }
+    .publish(env);
 }
 
 pub fn graduation_threshold_updated(
@@ -545,14 +568,16 @@ pub fn graduation_threshold_updated(
         new_threshold,
         updated_by: updated_by.clone(),
         timestamp: env.ledger().timestamp(),
-    }.publish(env);
+    }
+    .publish(env);
 }
 
 pub fn amm_wasm_hash_updated(env: &Env, updated_by: &Address) {
     AmmWasmHashUpdated {
         updated_by: updated_by.clone(),
         timestamp: env.ledger().timestamp(),
-    }.publish(env);
+    }
+    .publish(env);
 }
 
 pub fn oracle_address_updated(
@@ -566,7 +591,8 @@ pub fn oracle_address_updated(
         new_address: new_address.clone(),
         updated_by: updated_by.clone(),
         timestamp: env.ledger().timestamp(),
-    }.publish(env);
+    }
+    .publish(env);
 }
 
 pub fn min_market_cap_updated(
@@ -580,7 +606,8 @@ pub fn min_market_cap_updated(
         new_min_market_cap,
         updated_by: updated_by.clone(),
         timestamp: env.ledger().timestamp(),
-    }.publish(env);
+    }
+    .publish(env);
 }
 
 pub fn oracle_price_max_age_updated(
@@ -594,7 +621,8 @@ pub fn oracle_price_max_age_updated(
         new_max_age,
         updated_by: updated_by.clone(),
         timestamp: env.ledger().timestamp(),
-    }.publish(env);
+    }
+    .publish(env);
 }
 
 pub fn fees_withdrawn(
@@ -610,14 +638,16 @@ pub fn fees_withdrawn(
         recipient: recipient.clone(),
         withdrawn_by: withdrawn_by.clone(),
         timestamp: env.ledger().timestamp(),
-    }.publish(env);
+    }
+    .publish(env);
 }
 
 pub fn anti_whale_config_updated(env: &Env, updated_by: &Address) {
     AntiWhaleConfigUpdated {
         updated_by: updated_by.clone(),
         timestamp: env.ledger().timestamp(),
-    }.publish(env);
+    }
+    .publish(env);
 }
 
 // ========== Emergency Recovery Events ==========
@@ -657,7 +687,8 @@ pub fn graduation_failed(env: &Env, token: &Address, xlm_raised: i128, reason: &
         xlm_raised,
         reason: String::from_str(env, reason),
         timestamp: env.ledger().timestamp(),
-    }.publish(env);
+    }
+    .publish(env);
 }
 
 pub fn token_recovered(env: &Env, token: &Address, recovered_by: &Address, recovery_type: &str) {
@@ -666,7 +697,8 @@ pub fn token_recovered(env: &Env, token: &Address, recovered_by: &Address, recov
         recovered_by: recovered_by.clone(),
         recovery_type: String::from_str(env, recovery_type),
         timestamp: env.ledger().timestamp(),
-    }.publish(env);
+    }
+    .publish(env);
 }
 
 pub fn graduation_retried(env: &Env, token: &Address, retried_by: &Address) {
@@ -674,7 +706,8 @@ pub fn graduation_retried(env: &Env, token: &Address, retried_by: &Address) {
         token: token.clone(),
         retried_by: retried_by.clone(),
         timestamp: env.ledger().timestamp(),
-    }.publish(env);
+    }
+    .publish(env);
 }
 
 // ========== ASTRO Token Integration Events ==========
@@ -740,7 +773,8 @@ pub fn astro_config_updated(
         buyback_bps,
         updated_by: updated_by.clone(),
         timestamp: env.ledger().timestamp(),
-    }.publish(env);
+    }
+    .publish(env);
 }
 
 /// ASTRO configuration cleared
@@ -755,7 +789,8 @@ pub fn astro_config_cleared(env: &Env, cleared_by: &Address) {
     AstroConfigCleared {
         cleared_by: cleared_by.clone(),
         timestamp: env.ledger().timestamp(),
-    }.publish(env);
+    }
+    .publish(env);
 }
 
 pub fn astro_buyback_executed(
@@ -769,7 +804,8 @@ pub fn astro_buyback_executed(
         xlm_used,
         astro_burned,
         timestamp: env.ledger().timestamp(),
-    }.publish(env);
+    }
+    .publish(env);
 }
 
 pub fn astro_liquidity_added(
@@ -785,7 +821,8 @@ pub fn astro_liquidity_added(
         token_amount,
         amm_pair: amm_pair.clone(),
         timestamp: env.ledger().timestamp(),
-    }.publish(env);
+    }
+    .publish(env);
 }
 
 pub fn graduation_with_astro(
@@ -805,7 +842,8 @@ pub fn graduation_with_astro(
         xlm_buyback,
         astro_burned,
         timestamp: env.ledger().timestamp(),
-    }.publish(env);
+    }
+    .publish(env);
 }
 
 // ========== DEX Bridge Integration Events ==========
@@ -831,18 +869,14 @@ pub struct BridgeConfigUpdated {
     pub timestamp: u64,
 }
 
-pub fn bridge_graduation(
-    env: &Env,
-    token: &Address,
-    pair_address: &Address,
-    xlm_raised: i128,
-) {
+pub fn bridge_graduation(env: &Env, token: &Address, pair_address: &Address, xlm_raised: i128) {
     BridgeGraduation {
         token: token.clone(),
         pair_address: pair_address.clone(),
         xlm_raised,
         timestamp: env.ledger().timestamp(),
-    }.publish(env);
+    }
+    .publish(env);
 }
 
 pub fn bridge_config_updated(
@@ -858,5 +892,6 @@ pub fn bridge_config_updated(
         enabled,
         updated_by: updated_by.clone(),
         timestamp: env.ledger().timestamp(),
-    }.publish(env);
+    }
+    .publish(env);
 }

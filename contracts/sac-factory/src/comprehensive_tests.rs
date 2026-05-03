@@ -9,7 +9,7 @@ mod comprehensive_tests {
         Address, BytesN, Env,
     };
 
-    fn create_factory(env: &Env) -> (SacFactoryClient, Address, Address, Address) {
+    fn create_factory(env: &Env) -> (SacFactoryClient<'_>, Address, Address, Address) {
         let contract_id = env.register(SacFactory, ());
         let client = SacFactoryClient::new(env, &contract_id);
         let admin = Address::generate(env);
@@ -18,7 +18,7 @@ mod comprehensive_tests {
         (client, admin, treasury, xlm_token_address)
     }
 
-    fn setup_factory(env: &Env) -> (SacFactoryClient, Address, Address) {
+    fn setup_factory(env: &Env) -> (SacFactoryClient<'_>, Address, Address) {
         let (client, admin, treasury, xlm_token_address) = create_factory(env);
         env.mock_all_auths();
         client.initialize(&admin, &treasury, &xlm_token_address);
@@ -248,7 +248,7 @@ mod comprehensive_tests {
         let new_creation_fee = 200_000i128;
         let new_protocol_fee = 10i128; // 0.1%
         let new_lp_fee = 30i128; // 0.3%
-        
+
         client.set_creation_fee(&admin, &new_creation_fee);
         client.set_protocol_fee(&admin, &new_protocol_fee);
         client.set_lp_fee(&admin, &new_lp_fee);

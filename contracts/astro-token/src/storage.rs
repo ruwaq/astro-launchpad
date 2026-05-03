@@ -13,6 +13,7 @@ pub enum DataKey {
     Decimals,
     Name,
     Symbol,
+    MaxSupply,
 }
 
 /// Allowance storage key
@@ -44,8 +45,8 @@ pub fn has_admin(env: &Env) -> bool {
     env.storage().instance().has(&DataKey::Admin)
 }
 
-pub fn get_admin(env: &Env) -> Address {
-    env.storage().instance().get(&DataKey::Admin).unwrap()
+pub fn get_admin(env: &Env) -> Option<Address> {
+    env.storage().instance().get(&DataKey::Admin)
 }
 
 pub fn set_admin(env: &Env, admin: &Address) {
@@ -63,6 +64,19 @@ pub fn get_total_supply(env: &Env) -> i128 {
 
 pub fn set_total_supply(env: &Env, supply: i128) {
     env.storage().instance().set(&DataKey::TotalSupply, &supply);
+}
+
+/// Default maximum supply: 1 billion tokens with 7 decimals
+const DEFAULT_MAX_SUPPLY: i128 = 1_000_000_000_0000000;
+
+/// Get max supply (configurable by admin)
+pub fn get_max_supply(env: &Env) -> i128 {
+    env.storage().instance().get(&DataKey::MaxSupply).unwrap_or(DEFAULT_MAX_SUPPLY)
+}
+
+/// Set max supply (admin only)
+pub fn set_max_supply(env: &Env, max_supply: i128) {
+    env.storage().instance().set(&DataKey::MaxSupply, &max_supply);
 }
 
 // ========== TTL Extension ==========

@@ -23,6 +23,7 @@ use soroban_sdk::{
 };
 use astro_core_shared::{
     events::{emit_deposit, emit_withdraw, emit_admin_changed, emit_paused, EventBuilder},
+    reentrancy::SimpleReentrancyGuard,
     types::{SharedError, extend_instance_ttl},
 };
 
@@ -126,6 +127,7 @@ impl TreasuryVault {
         from.require_auth();
         Self::require_initialized(&env)?;
         Self::require_not_paused(&env)?;
+        let _guard = SimpleReentrancyGuard::acquire(&env)?;
 
         if amount <= 0 {
             return Err(SharedError::InvalidAmount);
@@ -159,6 +161,7 @@ impl TreasuryVault {
         Self::require_initialized(&env)?;
         Self::require_not_paused(&env)?;
         Self::require_admin(&env)?;
+        let _guard = SimpleReentrancyGuard::acquire(&env)?;
 
         if amount <= 0 {
             return Err(SharedError::InvalidAmount);
@@ -190,6 +193,7 @@ impl TreasuryVault {
         Self::require_initialized(&env)?;
         Self::require_not_paused(&env)?;
         Self::require_admin(&env)?;
+        let _guard = SimpleReentrancyGuard::acquire(&env)?;
 
         // Get full balance
         let balance = Self::get_balance(&env, &token);
@@ -218,6 +222,7 @@ impl TreasuryVault {
         spender.require_auth();
         Self::require_initialized(&env)?;
         Self::require_not_paused(&env)?;
+        let _guard = SimpleReentrancyGuard::acquire(&env)?;
 
         // Check if spender is allowed
         if !Self::is_allowed_spender(&env, &spender) {
@@ -273,8 +278,13 @@ impl TreasuryVault {
         Self::require_initialized(&env)?;
         Self::require_admin(&env)?;
 
+        let old_distributor = env.storage().instance().get::<DataKey, Address>(&DataKey::FeeDistributor);
+
         env.storage().instance().set(&DataKey::FeeDistributor, &fee_distributor);
         extend_instance_ttl(&env);
+
+        let events = EventBuilder::new(&env);
+        events.publish("treasury", "fee_distributor_changed", (old_distributor, fee_distributor, env.ledger().timestamp()));
 
         Ok(())
     }

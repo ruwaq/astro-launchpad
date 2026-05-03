@@ -32,12 +32,12 @@ impl Token {
 
     /// Initialize a new token with admin, decimals, name, and symbol
     /// Called by the factory when deploying a new token
-    pub fn initialize(e: Env, admin: Address, decimal: u32, name: String, symbol: String) {
+    pub fn initialize(e: Env, admin: Address, decimal: u32, name: String, symbol: String) -> Result<(), Error> {
         if has_administrator(&e) {
-            panic!("Error::AlreadyInitialized: Contract already initialized");
+            return Err(Error::AlreadyInitialized);
         }
         if decimal > 18 {
-            panic!("Error::InvalidDecimals: Decimal must not be greater than 18");
+            return Err(Error::InvalidDecimals);
         }
         write_administrator(&e, &admin);
         write_metadata(
@@ -48,6 +48,7 @@ impl Token {
                 symbol,
             },
         );
+        Ok(())
     }
 
     /// Mint tokens to an address (admin only)
@@ -114,14 +115,14 @@ impl token::Interface for Token {
     fn approve(e: Env, from: Address, spender: Address, amount: i128, expiration_ledger: u32) {
         from.require_auth();
 
-        check_nonnegative_amount(amount).unwrap();
+        check_nonnegative_amount(amount).unwrap_or_else(|e| panic!("{:?}", e));
 
         e.storage()
             .instance()
             .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
         write_allowance(&e, from.clone(), spender.clone(), amount, expiration_ledger)
-            .unwrap();
+            .unwrap_or_else(|e| panic!("{:?}", e));
         TokenUtils::new(&e)
             .events()
             .approve(from, spender, amount, expiration_ledger);
@@ -137,14 +138,14 @@ impl token::Interface for Token {
     fn transfer(e: Env, from: Address, to: MuxedAddress, amount: i128) {
         from.require_auth();
 
-        check_nonnegative_amount(amount).unwrap();
+        check_nonnegative_amount(amount).unwrap_or_else(|e| panic!("{:?}", e));
 
         e.storage()
             .instance()
             .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
         let to_address: Address = to.address();
-        spend_balance(&e, from.clone(), amount).unwrap();
+        spend_balance(&e, from.clone(), amount).unwrap_or_else(|e| panic!("{:?}", e));
         receive_balance(&e, to_address.clone(), amount);
         TokenUtils::new(&e).events().transfer(from, to_address, amount);
     }
@@ -152,14 +153,14 @@ impl token::Interface for Token {
     fn transfer_from(e: Env, spender: Address, from: Address, to: Address, amount: i128) {
         spender.require_auth();
 
-        check_nonnegative_amount(amount).unwrap();
+        check_nonnegative_amount(amount).unwrap_or_else(|e| panic!("{:?}", e));
 
         e.storage()
             .instance()
             .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
-        spend_allowance(&e, from.clone(), spender, amount).unwrap();
-        spend_balance(&e, from.clone(), amount).unwrap();
+        spend_allowance(&e, from.clone(), spender, amount).unwrap_or_else(|e| panic!("{:?}", e));
+        spend_balance(&e, from.clone(), amount).unwrap_or_else(|e| panic!("{:?}", e));
         receive_balance(&e, to.clone(), amount);
         TokenUtils::new(&e).events().transfer(from, to, amount)
     }
@@ -167,27 +168,27 @@ impl token::Interface for Token {
     fn burn(e: Env, from: Address, amount: i128) {
         from.require_auth();
 
-        check_nonnegative_amount(amount).unwrap();
+        check_nonnegative_amount(amount).unwrap_or_else(|e| panic!("{:?}", e));
 
         e.storage()
             .instance()
             .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
-        spend_balance(&e, from.clone(), amount).unwrap();
+        spend_balance(&e, from.clone(), amount).unwrap_or_else(|e| panic!("{:?}", e));
         TokenUtils::new(&e).events().burn(from, amount);
     }
 
     fn burn_from(e: Env, spender: Address, from: Address, amount: i128) {
         spender.require_auth();
 
-        check_nonnegative_amount(amount).unwrap();
+        check_nonnegative_amount(amount).unwrap_or_else(|e| panic!("{:?}", e));
 
         e.storage()
             .instance()
             .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
-        spend_allowance(&e, from.clone(), spender, amount).unwrap();
-        spend_balance(&e, from.clone(), amount).unwrap();
+        spend_allowance(&e, from.clone(), spender, amount).unwrap_or_else(|e| panic!("{:?}", e));
+        spend_balance(&e, from.clone(), amount).unwrap_or_else(|e| panic!("{:?}", e));
         TokenUtils::new(&e).events().burn(from, amount)
     }
 

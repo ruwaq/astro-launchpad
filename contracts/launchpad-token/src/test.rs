@@ -137,7 +137,7 @@ fn test_set_admin() {
 }
 
 #[test]
-#[should_panic(expected = "already initialized")]
+#[should_panic(expected = "Error(Contract, #3)")]
 fn test_double_initialize() {
     let e = Env::default();
     let admin = Address::generate(&e);

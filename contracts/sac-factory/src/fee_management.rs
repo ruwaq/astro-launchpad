@@ -13,11 +13,10 @@
 //! - Multi-sig treasury support
 //! - Zero precision loss
 
-use soroban_sdk::{contracttype, Address, Env};
 use crate::errors::Error;
-use astro_core_shared::math as core_math;
-use crate::access_control::Role;
 use crate::events;
+use astro_core_shared::math as core_math;
+use soroban_sdk::{contracttype, Address, Env};
 
 /// Basis points precision (10000 = 100%)
 const BPS_PRECISION: i128 = 10_000;
@@ -43,13 +42,13 @@ const MAX_LP_FEE_BPS: i128 = 100;
 pub struct FeeConfig {
     /// Token creation fee (in stroops) - Anti-spam measure
     pub creation_fee: i128,
-    
+
     /// Protocol fee in basis points (revenue to team multi-sig)
     pub protocol_fee_bps: i128,
-    
+
     /// LP fee in basis points (liquidity provision to bonding curve)
     pub lp_fee_bps: i128,
-    
+
     /// Multi-sig treasury address (receives protocol fees)
     pub treasury: Address,
 }
@@ -60,16 +59,16 @@ pub struct FeeConfig {
 pub struct FeeBreakdown {
     /// Gross amount before fees
     pub gross_amount: i128,
-    
+
     /// Protocol fee amount
     pub protocol_fee: i128,
-    
+
     /// LP fee amount
     pub lp_fee: i128,
-    
+
     /// Total fees (protocol + LP)
     pub total_fees: i128,
-    
+
     /// Net amount after fees
     pub net_amount: i128,
 }
@@ -109,7 +108,7 @@ impl FeeConfig {
         let total_fee_bps = protocol_fee_bps
             .checked_add(lp_fee_bps)
             .ok_or(Error::Overflow)?;
-        
+
         if total_fee_bps > 200 {
             return Err(Error::FeeTooHigh);
         }
@@ -131,10 +130,7 @@ impl FeeConfig {
 }
 
 /// Initialize fee configuration (called once during contract initialization)
-pub fn initialize_fee_config(
-    env: &Env,
-    treasury: Address,
-) -> Result<(), Error> {
+pub fn initialize_fee_config(env: &Env, treasury: Address) -> Result<(), Error> {
     let config = FeeConfig::new(
         DEFAULT_CREATION_FEE,
         DEFAULT_PROTOCOL_FEE_BPS,
@@ -143,7 +139,9 @@ pub fn initialize_fee_config(
     )?;
 
     env.storage().persistent().set(&FeeKey::Config, &config);
-    env.storage().persistent().set(&FeeKey::AccumulatedProtocolFees, &0i128);
+    env.storage()
+        .persistent()
+        .set(&FeeKey::AccumulatedProtocolFees, &0i128);
 
     Ok(())
 }
@@ -170,13 +168,7 @@ pub fn set_protocol_fee(
     admin: &Address,
     new_protocol_fee_bps: i128,
 ) -> Result<(), Error> {
-    admin.require_auth();
-
-    // Authorization check
-    if !crate::access_control::has_role(env, admin, Role::FeeAdmin)
-        && !crate::access_control::has_role(env, admin, Role::Owner) {
-        return Err(Error::Unauthorized);
-    }
+    crate::admin_utils::require_fee_admin(env, admin)?;
 
     // Validate new fee
     if !(0..=MAX_PROTOCOL_FEE_BPS).contains(&new_protocol_fee_bps) {
@@ -200,18 +192,8 @@ pub fn set_protocol_fee(
 }
 
 /// Update LP fee (only FeeAdmin or Owner)
-pub fn set_lp_fee(
-    env: &Env,
-    admin: &Address,
-    new_lp_fee_bps: i128,
-) -> Result<(), Error> {
-    admin.require_auth();
-
-    // Authorization check
-    if !crate::access_control::has_role(env, admin, Role::FeeAdmin)
-        && !crate::access_control::has_role(env, admin, Role::Owner) {
-        return Err(Error::Unauthorized);
-    }
+pub fn set_lp_fee(env: &Env, admin: &Address, new_lp_fee_bps: i128) -> Result<(), Error> {
+    crate::admin_utils::require_fee_admin(env, admin)?;
 
     // Validate new fee
     if !(0..=MAX_LP_FEE_BPS).contains(&new_lp_fee_bps) {
@@ -235,18 +217,8 @@ pub fn set_lp_fee(
 }
 
 /// Update creation fee (only FeeAdmin or Owner)
-pub fn set_creation_fee(
-    env: &Env,
-    admin: &Address,
-    new_creation_fee: i128,
-) -> Result<(), Error> {
-    admin.require_auth();
-
-    // Authorization check
-    if !crate::access_control::has_role(env, admin, Role::FeeAdmin)
-        && !crate::access_control::has_role(env, admin, Role::Owner) {
-        return Err(Error::Unauthorized);
-    }
+pub fn set_creation_fee(env: &Env, admin: &Address, new_creation_fee: i128) -> Result<(), Error> {
+    crate::admin_utils::require_fee_admin(env, admin)?;
 
     // Validate new fee
     if new_creation_fee < 0 {
@@ -265,18 +237,8 @@ pub fn set_creation_fee(
 }
 
 /// Update treasury address (only TreasuryAdmin or Owner)
-pub fn set_treasury(
-    env: &Env,
-    admin: &Address,
-    new_treasury: &Address,
-) -> Result<(), Error> {
-    admin.require_auth();
-
-    // Authorization check
-    if !crate::access_control::has_role(env, admin, Role::TreasuryAdmin)
-        && !crate::access_control::has_role(env, admin, Role::Owner) {
-        return Err(Error::Unauthorized);
-    }
+pub fn set_treasury(env: &Env, admin: &Address, new_treasury: &Address) -> Result<(), Error> {
+    crate::admin_utils::require_treasury_admin(env, admin)?;
 
     let mut config = get_fee_config(env);
     let old_treasury = config.treasury.clone();
@@ -327,9 +289,7 @@ pub fn calculate_fee_breakdown(
     let lp_fee = core_math::apply_bps_round_up(gross_amount, lp_fee_bps as u32)?;
 
     // Calculate total fees
-    let total_fees = protocol_fee
-        .checked_add(lp_fee)
-        .ok_or(Error::Overflow)?;
+    let total_fees = protocol_fee.checked_add(lp_fee).ok_or(Error::Overflow)?;
 
     // Calculate net amount (rounds DOWN implicitly, protecting the pool)
     let net_amount = gross_amount
@@ -349,26 +309,16 @@ pub fn calculate_fee_breakdown(
 ///
 /// This function calculates fees but does NOT transfer them
 /// The caller is responsible for handling the actual transfers
-pub fn apply_trading_fees(
-    env: &Env,
-    gross_amount: i128,
-) -> Result<FeeBreakdown, Error> {
+pub fn apply_trading_fees(env: &Env, gross_amount: i128) -> Result<FeeBreakdown, Error> {
     let config = get_fee_config(env);
-    
-    calculate_fee_breakdown(
-        gross_amount,
-        config.protocol_fee_bps,
-        config.lp_fee_bps,
-    )
+
+    calculate_fee_breakdown(gross_amount, config.protocol_fee_bps, config.lp_fee_bps)
 }
 
 /// Collect creation fee from creator
 ///
 /// Transfers XLM from creator to treasury using native XLM SAC
-pub fn collect_creation_fee(
-    env: &Env,
-    from: &Address,
-) -> Result<i128, Error> {
+pub fn collect_creation_fee(env: &Env, from: &Address) -> Result<i128, Error> {
     #[cfg(not(test))]
     use soroban_sdk::token;
 
@@ -382,8 +332,8 @@ pub fn collect_creation_fee(
     #[cfg(not(test))]
     {
         // Get XLM token address from storage (set during initialization)
-        let xlm_token_address = crate::storage::get_xlm_token_address(env)
-            .ok_or(Error::NotInitialized)?;
+        let xlm_token_address =
+            crate::storage::get_xlm_token_address(env).ok_or(Error::NotInitialized)?;
 
         let xlm_client = token::Client::new(env, &xlm_token_address);
 
@@ -392,7 +342,8 @@ pub fn collect_creation_fee(
     }
 
     // Track accumulated fees for transparency
-    let accumulated: i128 = env.storage()
+    let accumulated: i128 = env
+        .storage()
         .persistent()
         .get(&FeeKey::AccumulatedProtocolFees)
         .unwrap_or(0);
@@ -415,17 +366,13 @@ pub fn collect_creation_fee(
 /// Transfer protocol fee to treasury
 ///
 /// Called after a trade to send protocol fees to multi-sig
-pub fn transfer_protocol_fee(
-    env: &Env,
-    token: &Address,
-    amount: i128,
-) -> Result<(), Error> {
+pub fn transfer_protocol_fee(env: &Env, token: &Address, amount: i128) -> Result<(), Error> {
     if amount == 0 {
         return Ok(());
     }
 
     let config = get_fee_config(env);
-    
+
     #[cfg(not(test))]
     {
         use soroban_sdk::token;
@@ -443,15 +390,14 @@ pub fn transfer_protocol_fee(
     let _ = config; // Suppress unused warning in test mode
 
     // Track accumulated protocol fees
-    let accumulated: i128 = env.storage()
+    let accumulated: i128 = env
+        .storage()
         .persistent()
         .get(&FeeKey::AccumulatedProtocolFees)
         .unwrap_or(0);
-    
-    let new_accumulated = accumulated
-        .checked_add(amount)
-        .ok_or(Error::Overflow)?;
-    
+
+    let new_accumulated = accumulated.checked_add(amount).ok_or(Error::Overflow)?;
+
     env.storage()
         .persistent()
         .set(&FeeKey::AccumulatedProtocolFees, &new_accumulated);
@@ -486,7 +432,8 @@ mod tests {
             DEFAULT_PROTOCOL_FEE_BPS,
             DEFAULT_LP_FEE_BPS,
             treasury.clone(),
-        ).unwrap();
+        )
+        .unwrap();
 
         assert_eq!(config.creation_fee, DEFAULT_CREATION_FEE);
         assert_eq!(config.protocol_fee_bps, DEFAULT_PROTOCOL_FEE_BPS);
@@ -516,11 +463,8 @@ mod tests {
     fn test_calculate_fee_breakdown() {
         let amount = 100_000_000i128; // 10 XLM
 
-        let breakdown = calculate_fee_breakdown(
-            amount,
-            DEFAULT_PROTOCOL_FEE_BPS,
-            DEFAULT_LP_FEE_BPS,
-        ).unwrap();
+        let breakdown =
+            calculate_fee_breakdown(amount, DEFAULT_PROTOCOL_FEE_BPS, DEFAULT_LP_FEE_BPS).unwrap();
 
         // Protocol fee: 0.05% of 100M = 50,000 (exact, no rounding)
         assert_eq!(breakdown.protocol_fee, 50_000);
@@ -584,12 +528,7 @@ mod tests {
         let env = Env::default();
         let treasury = Address::generate(&env);
 
-        let config = FeeConfig::new(
-            DEFAULT_CREATION_FEE,
-            5,
-            25,
-            treasury,
-        ).unwrap();
+        let config = FeeConfig::new(DEFAULT_CREATION_FEE, 5, 25, treasury).unwrap();
 
         assert_eq!(config.total_fee_bps().unwrap(), 30); // 0.3%
     }

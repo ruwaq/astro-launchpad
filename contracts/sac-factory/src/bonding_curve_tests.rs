@@ -91,7 +91,10 @@ mod bonding_curve_tests {
         let tokens_second = curve_after.calculate_buy(xlm_amount).unwrap();
 
         // Price should increase (get fewer tokens for same XLM)
-        assert!(tokens_second < tokens_first, "Second buy should get fewer tokens");
+        assert!(
+            tokens_second < tokens_first,
+            "Second buy should get fewer tokens"
+        );
     }
 
     // ========== Sell Calculation Tests ==========
@@ -145,7 +148,10 @@ mod bonding_curve_tests {
         curve.execute_buy(xlm_in, tokens_out).unwrap();
 
         assert_eq!(curve.tokens_sold, tokens_out);
-        assert_eq!(curve.tokens_remaining, initial_tokens_remaining - tokens_out);
+        assert_eq!(
+            curve.tokens_remaining,
+            initial_tokens_remaining - tokens_out
+        );
         assert_eq!(curve.xlm_reserve, initial_xlm_reserve + xlm_in);
     }
 
@@ -168,7 +174,12 @@ mod bonding_curve_tests {
 
         // Allow 0.01% tolerance for rounding errors
         let tolerance = k_initial / 10000;
-        assert!(k_diff < tolerance, "K invariant broken: diff {} exceeds tolerance {}", k_diff, tolerance);
+        assert!(
+            k_diff < tolerance,
+            "K invariant broken: diff {} exceeds tolerance {}",
+            k_diff,
+            tolerance
+        );
     }
 
     // ========== Execute Sell Tests ==========
@@ -327,7 +338,12 @@ mod bonding_curve_tests {
         };
 
         let tolerance = initial_xlm / 100; // 1% tolerance
-        assert!(diff <= tolerance, "Roundtrip diff {} exceeds tolerance {}", diff, tolerance);
+        assert!(
+            diff <= tolerance,
+            "Roundtrip diff {} exceeds tolerance {}",
+            diff,
+            tolerance
+        );
     }
 
     #[test]
@@ -345,6 +361,9 @@ mod bonding_curve_tests {
         // Large buy should get proportionally fewer tokens (higher slippage)
         // If no slippage: large would get 100x tokens
         let expected_if_no_slippage = small_tokens * 100;
-        assert!(large_tokens < expected_if_no_slippage, "Large buy should have slippage");
+        assert!(
+            large_tokens < expected_if_no_slippage,
+            "Large buy should have slippage"
+        );
     }
 }

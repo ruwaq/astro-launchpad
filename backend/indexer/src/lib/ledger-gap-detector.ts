@@ -82,7 +82,8 @@ export class LedgerGapDetector {
     config: Partial<GapDetectorConfig> = {}
   ) {
     this.config = { ...DEFAULT_GAP_DETECTOR_CONFIG, ...config }
-    this.sorobanRpc = new SorobanRpc.Server(process.env.STELLAR_RPC_URL!)
+    const rpcUrl = requireEnv('STELLAR_RPC_URL', 'STELLAR_RPC_URL must be configured')
+    this.sorobanRpc = new SorobanRpc.Server(rpcUrl)
   }
 
   // ============================================================================

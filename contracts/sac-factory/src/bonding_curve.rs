@@ -6,8 +6,8 @@
 //! - Price increases as supply decreases
 //! - Fair and predictable pricing
 
-use soroban_sdk::contracttype;
 use crate::errors::Error;
+use soroban_sdk::contracttype;
 
 /// Precision for calculations
 const PRECISION: i128 = 10_000_000; // 7 decimals (Stellar standard)
@@ -76,17 +76,20 @@ impl BondingCurve {
         }
 
         // New XLM reserve after buy
-        let new_xlm_reserve = self.xlm_reserve
+        let new_xlm_reserve = self
+            .xlm_reserve
             .checked_add(xlm_in)
             .ok_or(Error::Overflow)?;
 
         // New token reserve (from k = x * y)
-        let new_token_reserve = self.k
+        let new_token_reserve = self
+            .k
             .checked_div(new_xlm_reserve)
             .ok_or(Error::DivisionByZero)?;
 
         // Tokens out = old_reserve - new_reserve
-        let tokens_out = self.tokens_remaining
+        let tokens_out = self
+            .tokens_remaining
             .checked_sub(new_token_reserve)
             .ok_or(Error::Underflow)?;
 
@@ -110,17 +113,20 @@ impl BondingCurve {
         }
 
         // New token reserve after sell
-        let new_token_reserve = self.tokens_remaining
+        let new_token_reserve = self
+            .tokens_remaining
             .checked_add(tokens_in)
             .ok_or(Error::Overflow)?;
 
         // New XLM reserve (from k = x * y)
-        let new_xlm_reserve = self.k
+        let new_xlm_reserve = self
+            .k
             .checked_div(new_token_reserve)
             .ok_or(Error::DivisionByZero)?;
 
         // XLM out = old_reserve - new_reserve
-        let xlm_out = self.xlm_reserve
+        let xlm_out = self
+            .xlm_reserve
             .checked_sub(new_xlm_reserve)
             .ok_or(Error::Underflow)?;
 
@@ -138,15 +144,18 @@ impl BondingCurve {
     /// * `tokens_out` - Tokens to mint to buyer
     pub fn execute_buy(&mut self, xlm_in: i128, tokens_out: i128) -> Result<(), Error> {
         // Update reserves
-        self.xlm_reserve = self.xlm_reserve
+        self.xlm_reserve = self
+            .xlm_reserve
             .checked_add(xlm_in)
             .ok_or(Error::Overflow)?;
 
-        self.tokens_remaining = self.tokens_remaining
+        self.tokens_remaining = self
+            .tokens_remaining
             .checked_sub(tokens_out)
             .ok_or(Error::Underflow)?;
 
-        self.tokens_sold = self.tokens_sold
+        self.tokens_sold = self
+            .tokens_sold
             .checked_add(tokens_out)
             .ok_or(Error::Overflow)?;
 
@@ -170,26 +179,28 @@ impl BondingCurve {
         lp_fee: i128,
     ) -> Result<(), Error> {
         // Total XLM to add = swap amount + LP fee (LP fee adds liquidity)
-        let total_xlm_in = xlm_for_swap
-            .checked_add(lp_fee)
-            .ok_or(Error::Overflow)?;
+        let total_xlm_in = xlm_for_swap.checked_add(lp_fee).ok_or(Error::Overflow)?;
 
         // Update reserves with total (including LP fee)
-        self.xlm_reserve = self.xlm_reserve
+        self.xlm_reserve = self
+            .xlm_reserve
             .checked_add(total_xlm_in)
             .ok_or(Error::Overflow)?;
 
-        self.tokens_remaining = self.tokens_remaining
+        self.tokens_remaining = self
+            .tokens_remaining
             .checked_sub(tokens_out)
             .ok_or(Error::Underflow)?;
 
-        self.tokens_sold = self.tokens_sold
+        self.tokens_sold = self
+            .tokens_sold
             .checked_add(tokens_out)
             .ok_or(Error::Overflow)?;
 
         // Update k to reflect new liquidity from LP fee
         // k grows over time as fees accumulate (Uniswap V2 style)
-        self.k = self.xlm_reserve
+        self.k = self
+            .xlm_reserve
             .checked_mul(self.tokens_remaining)
             .ok_or(Error::Overflow)?;
 
@@ -203,15 +214,18 @@ impl BondingCurve {
     /// * `tokens_in` - Tokens being sold back to curve
     pub fn execute_sell(&mut self, xlm_out: i128, tokens_in: i128) -> Result<(), Error> {
         // Update reserves
-        self.xlm_reserve = self.xlm_reserve
+        self.xlm_reserve = self
+            .xlm_reserve
             .checked_sub(xlm_out)
             .ok_or(Error::Underflow)?;
 
-        self.tokens_remaining = self.tokens_remaining
+        self.tokens_remaining = self
+            .tokens_remaining
             .checked_add(tokens_in)
             .ok_or(Error::Overflow)?;
 
-        self.tokens_sold = self.tokens_sold
+        self.tokens_sold = self
+            .tokens_sold
             .checked_sub(tokens_in)
             .ok_or(Error::Underflow)?;
 
@@ -234,26 +248,28 @@ impl BondingCurve {
         lp_fee: i128,
     ) -> Result<(), Error> {
         // Only remove (gross - lp_fee) from reserves, LP fee stays
-        let xlm_to_remove = xlm_out_gross
-            .checked_sub(lp_fee)
-            .ok_or(Error::Underflow)?;
+        let xlm_to_remove = xlm_out_gross.checked_sub(lp_fee).ok_or(Error::Underflow)?;
 
         // Update reserves (LP fee stays in curve)
-        self.xlm_reserve = self.xlm_reserve
+        self.xlm_reserve = self
+            .xlm_reserve
             .checked_sub(xlm_to_remove)
             .ok_or(Error::Underflow)?;
 
-        self.tokens_remaining = self.tokens_remaining
+        self.tokens_remaining = self
+            .tokens_remaining
             .checked_add(tokens_in)
             .ok_or(Error::Overflow)?;
 
-        self.tokens_sold = self.tokens_sold
+        self.tokens_sold = self
+            .tokens_sold
             .checked_sub(tokens_in)
             .ok_or(Error::Underflow)?;
 
         // Update k to reflect retained LP fee liquidity
         // k grows over time as fees accumulate (Uniswap V2 style)
-        self.k = self.xlm_reserve
+        self.k = self
+            .xlm_reserve
             .checked_mul(self.tokens_remaining)
             .ok_or(Error::Overflow)?;
 
@@ -269,7 +285,8 @@ impl BondingCurve {
         }
 
         // Price = xlm_reserve / tokens_remaining
-        let scaled = self.xlm_reserve
+        let scaled = self
+            .xlm_reserve
             .checked_mul(PRECISION)
             .ok_or(Error::Overflow)?;
 
@@ -285,9 +302,7 @@ impl BondingCurve {
     /// Returns Error::Overflow if calculation overflows
     pub fn get_market_cap(&self) -> Result<i128, Error> {
         // Market cap = 2 * XLM reserve (for constant product)
-        self.xlm_reserve
-            .checked_mul(2)
-            .ok_or(Error::Overflow)
+        self.xlm_reserve.checked_mul(2).ok_or(Error::Overflow)
     }
 
     /// Get real XLM raised (excluding virtual reserve)
@@ -381,10 +396,15 @@ mod tests {
         let xlm_for_swap = xlm_gross - lp_fee - (xlm_gross * 5 / 10_000); // net after all fees
 
         let tokens_out = curve.calculate_buy(xlm_for_swap).unwrap();
-        curve.execute_buy_with_lp_fee(xlm_for_swap, tokens_out, lp_fee).unwrap();
+        curve
+            .execute_buy_with_lp_fee(xlm_for_swap, tokens_out, lp_fee)
+            .unwrap();
 
         // k should increase due to LP fee accumulation
-        assert!(curve.k > initial_k, "k should grow from LP fee accumulation");
+        assert!(
+            curve.k > initial_k,
+            "k should grow from LP fee accumulation"
+        );
 
         // xlm_reserve should include LP fee
         // Initial was 1000 * PRECISION, now should be more than just xlm_for_swap added
@@ -409,7 +429,9 @@ mod tests {
         let xlm_gross = curve.calculate_sell(tokens_to_sell).unwrap();
         let lp_fee = xlm_gross * 25 / 10_000; // 0.25%
 
-        curve.execute_sell_with_lp_fee(xlm_gross, tokens_to_sell, lp_fee).unwrap();
+        curve
+            .execute_sell_with_lp_fee(xlm_gross, tokens_to_sell, lp_fee)
+            .unwrap();
 
         // LP fee should stay in reserves
         // xlm_reserve should decrease by (xlm_gross - lp_fee), not full xlm_gross
@@ -417,7 +439,10 @@ mod tests {
         assert_eq!(curve.xlm_reserve, expected_xlm);
 
         // k should update (may increase due to retained LP fee)
-        assert!(curve.k >= k_after_buy || curve.k > 0, "k should be recalculated");
+        assert!(
+            curve.k >= k_after_buy || curve.k > 0,
+            "k should be recalculated"
+        );
     }
 
     #[test]
@@ -432,18 +457,25 @@ mod tests {
             let xlm_for_swap = 10 * PRECISION;
             let lp_fee_buy = xlm_for_swap * 25 / 9970; // LP fee on gross
             let tokens_out = curve.calculate_buy(xlm_for_swap).unwrap();
-            curve.execute_buy_with_lp_fee(xlm_for_swap, tokens_out, lp_fee_buy).unwrap();
+            curve
+                .execute_buy_with_lp_fee(xlm_for_swap, tokens_out, lp_fee_buy)
+                .unwrap();
 
             // Sell half
             let tokens_to_sell = tokens_out / 2;
             if tokens_to_sell > 0 {
                 let xlm_gross = curve.calculate_sell(tokens_to_sell).unwrap();
                 let lp_fee_sell = xlm_gross * 25 / 10_000;
-                curve.execute_sell_with_lp_fee(xlm_gross, tokens_to_sell, lp_fee_sell).unwrap();
+                curve
+                    .execute_sell_with_lp_fee(xlm_gross, tokens_to_sell, lp_fee_sell)
+                    .unwrap();
             }
         }
 
         // k should have grown significantly from accumulated LP fees
-        assert!(curve.k > initial_k, "k should grow from accumulated LP fees");
+        assert!(
+            curve.k > initial_k,
+            "k should grow from accumulated LP fees"
+        );
     }
 }

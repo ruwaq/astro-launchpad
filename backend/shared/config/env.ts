@@ -173,6 +173,21 @@ export function getApiConfig() {
 }
 
 /**
+ * Validate that a required environment variable is set
+ * @param varName Name of the environment variable
+ * @param message Custom error message to display
+ * @throws Will throw an error if the variable is not set
+ */
+export function requireEnv(varName: string, message?: string): string {
+  const value = process.env[varName]
+  if (!value) {
+    const errorMessage = message || `${varName} environment variable is required`
+    throw new Error(errorMessage)
+  }
+  return value
+}
+
+/**
  * Get logging configuration
  */
 export function getLogConfig() {

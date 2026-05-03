@@ -5,9 +5,9 @@
 
 #![allow(dead_code)] // Some role checks not yet used in main contract
 
-use soroban_sdk::{contracttype, Address, Env};
 use crate::errors::Error;
 use crate::events;
+use soroban_sdk::{contracttype, Address, Env};
 
 /// Persistent storage TTL constants (matching storage.rs)
 const PERSISTENT_TTL_THRESHOLD: u32 = 518_400;
@@ -62,7 +62,12 @@ pub fn require_role(env: &Env, account: &Address, role: Role) -> Result<(), Erro
 }
 
 /// Grant a role to an address (only Owner can do this)
-pub fn grant_role(env: &Env, granter: &Address, account: &Address, role: Role) -> Result<(), Error> {
+pub fn grant_role(
+    env: &Env,
+    granter: &Address,
+    account: &Address,
+    role: Role,
+) -> Result<(), Error> {
     granter.require_auth();
 
     // Only Owner can grant roles
@@ -80,7 +85,12 @@ pub fn grant_role(env: &Env, granter: &Address, account: &Address, role: Role) -
 }
 
 /// Revoke a role from an address (only Owner can do this)
-pub fn revoke_role(env: &Env, revoker: &Address, account: &Address, role: Role) -> Result<(), Error> {
+pub fn revoke_role(
+    env: &Env,
+    revoker: &Address,
+    account: &Address,
+    role: Role,
+) -> Result<(), Error> {
     revoker.require_auth();
 
     // Only Owner can revoke roles
@@ -102,7 +112,11 @@ pub fn revoke_role(env: &Env, revoker: &Address, account: &Address, role: Role) 
 }
 
 /// Transfer ownership to a new address
-pub fn transfer_ownership(env: &Env, current_owner: &Address, new_owner: &Address) -> Result<(), Error> {
+pub fn transfer_ownership(
+    env: &Env,
+    current_owner: &Address,
+    new_owner: &Address,
+) -> Result<(), Error> {
     current_owner.require_auth();
 
     // Check current owner has Owner role
@@ -258,8 +272,14 @@ mod tests {
 
     #[test]
     fn test_role_descriptions() {
-        assert_eq!(get_role_description(Role::Owner), "Owner - Full control over all contract functions");
-        assert_eq!(get_role_description(Role::PauseAdmin), "Pause Admin - Can pause/unpause contract");
+        assert_eq!(
+            get_role_description(Role::Owner),
+            "Owner - Full control over all contract functions"
+        );
+        assert_eq!(
+            get_role_description(Role::PauseAdmin),
+            "Pause Admin - Can pause/unpause contract"
+        );
     }
 }
 

@@ -4,7 +4,7 @@ use soroban_sdk::{Address, Env};
 use crate::storage;
 
 /// Read the current administrator
-pub fn read_administrator(env: &Env) -> Address {
+pub fn read_administrator(env: &Env) -> Option<Address> {
     storage::get_admin(env)
 }
 

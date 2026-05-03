@@ -60,8 +60,8 @@ describe('useTokenStore', () => {
 
       expect(result.current.tokens.size).toBe(0);
       expect(result.current.tokenCount).toBe(0);
-      expect(result.current.isLoadingTokens).toBe(false);
-      expect(result.current.loadingTokens.size).toBe(0);
+      expect(typeof result.current.isLoadingToken).toBe('function');
+      expect(result.current.isLoadingToken('CTEST123')).toBe(false);
       expect(result.current.errors.size).toBe(0);
     });
 
@@ -152,13 +152,10 @@ describe('useTokenStore', () => {
 
       const { result } = renderHook(() => useTokenStore());
 
-      let token: TokenInfo | null = null;
-
       await act(async () => {
-        token = await result.current.fetchTokenInfo('CTEST123');
+        await result.current.fetchTokenInfo('CTEST123');
       });
 
-      expect(token).toEqual(mockTokenInfo);
       expect(result.current.tokens.get('CTEST123')).toEqual(mockTokenInfo);
     });
 
@@ -199,13 +196,11 @@ describe('useTokenStore', () => {
 
       const { result } = renderHook(() => useTokenStore());
 
-      let token: TokenInfo | null = null;
-
       await act(async () => {
-        token = await result.current.fetchTokenInfo('CTEST123');
+        await result.current.fetchTokenInfo('CTEST123');
       });
 
-      expect(token).toBeNull();
+      expect(result.current.tokens.has('CTEST123')).toBe(false);
       expect(result.current.errors.has('token-CTEST123')).toBe(true);
     });
 
@@ -214,13 +209,10 @@ describe('useTokenStore', () => {
 
       const { result } = renderHook(() => useTokenStore());
 
-      let token: TokenInfo | null = null;
-
       await act(async () => {
-        token = await result.current.fetchTokenInfo('CTEST123');
+        await result.current.fetchTokenInfo('CTEST123');
       });
 
-      expect(token).toBeNull();
       expect(result.current.errors.get('token-CTEST123')).toBe('Network error');
     });
 
@@ -430,8 +422,8 @@ describe('useTokenStore', () => {
 
       expect(result.current.tokens.size).toBe(0);
       expect(result.current.tokenCount).toBe(0);
-      expect(result.current.isLoadingTokens).toBe(false);
-      expect(result.current.loadingTokens.size).toBe(0);
+      expect(typeof result.current.isLoadingToken).toBe('function');
+      expect(result.current.isLoadingToken('CTEST123')).toBe(false);
       expect(result.current.errors.size).toBe(0);
     });
   });

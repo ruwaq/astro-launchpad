@@ -8,6 +8,10 @@ pub enum DataKey {
     PairInfo,
     /// LP token balance for an address
     Balance(Address),
+    /// Configurable fee in basis points (default: 30 = 0.3%)
+    FeeBps,
+    /// Configurable minimum liquidity (default: 1000)
+    MinimumLiquidity,
 }
 
 /// Pair information and state
@@ -64,10 +68,39 @@ pub fn increase_balance(env: &Env, address: &Address, amount: i128) {
     set_balance(env, address, balance + amount);
 }
 
-pub fn decrease_balance(env: &Env, address: &Address, amount: i128) {
+pub fn decrease_balance(env: &Env, address: &Address, amount: i128) -> Result<(), crate::errors::Error> {
     let balance = get_balance(env, address);
     if balance < amount {
-        panic!("insufficient balance");
+        return Err(crate::errors::Error::InsufficientLPBalance);
     }
     set_balance(env, address, balance - amount);
+    Ok(())
+}
+
+// ========== Configurable Parameters ==========
+
+/// Default fee: 30 basis points (0.3%)
+const DEFAULT_FEE_BPS: u32 = 30;
+
+/// Default minimum liquidity: 1000
+const DEFAULT_MINIMUM_LIQUIDITY: i128 = 1000;
+
+/// Get fee in basis points (configurable by factory)
+pub fn get_fee_bps(env: &Env) -> u32 {
+    env.storage().instance().get(&DataKey::FeeBps).unwrap_or(DEFAULT_FEE_BPS)
+}
+
+/// Set fee in basis points (admin only via factory)
+pub fn set_fee_bps(env: &Env, fee_bps: u32) {
+    env.storage().instance().set(&DataKey::FeeBps, &fee_bps);
+}
+
+/// Get minimum liquidity (configurable by factory)
+pub fn get_minimum_liquidity(env: &Env) -> i128 {
+    env.storage().instance().get(&DataKey::MinimumLiquidity).unwrap_or(DEFAULT_MINIMUM_LIQUIDITY)
+}
+
+/// Set minimum liquidity (admin only via factory)
+pub fn set_minimum_liquidity(env: &Env, min_liquidity: i128) {
+    env.storage().instance().set(&DataKey::MinimumLiquidity, &min_liquidity);
 }

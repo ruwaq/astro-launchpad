@@ -25,6 +25,34 @@ import {
 // SECURITY: Check production mode
 const isProduction = env.NODE_ENV === 'production';
 
+// Authentication middleware
+const API_KEYS = env.API_KEYS?.split(',').map(key => key.trim()) || [];
+const requireApiKey = !isProduction || !API_KEYS.length;
+
+function apiKeyAuthMiddleware(req: any, res: any, next: any) {
+  if (!requireApiKey) {
+    return next();
+  }
+
+  const apiKey = req.headers['x-api-key'];
+  if (!apiKey) {
+    return res.status(401).json({
+      error: 'Unauthorized',
+      message: 'API key is required'
+    });
+  }
+
+  const validKeys = API_KEYS.filter(key => key);
+  if (!validKeys.includes(apiKey)) {
+    return res.status(401).json({
+      error: 'Unauthorized',
+      message: 'Invalid API key'
+    });
+  }
+
+  next();
+}
+
 // SECURITY: Parse allowed origins from environment
 const allowedOrigins = env.CORS_ORIGIN.split(',').map(origin => origin.trim());
 
@@ -73,6 +101,7 @@ export async function createApp(): Promise<{
     credentials: true,
   }));
 
+  app.use(apiKeyAuthMiddleware);
   app.use(express.json());
 
   // Create Apollo Server
@@ -108,7 +137,15 @@ export async function createApp(): Promise<{
 
   // Apply Apollo middleware to Express
   app.use('/graphql', expressMiddleware(server, {
-    context: async ({ req }) => createContext(req as any),
+    context: async ({ req }) => {
+      const context = await createContext(req as any);
+      // Add API key to context for resolvers if needed
+      if (requireApiKey && req.headers['x-api-key']) {
+        context.user = context.user || {};
+        context.user.apiKeyAuthenticated = true;
+      }
+      return context;
+    },
   }));
 
   // Health endpoint

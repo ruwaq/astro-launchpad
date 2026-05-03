@@ -375,6 +375,66 @@ export const feeMutationResolvers = {
         message: `Successfully recalculated ${result.updated} fee statistics`,
         updated: result.updated,
       };
+
+    };
+
+    /**
+     * Create token metadata
+     */
+    async createTokenMetadata(
+      _parent: any,
+      args: {
+        tokenAddress: string;
+        name: string;
+        symbol: string;
+        decimals: number;
+        metadataUri: string;
+        description?: string;
+        website?: string;
+        twitter?: string;
+        telegram?: string;
+        discord?: string;
+      },
+      context: GraphQLContext
+    ) {
+      try {
+        // Check if user has API key authentication
+        if (!context.user?.apiKeyAuthenticated) {
+          throw new GraphQLError('API key authentication required', {
+            extensions: {
+              code: 'UNAUTHENTICATED',
+            },
+          });
+        }
+
+        const { tokenAddress, name, symbol, decimals, metadataUri, description, website, twitter, telegram, discord } = args;
+
+        const service = new FeeStatsService(context.prisma);
+        const token = await service.createTokenMetadata({
+          tokenAddress,
+          name,
+          symbol,
+          decimals,
+          metadataUri,
+          description,
+          website,
+          twitter,
+          telegram,
+          discord,
+        });
+
+        return token;
+      } catch (error) {
+        if (error instanceof GraphQLError) throw error;
+
+        logger.error({ error }, 'Error creating token metadata');
+        throw new GraphQLError('Failed to create token metadata', {
+          extensions: {
+            code: 'INTERNAL_SERVER_ERROR',
+          },
+        });
+      }
+    },
     } catch (error) {
       if (error instanceof GraphQLError) throw error;
 
@@ -385,7 +445,9 @@ export const feeMutationResolvers = {
         },
       });
     }
-  },
+  };
+
+  // Export individual resolvers for direct use
 
   /**
    * Reset expired time windows (Admin only)
@@ -408,6 +470,60 @@ export const feeMutationResolvers = {
         success: true,
         message: 'Successfully reset expired time windows',
       };
+
+    };
+
+    /**
+     * Update token metadata
+     */
+    async updateTokenMetadata(
+      _parent: any,
+      args: {
+        tokenAddress: string;
+        name?: string;
+        symbol?: string;
+        decimals?: number;
+        metadataUri?: string;
+        description?: string;
+        website?: string;
+        twitter?: string;
+        telegram?: string;
+        discord?: string;
+      },
+      context: GraphQLContext
+    ) {
+      try {
+        // Require admin privileges
+        requireAdmin(context);
+
+        const { tokenAddress, name, symbol, decimals, metadataUri, description, website, twitter, telegram, discord } = args;
+
+        const service = new FeeStatsService(context.prisma);
+        const token = await service.updateTokenMetadata({
+          tokenAddress,
+          name,
+          symbol,
+          decimals,
+          metadataUri,
+          description,
+          website,
+          twitter,
+          telegram,
+          discord,
+        });
+
+        return token;
+      } catch (error) {
+        if (error instanceof GraphQLError) throw error;
+
+        logger.error({ error }, 'Error updating token metadata');
+        throw new GraphQLError('Failed to update token metadata', {
+          extensions: {
+            code: 'INTERNAL_SERVER_ERROR',
+          },
+        });
+      }
+    };
     } catch (error) {
       logger.error({ error }, 'Error resetting time windows');
       throw new GraphQLError('Failed to reset time windows', {
@@ -445,6 +561,10 @@ export const feeTypeResolvers = {
  */
 export const feeResolvers = {
   Query: feeQueryResolvers,
-  Mutation: feeMutationResolvers,
+  Mutation: {
+    ...feeMutationResolvers,
+    createTokenMetadata,
+    updateTokenMetadata,
+  },
   ...feeTypeResolvers,
 };

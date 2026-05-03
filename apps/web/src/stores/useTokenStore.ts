@@ -1,223 +1,138 @@
 /**
- * Token Store - REAL DATA ONLY
+ * Token Store (Zustand)
  *
- * Fetches data directly from SAC Factory contract on Stellar Testnet
- * NO mock data, NO placeholders
- *
- * Contract: CC3OFGFRFYZ4XN5AWTQNSZBEA4AP62GKHYF6YUFSMM2B4A6VUQLU3ZPV
- * Updated: November 25, 2024 (ASTRO Integration)
+ * Manages token data state across the application.
+ * Provides caching, loading states, and error handling for token info fetched
+ * from the SAC Factory contract.
  */
 
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
-import { sacFactoryService, type TokenInfo } from '@/lib/stellar/services/sac-factory.service';
-import { getGraphQLClient } from '@/lib/graphql/client';
-import { gql } from '@apollo/client';
+import type { TokenInfo } from '@/lib/stellar/services/sac-factory.service';
+import { SacFactoryService } from '@/lib/stellar/services/sac-factory.service';
 import { logger } from '@/lib/logger';
 
-/**
- * Type guard to safely extract error messages
- */
-function getErrorMessage(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
-  if (typeof error === 'string') {
-    return error;
-  }
-  return 'Unknown error occurred';
-}
-
-/**
- * Type for persisted state shape
- */
-interface PersistedTokenState {
-  tokens: [string, TokenInfo][];
-  tokenCount: number;
-}
+const storeLogger = logger.child({ domain: 'token-store' });
 
 interface TokenState {
-  // Token data (from contract)
+  /** Map of token address -> TokenInfo */
   tokens: Map<string, TokenInfo>;
+  /** Map of token address -> loading state */
+  loadingTokens: Map<string, boolean>;
+  /** Map of error key -> error message */
+  errors: Map<string, string>;
+  /** Total number of tokens launched */
   tokenCount: number;
 
-  // Loading states
-  isLoadingTokens: boolean;
-  isLoadingToken: (address: string) => boolean;
-  loadingTokens: Set<string>;
-
-  // Errors
-  errors: Map<string, string>;
-
   // Actions
-  fetchTokenCount: () => Promise<void>;
-  fetchTokenInfo: (address: string) => Promise<TokenInfo | null>;
+  fetchTokenInfo: (address: string) => Promise<void>;
   refreshToken: (address: string) => Promise<void>;
+  isLoadingToken: (address: string) => boolean;
   clearError: (key: string) => void;
+  fetchTokenCount: () => Promise<void>;
   reset: () => void;
 }
 
-export const useTokenStore = create<TokenState>()(
-  persist(
-    (set, get) => ({
-      // Initial state
-      tokens: new Map(),
-      tokenCount: 0,
-      isLoadingTokens: false,
-      loadingTokens: new Set(),
-      errors: new Map(),
+const initialState = {
+  tokens: new Map<string, TokenInfo>(),
+  loadingTokens: new Map<string, boolean>(),
+  errors: new Map<string, string>(),
+  tokenCount: 0,
+};
 
-      // Check if specific token is loading
-      isLoadingToken: (address: string) => {
-        return get().loadingTokens.has(address);
-      },
+export const useTokenStore = create<TokenState>((set, get) => ({
+  ...initialState,
 
-      // Fetch total token count - from database first, fallback to contract
-      fetchTokenCount: async () => {
-        try {
-          // Try GraphQL/database first (more accurate - shows synced tokens)
-          const client = getGraphQLClient();
-          const { data } = await client.query({
-            query: gql`
-              query GetGlobalStats {
-                globalStats {
-                  totalTokens
-                }
-              }
-            `,
-            fetchPolicy: 'network-only',
-          });
+  fetchTokenInfo: async (address: string) => {
+    const state = get();
 
-          if (data?.globalStats?.totalTokens !== undefined) {
-            set({ tokenCount: data.globalStats.totalTokens });
-            return;
-          }
+    // Skip if already loading or already fetched
+    if (state.loadingTokens.get(address)) return;
+    if (state.tokens.has(address)) return;
 
-          // Fallback to contract if GraphQL fails
-          const count = await sacFactoryService.getTokenCount();
-          set({ tokenCount: count });
-        } catch (error) {
-          logger.error('Error fetching token count:', error);
-          // Last resort: try contract directly
-          try {
-            const count = await sacFactoryService.getTokenCount();
-            set({ tokenCount: count });
-          } catch (contractError) {
-            set((state) => ({
-              errors: new Map(state.errors).set('tokenCount', getErrorMessage(error)),
-            }));
-          }
-        }
-      },
+    set((prev) => {
+      const next = new Map(prev.loadingTokens);
+      next.set(address, true);
+      return { loadingTokens: next };
+    });
 
-      // Fetch token info from contract
-      fetchTokenInfo: async (address: string) => {
-        const { tokens, loadingTokens, errors } = get();
+    try {
+      const service = new SacFactoryService();
+      const tokenInfo = await service.getTokenInfo(address);
 
-        // Already loading this token
-        if (loadingTokens.has(address)) {
-          return tokens.get(address) || null;
-        }
-
-        // Mark as loading
-        set((state) => ({
-          loadingTokens: new Set(state.loadingTokens).add(address),
-        }));
-
-        try {
-          const tokenInfo = await sacFactoryService.getTokenInfo(address);
-
-          if (tokenInfo) {
-            // Update tokens map
-            set((state) => {
-              const newTokens = new Map(state.tokens);
-              newTokens.set(address, tokenInfo);
-
-              const newLoadingTokens = new Set(state.loadingTokens);
-              newLoadingTokens.delete(address);
-
-              const newErrors = new Map(state.errors);
-              newErrors.delete(`token-${address}`);
-
-              return {
-                tokens: newTokens,
-                loadingTokens: newLoadingTokens,
-                errors: newErrors,
-              };
-            });
-
-            return tokenInfo;
-          } else {
-            // Token not found
-            throw new Error('Token not found on contract');
-          }
-        } catch (error) {
-          logger.error(`Error fetching token ${address}:`, error);
-
-          set((state) => {
-            const newLoadingTokens = new Set(state.loadingTokens);
-            newLoadingTokens.delete(address);
-
-            const newErrors = new Map(state.errors);
-            newErrors.set(`token-${address}`, getErrorMessage(error));
-
-            return {
-              loadingTokens: newLoadingTokens,
-              errors: newErrors,
-            };
-          });
-
-          return null;
-        }
-      },
-
-      // Refresh specific token (re-fetch from contract)
-      refreshToken: async (address: string) => {
-        const { fetchTokenInfo } = get();
-        await fetchTokenInfo(address);
-      },
-
-      // Clear error
-      clearError: (key: string) => {
-        set((state) => {
-          const newErrors = new Map(state.errors);
-          newErrors.delete(key);
-          return { errors: newErrors };
+      if (tokenInfo) {
+        set((prev) => {
+          const next = new Map(prev.tokens);
+          next.set(address, tokenInfo);
+          const nextLoading = new Map(prev.loadingTokens);
+          nextLoading.set(address, false);
+          const nextErrors = new Map(prev.errors);
+          nextErrors.delete(`token-${address}`);
+          return { tokens: next, loadingTokens: nextLoading, errors: nextErrors };
         });
-      },
-
-      // Reset store to initial state (called on wallet disconnect)
-      reset: () => {
-        set({
-          tokens: new Map(),
-          tokenCount: 0,
-          isLoadingTokens: false,
-          loadingTokens: new Set(),
-          errors: new Map(),
+      } else {
+        set((prev) => {
+          const nextLoading = new Map(prev.loadingTokens);
+          nextLoading.set(address, false);
+          const nextErrors = new Map(prev.errors);
+          nextErrors.set(`token-${address}`, 'Token not found');
+          return { loadingTokens: nextLoading, errors: nextErrors };
         });
-      },
-    }),
-    {
-      name: 'astro-shiba-tokens',
-      // Only persist tokens and tokenCount, not loading states
-      partialize: (state): PersistedTokenState => ({
-        tokens: Array.from(state.tokens.entries()),
-        tokenCount: state.tokenCount,
-      }),
-      // Convert Map back from storage with proper typing
-      onRehydrateStorage: () => (state) => {
-        if (state) {
-          // Type guard to check if tokens is in array format from storage
-          const persistedState = state as unknown as {
-            tokens?: [string, TokenInfo][] | Map<string, TokenInfo>;
-            tokenCount?: number;
-          };
-          if (persistedState.tokens && Array.isArray(persistedState.tokens)) {
-            // Convert array back to Map
-            (state as TokenState).tokens = new Map(persistedState.tokens);
-          }
-        }
-      },
+      }
+    } catch (error) {
+      storeLogger.error('Failed to fetch token info:', { address, error });
+      set((prev) => {
+        const nextLoading = new Map(prev.loadingTokens);
+        nextLoading.set(address, false);
+        const nextErrors = new Map(prev.errors);
+        nextErrors.set(
+          `token-${address}`,
+          error instanceof Error ? error.message : 'Failed to fetch token'
+        );
+        return { loadingTokens: nextLoading, errors: nextErrors };
+      });
     }
-  )
-);
+  },
+
+  refreshToken: async (address: string) => {
+    try {
+      const service = new SacFactoryService();
+      const tokenInfo = await service.getTokenInfo(address);
+
+      if (tokenInfo) {
+        set((prev) => {
+          const next = new Map(prev.tokens);
+          next.set(address, tokenInfo);
+          return { tokens: next };
+        });
+      }
+    } catch (error) {
+      storeLogger.error('Failed to refresh token info:', { address, error });
+    }
+  },
+
+  isLoadingToken: (address: string) => {
+    return get().loadingTokens.get(address) ?? false;
+  },
+
+  clearError: (key: string) => {
+    set((prev) => {
+      const next = new Map(prev.errors);
+      next.delete(key);
+      return { errors: next };
+    });
+  },
+
+  fetchTokenCount: async () => {
+    try {
+      const service = new SacFactoryService();
+      const count = await service.getTokenCount();
+      set({ tokenCount: count });
+    } catch (error) {
+      storeLogger.error('Failed to fetch token count:', error);
+    }
+  },
+
+  reset: () => {
+    set(initialState);
+  },
+}));

@@ -5,7 +5,7 @@
 
 #![allow(dead_code)] // Graduation feature - not yet integrated
 
-use soroban_sdk::{Address, Bytes, BytesN, Env, xdr::ToXdr};
+use soroban_sdk::{xdr::ToXdr, Address, Bytes, BytesN, Env};
 
 use crate::errors::Error;
 use crate::storage::InstanceKey;

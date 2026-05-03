@@ -104,8 +104,8 @@ const nextConfig: NextConfig = {
               "worker-src 'self' blob:",
               // Styles: self + inline (for styled-components/emotion)
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-              // Images: self + data URIs + IPFS gateways + Stellar + any HTTPS (for token logos)
-              "img-src 'self' data: blob: https://gateway.pinata.cloud https://*.pinata.cloud https://ipfs.io https://cloudflare-ipfs.com https://stellar.org https://*.stellar.org https://ui-avatars.com https:",
+              // Images: self + data URIs + IPFS gateways + Stellar + ui-avatars (for token logos)
+              "img-src 'self' data: blob: https://gateway.pinata.cloud https://*.pinata.cloud https://ipfs.io https://cloudflare-ipfs.com https://stellar.org https://*.stellar.org https://ui-avatars.com",
               // Fonts: self + Google Fonts
               "font-src 'self' https://fonts.gstatic.com",
               // API connections: self + API gateway + Stellar Horizon + Stellar RPC + Sentry + IPFS gateways
@@ -198,10 +198,15 @@ const nextConfig: NextConfig = {
         hostname: '*.stellar.org',
         pathname: '/**',
       },
-      // Allow any HTTPS image for user-submitted token logos
+      // Common CDN domains for user-submitted token logos
       {
         protocol: 'https',
-        hostname: '**',
+        hostname: '*.githubusercontent.com',
+      },
+      {
+        protocol: 'https',
+        hostname: '*.supabase.co',
+        pathname: '/storage/v1/object/public/**',
       },
       // UI Avatars for placeholder images
       {

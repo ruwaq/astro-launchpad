@@ -17,41 +17,38 @@
 //! - ⚡ Real SAC tokens (transferable, wallet-visible)
 //! - 🌟 Stellar exclusive: Multi-currency support
 
-use soroban_sdk::{
-    contract, contractimpl, Address, Env, String, Vec, Bytes, BytesN,
-    xdr::ToXdr,
-};
+use soroban_sdk::{contract, contractimpl, xdr::ToXdr, Address, Bytes, BytesN, Env, String, Vec};
 
 // Imports used only in production code (not in tests due to #[cfg(not(test))])
 #[cfg(not(test))]
 use soroban_sdk::{
-    token,
     auth::{ContractContext, InvokerContractAuthEntry, SubContractInvocation},
-    IntoVal, Symbol,
+    token, IntoVal, Symbol,
 };
 
+mod admin_utils;
 pub mod bonding_curve; // Public for fuzzing
-mod storage;
-mod input_validation; // Input size validation (DoS prevention)
 mod errors;
 mod events;
+mod input_validation; // Input size validation (DoS prevention)
+mod storage;
 // mod math; // Replaced by astro-core-shared
 use astro_core_shared::math as core_math;
 mod access_control;
+mod amm_client; // AMM client for cross-contract calls
+mod amm_deployment; // AMM pair deployment for graduation
+mod anti_whale; // Anti-whale protection for fair distribution
+mod astro_client; // ASTRO token integration for buyback & burn
+mod bridge_client;
 mod fee_management;
-mod state_management;
-mod sac_deployment;  // Real SAC token deployment (legacy, not used with pure Soroban tokens)
-mod launchpad_token_client;  // Pure Soroban token client (no SAC)
-mod amm_deployment;  // AMM pair deployment for graduation
-mod amm_client;      // AMM client for cross-contract calls
-mod price_oracle;    // DIA Oracle price feed integration
-mod anti_whale;      // Anti-whale protection for fair distribution
-mod astro_client;    // ASTRO token integration for buyback & burn
-mod bridge_client;   // DEX Bridge client for graduation to AstroSwap
+mod launchpad_token_client; // Pure Soroban token client (no SAC)
+mod price_oracle; // DIA Oracle price feed integration
+mod sac_deployment; // Real SAC token deployment (legacy, not used with pure Soroban tokens)
+mod state_management; // DEX Bridge client for graduation to AstroSwap
 
 // Soroban Best Practices 2026: Storage optimization
-mod storage_optimization;  // Check-before-write pattern for gas savings
-mod temporary_storage;     // Temporary storage for ephemeral data (lower costs)
+mod storage_optimization; // Check-before-write pattern for gas savings
+mod temporary_storage; // Temporary storage for ephemeral data (lower costs)
 
 #[cfg(test)]
 mod tests;
@@ -170,7 +167,7 @@ impl SacFactory {
         creator: Address,
         name: String,
         symbol: String,
-        issuer: String,  // Asset issuer public key (G...) - required for trustline creation
+        issuer: String, // Asset issuer public key (G...) - required for trustline creation
         image_url: String,
         description: String,
         serialized_asset: Bytes,
@@ -212,7 +209,7 @@ impl SacFactory {
             token_address: token_address.clone(),
             name: name.clone(),
             symbol: symbol.clone(),
-            issuer,  // Store issuer for trustline creation
+            issuer, // Store issuer for trustline creation
             image_url,
             description,
             created_at: env.ledger().timestamp(),
@@ -333,7 +330,7 @@ impl SacFactory {
             token_address: token_address.clone(),
             name: name.clone(),
             symbol: symbol.clone(),
-            issuer: String::from_str(&env, ""),  // No issuer for pure Soroban tokens
+            issuer: String::from_str(&env, ""), // No issuer for pure Soroban tokens
             image_url,
             description,
             created_at: env.ledger().timestamp(),
@@ -412,8 +409,7 @@ impl SacFactory {
         state_management::require_active(&env)?;
 
         // 4. Get token info
-        let mut token_info = storage::get_token_info(&env, &token)
-            .ok_or(Error::TokenNotFound)?;
+        let mut token_info = storage::get_token_info(&env, &token).ok_or(Error::TokenNotFound)?;
 
         // 5. Check if still in bonding curve phase
         if token_info.status != TokenStatus::Bonding {
@@ -437,7 +433,9 @@ impl SacFactory {
             // Return appropriate error based on reason
             match anti_whale_result.reason {
                 Some("Cooldown period not elapsed") => return Err(Error::AntiWhaleCooldownActive),
-                Some("Exceeds absolute max holdings (50%)") => return Err(Error::AntiWhaleMaxHoldingsExceeded),
+                Some("Exceeds absolute max holdings (50%)") => {
+                    return Err(Error::AntiWhaleMaxHoldingsExceeded)
+                }
                 _ => return Err(Error::InvalidAmount),
             }
         }
@@ -466,20 +464,24 @@ impl SacFactory {
 
         // 7b. Apply whale tax if applicable (extra fee for large purchases)
         if anti_whale_result.extra_fee_bps > 0 {
-            let whale_fee = fee_breakdown.net_amount
+            let whale_fee = fee_breakdown
+                .net_amount
                 .checked_mul(anti_whale_result.extra_fee_bps)
                 .and_then(|v| v.checked_div(10_000))
                 .ok_or(Error::Overflow)?;
 
             // Deduct whale fee from net amount
-            fee_breakdown.net_amount = fee_breakdown.net_amount
+            fee_breakdown.net_amount = fee_breakdown
+                .net_amount
                 .checked_sub(whale_fee)
                 .ok_or(Error::Underflow)?;
-            fee_breakdown.total_fees = fee_breakdown.total_fees
+            fee_breakdown.total_fees = fee_breakdown
+                .total_fees
                 .checked_add(whale_fee)
                 .ok_or(Error::Overflow)?;
             // Whale fee goes to protocol (treasury)
-            fee_breakdown.protocol_fee = fee_breakdown.protocol_fee
+            fee_breakdown.protocol_fee = fee_breakdown
+                .protocol_fee
                 .checked_add(whale_fee)
                 .ok_or(Error::Overflow)?;
         }
@@ -517,7 +519,8 @@ impl SacFactory {
 
         // Update both global counter AND per-token tracking for accurate accounting
         storage::add_locked_xlm(&env, xlm_locked_in_curve);
-        token_info.locked_xlm_amount = core_math::safe_add(token_info.locked_xlm_amount, xlm_locked_in_curve)?;
+        token_info.locked_xlm_amount =
+            core_math::safe_add(token_info.locked_xlm_amount, xlm_locked_in_curve)?;
 
         // 11. Get price after trade
         let price_after = token_info.bonding_curve.get_current_price()?;
@@ -580,7 +583,12 @@ impl SacFactory {
         {
             if fee_breakdown.protocol_fee > 0 {
                 fee_management::transfer_protocol_fee(&env, &token, fee_breakdown.protocol_fee)?;
-                events::protocol_fee_collected(&env, &token, fee_breakdown.protocol_fee, &fee_management::get_fee_config(&env).treasury);
+                events::protocol_fee_collected(
+                    &env,
+                    &token,
+                    fee_breakdown.protocol_fee,
+                    &fee_management::get_fee_config(&env).treasury,
+                );
             }
         }
 
@@ -596,10 +604,10 @@ impl SacFactory {
             &env,
             &buyer,
             &token,
-            xlm_amount,           // XLM user sent (gross)
-            tokens_out,           // Tokens user receives (no fee on output)
+            xlm_amount,               // XLM user sent (gross)
+            tokens_out,               // Tokens user receives (no fee on output)
             fee_breakdown.total_fees, // XLM fees taken
-            tokens_out,           // Net tokens = all tokens (fee was on XLM)
+            tokens_out,               // Net tokens = all tokens (fee was on XLM)
             price_before,
             price_after,
             slippage_bps,
@@ -612,10 +620,10 @@ impl SacFactory {
             "BUY",
             &token,
             &buyer,
-            fee_breakdown.gross_amount,  // XLM sent by user
-            fee_breakdown.protocol_fee,  // XLM to protocol
-            fee_breakdown.lp_fee,        // XLM to LP
-            xlm_for_swap,                // XLM used for swap after fees
+            fee_breakdown.gross_amount, // XLM sent by user
+            fee_breakdown.protocol_fee, // XLM to protocol
+            fee_breakdown.lp_fee,       // XLM to LP
+            xlm_for_swap,               // XLM used for swap after fees
         );
 
         // Return tokens received (user gets ALL tokens, fee was on XLM input)
@@ -665,8 +673,7 @@ impl SacFactory {
         state_management::require_active(&env)?;
 
         // 3. Get token info
-        let mut token_info = storage::get_token_info(&env, &token)
-            .ok_or(Error::TokenNotFound)?;
+        let mut token_info = storage::get_token_info(&env, &token).ok_or(Error::TokenNotFound)?;
 
         // 4. Check if still in bonding curve phase
         if token_info.status != TokenStatus::Bonding {
@@ -718,7 +725,8 @@ impl SacFactory {
 
         // Update both global counter AND per-token tracking for accurate accounting
         storage::sub_locked_xlm(&env, xlm_released_from_curve);
-        token_info.locked_xlm_amount = core_math::safe_sub(token_info.locked_xlm_amount, xlm_released_from_curve)?;
+        token_info.locked_xlm_amount =
+            core_math::safe_sub(token_info.locked_xlm_amount, xlm_released_from_curve)?;
 
         // 10. Update total XLM raised (using safe math)
         token_info.xlm_raised = core_math::safe_sub(token_info.xlm_raised, xlm_gross)?;
@@ -772,7 +780,12 @@ impl SacFactory {
                 let treasury = fee_management::get_fee_config(&env).treasury;
 
                 xlm_client.transfer(&contract_address, &treasury, &fee_breakdown.protocol_fee);
-                events::protocol_fee_collected(&env, &xlm_token_address, fee_breakdown.protocol_fee, &treasury);
+                events::protocol_fee_collected(
+                    &env,
+                    &xlm_token_address,
+                    fee_breakdown.protocol_fee,
+                    &treasury,
+                );
             }
         }
 
@@ -783,7 +796,13 @@ impl SacFactory {
         }
 
         // 17. Emit events (with net amount)
-        events::tokens_sold(&env, &seller, &token, token_amount, fee_breakdown.net_amount);
+        events::tokens_sold(
+            &env,
+            &seller,
+            &token,
+            token_amount,
+            fee_breakdown.net_amount,
+        );
 
         // 18. Emit fee breakdown event for transparency
         events::fee_breakdown_event(
@@ -807,19 +826,18 @@ impl SacFactory {
 
     /// Get current price for 1 token (in stroops)
     pub fn get_price(env: Env, token: Address) -> Result<i128, Error> {
-        let token_info = storage::get_token_info(&env, &token)
-            .ok_or(Error::TokenNotFound)?;
+        let token_info = storage::get_token_info(&env, &token).ok_or(Error::TokenNotFound)?;
 
         token_info.bonding_curve.get_current_price()
     }
 
     /// Get graduation progress (0-10000 = 0%-100%)
     pub fn get_graduation_progress(env: Env, token: Address) -> Result<i128, Error> {
-        let token_info = storage::get_token_info(&env, &token)
-            .ok_or(Error::TokenNotFound)?;
+        let token_info = storage::get_token_info(&env, &token).ok_or(Error::TokenNotFound)?;
 
         let graduation_threshold = storage::get_graduation_threshold(&env);
-        let progress = token_info.xlm_raised
+        let progress = token_info
+            .xlm_raised
             .checked_mul(10_000)
             .and_then(|v| v.checked_div(graduation_threshold))
             .unwrap_or(10_000); // If overflow, assume 100%
@@ -836,11 +854,13 @@ impl SacFactory {
     /// # Arguments
     /// * `admin` - Owner address
     /// * `threshold` - New graduation threshold in stroops
-    pub fn set_graduation_threshold(env: Env, admin: Address, threshold: i128) -> Result<(), Error> {
-        admin.require_auth();
-
+    pub fn set_graduation_threshold(
+        env: Env,
+        admin: Address,
+        threshold: i128,
+    ) -> Result<(), Error> {
         // Only owner can set graduation threshold
-        access_control::require_role(&env, &admin, access_control::Role::Owner)?;
+        admin_utils::require_owner(&env, &admin)?;
 
         // Validate threshold is positive and reasonable
         if threshold <= 0 {
@@ -899,22 +919,40 @@ impl SacFactory {
     }
 
     /// Grant a role to an address (Owner only)
-    pub fn grant_role(env: Env, granter: Address, account: Address, role: access_control::Role) -> Result<(), Error> {
+    pub fn grant_role(
+        env: Env,
+        granter: Address,
+        account: Address,
+        role: access_control::Role,
+    ) -> Result<(), Error> {
         access_control::grant_role(&env, &granter, &account, role)
     }
 
     /// Revoke a role from an address (Owner only)
-    pub fn revoke_role(env: Env, revoker: Address, account: Address, role: access_control::Role) -> Result<(), Error> {
+    pub fn revoke_role(
+        env: Env,
+        revoker: Address,
+        account: Address,
+        role: access_control::Role,
+    ) -> Result<(), Error> {
         access_control::revoke_role(&env, &revoker, &account, role)
     }
 
     /// Transfer ownership (Owner only)
-    pub fn transfer_ownership(env: Env, current_owner: Address, new_owner: Address) -> Result<(), Error> {
+    pub fn transfer_ownership(
+        env: Env,
+        current_owner: Address,
+        new_owner: Address,
+    ) -> Result<(), Error> {
         access_control::transfer_ownership(&env, &current_owner, &new_owner)
     }
 
     /// Update protocol fee (FeeAdmin or Owner)
-    pub fn set_protocol_fee(env: Env, admin: Address, new_protocol_fee_bps: i128) -> Result<(), Error> {
+    pub fn set_protocol_fee(
+        env: Env,
+        admin: Address,
+        new_protocol_fee_bps: i128,
+    ) -> Result<(), Error> {
         fee_management::set_protocol_fee(&env, &admin, new_protocol_fee_bps)
     }
 
@@ -954,11 +992,7 @@ impl SacFactory {
     ///
     /// **Note:** This allows the treasury to withdraw any XLM that has accumulated
     /// in the contract beyond what's locked in bonding curves.
-    pub fn withdraw_fees(
-        env: Env,
-        admin: Address,
-        amount: i128,
-    ) -> Result<i128, Error> {
+    pub fn withdraw_fees(env: Env, admin: Address, amount: i128) -> Result<i128, Error> {
         admin.require_auth();
 
         // Only TreasuryAdmin or Owner can withdraw fees
@@ -1033,14 +1067,18 @@ impl SacFactory {
     /// * `wasm_hash` - WASM hash of the AMM pair contract
     ///
     /// **Sprint 2:** Required for automatic AMM deployment on graduation
-    pub fn set_amm_wasm_hash(env: Env, admin: Address, wasm_hash: soroban_sdk::BytesN<32>) -> Result<(), Error> {
-        admin.require_auth();
-
+    pub fn set_amm_wasm_hash(
+        env: Env,
+        admin: Address,
+        wasm_hash: soroban_sdk::BytesN<32>,
+    ) -> Result<(), Error> {
         // Only owner can set AMM WASM hash
-        access_control::require_role(&env, &admin, access_control::Role::Owner)?;
+        admin_utils::require_owner(&env, &admin)?;
 
         // Store WASM hash
-        env.storage().instance().set(&storage::InstanceKey::AmmWasmHash, &wasm_hash);
+        env.storage()
+            .instance()
+            .set(&storage::InstanceKey::AmmWasmHash, &wasm_hash);
 
         // Emit event
         events::amm_wasm_hash_updated(&env, &admin);
@@ -1056,11 +1094,13 @@ impl SacFactory {
     /// # Arguments
     /// * `admin` - Owner address
     /// * `wasm_hash` - WASM hash of the launchpad-token contract
-    pub fn set_token_wasm_hash(env: Env, admin: Address, wasm_hash: soroban_sdk::BytesN<32>) -> Result<(), Error> {
-        admin.require_auth();
-
+    pub fn set_token_wasm_hash(
+        env: Env,
+        admin: Address,
+        wasm_hash: soroban_sdk::BytesN<32>,
+    ) -> Result<(), Error> {
         // Only owner can set token WASM hash
-        access_control::require_role(&env, &admin, access_control::Role::Owner)?;
+        admin_utils::require_owner(&env, &admin)?;
 
         // Store WASM hash
         storage::set_token_wasm_hash(&env, &wasm_hash);
@@ -1101,11 +1141,13 @@ impl SacFactory {
     /// * `oracle_address` - Address of deployed DIA Oracle contract
     ///
     /// **Sprint 2:** Configure price oracle for market cap validation
-    pub fn set_oracle_address(env: Env, admin: Address, oracle_address: Address) -> Result<(), Error> {
-        admin.require_auth();
-
+    pub fn set_oracle_address(
+        env: Env,
+        admin: Address,
+        oracle_address: Address,
+    ) -> Result<(), Error> {
         // Only owner can configure oracle
-        access_control::require_role(&env, &admin, access_control::Role::Owner)?;
+        admin_utils::require_owner(&env, &admin)?;
 
         // Get old address for event
         let old_address = storage::get_oracle_address(&env);
@@ -1127,11 +1169,13 @@ impl SacFactory {
     ///   Example: $100,000 = 100_000_000_000_000_000_000_000
     ///
     /// **Sprint 2:** Optional market cap requirement for graduation
-    pub fn set_min_market_cap_usd(env: Env, admin: Address, min_market_cap_usd: u128) -> Result<(), Error> {
-        admin.require_auth();
-
+    pub fn set_min_market_cap_usd(
+        env: Env,
+        admin: Address,
+        min_market_cap_usd: u128,
+    ) -> Result<(), Error> {
         // Only owner can configure minimum market cap
-        access_control::require_role(&env, &admin, access_control::Role::Owner)?;
+        admin_utils::require_owner(&env, &admin)?;
 
         // Get old value for event
         let old_min_market_cap = storage::get_min_market_cap_usd(&env);
@@ -1160,10 +1204,8 @@ impl SacFactory {
         bridge_address: Address,
         enabled: bool,
     ) -> Result<(), Error> {
-        admin.require_auth();
-
         // Only owner can configure bridge
-        access_control::require_role(&env, &admin, access_control::Role::Owner)?;
+        admin_utils::require_owner(&env, &admin)?;
 
         // Validate address
         Self::validate_address(&env, &bridge_address)?;
@@ -1195,10 +1237,8 @@ impl SacFactory {
     /// * `admin` - Owner address
     /// * `max_age` - Maximum age in seconds for valid oracle prices
     pub fn set_oracle_price_max_age(env: Env, admin: Address, max_age: u64) -> Result<(), Error> {
-        admin.require_auth();
-
         // Only owner can configure oracle price max age
-        access_control::require_role(&env, &admin, access_control::Role::Owner)?;
+        admin_utils::require_owner(&env, &admin)?;
 
         // Get old value for event
         let old_max_age = storage::get_oracle_price_max_age(&env);
@@ -1232,8 +1272,6 @@ impl SacFactory {
     pub fn get_state(env: Env) -> state_management::ContractState {
         state_management::get_state(&env)
     }
-
-
 
     /// Check if address has a specific role
     pub fn has_role(env: Env, account: Address, role: access_control::Role) -> bool {
@@ -1327,11 +1365,7 @@ impl SacFactory {
     /// # Arguments
     /// * `admin` - Owner address
     /// * `wallet` - Wallet address to clear
-    pub fn clear_wallet_holdings(
-        env: Env,
-        admin: Address,
-        wallet: Address,
-    ) -> Result<(), Error> {
+    pub fn clear_wallet_holdings(env: Env, admin: Address, wallet: Address) -> Result<(), Error> {
         anti_whale::clear_wallet_holdings(&env, &admin, &wallet)
     }
 
@@ -1356,10 +1390,8 @@ impl SacFactory {
         liquidity_bps: i128,
         buyback_bps: i128,
     ) -> Result<(), Error> {
-        admin.require_auth();
-
         // Only owner can configure ASTRO integration
-        access_control::require_role(&env, &admin, access_control::Role::Owner)?;
+        admin_utils::require_owner(&env, &admin)?;
 
         // Validate basis points
         if liquidity_bps < 0 || buyback_bps < 0 {
@@ -1424,10 +1456,8 @@ impl SacFactory {
     /// # Security
     /// Only the contract owner can call this function.
     pub fn clear_astro_config(env: Env, admin: Address) -> Result<(), Error> {
-        admin.require_auth();
-
         // Only owner can clear ASTRO configuration
-        access_control::require_role(&env, &admin, access_control::Role::Owner)?;
+        admin_utils::require_owner(&env, &admin)?;
 
         // Clear all ASTRO config from storage
         storage::clear_astro_config(&env);
@@ -1444,8 +1474,7 @@ impl SacFactory {
         admin: Address,
         new_liquidity_bps: i128,
     ) -> Result<(), Error> {
-        admin.require_auth();
-        access_control::require_role(&env, &admin, access_control::Role::Owner)?;
+        admin_utils::require_owner(&env, &admin)?;
 
         if new_liquidity_bps < 0 {
             return Err(Error::InvalidAmount);
@@ -1470,8 +1499,7 @@ impl SacFactory {
         admin: Address,
         new_buyback_bps: i128,
     ) -> Result<(), Error> {
-        admin.require_auth();
-        access_control::require_role(&env, &admin, access_control::Role::Owner)?;
+        admin_utils::require_owner(&env, &admin)?;
 
         if new_buyback_bps < 0 {
             return Err(Error::InvalidAmount);
@@ -1531,10 +1559,7 @@ impl SacFactory {
 
     /// Deploy a real SAC token using client-provided serialized asset
     /// LEGACY: Use deploy_launchpad_token for new deployments
-    fn deploy_sac_token(
-        env: &Env,
-        serialized_asset: Bytes,
-    ) -> Result<Address, Error> {
+    fn deploy_sac_token(env: &Env, serialized_asset: Bytes) -> Result<Address, Error> {
         // Deploy REAL SAC token using Stellar's built-in deployer
         // The serialized_asset is created and validated by the client
         sac_deployment::deploy_sac_from_serialized_asset(env, serialized_asset)
@@ -1549,13 +1574,13 @@ impl SacFactory {
         salt: soroban_sdk::BytesN<32>,
     ) -> Result<Address, Error> {
         // Get token WASM hash (must be set via set_token_wasm_hash)
-        let wasm_hash = storage::get_token_wasm_hash(env)
-            .map_err(|_| Error::TokenWasmNotSet)?;
+        let wasm_hash = storage::get_token_wasm_hash(env).map_err(|_| Error::TokenWasmNotSet)?;
 
         // Deploy token contract using WASM hash
         // Use with_address with current contract as the deployer
         let factory_addr = env.current_contract_address();
-        let token_address = env.deployer()
+        let token_address = env
+            .deployer()
             .with_address(factory_addr.clone(), salt)
             .deploy_v2(wasm_hash, ());
 
@@ -1565,7 +1590,7 @@ impl SacFactory {
             env,
             &token_address,
             &factory_address,
-            7,  // 7 decimals (Stellar standard)
+            7, // 7 decimals (Stellar standard)
             name,
             symbol,
         );
@@ -1684,10 +1709,8 @@ impl SacFactory {
         // 5. ASTRO integration (if configured)
         #[cfg(not(test))]
         if let Some(astro_config) = storage::get_astro_config(env) {
-            let astro_client = astro_client::AstroTokenClient::new(
-                env,
-                astro_config.token_address.clone(),
-            );
+            let astro_client =
+                astro_client::AstroTokenClient::new(env, astro_config.token_address.clone());
 
             // 5a. Swap XLM → ASTRO for the ASTRO/TOKEN pool (23%)
             if allocation.xlm_for_astro_swap > 0 {
@@ -1709,7 +1732,8 @@ impl SacFactory {
                         )?;
 
                         // 5c. Initialize ASTRO/TOKEN AMM
-                        let astro_amm_client = amm_client::AmmPairClient::new(env, astro_token_amm.clone());
+                        let astro_amm_client =
+                            amm_client::AmmPairClient::new(env, astro_token_amm.clone());
                         astro_amm_client.initialize(
                             &astro_config.token_address,
                             &token_info.token_address,
@@ -1727,11 +1751,18 @@ impl SacFactory {
                         // Check if this is a pure Soroban token (V2) or SAC (V1)
                         if token_info.issuer.is_empty() {
                             // Pure Soroban token (V2) - use launchpad_token_client
-                            launchpad_token_client::mint(env, &token_info.token_address, &factory_address, allocation.tokens_for_astro_pool);
+                            launchpad_token_client::mint(
+                                env,
+                                &token_info.token_address,
+                                &factory_address,
+                                allocation.tokens_for_astro_pool,
+                            );
                         } else {
                             // SAC token (V1) - use StellarAssetClient
-                            let token_sac_client = token::StellarAssetClient::new(env, &token_info.token_address);
-                            token_sac_client.mint(&factory_address, &allocation.tokens_for_astro_pool);
+                            let token_sac_client =
+                                token::StellarAssetClient::new(env, &token_info.token_address);
+                            token_sac_client
+                                .mint(&factory_address, &allocation.tokens_for_astro_pool);
                         }
 
                         // CRITICAL: Authorize the transfers that AMM's add_liquidity will make on our behalf
@@ -1742,7 +1773,12 @@ impl SacFactory {
                                 context: ContractContext {
                                     contract: astro_config.token_address.clone(),
                                     fn_name: Symbol::new(env, "transfer"),
-                                    args: (factory_address.clone(), astro_token_amm.clone(), astro_amount).into_val(env),
+                                    args: (
+                                        factory_address.clone(),
+                                        astro_token_amm.clone(),
+                                        astro_amount
+                                    )
+                                        .into_val(env),
                                 },
                                 sub_invocations: soroban_sdk::vec![env],
                             }),
@@ -1751,7 +1787,12 @@ impl SacFactory {
                                 context: ContractContext {
                                     contract: token_info.token_address.clone(),
                                     fn_name: Symbol::new(env, "transfer"),
-                                    args: (factory_address.clone(), astro_token_amm.clone(), allocation.tokens_for_astro_pool).into_val(env),
+                                    args: (
+                                        factory_address.clone(),
+                                        astro_token_amm.clone(),
+                                        allocation.tokens_for_astro_pool
+                                    )
+                                        .into_val(env),
                                 },
                                 sub_invocations: soroban_sdk::vec![env],
                             }),
@@ -1761,8 +1802,8 @@ impl SacFactory {
                         // The transfers are pre-authorized above
                         let (_a0, _a1, astro_lp_minted) = astro_amm_client.add_liquidity(
                             &factory_address,
-                            astro_amount,                       // ASTRO received from swap
-                            allocation.tokens_for_astro_pool,   // tokens for ASTRO pool
+                            astro_amount,                     // ASTRO received from swap
+                            allocation.tokens_for_astro_pool, // tokens for ASTRO pool
                             0,
                             0,
                             deadline,
@@ -1815,10 +1856,16 @@ impl SacFactory {
             // Check if this is a pure Soroban token (V2) or SAC (V1)
             if token_info.issuer.is_empty() {
                 // Pure Soroban token (V2) - use launchpad_token_client
-                launchpad_token_client::mint(env, &token_info.token_address, &factory_address, allocation.tokens_for_xlm_pool);
+                launchpad_token_client::mint(
+                    env,
+                    &token_info.token_address,
+                    &factory_address,
+                    allocation.tokens_for_xlm_pool,
+                );
             } else {
                 // SAC token (V1) - use StellarAssetClient
-                let token_sac_client = token::StellarAssetClient::new(env, &token_info.token_address);
+                let token_sac_client =
+                    token::StellarAssetClient::new(env, &token_info.token_address);
                 token_sac_client.mint(&factory_address, &allocation.tokens_for_xlm_pool);
             }
 
@@ -1826,9 +1873,9 @@ impl SacFactory {
             // It uses whatever order was passed to initialize().
             // We initialized with: token_0 = XLM, token_1 = graduated token
             // So we must use the SAME order here for authorization and add_liquidity.
-            let amount_0 = allocation.xlm_for_xlm_pool;           // XLM amount (token_0)
-            let amount_1 = allocation.tokens_for_xlm_pool;        // Token amount (token_1)
-            let token_0_contract = xlm_address.clone();           // XLM is token_0
+            let amount_0 = allocation.xlm_for_xlm_pool; // XLM amount (token_0)
+            let amount_1 = allocation.tokens_for_xlm_pool; // Token amount (token_1)
+            let token_0_contract = xlm_address.clone(); // XLM is token_0
             let token_1_contract = token_info.token_address.clone(); // Graduated token is token_1
 
             // CRITICAL: Authorize the transfers that AMM's add_liquidity will make on our behalf
@@ -1840,7 +1887,8 @@ impl SacFactory {
                     context: ContractContext {
                         contract: token_0_contract.clone(),
                         fn_name: Symbol::new(env, "transfer"),
-                        args: (factory_address.clone(), xlm_amm_address.clone(), amount_0).into_val(env),
+                        args: (factory_address.clone(), xlm_amm_address.clone(), amount_0)
+                            .into_val(env),
                     },
                     sub_invocations: soroban_sdk::vec![env],
                 }),
@@ -1849,7 +1897,8 @@ impl SacFactory {
                     context: ContractContext {
                         contract: token_1_contract.clone(),
                         fn_name: Symbol::new(env, "transfer"),
-                        args: (factory_address.clone(), xlm_amm_address.clone(), amount_1).into_val(env),
+                        args: (factory_address.clone(), xlm_amm_address.clone(), amount_1)
+                            .into_val(env),
                     },
                     sub_invocations: soroban_sdk::vec![env],
                 }),
@@ -1931,8 +1980,7 @@ impl SacFactory {
         total_tokens: i128,
     ) -> Result<(), Error> {
         // Get Bridge address
-        let bridge_address = storage::get_bridge_address(env)
-            .ok_or(Error::BridgeNotConfigured)?;
+        let bridge_address = storage::get_bridge_address(env).ok_or(Error::BridgeNotConfigured)?;
 
         let factory_address = env.current_contract_address();
         let xlm_address = Self::get_xlm_token_address(env)?;
@@ -1953,10 +2001,16 @@ impl SacFactory {
         {
             if token_info.issuer.is_empty() {
                 // Pure Soroban token (V2) - use launchpad_token_client
-                launchpad_token_client::mint(env, &token_info.token_address, &factory_address, total_tokens);
+                launchpad_token_client::mint(
+                    env,
+                    &token_info.token_address,
+                    &factory_address,
+                    total_tokens,
+                );
             } else {
                 // SAC token (V1) - use StellarAssetClient
-                let token_sac_client = token::StellarAssetClient::new(env, &token_info.token_address);
+                let token_sac_client =
+                    token::StellarAssetClient::new(env, &token_info.token_address);
                 token_sac_client.mint(&factory_address, &total_tokens);
             }
         }
@@ -1971,7 +2025,8 @@ impl SacFactory {
                 context: ContractContext {
                     contract: xlm_address.clone(),
                     fn_name: Symbol::new(env, "transfer"),
-                    args: (factory_address.clone(), bridge_address.clone(), total_xlm).into_val(env),
+                    args: (factory_address.clone(), bridge_address.clone(), total_xlm)
+                        .into_val(env),
                 },
                 sub_invocations: soroban_sdk::vec![env],
             }),
@@ -1980,7 +2035,12 @@ impl SacFactory {
                 context: ContractContext {
                     contract: token_info.token_address.clone(),
                     fn_name: Symbol::new(env, "transfer"),
-                    args: (factory_address.clone(), bridge_address.clone(), total_tokens).into_val(env),
+                    args: (
+                        factory_address.clone(),
+                        bridge_address.clone(),
+                        total_tokens
+                    )
+                        .into_val(env),
                 },
                 sub_invocations: soroban_sdk::vec![env],
             }),
@@ -2031,8 +2091,7 @@ impl SacFactory {
     /// # Returns
     /// Result with XLM token address or Error::NotInitialized
     fn get_xlm_token_address(env: &Env) -> Result<Address, Error> {
-        storage::get_xlm_token_address(env)
-            .ok_or(Error::NotInitialized)
+        storage::get_xlm_token_address(env).ok_or(Error::NotInitialized)
     }
 
     /// Get the configured XLM token address (public getter)
@@ -2052,10 +2111,8 @@ impl SacFactory {
         admin: Address,
         new_xlm_address: Address,
     ) -> Result<(), Error> {
-        admin.require_auth();
-
         // Only owner can update XLM address
-        access_control::require_role(&env, &admin, access_control::Role::Owner)?;
+        admin_utils::require_owner(&env, &admin)?;
 
         // Validate address
         Self::validate_address(&env, &new_xlm_address)?;
@@ -2085,19 +2142,12 @@ impl SacFactory {
     ///
     /// **Note:** This function can only be called on tokens in GraduationFailed status.
     /// If graduation fails again, the token remains in GraduationFailed status.
-    pub fn retry_graduation(
-        env: Env,
-        admin: Address,
-        token: Address,
-    ) -> Result<(), Error> {
-        admin.require_auth();
-
+    pub fn retry_graduation(env: Env, admin: Address, token: Address) -> Result<(), Error> {
         // Only Owner can retry graduation
-        access_control::require_role(&env, &admin, access_control::Role::Owner)?;
+        admin_utils::require_owner(&env, &admin)?;
 
         // Get token info
-        let mut token_info = storage::get_token_info(&env, &token)
-            .ok_or(Error::TokenNotFound)?;
+        let mut token_info = storage::get_token_info(&env, &token).ok_or(Error::TokenNotFound)?;
 
         // Can only retry failed graduations
         if token_info.status != TokenStatus::GraduationFailed {
@@ -2134,19 +2184,12 @@ impl SacFactory {
     /// **Warning:** This is an emergency function. Use with caution.
     /// The token will return to bonding curve state and users can continue trading.
     /// This does NOT refund any XLM - it allows the token to continue on the bonding curve.
-    pub fn recover_to_bonding(
-        env: Env,
-        admin: Address,
-        token: Address,
-    ) -> Result<(), Error> {
-        admin.require_auth();
-
+    pub fn recover_to_bonding(env: Env, admin: Address, token: Address) -> Result<(), Error> {
         // Only Owner can recover tokens
-        access_control::require_role(&env, &admin, access_control::Role::Owner)?;
+        admin_utils::require_owner(&env, &admin)?;
 
         // Get token info
-        let mut token_info = storage::get_token_info(&env, &token)
-            .ok_or(Error::TokenNotFound)?;
+        let mut token_info = storage::get_token_info(&env, &token).ok_or(Error::TokenNotFound)?;
 
         // Can only recover failed graduations
         if token_info.status != TokenStatus::GraduationFailed {
@@ -2176,19 +2219,12 @@ impl SacFactory {
     ///
     /// **Note:** This is useful if automatic graduation failed due to
     /// external factors (oracle down, AMM issues, etc.)
-    pub fn manual_graduation(
-        env: Env,
-        admin: Address,
-        token: Address,
-    ) -> Result<(), Error> {
-        admin.require_auth();
-
+    pub fn manual_graduation(env: Env, admin: Address, token: Address) -> Result<(), Error> {
         // Only Owner can manually trigger graduation
-        access_control::require_role(&env, &admin, access_control::Role::Owner)?;
+        admin_utils::require_owner(&env, &admin)?;
 
         // Get token info
-        let mut token_info = storage::get_token_info(&env, &token)
-            .ok_or(Error::TokenNotFound)?;
+        let mut token_info = storage::get_token_info(&env, &token).ok_or(Error::TokenNotFound)?;
 
         // Can only graduate tokens in Bonding status
         if token_info.status != TokenStatus::Bonding {
@@ -2212,7 +2248,12 @@ impl SacFactory {
                 // Failed - mark as GraduationFailed so recovery is possible
                 token_info.status = TokenStatus::GraduationFailed;
                 storage::set_token_info(&env, &token, &token_info);
-                events::graduation_failed(&env, &token, token_info.xlm_raised, "Manual graduation failed");
+                events::graduation_failed(
+                    &env,
+                    &token,
+                    token_info.xlm_raised,
+                    "Manual graduation failed",
+                );
                 Err(e)
             }
         }
@@ -2270,10 +2311,8 @@ impl SacFactory {
     /// - Emits system event for transparency
     /// - Old contract code remains in ledger (can rollback if needed)
     pub fn upgrade(env: Env, admin: Address, new_wasm_hash: BytesN<32>) -> Result<(), Error> {
-        admin.require_auth();
-
         // Only Owner can upgrade the contract
-        access_control::require_role(&env, &admin, access_control::Role::Owner)?;
+        admin_utils::require_owner(&env, &admin)?;
 
         // Update the contract's WASM code
         // This takes effect after the current invocation completes

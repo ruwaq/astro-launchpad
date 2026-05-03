@@ -26,7 +26,7 @@ import {
   cacheTrendingTokens,
 } from '../cache-helpers.js'
 import { getCacheStats } from '../../lib/cache.js'
-import { feeResolvers, feeTypeResolvers } from './fee-resolvers.js'
+import { feeQueryResolvers, feeMutationResolvers, feeTypeResolvers } from './fee-resolvers.js'
 import { syncTokenToDatabase } from '../../lib/sync-service.js'
 import { logger } from '../../lib/logger.js'
 import {
@@ -973,7 +973,7 @@ const mutationResolvers = {
       return {
         success: false,
         address: tokenAddress,
-        message: `Failed to delete token: ${error.message}`,
+        message: 'Failed to delete token',
       }
     }
   },
@@ -1080,7 +1080,7 @@ const mutationResolvers = {
         results.push({
           success: false,
           address: tokenAddress,
-          message: error.message,
+          message: 'Failed to delete token',
         })
         failedCount++
       }
@@ -1311,5 +1311,11 @@ export const resolvers: IResolvers = {
     ...feeResolvers.Mutation,
   },
   ...fieldResolvers,
-  ...feeTypeResolvers, // Only type resolvers (FeeCollection, TokenFeePerformance), NOT Query/Mutation
+  ...feeTypeResolvers,
+  Query: {
+    ...feeQueryResolvers,
+  },
+  Mutation: {
+    ...feeMutationResolvers,
+  }
 } as any // Type assertion needed due to custom context type

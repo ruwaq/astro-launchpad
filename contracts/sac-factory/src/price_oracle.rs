@@ -59,17 +59,14 @@ impl<'a> DiaOracleClient<'a> {
 
         // Call oracle contract
         // Using the Band Protocol standard interface pattern
-        let result: Result<SorobanVec<PriceData>, Error> = self.env
-            .invoke_contract(
-                &self.oracle_address,
-                &Symbol::new(self.env, "get_reference_data"),
-                (pairs,).into_val(self.env),
-            );
+        let result: Result<SorobanVec<PriceData>, Error> = self.env.invoke_contract(
+            &self.oracle_address,
+            &Symbol::new(self.env, "get_reference_data"),
+            (pairs,).into_val(self.env),
+        );
 
         match result {
-            Ok(prices) => {
-                prices.get(0).ok_or(Error::OraclePriceFeedNotFound)
-            }
+            Ok(prices) => prices.get(0).ok_or(Error::OraclePriceFeedNotFound),
             Err(_) => Err(Error::OracleCallFailed),
         }
     }
@@ -174,8 +171,7 @@ pub fn get_oracle_address(env: &Env) -> Option<Address> {
 /// # Returns
 /// DiaOracleClient if oracle is configured, Error otherwise
 pub fn get_oracle_client(env: &Env) -> Result<DiaOracleClient<'_>, Error> {
-    let oracle_address = get_oracle_address(env)
-        .ok_or(Error::OracleNotConfigured)?;
+    let oracle_address = get_oracle_address(env).ok_or(Error::OracleNotConfigured)?;
 
     Ok(DiaOracleClient::new(env, oracle_address))
 }

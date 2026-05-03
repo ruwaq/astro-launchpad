@@ -1,6 +1,5 @@
 'use client';
 
-import { memo } from 'react';
 import { Loader2 } from 'lucide-react';
 import { QUICK_AMOUNTS } from './constants';
 import { TokenSelector } from './TokenSelector';
@@ -23,12 +22,9 @@ interface AmountInputProps {
   displayMode: 'input' | 'output';
   showQuickAmounts?: boolean;
   onQuickAmount?: (amount: number) => void;
-  maxBalance?: string;
-  onMaxClick?: () => void;
-  showMaxButton?: boolean;
 }
 
-export const AmountInput = memo(function AmountInput({
+export function AmountInput({
   label,
   value,
   onChange,
@@ -45,27 +41,12 @@ export const AmountInput = memo(function AmountInput({
   displayMode,
   showQuickAmounts,
   onQuickAmount,
-  maxBalance,
-  onMaxClick,
-  showMaxButton = false,
 }: AmountInputProps) {
   return (
     <div>
-      <div className="flex items-center justify-between mb-2">
-        <label className="block text-xs font-medium text-ui-text-secondary">
-          {label}
-        </label>
-        {showMaxButton && maxBalance && onMaxClick && !readOnly && (
-          <button
-            onClick={onMaxClick}
-            disabled={disabled}
-            className="text-xs font-medium text-brand-primary hover:text-brand-hover active:text-brand-hover/80 disabled:opacity-50 transition-colors touch-manipulation"
-            aria-label="Use maximum balance"
-          >
-            MAX ({maxBalance})
-          </button>
-        )}
-      </div>
+      <label className="block text-xs font-medium text-ui-text-secondary mb-2">
+        {label}
+      </label>
       <div className="bg-gray-50 rounded-lg p-3 space-y-2">
         <div className="flex items-center gap-2">
           {readOnly ? (
@@ -104,13 +85,13 @@ export const AmountInput = memo(function AmountInput({
         </div>
 
         {showQuickAmounts && onQuickAmount && (
-          <div className="flex gap-2">
+          <div className="flex gap-1">
             {QUICK_AMOUNTS.map((amount) => (
               <button
                 key={amount}
                 onClick={() => onQuickAmount(amount)}
                 disabled={disabled}
-                className="flex-1 min-h-[44px] py-2.5 px-3 bg-white rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 active:bg-gray-200 disabled:opacity-50 transition-colors touch-manipulation"
+                className="flex-1 py-1 px-2 bg-white rounded text-xs font-medium text-gray-600 hover:bg-gray-100 disabled:opacity-50"
               >
                 {amount}
               </button>
@@ -120,6 +101,4 @@ export const AmountInput = memo(function AmountInput({
       </div>
     </div>
   );
-});
-
-AmountInput.displayName = 'AmountInput';
+}

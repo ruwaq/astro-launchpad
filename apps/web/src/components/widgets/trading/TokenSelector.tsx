@@ -61,7 +61,7 @@ export function TokenSelector({
         {showXLM ? (
           <>
             <Image
-              src="https://stellar.org/favicon.ico"
+              src="/images/default-token.svg"
               alt="XLM"
               width={20}
               height={20}
@@ -72,8 +72,8 @@ export function TokenSelector({
         ) : selectedToken ? (
           <>
             {(() => {
-              const imgUrl = getIpfsUrl(selectedToken.imageUrl);
-              return imgUrl ? (
+              const imgUrl = getIpfsUrl(selectedToken.imageUrl) || '/images/default-token.svg';
+              return (
                 <Image
                   src={imgUrl}
                   alt={selectedToken.symbol}
@@ -81,7 +81,7 @@ export function TokenSelector({
                   height={20}
                   className="rounded-full"
                 />
-              ) : null;
+              );
             })()}
             <span className="font-semibold text-sm">{selectedToken.symbol}</span>
           </>
@@ -195,8 +195,8 @@ function TokenSection({ title, emoji, tokens, onSelect, variant }: TokenSectionP
             }`}
           >
             {(() => {
-              const imgUrl = getIpfsUrl(token.imageUrl);
-              return imgUrl ? (
+              const imgUrl = getIpfsUrl(token.imageUrl) || '/images/default-token.svg';
+              return (
                 <Image
                   src={imgUrl}
                   alt={token.symbol}
@@ -204,10 +204,6 @@ function TokenSection({ title, emoji, tokens, onSelect, variant }: TokenSectionP
                   height={32}
                   className="rounded-full"
                 />
-              ) : (
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-brand-primary to-purple-600 flex items-center justify-center text-white text-xs font-semibold">
-                  {token.symbol?.charAt(0) || '?'}
-                </div>
               );
             })()}
             <div className="flex-1 text-left">

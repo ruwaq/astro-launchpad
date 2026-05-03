@@ -18,6 +18,7 @@ use soroban_sdk::{
 use astro_core_shared::{
     events::{emit_lock, emit_unlock, EventBuilder},
     math::{safe_add, safe_sub, apply_bps},
+    reentrancy::SimpleReentrancyGuard,
     types::{
         SharedError, LockInfo, LockConfig,
         extend_instance_ttl,
@@ -123,6 +124,7 @@ impl LiquidityLocker {
         owner.require_auth();
         Self::require_initialized(&env)?;
         Self::require_not_paused(&env)?;
+        let _guard = SimpleReentrancyGuard::acquire(&env)?;
 
         if amount <= 0 {
             return Err(SharedError::InvalidAmount);
@@ -193,6 +195,7 @@ impl LiquidityLocker {
         owner.require_auth();
         Self::require_initialized(&env)?;
         Self::require_not_paused(&env)?;
+        let _guard = SimpleReentrancyGuard::acquire(&env)?;
 
         if amount <= 0 {
             return Err(SharedError::InvalidAmount);
@@ -240,6 +243,7 @@ impl LiquidityLocker {
         owner.require_auth();
         Self::require_initialized(&env)?;
         Self::require_not_paused(&env)?;
+        let _guard = SimpleReentrancyGuard::acquire(&env)?;
 
         let mut lock_info: LockInfo = env.storage().persistent()
             .get(&DataKey::Lock(lock_id))
@@ -290,6 +294,7 @@ impl LiquidityLocker {
         owner.require_auth();
         Self::require_initialized(&env)?;
         Self::require_not_paused(&env)?;
+        let _guard = SimpleReentrancyGuard::acquire(&env)?;
 
         let config: LockConfig = env.storage().instance().get(&DataKey::Config)
             .ok_or(SharedError::NotInitialized)?;
@@ -401,6 +406,7 @@ impl LiquidityLocker {
     pub fn transfer_lock(env: Env, owner: Address, lock_id: u64, new_owner: Address) -> Result<(), SharedError> {
         owner.require_auth();
         Self::require_initialized(&env)?;
+        let _guard = SimpleReentrancyGuard::acquire(&env)?;
 
         let mut lock_info: LockInfo = env.storage().persistent()
             .get(&DataKey::Lock(lock_id))
@@ -445,6 +451,9 @@ impl LiquidityLocker {
         env.storage().instance().set(&DataKey::Config, &new_config);
         extend_instance_ttl(&env);
 
+        let events = EventBuilder::new(&env);
+        events.publish("locker", "config_updated", (new_config.min_lock_duration, new_config.max_lock_duration, new_config.early_unlock_enabled, env.ledger().timestamp()));
+
         Ok(())
     }
 
@@ -452,8 +461,14 @@ impl LiquidityLocker {
     pub fn set_admin(env: Env, new_admin: Address) -> Result<(), SharedError> {
         Self::require_admin(&env)?;
 
+        let old_admin: Address = env.storage().instance().get(&DataKey::Admin)
+            .ok_or(SharedError::NotInitialized)?;
+
         env.storage().instance().set(&DataKey::Admin, &new_admin);
         extend_instance_ttl(&env);
+
+        let events = EventBuilder::new(&env);
+        events.publish("locker", "admin_changed", (old_admin, new_admin, env.ledger().timestamp()));
 
         Ok(())
     }
@@ -462,8 +477,14 @@ impl LiquidityLocker {
     pub fn set_treasury(env: Env, new_treasury: Address) -> Result<(), SharedError> {
         Self::require_admin(&env)?;
 
+        let old_treasury: Address = env.storage().instance().get(&DataKey::Treasury)
+            .ok_or(SharedError::NotInitialized)?;
+
         env.storage().instance().set(&DataKey::Treasury, &new_treasury);
         extend_instance_ttl(&env);
+
+        let events = EventBuilder::new(&env);
+        events.publish("locker", "treasury_changed", (old_treasury, new_treasury, env.ledger().timestamp()));
 
         Ok(())
     }

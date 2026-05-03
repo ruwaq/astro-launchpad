@@ -50,12 +50,7 @@ impl<'a> AmmPairClient<'a> {
         let result: Result<(), Error> = self.env.invoke_contract(
             &self.address,
             &Symbol::new(self.env, "initialize"),
-            (
-                factory.clone(),
-                token_a.clone(),
-                token_b.clone(),
-            )
-                .into_val(self.env),
+            (factory.clone(), token_a.clone(), token_b.clone()).into_val(self.env),
         );
 
         result.map_err(|_| Error::AmmInitializationFailed)

@@ -48,4 +48,7 @@ pub enum Error {
 
     // Transaction errors (81-90)
     TransactionExpired = 81,
+
+    // Configuration errors (91-100)
+    InvalidFeeConfiguration = 91,
 }

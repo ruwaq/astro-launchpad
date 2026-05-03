@@ -317,9 +317,71 @@ export class FeeStatsMaintenance {
 
     logger.info('\n' + '='.repeat(80));
 
-    // TODO: Send report via email/webhook if configured
+    // Send report via webhook if configured
+    await this.sendReportViaWebhook(report);
 
     return 1; // 1 report generated
+  }
+
+  /**
+   * Send fee report via webhook if configured
+   */
+  private async sendReportViaWebhook(report: {
+    totalTokens: number;
+    activeTokens24h: number;
+    totalFees: number;
+    protocolFees: number;
+    lpFees: number;
+    creationFees: number;
+    revenue: {
+      protocolFees: { day: number; week: number };
+      lpFees: { day: number; week: number };
+      creationFees: { day: number; week: number };
+      totalRevenue: { day: number; week: number };
+      transactionCount: { day: number; week: number };
+    };
+    topTokens: Array<{ tokenAddress: string; totalFees: number }>;
+  }): Promise<void> {
+    const webhookUrl = process.env.FEE_REPORT_WEBHOOK_URL;
+    if (!webhookUrl) {
+      return; // Not configured, skip
+    }
+
+    try {
+      const payload = {
+        event: 'fee_report',
+        timestamp: new Date().toISOString(),
+        data: {
+          totalTokens: report.totalTokens,
+          activeTokens24h: report.activeTokens24h,
+          totalFees: report.totalFees,
+          protocolFees: report.protocolFees,
+          lpFees: report.lpFees,
+          creationFees: report.creationFees,
+          revenue: report.revenue,
+          topTokens: report.topTokens.slice(0, 10),
+        },
+      };
+
+      const response = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': 'AstroLaunchpad-FeeReporter/1.0',
+        },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(10_000), // 10s timeout
+      });
+
+      if (!response.ok) {
+        logger.warn(`Webhook delivery failed: ${response.status} ${response.statusText}`);
+      } else {
+        logger.info('Fee report webhook delivered successfully');
+      }
+    } catch (error) {
+      // Don't fail the maintenance task if webhook delivery fails
+      logger.warn(`Webhook delivery error: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 
   /**

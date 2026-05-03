@@ -60,6 +60,38 @@ export const schema = `#graphql
 
     # Admin: Delete multiple tokens from database (requires X-Admin-Key header)
     deleteTokensBatch(tokenAddresses: [String!]!): DeleteTokensBatchResult!
+
+    # Token metadata management
+    createTokenMetadata(
+      tokenAddress: String!
+      name: String!
+      symbol: String!
+      decimals: Int!
+      metadataUri: String!
+      description: String
+      website: String
+      twitter: String
+      telegram: String
+      discord: String
+    ): Token!
+
+    # Update token metadata (requires X-Admin-Key header)
+    updateTokenMetadata(
+      tokenAddress: String!
+      name: String
+      symbol: String
+      decimals: Int
+      metadataUri: String
+      description: String
+      website: String
+      twitter: String
+      telegram: String
+      discord: String
+    ): Token!
+
+    # Fee management
+    recalculateFeeStats(input: RecalculateFeeStatsInput): MutationResponse!
+    resetExpiredTimeWindows: MutationResponse!
   }
 
   type DeleteTokenResult {
@@ -833,11 +865,45 @@ extend type Mutation {
   Admin only - requires authentication
   """
   recalculateFeeStats(input: RecalculateFeeStatsInput): MutationResponse!
-  
+
   """
   Reset expired time windows (daily maintenance)
   Admin only - requires authentication
   """
   resetExpiredTimeWindows: MutationResponse!
+
+  """
+  Create token metadata entry
+  Requires X-API-Key header
+  """
+  createTokenMetadata(
+    tokenAddress: String!
+    name: String!
+    symbol: String!
+    decimals: Int!
+    metadataUri: String!
+    description: String
+    website: String
+    twitter: String
+    telegram: String
+    discord: String
+  ): Token!
+
+  """
+  Update token metadata
+  Requires X-Admin-Key header
+  """
+  updateTokenMetadata(
+    tokenAddress: String!
+    name: String
+    symbol: String
+    decimals: Int
+    metadataUri: String
+    description: String
+    website: String
+    twitter: String
+    telegram: String
+    discord: String
+  ): Token!
 }
 `

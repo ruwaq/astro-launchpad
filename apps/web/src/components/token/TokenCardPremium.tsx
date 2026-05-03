@@ -429,9 +429,6 @@ function TokenCardPremiumInner({
                 sizes="48px"
                 unoptimized={true}
                 loading="lazy"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).src = '/images/default-token.svg';
-                }}
               />
             </motion.div>
 

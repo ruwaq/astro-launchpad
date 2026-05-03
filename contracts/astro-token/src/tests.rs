@@ -102,7 +102,7 @@ fn test_transfer() {
 }
 
 #[test]
-#[should_panic(expected = "InsufficientBalance")]
+#[should_panic(expected = "Error(Contract, #4)")]
 fn test_transfer_insufficient_balance_fails() {
     let (env, _admin, user, client) = create_initialized_token();
     let recipient = Address::generate(&env);
@@ -112,7 +112,7 @@ fn test_transfer_insufficient_balance_fails() {
 }
 
 #[test]
-#[should_panic(expected = "Error::InvalidAmount")]
+#[should_panic(expected = "Error(Contract, #6)")]
 fn test_transfer_negative_amount_fails() {
     let (env, _admin, user, client) = create_initialized_token();
     let recipient = Address::generate(&env);
@@ -151,7 +151,7 @@ fn test_transfer_from() {
 }
 
 #[test]
-#[should_panic(expected = "InsufficientAllowance")]
+#[should_panic(expected = "Error(Contract, #5)")]
 fn test_transfer_from_exceeds_allowance_fails() {
     let (env, _admin, user, client) = create_initialized_token();
     let spender = Address::generate(&env);
@@ -214,7 +214,7 @@ fn test_burn_from() {
 }
 
 #[test]
-#[should_panic(expected = "InsufficientBalance")]
+#[should_panic(expected = "Error(Contract, #4)")]
 fn test_burn_exceeds_balance_fails() {
     let (_env, _admin, user, client) = create_initialized_token();
     let too_much = 200_000_0000000i128;
@@ -237,7 +237,7 @@ fn test_mint() {
 }
 
 #[test]
-#[should_panic(expected = "Error::Unauthorized")]
+#[should_panic(expected = "Error(Contract, #3)")]
 fn test_mint_non_admin_fails() {
     let (env, _admin, user, client) = create_initialized_token();
     let not_admin = Address::generate(&env);
@@ -247,7 +247,7 @@ fn test_mint_non_admin_fails() {
 }
 
 #[test]
-#[should_panic(expected = "Error::MaxSupplyExceeded")]
+#[should_panic(expected = "Error(Contract, #7)")]
 fn test_mint_exceeds_max_supply_fails() {
     let (_env, admin, user, client) = create_initialized_token();
     let max_supply = 1_000_000_000_0000000i128;
@@ -268,7 +268,7 @@ fn test_set_admin() {
 }
 
 #[test]
-#[should_panic(expected = "Error::Unauthorized")]
+#[should_panic(expected = "Error(Contract, #3)")]
 fn test_set_admin_non_admin_fails() {
     let (env, _admin, _user, client) = create_initialized_token();
     let not_admin = Address::generate(&env);
@@ -290,32 +290,50 @@ fn test_is_admin() {
 
 #[test]
 fn test_buyback_burn() {
-    let (env, _admin, user, client) = create_initialized_token();
+    let (_env, admin, _user, client) = create_initialized_token();
     let burn_amount = 1000_0000000i128;
-    let initial_balance = 100_000_0000000i128;
+    let initial_supply = 100_000_0000000i128;
 
-    // User calls buyback_burn (anyone can burn their own tokens)
-    client.buyback_burn(&user, &burn_amount);
+    // Mint some tokens to admin first so they have balance to burn
+    // (admin was initialized with initial_supply minted to user, not admin)
+    // Let's use a different approach: mint to admin first
+    let (env2, admin2, user2, client2) = create_initialized_token();
+    let burn_amount2 = 1000_0000000i128;
 
-    assert_eq!(client.balance(&user), initial_balance - burn_amount);
-    assert_eq!(client.total_supply(), initial_balance - burn_amount);
+    // Mint some tokens to admin so they can buyback_burn
+    client2.mint(&admin2, &admin2, &50_000_0000000i128);
+    let admin_balance = client2.balance(&admin2);
+
+    client2.buyback_burn(&admin2, &burn_amount2);
+
+    assert_eq!(client2.balance(&admin2), admin_balance - burn_amount2);
 }
 
 #[test]
-#[should_panic(expected = "Error::InvalidAmount")]
+#[should_panic(expected = "Error(Contract, #6)")]
 fn test_buyback_burn_zero_fails() {
-    let (_env, _admin, user, client) = create_initialized_token();
+    let (_env, admin, _user, client) = create_initialized_token();
 
-    client.buyback_burn(&user, &0);
+    client.buyback_burn(&admin, &0);
 }
 
 #[test]
-#[should_panic(expected = "InsufficientBalance")]
-fn test_buyback_burn_exceeds_balance_fails() {
+#[should_panic(expected = "Error(Contract, #3)")]
+fn test_buyback_burn_non_admin_fails() {
     let (_env, _admin, user, client) = create_initialized_token();
+    let burn_amount = 1000_0000000i128;
+
+    // Non-admin should not be able to call buyback_burn
+    client.buyback_burn(&user, &burn_amount);
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #4)")]
+fn test_buyback_burn_exceeds_balance_fails() {
+    let (_env, admin, _user, client) = create_initialized_token();
     let too_much = 200_000_0000000i128;
 
-    client.buyback_burn(&user, &too_much);
+    client.buyback_burn(&admin, &too_much);
 }
 
 // ========== Extended Functions Tests ==========
@@ -381,14 +399,106 @@ fn test_mint_burn_supply_tracking() {
 
 #[test]
 fn test_deflationary_burn_cycle() {
-    let (_env, _admin, user, client) = create_initialized_token();
+    let (_env, admin, user, client) = create_initialized_token();
     let initial_supply = 100_000_0000000i128;
+
+    // Mint tokens to admin so they can perform buyback burns
+    client.mint(&admin, &admin, &50_000_0000000i128);
+    let admin_balance = client.balance(&admin);
 
     // Simulate multiple burn cycles (like buyback & burn)
     for _ in 0..5 {
-        client.buyback_burn(&user, &1000_0000000i128);
+        client.buyback_burn(&admin, &1000_0000000i128);
     }
 
-    assert_eq!(client.total_supply(), initial_supply - 5000_0000000i128);
-    assert_eq!(client.balance(&user), initial_supply - 5000_0000000i128);
+    assert_eq!(client.balance(&admin), admin_balance - 5000_0000000i128);
+    assert_eq!(client.total_supply(), initial_supply + 50_000_0000000i128 - 5000_0000000i128);
+}
+
+// ========== Set Max Supply Tests ==========
+
+#[test]
+fn test_set_max_supply_success() {
+    let (_env, admin, _user, client) = create_initialized_token();
+    let initial_supply = 100_000_0000000i128;
+
+    // Can decrease max supply as long as it's >= total supply
+    let new_max = 500_000_000_0000000i128; // 500M > 100k current
+    client.set_max_supply(&admin, &new_max);
+    assert_eq!(client.max_supply(), new_max);
+}
+
+#[test]
+fn test_set_max_supply_can_increase() {
+    let (_env, admin, _user, client) = create_initialized_token();
+    let default_max = 1_000_000_000_0000000i128;
+
+    // Can increase max supply
+    let new_max = 2_000_000_000_0000000i128;
+    client.set_max_supply(&admin, &new_max);
+    assert_eq!(client.max_supply(), new_max);
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #3)")]
+fn test_set_max_supply_non_admin_fails() {
+    let (_env, _admin, user, client) = create_initialized_token();
+
+    // Non-admin cannot set max supply
+    client.set_max_supply(&user, &500_000_000_0000000i128);
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #6)")]
+fn test_set_max_supply_below_total_supply_fails() {
+    let (_env, admin, _user, client) = create_initialized_token();
+
+    // Cannot set max supply below current total supply (100k minted)
+    let too_low = 50_000_0000000i128; // 50k < 100k
+    client.set_max_supply(&admin, &too_low);
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #6)")]
+fn test_set_max_supply_zero_fails() {
+    let (_env, admin, _user, client) = create_initialized_token();
+
+    // Cannot set max supply to zero
+    client.set_max_supply(&admin, &0i128);
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #6)")]
+fn test_set_max_supply_negative_fails() {
+    let (_env, admin, _user, client) = create_initialized_token();
+
+    // Cannot set max supply to negative
+    client.set_max_supply(&admin, &(-1i128));
+}
+
+#[test]
+fn test_set_max_supply_then_mint_respects_cap() {
+    let (_env, admin, user, client) = create_initialized_token();
+    let initial_supply = 100_000_0000000i128;
+
+    // Set max supply close to total supply
+    let new_max = 150_000_0000000i128;
+    client.set_max_supply(&admin, &new_max);
+
+    // Can mint up to max
+    client.mint(&admin, &user, &50_000_0000000i128);
+    assert_eq!(client.total_supply(), new_max);
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #7)")]
+fn test_set_max_supply_then_mint_exceeds_fails() {
+    let (_env, admin, user, client) = create_initialized_token();
+
+    // Set max supply close to total supply
+    let new_max = 120_000_0000000i128;
+    client.set_max_supply(&admin, &new_max);
+
+    // Minting beyond new max should fail
+    client.mint(&admin, &user, &30_000_0000000i128); // 100k + 30k > 120k
 }

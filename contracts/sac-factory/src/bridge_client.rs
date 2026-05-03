@@ -67,11 +67,8 @@ pub fn graduate_token(
 
     // Try to invoke the bridge contract
     // This will panic if the contract call fails, which we catch at the caller level
-    let result: GraduatedToken = env.invoke_contract(
-        bridge_address,
-        &Symbol::new(env, "graduate_token"),
-        args,
-    );
+    let result: GraduatedToken =
+        env.invoke_contract(bridge_address, &Symbol::new(env, "graduate_token"), args);
 
     Ok(result.pair)
 }
@@ -129,11 +126,7 @@ pub fn is_token_graduated(env: &Env, bridge_address: &Address, token: &Address) 
 }
 
 /// Get pair address for a graduated token from the bridge
-pub fn get_pair_address(
-    env: &Env,
-    bridge_address: &Address,
-    token: &Address,
-) -> Option<Address> {
+pub fn get_pair_address(env: &Env, bridge_address: &Address, token: &Address) -> Option<Address> {
     let args: soroban_sdk::Vec<Val> = (token.clone(),).into_val(env);
 
     let result = env.try_invoke_contract::<Option<Address>, Val>(

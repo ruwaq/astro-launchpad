@@ -3,13 +3,10 @@
 #[cfg(test)]
 mod tests {
     use crate::{SacFactory, SacFactoryClient};
-    use soroban_sdk::{
-        testutils::Address as _,
-        Address, Bytes, BytesN, Env, String,
-    };
+    use soroban_sdk::{testutils::Address as _, Address, Bytes, BytesN, Env, String};
 
     // Test helpers
-    fn create_factory_contract(env: &Env) -> (SacFactoryClient, Address, Address, Address) {
+    fn create_factory_contract(env: &Env) -> (SacFactoryClient<'_>, Address, Address, Address) {
         let contract_id = env.register(SacFactory, ());
         let client = SacFactoryClient::new(env, &contract_id);
 
@@ -26,7 +23,7 @@ mod tests {
         env.ledger().timestamp() + 31_536_000 // 1 year in seconds
     }
 
-    fn setup_initialized_factory(env: &Env) -> (SacFactoryClient, Address, Address) {
+    fn setup_initialized_factory(env: &Env) -> (SacFactoryClient<'_>, Address, Address) {
         let (client, admin, treasury, xlm_token_address) = create_factory_contract(env);
 
         env.mock_all_auths();
@@ -39,7 +36,10 @@ mod tests {
     /// In production, this would be a real Stellar G... address
     fn create_test_issuer(env: &Env) -> String {
         // Use a dummy issuer address format (56 chars starting with G)
-        String::from_str(env, "GCEZWKCA5VLDNRLN3RPRJMRZOX3Z6G5CHCGSNFHEYVXM3XOJMDS674JZ")
+        String::from_str(
+            env,
+            "GCEZWKCA5VLDNRLN3RPRJMRZOX3Z6G5CHCGSNFHEYVXM3XOJMDS674JZ",
+        )
     }
 
     /// Helper to create serialized asset for tests
@@ -58,11 +58,9 @@ mod tests {
         let salt = BytesN::from_array(env, &salt_hash.to_array());
 
         crate::sac_deployment::test_helpers::create_test_serialized_asset(
-            env,
-            symbol,
-            creator,
-            &salt,
-        ).expect("Failed to create test serialized asset")
+            env, symbol, creator, &salt,
+        )
+        .expect("Failed to create test serialized asset")
     }
 
     // ========== Initialization Tests ==========
@@ -165,7 +163,7 @@ mod tests {
         client.launch_token(
             &creator,
             &String::from_str(&env, "Test"),
-            &long_symbol,  // This will fail validation
+            &long_symbol, // This will fail validation
             &issuer,
             &String::from_str(&env, "ipfs://test"),
             &String::from_str(&env, "Description"),
@@ -183,8 +181,26 @@ mod tests {
 
         let issuer = create_test_issuer(&env);
         for i in 0..3 {
-            let symbol = String::from_str(&env, if i == 0 { "TK0" } else if i == 1 { "TK1" } else { "TK2" });
-            let name = String::from_str(&env, if i == 0 { "Token 0" } else if i == 1 { "Token 1" } else { "Token 2" });
+            let symbol = String::from_str(
+                &env,
+                if i == 0 {
+                    "TK0"
+                } else if i == 1 {
+                    "TK1"
+                } else {
+                    "TK2"
+                },
+            );
+            let name = String::from_str(
+                &env,
+                if i == 0 {
+                    "Token 0"
+                } else if i == 1 {
+                    "Token 1"
+                } else {
+                    "Token 2"
+                },
+            );
             let serialized_asset = create_test_serialized_asset(&env, &symbol, &creator, i);
 
             client.launch_token(
@@ -372,8 +388,16 @@ mod tests {
             };
             // Use unique symbols to avoid DuplicateSymbol error
             let symbol_str = match i {
-                0 => "TA0", 1 => "TB1", 2 => "TA2", 3 => "TB3", 4 => "TA4",
-                5 => "TB5", 6 => "TA6", 7 => "TB7", 8 => "TA8", _ => "TB9",
+                0 => "TA0",
+                1 => "TB1",
+                2 => "TA2",
+                3 => "TB3",
+                4 => "TA4",
+                5 => "TB5",
+                6 => "TA6",
+                7 => "TB7",
+                8 => "TA8",
+                _ => "TB9",
             };
             let symbol = String::from_str(&env, symbol_str);
 

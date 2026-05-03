@@ -42,3 +42,11 @@ pub fn swap(
         (sender, token_in, token_out, amount_in, amount_out),
     );
 }
+
+/// Emit event when fee is updated
+pub fn emit_fee_updated(env: &Env, fee_bps: u32) {
+    env.events().publish(
+        (symbol_short!("fee_upd"),),
+        (fee_bps, env.ledger().timestamp()),
+    );
+}

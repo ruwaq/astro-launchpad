@@ -26,7 +26,8 @@ use storage::{DataKey, PairInfo};
 use errors::Error;
 
 /// Minimum liquidity to lock permanently (prevents division by zero attacks)
-const MINIMUM_LIQUIDITY: i128 = 1000;
+/// Now configurable via storage, default is 1000
+/// Use storage::get_minimum_liquidity(&env) instead of this constant
 
 // Note: Fee constants (FEE_BPS, FEE_DENOMINATOR) are defined in math.rs
 // to avoid duplication and unused variable warnings
@@ -163,15 +164,16 @@ impl AMMPair {
             let initial_liquidity = math::sqrt(product);
 
             // Lock minimum liquidity permanently
-            if initial_liquidity <= MINIMUM_LIQUIDITY {
+            if initial_liquidity <= storage::get_minimum_liquidity(&env) {
                 return Err(Error::InsufficientLiquidityMinted);
             }
 
             // Mint minimum liquidity to zero address (locked forever)
-            pair_info.total_supply = MINIMUM_LIQUIDITY;
+            let min_liq = storage::get_minimum_liquidity(&env);
+            pair_info.total_supply = min_liq;
 
             initial_liquidity
-                .checked_sub(MINIMUM_LIQUIDITY)
+                .checked_sub(min_liq)
                 .ok_or(Error::Underflow)?
         } else {
             // Subsequent liquidity: min(amount0/reserve0, amount1/reserve1) * totalSupply
@@ -289,7 +291,7 @@ impl AMMPair {
         }
 
         // Burn LP tokens
-        storage::decrease_balance(&env, &sender, liquidity);
+        storage::decrease_balance(&env, &sender, liquidity)?;
         pair_info.total_supply = pair_info.total_supply
             .checked_sub(liquidity)
             .ok_or(Error::Underflow)?;
@@ -367,7 +369,7 @@ impl AMMPair {
             .ok_or(Error::Overflow)?;
 
         // Calculate output amount with fee
-        let amount_out = math::get_amount_out(amount_in, reserve_in, reserve_out)?;
+        let amount_out = math::get_amount_out(&env, amount_in, reserve_in, reserve_out)?;
 
         if amount_out < amount_out_min {
             return Err(Error::InsufficientOutputAmount);
@@ -458,7 +460,7 @@ impl AMMPair {
             return Err(Error::InvalidToken);
         };
 
-        math::get_amount_out(amount_in, reserve_in, reserve_out)
+        math::get_amount_out(&env, amount_in, reserve_in, reserve_out)
     }
 
     /// Calculate input amount needed for a desired output (without executing swap)
@@ -473,6 +475,60 @@ impl AMMPair {
             return Err(Error::InvalidToken);
         };
 
-        math::get_amount_in(amount_out, reserve_in, reserve_out)
+        math::get_amount_in(&env, amount_out, reserve_in, reserve_out)
+    }
+
+    // ========== Admin Configuration ==========
+
+    /// Set fee in basis points (factory only)
+    /// Fee must be between 0 and 1000 (0% to 10%)
+    pub fn set_fee_bps(env: Env, caller: Address, fee_bps: u32) -> Result<(), Error> {
+        caller.require_auth();
+
+        // Only factory can set fee
+        let pair_info = storage::get_pair_info(&env);
+        if caller != pair_info.factory {
+            return Err(Error::Unauthorized);
+        }
+
+        // Validate fee range (0-10%)
+        if fee_bps > 1000 {
+            return Err(Error::InvalidFeeConfiguration);
+        }
+
+        storage::set_fee_bps(&env, fee_bps);
+
+        events::emit_fee_updated(&env, fee_bps);
+
+        Ok(())
+    }
+
+    /// Set minimum liquidity (factory only)
+    pub fn set_minimum_liquidity(env: Env, caller: Address, min_liquidity: i128) -> Result<(), Error> {
+        caller.require_auth();
+
+        // Only factory can set minimum liquidity
+        let pair_info = storage::get_pair_info(&env);
+        if caller != pair_info.factory {
+            return Err(Error::Unauthorized);
+        }
+
+        if min_liquidity < 0 {
+            return Err(Error::InvalidAmount);
+        }
+
+        storage::set_minimum_liquidity(&env, min_liquidity);
+
+        Ok(())
+    }
+
+    /// Get current fee in basis points
+    pub fn fee_bps(env: Env) -> u32 {
+        storage::get_fee_bps(&env)
+    }
+
+    /// Get minimum liquidity
+    pub fn minimum_liquidity(env: Env) -> i128 {
+        storage::get_minimum_liquidity(&env)
     }
 }

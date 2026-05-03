@@ -215,6 +215,24 @@ export function toStroopsBigInt(amount: number | string, decimals: number = 7): 
  * SAC Factory Service
  */
 export class SacFactoryService extends BaseContractService {
+  // In-memory cache for read-only calls (reduces RPC round-trips)
+  private tokenInfoCache = new Map<string, { data: TokenInfo; timestamp: number }>();
+  private priceCache = new Map<string, { data: bigint; timestamp: number }>();
+  private static CACHE_TTL_MS = 15_000; // 15 seconds - balances between freshness and RPC load
+
+  /**
+   * Invalidate cache for a specific token (call after write operations)
+   */
+  invalidateCache(tokenAddress?: string): void {
+    if (tokenAddress) {
+      this.tokenInfoCache.delete(tokenAddress);
+      this.priceCache.delete(tokenAddress);
+    } else {
+      this.tokenInfoCache.clear();
+      this.priceCache.clear();
+    }
+  }
+
   constructor() {
     // CONTRACT_IDS.tokenFactory already resolves through env vars with a canonical fallback
     super(CONTRACT_IDS.tokenFactory);
@@ -229,6 +247,12 @@ export class SacFactoryService extends BaseContractService {
    * @returns Token information or null if not found
    */
   async getTokenInfo(tokenAddress: string): Promise<TokenInfo | null> {
+    // Check cache first
+    const cached = this.tokenInfoCache.get(tokenAddress);
+    if (cached && Date.now() - cached.timestamp < SacFactoryService.CACHE_TTL_MS) {
+      return cached.data;
+    }
+
     try {
       const result = await this.callReadOnly(
         'get_token_info',
@@ -277,6 +301,9 @@ export class SacFactoryService extends BaseContractService {
         xlm_reserve: tokenInfo.bonding_curve.xlm_reserve,
       });
 
+      // Update cache
+      this.tokenInfoCache.set(tokenAddress, { data: tokenInfo, timestamp: Date.now() });
+
       return tokenInfo;
     } catch (error) {
       logger.error('Error fetching token info:', error);
@@ -291,6 +318,12 @@ export class SacFactoryService extends BaseContractService {
    * @returns Price in stroops (XLM * 10^7)
    */
   async getPrice(tokenAddress: string): Promise<bigint> {
+    // Check cache first
+    const cached = this.priceCache.get(tokenAddress);
+    if (cached && Date.now() - cached.timestamp < SacFactoryService.CACHE_TTL_MS) {
+      return cached.data;
+    }
+
     try {
       const result = await this.callReadOnly(
         'get_price',
@@ -299,7 +332,12 @@ export class SacFactoryService extends BaseContractService {
 
       if (!result) return BigInt(0);
 
-      return BigInt(fromScVal(result) as string | number | bigint);
+      const price = BigInt(fromScVal(result) as string | number | bigint);
+
+      // Update cache
+      this.priceCache.set(tokenAddress, { data: price, timestamp: Date.now() });
+
+      return price;
     } catch (error) {
       logger.error('Error fetching price:', error);
       return BigInt(0);

@@ -171,15 +171,26 @@ mod tests {
     #[test]
     fn test_error_hierarchy() {
         // Verify error codes are in correct ranges
-        assert!((Error::AlreadyInitialized as u32) >= 100 && (Error::AlreadyInitialized as u32) < 200);
+        assert!(
+            (Error::AlreadyInitialized as u32) >= 100 && (Error::AlreadyInitialized as u32) < 200
+        );
         assert!((Error::Unauthorized as u32) >= 200 && (Error::Unauthorized as u32) < 300);
         assert!((Error::InvalidName as u32) >= 300 && (Error::InvalidName as u32) < 400);
         assert!((Error::TokenNotFound as u32) >= 400 && (Error::TokenNotFound as u32) < 500);
         assert!((Error::SlippageExceeded as u32) >= 500 && (Error::SlippageExceeded as u32) < 600);
         assert!((Error::Overflow as u32) >= 600 && (Error::Overflow as u32) < 700);
-        assert!((Error::AntiWhaleMaxBuyExceeded as u32) >= 700 && (Error::AntiWhaleMaxBuyExceeded as u32) < 800);
-        assert!((Error::AmmInitializationFailed as u32) >= 800 && (Error::AmmInitializationFailed as u32) < 900);
-        assert!((Error::OracleNotConfigured as u32) >= 900 && (Error::OracleNotConfigured as u32) < 1000);
+        assert!(
+            (Error::AntiWhaleMaxBuyExceeded as u32) >= 700
+                && (Error::AntiWhaleMaxBuyExceeded as u32) < 800
+        );
+        assert!(
+            (Error::AmmInitializationFailed as u32) >= 800
+                && (Error::AmmInitializationFailed as u32) < 900
+        );
+        assert!(
+            (Error::OracleNotConfigured as u32) >= 900
+                && (Error::OracleNotConfigured as u32) < 1000
+        );
     }
 
     #[test]

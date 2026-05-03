@@ -9,10 +9,7 @@
 #[cfg(test)]
 mod tests {
     use crate::{
-        SacFactory, SacFactoryClient,
-        anti_whale,
-        errors::Error,
-        state_management::ContractState,
+        anti_whale, errors::Error, state_management::ContractState, SacFactory, SacFactoryClient,
     };
     use soroban_sdk::{
         testutils::{Address as _, AuthorizedFunction, AuthorizedInvocation},
@@ -21,7 +18,10 @@ mod tests {
 
     /// Helper to create a test issuer public key string
     fn create_test_issuer(env: &Env) -> String {
-        String::from_str(env, "GCEZWKCA5VLDNRLN3RPRJMRZOX3Z6G5CHCGSNFHEYVXM3XOJMDS674JZ")
+        String::from_str(
+            env,
+            "GCEZWKCA5VLDNRLN3RPRJMRZOX3Z6G5CHCGSNFHEYVXM3XOJMDS674JZ",
+        )
     }
 
     /// Helper to create serialized asset for tests
@@ -40,15 +40,13 @@ mod tests {
         let salt = BytesN::from_array(env, &salt_hash.to_array());
 
         crate::sac_deployment::test_helpers::create_test_serialized_asset(
-            env,
-            symbol,
-            creator,
-            &salt,
-        ).expect("Failed to create test serialized asset")
+            env, symbol, creator, &salt,
+        )
+        .expect("Failed to create test serialized asset")
     }
 
     // Helper to deploy and initialize factory
-    fn setup_factory(env: &Env) -> (SacFactoryClient, Address, Address) {
+    fn setup_factory(env: &Env) -> (SacFactoryClient<'_>, Address, Address) {
         use soroban_sdk::BytesN;
 
         // Register the contract (actual deployment in test environment)
@@ -84,7 +82,10 @@ mod tests {
         env.mock_all_auths();
 
         // Create name longer than MAX_NAME_LENGTH (32)
-        let long_name = String::from_str(&env, "This is a very long name that exceeds the maximum allowed length");
+        let long_name = String::from_str(
+            &env,
+            "This is a very long name that exceeds the maximum allowed length",
+        );
 
         let serialized_asset = create_test_serialized_asset(&env, &symbol, &creator, 0);
 
@@ -340,13 +341,7 @@ mod tests {
         let deadline = env.ledger().timestamp() + 60;
 
         // Execute buy and measure resource usage
-        client.buy(
-            &buyer,
-            &token_address,
-            &xlm_amount,
-            &0,
-            &deadline,
-        );
+        client.buy(&buyer, &token_address, &xlm_amount, &0, &deadline);
 
         // Log resource usage
         // Note: In real tests, you would assert maximum CPU/memory limits
@@ -432,7 +427,7 @@ mod tests {
         let token_address = client.launch_token(
             &creator,
             &String::from_str(&env, "T"), // Min 1 char name
-            &symbol,  // Min 1 char symbol
+            &symbol,                      // Min 1 char symbol
             &issuer,
             &String::from_str(&env, ""),
             &String::from_str(&env, ""),

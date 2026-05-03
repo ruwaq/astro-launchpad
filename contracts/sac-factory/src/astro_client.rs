@@ -6,9 +6,9 @@
 #![allow(dead_code)] // ASTRO integration feature - not yet integrated
 #![allow(unused_imports)] // vec used in future ASTRO buyback implementation
 
-use soroban_sdk::{Address, Env, IntoVal, Symbol, token, vec};
 use crate::errors::Error;
 use crate::storage;
+use soroban_sdk::{token, vec, Address, Env, IntoVal, Symbol};
 
 /// ASTRO Token client wrapper
 pub struct AstroTokenClient<'a> {
@@ -232,7 +232,7 @@ pub struct DualPoolAllocation {
 pub fn calculate_dual_pool_allocation(
     env: &Env,
     total_xlm: i128,
-    total_tokens: i128
+    total_tokens: i128,
 ) -> DualPoolAllocation {
     // If ASTRO not configured, all goes to main XLM pool
     if storage::get_astro_config(env).is_none() {
@@ -246,9 +246,9 @@ pub fn calculate_dual_pool_allocation(
     }
 
     // Allocation percentages in basis points (100% = 10000 bps)
-    const XLM_POOL_BPS: i128 = 7500;    // 75%
-    const ASTRO_POOL_BPS: i128 = 2300;  // 23%
-    const BURN_BPS: i128 = 200;          // 2%
+    const XLM_POOL_BPS: i128 = 7500; // 75%
+    const ASTRO_POOL_BPS: i128 = 2300; // 23%
+    const BURN_BPS: i128 = 200; // 2%
 
     // Calculate XLM allocations
     let xlm_for_xlm_pool = total_xlm

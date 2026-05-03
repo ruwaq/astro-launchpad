@@ -42,7 +42,7 @@ mod tests {
     }
 
     /// Setup factory for tests
-    fn setup_factory(env: &Env) -> (SacFactoryClient, Address, Address) {
+    fn setup_factory(env: &Env) -> (SacFactoryClient<'_>, Address, Address) {
         let contract_id = env.register(SacFactory, ());
         let client = SacFactoryClient::new(env, &contract_id);
 

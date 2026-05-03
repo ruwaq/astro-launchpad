@@ -28,18 +28,18 @@
 //! - `cooldown_seconds`: Time between buys (default: 0)
 //! - `enabled`: Toggle all protections on/off
 
-use soroban_sdk::{contracttype, Address, Env, Vec};
-use crate::errors::Error;
 use crate::access_control;
+use crate::errors::Error;
 use crate::input_validation;
+use soroban_sdk::{contracttype, Address, Env, Vec};
 
 /// Storage key for anti-whale configuration
 #[contracttype]
 #[derive(Clone)]
 pub enum AntiWhaleKey {
-    Config,                    // Global anti-whale config
-    WalletHoldings(Address),   // Per-wallet token holdings tracking
-    LastBuyTime(Address),      // Per-wallet last buy timestamp
+    Config,                  // Global anti-whale config
+    WalletHoldings(Address), // Per-wallet token holdings tracking
+    LastBuyTime(Address),    // Per-wallet last buy timestamp
 }
 
 /// Fee tier definition
@@ -62,8 +62,8 @@ pub struct AntiWhaleConfig {
 
     /// Fee tiers - progressive fees based on holdings percentage
     /// Stored as parallel arrays for Soroban compatibility
-    pub tier_thresholds: Vec<i128>,  // Holdings thresholds in bps
-    pub tier_fees: Vec<i128>,        // Extra fees in bps for each tier
+    pub tier_thresholds: Vec<i128>, // Holdings thresholds in bps
+    pub tier_fees: Vec<i128>, // Extra fees in bps for each tier
 
     /// Minimum time between purchases from same wallet (seconds)
     /// 0 = no cooldown
@@ -97,11 +97,11 @@ pub fn initialize_anti_whale(env: &Env) {
     let fees = Vec::new(env);
 
     let config = AntiWhaleConfig {
-        absolute_max_holdings_bps: 10000,  // 100% - effectively no limit (pump.fun style)
+        absolute_max_holdings_bps: 10000, // 100% - effectively no limit (pump.fun style)
         tier_thresholds: thresholds,
         tier_fees: fees,
-        cooldown_seconds: 0,  // No cooldown (pump.fun style)
-        enabled: false,  // DISABLED by default - bonding curve is the anti-whale
+        cooldown_seconds: 0, // No cooldown (pump.fun style)
+        enabled: false,      // DISABLED by default - bonding curve is the anti-whale
     };
 
     env.storage().instance().set(&AntiWhaleKey::Config, &config);
@@ -115,21 +115,17 @@ pub fn get_config(env: &Env) -> AntiWhaleConfig {
         .unwrap_or_else(|| {
             // Return pump.fun-style defaults: disabled, no limits
             AntiWhaleConfig {
-                absolute_max_holdings_bps: 10000,  // 100% - no limit
+                absolute_max_holdings_bps: 10000, // 100% - no limit
                 tier_thresholds: Vec::new(env),
                 tier_fees: Vec::new(env),
-                cooldown_seconds: 0,  // No cooldown
-                enabled: false,  // Disabled by default
+                cooldown_seconds: 0, // No cooldown
+                enabled: false,      // Disabled by default
             }
         })
 }
 
 /// Set anti-whale configuration (Owner or FeeAdmin only)
-pub fn set_config(
-    env: &Env,
-    admin: &Address,
-    config: AntiWhaleConfig,
-) -> Result<(), Error> {
+pub fn set_config(env: &Env, admin: &Address, config: AntiWhaleConfig) -> Result<(), Error> {
     admin.require_auth();
 
     // Only Owner or FeeAdmin can configure
@@ -174,7 +170,9 @@ pub fn update_wallet_holdings(env: &Env, wallet: &Address, new_balance: i128) {
     env.storage().persistent().set(&key, &new_balance);
 
     // Extend TTL to 30 days
-    env.storage().persistent().extend_ttl(&key, 518_400, 518_400);
+    env.storage()
+        .persistent()
+        .extend_ttl(&key, 518_400, 518_400);
 }
 
 /// Get last buy timestamp for a wallet
@@ -191,7 +189,9 @@ pub fn set_last_buy_time(env: &Env, wallet: &Address, timestamp: u64) {
     env.storage().persistent().set(&key, &timestamp);
 
     // Extend TTL to 7 days
-    env.storage().persistent().extend_ttl(&key, 120_960, 120_960);
+    env.storage()
+        .persistent()
+        .extend_ttl(&key, 120_960, 120_960);
 }
 
 /// Calculate the extra fee based on holdings percentage after purchase
@@ -236,7 +236,7 @@ pub fn validate_buy(
     env: &Env,
     buyer: &Address,
     tokens_to_buy: i128,
-    _circulating_supply: i128,  // Kept for API compatibility
+    _circulating_supply: i128, // Kept for API compatibility
     total_supply: i128,
 ) -> AntiWhaleResult {
     let config = get_config(env);
@@ -387,11 +387,7 @@ pub fn reset_wallet_holdings(
 /// Clear wallet holdings tracking completely (set to 0) - Owner only
 ///
 /// Use this when you need to completely reset a wallet's tracked holdings.
-pub fn clear_wallet_holdings(
-    env: &Env,
-    admin: &Address,
-    wallet: &Address,
-) -> Result<(), Error> {
+pub fn clear_wallet_holdings(env: &Env, admin: &Address, wallet: &Address) -> Result<(), Error> {
     admin.require_auth();
 
     // Only Owner can clear holdings

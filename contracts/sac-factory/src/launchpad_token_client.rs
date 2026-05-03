@@ -27,11 +27,7 @@ pub fn initialize_token(
 /// Mint tokens to an address (admin only)
 pub fn mint(env: &Env, token_address: &Address, to: &Address, amount: i128) {
     let args = (to, amount);
-    env.invoke_contract::<()>(
-        token_address,
-        &Symbol::new(env, "mint"),
-        args.into_val(env),
-    );
+    env.invoke_contract::<()>(token_address, &Symbol::new(env, "mint"), args.into_val(env));
 }
 
 /// Admin burn - burn tokens from any address (admin only)
@@ -66,11 +62,7 @@ pub fn transfer(env: &Env, token_address: &Address, from: &Address, to: &Address
 
 /// Get token admin
 pub fn admin(env: &Env, token_address: &Address) -> Address {
-    env.invoke_contract::<Address>(
-        token_address,
-        &Symbol::new(env, "admin"),
-        ().into_val(env),
-    )
+    env.invoke_contract::<Address>(token_address, &Symbol::new(env, "admin"), ().into_val(env))
 }
 
 /// Set new admin (current admin only)

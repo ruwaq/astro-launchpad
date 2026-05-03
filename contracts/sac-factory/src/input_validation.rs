@@ -6,8 +6,8 @@
 //! - Veridise Security Checklist: "Validate vector/map sizes before storage operations"
 //! - OpenZeppelin: "Protect against unbounded loops and storage growth"
 
-use soroban_sdk::{Env, String, Bytes, Vec};
 use crate::errors::Error;
+use soroban_sdk::{Bytes, Env, String, Vec};
 
 // ====================
 // SIZE LIMITS
@@ -52,7 +52,7 @@ pub const MAX_ROLE_DESCRIPTION_LENGTH: u32 = 128;
 /// # Errors
 /// Returns Error::InvalidName if validation fails
 pub fn validate_name(env: &Env, name: &String) -> Result<(), Error> {
-    if name.len() == 0 {
+    if name.is_empty() {
         return Err(Error::InvalidName);
     }
     if name.len() > MAX_NAME_LENGTH {
@@ -70,7 +70,7 @@ pub fn validate_name(env: &Env, name: &String) -> Result<(), Error> {
 /// # Errors
 /// Returns Error::InvalidSymbol if validation fails
 pub fn validate_symbol(env: &Env, symbol: &String) -> Result<(), Error> {
-    if symbol.len() == 0 {
+    if symbol.is_empty() {
         return Err(Error::InvalidSymbol);
     }
     if symbol.len() > MAX_SYMBOL_LENGTH {

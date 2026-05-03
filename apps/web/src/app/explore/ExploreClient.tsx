@@ -1,69 +1,28 @@
 /**
  * Explore Client Component
  *
- * Handles all client-side interactivity for the explore page.
- * Receives initial data from the Server Component.
- *
- * Features:
- * - Search with debounce
- * - Status filtering (Bonding/Graduated)
- * - Sort options (New, Trending, Market Cap, Graduation %)
- * - Infinite scroll / Load more
- * - Live activity feed toggle
- * - Framer Motion animations
- *
- * Pattern: Server/Client Component boundary for Next.js 15
+ * Client-side component for the token exploration page.
+ * Displays tokens fetched via SSR with client-side pagination and filtering.
  */
 
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import Link from 'next/link';
-import { motion, AnimatePresence } from 'framer-motion';
-import { DashboardLayout } from '@/components/layout/DashboardLayout';
-import { TokenCardPremium } from '@/components/token/TokenCardPremium';
-import { LiveActivityFeed } from '@/components/activity/LiveActivityFeed';
-import { Search, TrendingUp, Loader2, Flame, Sparkles, Activity, Filter, ChevronDown, GraduationCap, Zap } from 'lucide-react';
-import { useWallet } from '@/contexts/WalletContext';
-import toast from 'react-hot-toast';
+import Image from 'next/image';
 import { useQuery, gql } from '@apollo/client';
-import type { Token, TokenEdge, PageInfo } from '@/lib/graphql/types';
-import { useDebounce } from '@/hooks/useDebounce';
-import { SearchResultsAnnouncer } from '@/components/accessibility/LiveRegion';
-import { PRICE_POLL_INTERVAL_MS } from '@/lib/constants/app';
+import { DashboardLayout } from '@/components/layout/DashboardLayout';
+import { useWallet } from '@/contexts/WalletContext';
+import { useBalanceRefresh } from '@/lib/events/balanceRefresh';
+import { stroopsToXlm, formatCompactNumber, GRADUATION_THRESHOLD_STROOPS } from '@/lib/stellar/utils';
+import { BALANCE_POLL_INTERVAL_MS } from '@/lib/constants/app';
+import { TrendingUp, TrendingDown, Rocket, Search, Plus, Users, DollarSign } from 'lucide-react';
+import type { TokenEdge, PageInfo } from '@/lib/graphql/types';
 
-type SortOption = 'trending' | 'new' | 'marketCap' | 'volume' | 'graduation';
-type StatusFilter = 'ALL' | 'BONDING' | 'GRADUATED';
-
-// Map frontend sort options to GraphQL orderBy enum
-const sortToOrderBy: Record<SortOption, string> = {
-  new: 'CREATED_AT_DESC',
-  trending: 'VOLUME_DESC',
-  marketCap: 'MARKET_CAP_DESC',
-  volume: 'VOLUME_DESC',
-  graduation: 'GRADUATION_DESC',
-};
-
-// Animation variants for staggered children
-const containerVariants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: {
-      staggerChildren: 0.05,
-    },
-  },
-};
-
-const itemVariants = {
-  hidden: { opacity: 0, y: 20 },
-  visible: { opacity: 1, y: 0 },
-};
-
-// GraphQL query with server-side search, filter, and sort
+// GraphQL query for tokens with pagination
 const GET_TOKENS = gql`
-  query GetAllTokens($limit: Int!, $after: String, $orderBy: TokenOrderBy!, $search: String, $status: TokenStatus) {
-    tokens(limit: $limit, after: $after, orderBy: $orderBy, search: $search, status: $status) {
+  query GetTokens($limit: Int!, $after: String, $orderBy: TokenOrderBy!, $search: String) {
+    tokens(limit: $limit, after: $after, orderBy: $orderBy, search: $search) {
       edges {
         cursor
         node {
@@ -93,481 +52,288 @@ const GET_TOKENS = gql`
   }
 `;
 
-interface TokensConnection {
-  edges: TokenEdge[];
-  pageInfo: PageInfo;
-  totalCount: number;
-}
+type SortOption = 'CREATED_AT_DESC' | 'VOLUME_DESC' | 'MARKET_CAP_DESC' | 'PRICE_CHANGE_DESC';
 
 interface ExploreClientProps {
-  initialTokens: TokensConnection;
+  initialTokens: {
+    edges: TokenEdge[];
+    pageInfo: PageInfo;
+    totalCount: number;
+  };
 }
 
 export function ExploreClient({ initialTokens }: ExploreClientProps) {
-  const { connect } = useWallet();
+  const [search, setSearch] = useState('');
+  const [sortBy, setSortBy] = useState<SortOption>('CREATED_AT_DESC');
+  const { isConnected, connect, isConnecting } = useWallet();
 
-  // Pagination constants
-  const TOKENS_PER_PAGE = 24;
-
-  // State for filters (these trigger server-side filtering)
-  const [searchQuery, setSearchQuery] = useState('');
-  const debouncedSearchQuery = useDebounce(searchQuery, 300);
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
-  const [sortBy, setSortBy] = useState<SortOption>('new');
-
-  // Build query variables
-  const queryVariables = useMemo(() => ({
-    limit: TOKENS_PER_PAGE,
-    after: null as string | null,
-    orderBy: sortToOrderBy[sortBy],
-    search: debouncedSearchQuery || null,
-    status: statusFilter,
-  }), [sortBy, debouncedSearchQuery, statusFilter]);
-
-  // Apollo takes over for real-time updates
-  const { data: tokensData, loading: tokensLoading, error: tokensError, fetchMore } = useQuery(GET_TOKENS, {
-    variables: queryVariables,
-    pollInterval: PRICE_POLL_INTERVAL_MS,
-    notifyOnNetworkStatusChange: true,
+  // Apollo query for real-time data
+  const { data, loading, fetchMore, refetch } = useQuery(GET_TOKENS, {
+    variables: {
+      limit: 24,
+      orderBy: sortBy,
+      search: search || undefined,
+    },
+    pollInterval: BALANCE_POLL_INTERVAL_MS,
   });
 
-  // Track if we're loading more
-  const [loadingMore, setLoadingMore] = useState(false);
+  // Listen for balance refresh events
+  useBalanceRefresh(() => {
+    refetch();
+  });
 
-  // Load more tokens handler - maintains current filters
-  const handleLoadMore = useCallback(async () => {
-    const currentData = tokensData?.tokens || initialTokens;
-    if (!currentData?.pageInfo?.hasNextPage || loadingMore) return;
+  // Use client data if available, fallback to server data
+  const tokens = data?.tokens?.edges || initialTokens.edges;
+  const pageInfo = data?.tokens?.pageInfo || initialTokens.pageInfo;
+  const totalCount = data?.tokens?.totalCount ?? initialTokens.totalCount;
 
-    setLoadingMore(true);
-    try {
-      await fetchMore({
-        variables: {
-          ...queryVariables,
-          after: currentData.pageInfo.endCursor,
-        },
+  // Load more tokens (pagination)
+  const loadMore = useCallback(() => {
+    if (pageInfo?.hasNextPage && pageInfo?.endCursor) {
+      fetchMore({
+        variables: { after: pageInfo.endCursor },
         updateQuery: (prev, { fetchMoreResult }) => {
           if (!fetchMoreResult) return prev;
           return {
             tokens: {
               ...fetchMoreResult.tokens,
-              edges: [
-                ...prev.tokens.edges,
-                ...fetchMoreResult.tokens.edges,
-              ],
+              edges: [...prev.tokens.edges, ...fetchMoreResult.tokens.edges],
             },
           };
         },
       });
-    } catch (error) {
-      console.error('Error loading more tokens:', error);
-      toast.error('Failed to load more tokens');
-    } finally {
-      setLoadingMore(false);
     }
-  }, [tokensData, initialTokens, fetchMore, loadingMore, queryVariables]);
-
-  // Use client data if available, fallback to server data
-  const tokensConnection = tokensData?.tokens || initialTokens;
-
-  // Extract tokens from connection
-  const tokens = useMemo(() => {
-    if (!tokensConnection?.edges) return [];
-    return tokensConnection.edges.map((edge: TokenEdge) => edge.node);
-  }, [tokensConnection]);
-
-  // Separate graduated tokens for featured section
-  const { graduatedTokens, bondingTokens } = useMemo(() => {
-    const graduated = tokens.filter((token: Token) => token.graduated);
-    const bonding = tokens.filter((token: Token) => !token.graduated);
-    return { graduatedTokens: graduated, bondingTokens: bonding };
-  }, [tokens]);
-
-  const handleConnect = async () => {
-    try {
-      await connect();
-      toast.success('Wallet connected! Loading tokens...');
-    } catch (error: unknown) {
-      // Error already shown by WalletContext
-    }
-  };
-
-  // Calculate trending rank and new status
-  const getTokenMetadata = useMemo(() => {
-    const now = Date.now();
-    const oneDay = 24 * 60 * 60 * 1000;
-
-    // Sort by volume for trending rank
-    const byVolume = [...tokens].sort(
-      (a: Token, b: Token) => parseFloat(b.volume24h || '0') - parseFloat(a.volume24h || '0')
-    );
-
-    return tokens.reduce((acc: Record<string, { isNew: boolean; trendingRank: number }>, token: Token) => {
-      const createdAt = new Date(token.createdAt).getTime();
-      const isNew = now - createdAt < oneDay; // New if created within 24h
-      const trendingRank = byVolume.findIndex((t: Token) => t.address === token.address) + 1;
-
-      acc[token.address] = { isNew, trendingRank };
-      return acc;
-    }, {} as Record<string, { isNew: boolean; trendingRank: number }>);
-  }, [tokens]);
-
-  // State for activity sidebar
-  const [showActivity, setShowActivity] = useState(false);
-
-  // Total count from server
-  const totalCount = tokensConnection?.totalCount || 0;
-
-  // Check if initial load is happening (no client data yet and loading)
-  const isInitialLoading = tokensLoading && !tokensData;
+  }, [pageInfo, fetchMore]);
 
   return (
     <DashboardLayout>
-      <div className="flex gap-6">
-        {/* Main Content */}
-        <div className="flex-1 space-y-6">
-          {/* Page Header with Animation */}
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4"
-          >
-            <div>
-              <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-ui-text-primary flex items-center gap-3">
-                {statusFilter === 'GRADUATED' ? (
-                  <GraduationCap className="h-8 w-8 text-green-600" />
-                ) : (
-                  <Flame className="h-8 w-8 text-brand-primary" />
-                )}
-                {statusFilter === 'GRADUATED' ? 'Graduated Tokens' : 'Explore Tokens'}
-              </h1>
-              <p className="text-ui-text-secondary mt-1">
-                {statusFilter === 'GRADUATED'
-                  ? 'Tokens that successfully graduated to DEX with locked liquidity'
-                  : 'Discover and trade real SAC tokens on Stellar Testnet'}
-              </p>
-            </div>
-
-            {/* Quick Stats */}
-            <div className="flex flex-wrap gap-3">
-              <div className="bg-white rounded-xl px-4 py-2 border border-ui-border">
-                <p className="text-xs text-ui-text-secondary">Total Tokens</p>
-                <p className="text-lg font-bold text-ui-text-primary">{totalCount}</p>
-              </div>
-              {graduatedTokens.length > 0 && statusFilter === 'ALL' && (
-                <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl px-4 py-2 border border-green-200">
-                  <p className="text-xs text-green-600 font-medium">Graduated</p>
-                  <p className="text-lg font-bold text-green-700 flex items-center gap-1">
-                    {graduatedTokens.length}
-                    <GraduationCap className="h-4 w-4" />
-                  </p>
-                </div>
-              )}
-              <button
-                onClick={() => setShowActivity(!showActivity)}
-                className={`hidden lg:flex items-center gap-2 px-4 py-2.5 min-h-[44px] rounded-xl border transition-colors ${
-                  showActivity
-                    ? 'bg-brand-primary text-white border-brand-primary'
-                    : 'bg-white border-ui-border hover:border-brand-primary'
-                }`}
-              >
-                <Activity className="h-4 w-4" />
-                Live Feed
-              </button>
-            </div>
-          </motion.div>
-
-          {/* Search and Filters */}
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="bg-white rounded-xl p-4 border border-ui-border shadow-sm"
-          >
-            <div className="flex flex-col lg:flex-row gap-4">
-              {/* Search */}
-              <div className="flex-1 relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-ui-text-secondary" />
-                <input
-                  type="text"
-                  placeholder="Search by name or symbol..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border border-ui-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-primary transition-shadow"
-                />
-              </div>
-
-              {/* Filters - Enhanced with Icons */}
-              <div className="flex gap-2">
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
-                  className="px-4 py-3 border border-ui-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-primary bg-white font-medium"
-                  aria-label="Filter tokens by status"
-                >
-                  <option value="ALL">All Tokens</option>
-                  <option value="BONDING">📈 Bonding Curve</option>
-                  <option value="GRADUATED">🎓 Graduated (DEX)</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Sort Tabs - Enhanced */}
-            <div className="flex items-center gap-4 mt-4 pt-4 border-t border-ui-border" role="group" aria-label="Sort options">
-              <span className="text-sm font-medium text-ui-text-secondary flex items-center gap-1">
-                <Filter className="h-4 w-4" aria-hidden="true" />
-                Sort:
-              </span>
-              <div className="flex flex-wrap gap-2">
-                {[
-                  { id: 'new', label: 'New', icon: <Sparkles className="h-3.5 w-3.5" aria-hidden="true" /> },
-                  { id: 'trending', label: 'Hot', icon: <Flame className="h-3.5 w-3.5" aria-hidden="true" /> },
-                  { id: 'marketCap', label: 'Market Cap', icon: <TrendingUp className="h-3.5 w-3.5" aria-hidden="true" /> },
-                  { id: 'graduation', label: 'Near Graduation', icon: <Zap className="h-3.5 w-3.5" aria-hidden="true" /> },
-                ].map((option) => (
-                  <button
-                    key={option.id}
-                    onClick={() => setSortBy(option.id as SortOption)}
-                    aria-label={`Sort by ${option.label}`}
-                    aria-pressed={sortBy === option.id}
-                    className={`flex items-center gap-1.5 px-3 py-2 sm:py-1.5 min-h-[44px] sm:min-h-0 rounded-lg text-sm font-medium transition-all ${
-                      sortBy === option.id
-                        ? 'bg-brand-primary text-white shadow-md'
-                        : 'bg-gray-100 text-ui-text-secondary hover:bg-gray-200'
-                    }`}
-                  >
-                    {option.icon}
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </motion.div>
-
-          {/* Screen reader announcement for search results */}
-          <SearchResultsAnnouncer
-            count={tokens.length}
-            isLoading={isInitialLoading}
-            searchTerm={debouncedSearchQuery}
-          />
-
-          {/* GraphQL Error Display - only show if there's an error */}
-          {tokensError && (
-            <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6" role="alert">
-              <h3 className="font-bold text-red-700">Error loading tokens</h3>
-              <p className="text-red-600 text-sm">{tokensError.message}</p>
-            </div>
-          )}
-
-          {/* Content */}
-          {isInitialLoading && tokens.length === 0 ? (
-            // Loading state with skeleton - matches main grid responsive classes
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4">
-              {[...Array(6)].map((_, i) => (
-                <div
-                  key={i}
-                  className="bg-white rounded-xl border border-ui-border p-4 animate-pulse"
-                >
-                  <div className="flex items-start gap-3">
-                    <div className="w-12 h-12 bg-gray-200 rounded-lg" />
-                    <div className="flex-1 space-y-2">
-                      <div className="h-4 bg-gray-200 rounded w-2/3" />
-                      <div className="h-3 bg-gray-200 rounded w-1/3" />
-                    </div>
-                  </div>
-                  <div className="mt-4 space-y-2">
-                    <div className="h-6 bg-gray-200 rounded w-1/2" />
-                    <div className="grid grid-cols-1 xs:grid-cols-3 gap-2">
-                      {[1, 2, 3].map((j) => (
-                        <div key={j} className="h-12 bg-gray-100 rounded" />
-                      ))}
-                    </div>
-                    <div className="h-2 bg-gray-200 rounded" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : tokens.length === 0 ? (
-            // Empty state (no tokens found)
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="bg-white rounded-xl border border-ui-border p-12 text-center"
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl lg:text-3xl font-bold text-ui-text-primary flex items-center gap-3">
+              <Rocket className="h-8 w-8 text-brand-primary" />
+              Explore Tokens
+            </h1>
+            <p className="text-ui-text-secondary mt-1">
+              {totalCount} tokens launched on Astro Shiba
+            </p>
+          </div>
+          {isConnected && (
+            <Link
+              href="/create"
+              className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-brand-primary text-white rounded-xl font-semibold hover:bg-brand-primary-dark transition-colors shadow-sm"
             >
-              <div className="max-w-md mx-auto">
-                <div className="w-20 h-20 bg-gradient-to-br from-brand-primary/20 to-brand-blue/20 rounded-full flex items-center justify-center mx-auto mb-6">
-                  <TrendingUp className="h-10 w-10 text-brand-primary" aria-hidden="true" />
-                </div>
-                <h3 className="text-xl font-bold text-ui-text-primary mb-2">
-                  {!debouncedSearchQuery && statusFilter === 'ALL'
-                    ? 'No tokens created yet'
-                    : 'No tokens match your filters'}
-                </h3>
-                <p className="text-ui-text-secondary mb-6">
-                  {!debouncedSearchQuery && statusFilter === 'ALL'
-                    ? 'Be the first to create a token on SAC Factory!'
-                    : 'Try adjusting your search or filters'}
-                </p>
-                {!debouncedSearchQuery && statusFilter === 'ALL' && (
-                  <Link
-                    href="/create"
-                    className="inline-flex items-center gap-2 px-6 py-3 bg-brand-primary text-white rounded-lg hover:bg-brand-primary/90 transition-colors font-medium shadow-lg shadow-brand-primary/25"
-                  >
-                    <Sparkles className="h-5 w-5" aria-hidden="true" />
-                    Create Token
-                  </Link>
-                )}
-              </div>
-            </motion.div>
-          ) : (
-            // Premium Tokens Grid with staggered animation - responsive for mobile
-            <>
-              {/* Graduated Tokens Featured Section */}
-              {graduatedTokens.length > 0 && statusFilter === 'ALL' && (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="mb-8"
-                >
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="flex items-center gap-2 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg px-4 py-2">
-                      <GraduationCap className="h-5 w-5 text-green-600" />
-                      <h2 className="text-lg font-bold text-green-700">Graduated Tokens</h2>
-                      <span className="bg-green-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">
-                        {graduatedTokens.length}
-                      </span>
-                    </div>
-                    <div className="flex-1 h-px bg-gradient-to-r from-green-200 to-transparent" />
-                  </div>
-                  <motion.div
-                    variants={containerVariants}
-                    initial="hidden"
-                    animate="visible"
-                    className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4"
-                  >
-                    {graduatedTokens.slice(0, 6).map((token: Token) => {
-                      const metadata = getTokenMetadata[token.address] || { isNew: false, trendingRank: 0 };
-                      return (
-                        <motion.div
-                          key={token.address}
-                          variants={itemVariants}
-                        >
-                          <TokenCardPremium
-                            token={token}
-                            isNew={metadata.isNew}
-                            trendingRank={sortBy === 'trending' ? metadata.trendingRank : undefined}
-                            showQuickActions={true}
-                          />
-                        </motion.div>
-                      );
-                    })}
-                  </motion.div>
-                  {graduatedTokens.length > 6 && (
-                    <div className="mt-4 text-center">
-                      <button
-                        onClick={() => setStatusFilter('GRADUATED')}
-                        className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-green-600 hover:text-green-700 hover:bg-green-50 rounded-lg transition-colors"
-                      >
-                        View all {graduatedTokens.length} graduated tokens
-                        <ChevronDown className="h-4 w-4 rotate-[-90deg]" />
-                      </button>
-                    </div>
-                  )}
-                </motion.div>
-              )}
-
-              {/* All Tokens Section Header */}
-              {graduatedTokens.length > 0 && statusFilter === 'ALL' && (
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="flex items-center gap-2 px-4 py-2">
-                    <Flame className="h-5 w-5 text-brand-primary" />
-                    <h2 className="text-lg font-bold text-ui-text-primary">All Tokens</h2>
-                  </div>
-                  <div className="flex-1 h-px bg-ui-border" />
-                </div>
-              )}
-
-              {/* Main Token Grid */}
-              <motion.div
-                variants={containerVariants}
-                initial="hidden"
-                animate="visible"
-                className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4"
-                role="list"
-                aria-label="Token list"
-              >
-                <AnimatePresence mode="popLayout">
-                  {tokens.map((token: Token) => {
-                    const metadata = getTokenMetadata[token.address] || { isNew: false, trendingRank: 0 };
-                    return (
-                      <motion.div
-                        key={token.address}
-                        variants={itemVariants}
-                        layout
-                        exit={{ opacity: 0, scale: 0.9 }}
-                        role="listitem"
-                      >
-                        <TokenCardPremium
-                          token={token}
-                          isNew={metadata.isNew}
-                          trendingRank={sortBy === 'trending' ? metadata.trendingRank : undefined}
-                          showQuickActions={true}
-                        />
-                      </motion.div>
-                    );
-                  })}
-                </AnimatePresence>
-              </motion.div>
-
-              {/* Load More Button - only show if there are more tokens */}
-              {tokensConnection?.pageInfo?.hasNextPage && (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="flex justify-center mt-8"
-                >
-                  <button
-                    onClick={handleLoadMore}
-                    disabled={loadingMore}
-                    aria-label={loadingMore ? 'Loading more tokens' : `Load more tokens, showing ${tokens.length} of ${totalCount}`}
-                    className="inline-flex items-center gap-2 px-6 py-3 min-h-[44px] bg-white border border-ui-border rounded-xl font-medium text-ui-text-primary hover:bg-gray-50 hover:border-brand-primary transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
-                  >
-                    {loadingMore ? (
-                      <>
-                        <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
-                        Loading...
-                      </>
-                    ) : (
-                      <>
-                        <ChevronDown className="h-5 w-5" aria-hidden="true" />
-                        Load More Tokens
-                        <span className="text-sm text-ui-text-secondary ml-1">
-                          ({tokens.length} of {totalCount})
-                        </span>
-                      </>
-                    )}
-                  </button>
-                </motion.div>
-              )}
-            </>
+              <Plus className="h-5 w-5" />
+              Create Token
+            </Link>
           )}
         </div>
 
-        {/* Live Activity Sidebar - Desktop Only */}
-        <AnimatePresence>
-          {showActivity && (
-            <motion.div
-              initial={{ opacity: 0, x: 20, width: 0 }}
-              animate={{ opacity: 1, x: 0, width: 380 }}
-              exit={{ opacity: 0, x: 20, width: 0 }}
-              className="hidden lg:block flex-shrink-0"
-            >
-              <div className="sticky top-24">
-                <LiveActivityFeed maxItems={10} pollInterval={15000} />
+        {/* Search & Filters */}
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search tokens by name or symbol..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-10 pr-4 py-3 rounded-xl border border-ui-border bg-white text-ui-text-primary placeholder:text-ui-text-secondary focus:outline-none focus:ring-2 focus:ring-brand-primary focus:border-brand-primary"
+            />
+          </div>
+          <div className="flex gap-2">
+            {([
+              ['CREATED_AT_DESC', 'New'],
+              ['VOLUME_DESC', 'Volume'],
+              ['MARKET_CAP_DESC', 'Mkt Cap'],
+              ['PRICE_CHANGE_DESC', 'Gainers'],
+            ] as [SortOption, string][]).map(([value, label]) => (
+              <button
+                key={value}
+                onClick={() => setSortBy(value)}
+                className={`px-4 py-3 min-h-[44px] rounded-xl text-sm font-medium transition-colors ${
+                  sortBy === value
+                    ? 'bg-brand-primary text-white shadow-sm'
+                    : 'bg-white text-gray-700 hover:bg-gray-100 border border-ui-border'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Connect Wallet Banner (when not connected) */}
+        {!isConnected && (
+          <div className="bg-brand-blue-50 border border-brand-blue-200 rounded-xl p-4 sm:p-6">
+            <div className="flex items-start gap-4">
+              <div className="p-2 bg-brand-blue rounded-lg hidden sm:block">
+                <Users className="h-5 w-5 text-white" />
               </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+              <div className="flex-1">
+                <h3 className="font-semibold text-brand-blue-900">Connect Your Wallet</h3>
+                <p className="text-sm text-brand-blue-700 mt-1">
+                  Connect to trade tokens and track your portfolio!
+                </p>
+                <button
+                  onClick={connect}
+                  disabled={isConnecting}
+                  className="mt-3 px-5 py-2.5 min-h-[44px] bg-brand-blue text-white rounded-lg hover:bg-brand-blue-600 transition-colors font-medium disabled:opacity-50 text-sm"
+                >
+                  {isConnecting ? 'Connecting...' : 'Connect Wallet'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Token Grid */}
+        {loading && !data ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {[...Array(8)].map((_, i) => (
+              <div key={i} className="bg-white rounded-xl border border-ui-border p-4 animate-pulse">
+                <div className="flex items-start gap-3">
+                  <div className="w-12 h-12 bg-gray-200 rounded-lg" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-4 bg-gray-200 rounded w-1/2" />
+                    <div className="h-3 bg-gray-200 rounded w-1/3" />
+                  </div>
+                </div>
+                <div className="mt-4 space-y-2">
+                  <div className="h-2 bg-gray-200 rounded" />
+                  <div className="h-2 bg-gray-200 rounded w-2/3" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : tokens.length === 0 ? (
+          <div className="text-center py-12">
+            <Rocket className="h-16 w-16 text-gray-200 mx-auto mb-4" />
+            <h3 className="text-lg font-bold text-ui-text-primary mb-2">No Tokens Found</h3>
+            <p className="text-ui-text-secondary mb-6 max-w-sm mx-auto">
+              {search ? 'No tokens match your search. Try a different keyword.' : 'Be the first to launch a token!'}
+            </p>
+            {!search && (
+              <Link
+                href="/create"
+                className="inline-flex items-center gap-2 bg-brand-primary text-white px-6 py-3 rounded-lg hover:bg-brand-primary-dark transition-colors font-medium"
+              >
+                <Plus className="h-4 w-4" />
+                Launch Token
+              </Link>
+            )}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {tokens.map((edge: TokenEdge) => {
+              const token = edge.node;
+              const xlmRaised = BigInt(token.xlmRaised || '0');
+              const graduationPercent = Math.min(
+                Number((xlmRaised * BigInt(100)) / GRADUATION_THRESHOLD_STROOPS),
+                100
+              );
+              const isGraduated = token.graduated;
+              const formattedPrice = stroopsToXlm(token.currentPrice || '0', 7);
+              const formattedMarketCap = formatCompactNumber(
+                parseFloat(stroopsToXlm(token.marketCap || '0'))
+              );
+              const priceChange = parseFloat(token.priceChange24h || '0');
+
+              return (
+                <Link
+                  key={token.address}
+                  href={`/t/${token.address}`}
+                  className="block bg-white rounded-xl border border-ui-border hover:border-brand-primary hover:shadow-lg transition-all duration-200 overflow-hidden group"
+                >
+                  <div className="p-4">
+                    {/* Header */}
+                    <div className="flex items-start gap-3">
+                      <div className="relative w-12 h-12 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
+                        <Image
+                          src={token.imageUrl || token.logoUrl || '/images/default-token.svg'}
+                          alt={token.name}
+                          fill
+                          className="object-cover"
+                          sizes="48px"
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <h3 className="font-bold text-ui-text-primary truncate group-hover:text-brand-primary transition-colors">
+                              {token.name}
+                            </h3>
+                            <p className="text-sm text-ui-text-secondary">${token.symbol}</p>
+                          </div>
+                          {priceChange !== 0 && (
+                            <div className={`flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full ${
+                              priceChange > 0 ? 'text-green-600 bg-green-50' : 'text-red-600 bg-red-50'
+                            }`}>
+                              {priceChange > 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                              {priceChange > 0 ? `+${priceChange.toFixed(1)}%` : `${priceChange.toFixed(1)}%`}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Stats */}
+                    <div className="grid grid-cols-2 gap-2 mt-4">
+                      <div className="min-w-0">
+                        <p className="text-xs text-ui-text-secondary">Price</p>
+                        <p className="font-semibold text-ui-text-primary text-sm truncate">{formattedPrice} XLM</p>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs text-ui-text-secondary">Market Cap</p>
+                        <p className="font-semibold text-ui-text-primary text-sm truncate">${formattedMarketCap}</p>
+                      </div>
+                    </div>
+
+                    {/* Graduation Progress */}
+                    {!isGraduated ? (
+                      <div className="mt-4">
+                        <div className="flex items-center justify-between text-xs mb-1">
+                          <span className="text-ui-text-secondary">Graduation Progress</span>
+                          <span className="font-medium text-brand-primary">{graduationPercent.toFixed(1)}%</span>
+                        </div>
+                        <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-gradient-to-r from-brand-primary to-brand-blue transition-all duration-300"
+                            style={{ width: `${graduationPercent}%` }}
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="mt-4 flex items-center justify-center gap-2 bg-green-50 border border-green-200 rounded-lg py-2">
+                        <span className="text-sm font-semibold text-green-700">GRADUATED</span>
+                      </div>
+                    )}
+
+                    {/* Volume */}
+                    <div className="flex items-center gap-1 text-xs text-ui-text-secondary mt-3 pt-3 border-t border-ui-border">
+                      <DollarSign className="h-3 w-3" />
+                      <span>{formatCompactNumber(parseFloat(stroopsToXlm(token.volume24h || '0')))} XLM vol</span>
+                    </div>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Load More */}
+        {pageInfo?.hasNextPage && (
+          <div className="text-center pt-4">
+            <button
+              onClick={loadMore}
+              disabled={loading}
+              className="px-6 py-3 bg-white text-ui-text-primary border border-ui-border rounded-xl font-medium hover:bg-gray-50 transition-colors disabled:opacity-50"
+            >
+              {loading ? 'Loading...' : 'Load More Tokens'}
+            </button>
+          </div>
+        )}
       </div>
     </DashboardLayout>
   );

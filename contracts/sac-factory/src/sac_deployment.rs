@@ -14,8 +14,8 @@
 //! The client creates and serializes the Asset XDR to bytes, then passes it to the contract.
 //! This follows Stellar/Soroban best practices and avoids XDR serialization in no_std contracts.
 
-use soroban_sdk::{Bytes, Env};
 use crate::errors::Error;
+use soroban_sdk::{Bytes, Env};
 
 /// Deploy a REAL Stellar Asset Contract from serialized asset bytes
 ///
@@ -49,10 +49,7 @@ pub fn deploy_sac_from_serialized_asset(
 /// Get the address that would be created for a serialized asset (without deploying)
 ///
 /// Useful for pre-calculating the token address before deployment.
-pub fn get_sac_address(
-    env: &Env,
-    serialized_asset: Bytes,
-) -> soroban_sdk::Address {
+pub fn get_sac_address(env: &Env, serialized_asset: Bytes) -> soroban_sdk::Address {
     let deployer = env.deployer().with_stellar_asset(serialized_asset);
     deployer.deployed_address()
 }
@@ -65,11 +62,11 @@ pub fn get_sac_address(
 #[cfg(test)]
 pub mod test_helpers {
     use super::*;
-    use soroban_sdk::{BytesN, String as SorobanString, Address};
     use soroban_sdk::xdr::{
-        Asset, AlphaNum4, AlphaNum12, AssetCode4, AssetCode12,
-        AccountId, PublicKey, Uint256, WriteXdr, Limits
+        AccountId, AlphaNum12, AlphaNum4, Asset, AssetCode12, AssetCode4, Limits, PublicKey,
+        Uint256, WriteXdr,
     };
+    use soroban_sdk::{Address, BytesN, String as SorobanString};
 
     /// Create a serialized Asset for testing
     /// This ONLY works in tests - production must create this in the client
@@ -159,10 +156,10 @@ pub mod test_helpers {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::test_helpers::*;
-    use soroban_sdk::{Env, String, BytesN};
+    use super::*;
     use soroban_sdk::testutils::Address as _;
+    use soroban_sdk::{BytesN, Env, String};
 
     #[test]
     fn test_deploy_sac_from_serialized_asset() {
@@ -172,7 +169,8 @@ mod tests {
         let salt = BytesN::from_array(&env, &[1u8; 32]);
 
         // Create serialized asset (only works in tests)
-        let serialized_asset = create_test_serialized_asset(&env, &symbol, &creator, &salt).unwrap();
+        let serialized_asset =
+            create_test_serialized_asset(&env, &symbol, &creator, &salt).unwrap();
 
         // Deploy SAC
         let result = deploy_sac_from_serialized_asset(&env, serialized_asset.clone());
@@ -192,7 +190,8 @@ mod tests {
         let salt = BytesN::from_array(&env, &[1u8; 32]);
 
         // Create serialized asset
-        let serialized_asset = create_test_serialized_asset(&env, &symbol, &creator, &salt).unwrap();
+        let serialized_asset =
+            create_test_serialized_asset(&env, &symbol, &creator, &salt).unwrap();
 
         // Get address without deploying
         let predicted_address = get_sac_address(&env, serialized_asset.clone());
@@ -231,7 +230,8 @@ mod tests {
         let salt = BytesN::from_array(&env, &[1u8; 32]);
 
         // Create and deploy 12-char symbol (AlphaNum12)
-        let serialized_asset = create_test_serialized_asset(&env, &symbol, &creator, &salt).unwrap();
+        let serialized_asset =
+            create_test_serialized_asset(&env, &symbol, &creator, &salt).unwrap();
         let result = deploy_sac_from_serialized_asset(&env, serialized_asset);
 
         assert!(result.is_ok());

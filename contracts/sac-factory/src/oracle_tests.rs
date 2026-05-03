@@ -4,12 +4,9 @@
 #[cfg(test)]
 mod oracle_tests {
     use crate::{SacFactory, SacFactoryClient};
-    use soroban_sdk::{
-        testutils::Address as _,
-        Address, BytesN, Env,
-    };
+    use soroban_sdk::{testutils::Address as _, Address, BytesN, Env};
 
-    fn create_factory(env: &Env) -> (SacFactoryClient, Address, Address, Address) {
+    fn create_factory(env: &Env) -> (SacFactoryClient<'_>, Address, Address, Address) {
         let contract_id = env.register(SacFactory, ());
         let client = SacFactoryClient::new(env, &contract_id);
         let admin = Address::generate(env);
@@ -18,7 +15,7 @@ mod oracle_tests {
         (client, admin, treasury, xlm_token_address)
     }
 
-    fn setup_factory(env: &Env) -> (SacFactoryClient, Address, Address) {
+    fn setup_factory(env: &Env) -> (SacFactoryClient<'_>, Address, Address) {
         let (client, admin, treasury, xlm_token_address) = create_factory(env);
         env.mock_all_auths();
         client.initialize(&admin, &treasury, &xlm_token_address);

@@ -12,7 +12,7 @@ mod locked_xlm_tests {
         Address, Bytes, Env, String,
     };
 
-    fn create_factory(env: &Env) -> (SacFactoryClient, Address, Address, Address) {
+    fn create_factory(env: &Env) -> (SacFactoryClient<'_>, Address, Address, Address) {
         let contract_id = env.register(SacFactory, ());
         let client = SacFactoryClient::new(env, &contract_id);
         let admin = Address::generate(env);
@@ -21,7 +21,7 @@ mod locked_xlm_tests {
         (client, admin, treasury, xlm_token_address)
     }
 
-    fn setup_factory(env: &Env) -> (SacFactoryClient, Address, Address) {
+    fn setup_factory(env: &Env) -> (SacFactoryClient<'_>, Address, Address) {
         let (client, admin, treasury, xlm_token_address) = create_factory(env);
         env.mock_all_auths();
         client.initialize(&admin, &treasury, &xlm_token_address);
@@ -53,17 +53,18 @@ mod locked_xlm_tests {
         let salt = soroban_sdk::BytesN::from_array(env, &salt_hash.to_array());
 
         crate::sac_deployment::test_helpers::create_test_serialized_asset(
-            env,
-            symbol,
-            creator,
-            &salt,
-        ).expect("Failed to create test serialized asset")
+            env, symbol, creator, &salt,
+        )
+        .expect("Failed to create test serialized asset")
     }
 
     fn create_test_issuer(env: &Env) -> String {
         // Generate a valid Stellar public key format (G...)
         // In real usage, this would be a real issuer account
-        String::from_str(env, "GBZHGNQXHZ5IJQGLRFQZ2GLCV2W5ZKZLPBXZBZL6OYLTQTDQZEZN5Q6D")
+        String::from_str(
+            env,
+            "GBZHGNQXHZ5IJQGLRFQZ2GLCV2W5ZKZLPBXZBZL6OYLTQTDQZEZN5Q6D",
+        )
     }
 
     /// Test that locked_xlm_amount is correctly tracked per-token
@@ -113,7 +114,10 @@ mod locked_xlm_tests {
 
         // Verify Token A locked_xlm_amount
         let token_a_info = client.get_token_info(&token_a).unwrap();
-        assert!(token_a_info.locked_xlm_amount > 0, "Token A should have locked XLM");
+        assert!(
+            token_a_info.locked_xlm_amount > 0,
+            "Token A should have locked XLM"
+        );
 
         // Buy Token B (30 XLM)
         let buyer_b = Address::generate(&env);
@@ -121,7 +125,10 @@ mod locked_xlm_tests {
 
         // Verify Token B locked_xlm_amount
         let token_b_info = client.get_token_info(&token_b).unwrap();
-        assert!(token_b_info.locked_xlm_amount > 0, "Token B should have locked XLM");
+        assert!(
+            token_b_info.locked_xlm_amount > 0,
+            "Token B should have locked XLM"
+        );
 
         // Store Token B's locked amount before Token A gets more buys
         let token_b_locked_before = token_b_info.locked_xlm_amount;
@@ -135,14 +142,15 @@ mod locked_xlm_tests {
 
         // Token B's locked amount should be unchanged
         assert_eq!(
-            token_b_info_after.locked_xlm_amount,
-            token_b_locked_before,
+            token_b_info_after.locked_xlm_amount, token_b_locked_before,
             "Token B locked amount should not change when Token A is bought"
         );
 
         // Both tokens should have independent locked amounts
-        assert!(token_a_info_after.locked_xlm_amount > token_a_info.locked_xlm_amount,
-                "Token A locked amount should increase after buy");
+        assert!(
+            token_a_info_after.locked_xlm_amount > token_a_info.locked_xlm_amount,
+            "Token A locked amount should increase after buy"
+        );
     }
 
     /// Test that locked_xlm is correctly released only for graduated token
@@ -187,8 +195,10 @@ mod locked_xlm_tests {
         // - locked_xlm_amount = 99.7 + 0.25 = 99.95 XLM (excludes protocol fee)
 
         // The locked amount should be less than xlm_raised due to protocol fees
-        assert!(locked_before <= token_info.xlm_raised,
-                "Locked XLM should be less than or equal to xlm_raised (protocol fees excluded)");
+        assert!(
+            locked_before <= token_info.xlm_raised,
+            "Locked XLM should be less than or equal to xlm_raised (protocol fees excluded)"
+        );
 
         // Verify the math: locked should be ~99.95% of raised (100% - 0.05% protocol)
         // Allow 1% tolerance for rounding and basis point calculations
@@ -242,8 +252,10 @@ mod locked_xlm_tests {
         let locked_after_second_buy = info_after_second_buy.locked_xlm_amount;
 
         // Locked amount should have increased
-        assert!(locked_after_second_buy > locked_after_buy,
-                "Locked XLM should increase with more buys");
+        assert!(
+            locked_after_second_buy > locked_after_buy,
+            "Locked XLM should increase with more buys"
+        );
 
         // Verify the increase is approximately the expected amount
         // ~99.95% of 30 XLM = ~29.985 XLM
@@ -299,10 +311,14 @@ mod locked_xlm_tests {
         let info_after_sell = client.get_token_info(&token).unwrap();
         let locked_after_sell = info_after_sell.locked_xlm_amount;
 
-        assert!(locked_after_sell < locked_after_buy,
-                "Locked XLM should decrease after sell");
-        assert!(locked_after_sell > 0,
-                "Should still have some locked XLM after partial sell");
+        assert!(
+            locked_after_sell < locked_after_buy,
+            "Locked XLM should decrease after sell"
+        );
+        assert!(
+            locked_after_sell > 0,
+            "Should still have some locked XLM after partial sell"
+        );
     }
 
     /// Test multiple buys correctly accumulate locked_xlm_amount
@@ -360,7 +376,8 @@ mod locked_xlm_tests {
         assert!(
             (locked3 - expected_total_locked).abs() < tolerance,
             "Total locked should be ~99.95% of total raised. Expected: {}, Got: {}",
-            expected_total_locked, locked3
+            expected_total_locked,
+            locked3
         );
     }
 }

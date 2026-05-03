@@ -177,9 +177,6 @@ function HoldingCard({ holding }: HoldingCardProps) {
               sizes="48px"
               unoptimized={true}
               loading="lazy"
-              onError={(e) => {
-                (e.target as HTMLImageElement).src = '/images/default-token.svg';
-              }}
             />
           </div>
 

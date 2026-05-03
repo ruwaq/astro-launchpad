@@ -4,9 +4,7 @@
 
 use astro_core_shared::math as core_math;
 use crate::errors::Error;
-
-/// Fee in basis points (30 = 0.3%)
-const FEE_BPS: u32 = 30;
+use crate::storage;
 
 /// Calculate square root using Newton's method
 /// Used for initial liquidity calculation
@@ -30,38 +28,27 @@ pub fn quote(amount_a: i128, reserve_a: i128, reserve_b: i128) -> Result<i128, E
 }
 
 /// Calculate output amount for a swap
-/// Formula: amount_out = (amount_in * 9970 * reserve_out) / (reserve_in * 10000 + amount_in * 9970)
-///
-/// # Arguments
-/// * `amount_in` - Input amount
-/// * `reserve_in` - Input token reserve
-/// * `reserve_out` - Output token reserve
-///
-/// # Returns
-/// Result with output amount after fee or Error
-pub fn get_amount_out(amount_in: i128, reserve_in: i128, reserve_out: i128) -> Result<i128, Error> {
-    core_math::get_amount_out(amount_in, reserve_in, reserve_out, FEE_BPS)
+/// Uses configurable fee from storage
+pub fn get_amount_out(env: &soroban_sdk::Env, amount_in: i128, reserve_in: i128, reserve_out: i128) -> Result<i128, Error> {
+    let fee_bps = storage::get_fee_bps(env);
+    core_math::get_amount_out(amount_in, reserve_in, reserve_out, fee_bps)
         .map_err(|_| Error::InsufficientLiquidity)
 }
 
 /// Calculate input amount needed for a desired output
-/// Formula: amount_in = (reserve_in * amount_out * 10000) / ((reserve_out - amount_out) * 9970) + 1
-///
-/// # Arguments
-/// * `amount_out` - Desired output amount
-/// * `reserve_in` - Input token reserve
-/// * `reserve_out` - Output token reserve
-///
-/// # Returns
-/// Result with required input amount (including fee) or Error
-pub fn get_amount_in(amount_out: i128, reserve_in: i128, reserve_out: i128) -> Result<i128, Error> {
-    core_math::get_amount_in(amount_out, reserve_in, reserve_out, FEE_BPS)
+/// Uses configurable fee from storage
+pub fn get_amount_in(env: &soroban_sdk::Env, amount_out: i128, reserve_in: i128, reserve_out: i128) -> Result<i128, Error> {
+    let fee_bps = storage::get_fee_bps(env);
+    core_math::get_amount_in(amount_out, reserve_in, reserve_out, fee_bps)
         .map_err(|_| Error::InsufficientLiquidity)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // Default fee for unit tests (0.3%)
+    const TEST_FEE_BPS: u32 = 30;
 
     #[test]
     fn test_sqrt() {
@@ -93,7 +80,7 @@ mod tests {
         let reserve_out = 10_000_000;
         let amount_in = 1_000_000;
 
-        let amount_out = get_amount_out(amount_in, reserve_in, reserve_out).unwrap();
+        let amount_out = core_math::get_amount_out(amount_in, reserve_in, reserve_out, TEST_FEE_BPS).unwrap();
 
         // Should be less than input due to fee and price impact
         assert!(amount_out < amount_in);
@@ -109,7 +96,7 @@ mod tests {
         let reserve_out = 10_000_000;
         let amount_out = 900_000;
 
-        let amount_in = get_amount_in(amount_out, reserve_in, reserve_out).unwrap();
+        let amount_in = core_math::get_amount_in(amount_out, reserve_in, reserve_out, TEST_FEE_BPS).unwrap();
 
         // Should be more than output due to fee
         assert!(amount_in > amount_out);
@@ -121,8 +108,8 @@ mod tests {
         let reserve_out = 10_000_000;
         let amount_in = 1_000_000;
 
-        let amount_out = get_amount_out(amount_in, reserve_in, reserve_out).unwrap();
-        let amount_in_required = get_amount_in(amount_out, reserve_in, reserve_out).unwrap();
+        let amount_out = core_math::get_amount_out(amount_in, reserve_in, reserve_out, TEST_FEE_BPS).unwrap();
+        let amount_in_required = core_math::get_amount_in(amount_out, reserve_in, reserve_out, TEST_FEE_BPS).unwrap();
 
         // Should be approximately equal (within small margin due to rounding)
         assert!(
@@ -135,16 +122,16 @@ mod tests {
 
     #[test]
     fn test_get_amount_out_zero_input() {
-        assert!(get_amount_out(0, 1000, 1000).is_err());
+        assert!(core_math::get_amount_out(0, 1000, 1000, TEST_FEE_BPS).is_err());
     }
 
     #[test]
     fn test_get_amount_out_zero_reserve() {
-        assert!(get_amount_out(100, 0, 1000).is_err());
+        assert!(core_math::get_amount_out(100, 0, 1000, TEST_FEE_BPS).is_err());
     }
 
     #[test]
     fn test_get_amount_in_exceeds_reserve() {
-        assert!(get_amount_in(1001, 1000, 1000).is_err());
+        assert!(core_math::get_amount_in(1001, 1000, 1000, TEST_FEE_BPS).is_err());
     }
 }

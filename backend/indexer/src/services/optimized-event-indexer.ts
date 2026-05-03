@@ -128,9 +128,10 @@ export class OptimizedEventIndexer {
   private gapDetector: LedgerGapDetector
 
   constructor(private prisma: PrismaClient) {
-    const rpcUrl = process.env.STELLAR_RPC_URL!
+    const rpcUrl = requireEnv('STELLAR_RPC_URL', 'STELLAR_RPC_URL must be configured')
     this.sorobanRpc = new SorobanRpc.Server(rpcUrl)
-    this.tokenFactory = process.env.TOKEN_FACTORY_CONTRACT_ID!
+    const tokenFactory = requireEnv('TOKEN_FACTORY_CONTRACT_ID', 'TOKEN_FACTORY_CONTRACT_ID must be configured')
+    this.tokenFactory = tokenFactory
     this.ammFactory = process.env.AMM_FACTORY_CONTRACT_ID || null
 
     // Initialize state manager

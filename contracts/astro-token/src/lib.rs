@@ -17,7 +17,7 @@
 //! ## Features
 //! - Mint (admin only, capped)
 //! - Burn (any holder can burn their tokens)
-//! - Buyback integration (factory can burn tokens)
+//! - Buyback integration (authorized caller can burn tokens)
 //! - Staking rewards (future integration)
 
 use soroban_sdk::{contract, contractimpl, contracterror, Address, Env, String};
@@ -30,9 +30,6 @@ mod storage;
 mod events;
 
 pub use storage::{DataKey, INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD};
-
-/// Maximum supply: 1 billion tokens with 7 decimals
-const MAX_SUPPLY: i128 = 1_000_000_000_0000000;
 
 /// Token errors
 #[contracterror]
@@ -47,6 +44,7 @@ pub enum TokenError {
     InvalidAmount = 6,
     MaxSupplyExceeded = 7,
     AllowanceExpired = 8,
+    Reentrancy = 9,
 }
 
 /// ASTRO Token Contract
@@ -74,7 +72,7 @@ impl AstroToken {
             return Err(TokenError::AlreadyInitialized);
         }
 
-        if initial_supply < 0 || initial_supply > MAX_SUPPLY {
+        if initial_supply < 0 || initial_supply > storage::get_max_supply(&env) {
             return Err(TokenError::InvalidAmount);
         }
 
@@ -114,48 +112,51 @@ impl AstroToken {
     }
 
     /// Transfer tokens
-    pub fn transfer(env: Env, from: Address, to: Address, amount: i128) {
+    pub fn transfer(env: Env, from: Address, to: Address, amount: i128) -> Result<(), TokenError> {
         from.require_auth();
         storage::extend_instance_ttl(&env);
 
         if amount < 0 {
-            panic!("Error::InvalidAmount");
+            return Err(TokenError::InvalidAmount);
         }
 
-        balance::spend_balance(&env, &from, amount).unwrap();
+        balance::spend_balance(&env, &from, amount)?;
         balance::receive_balance(&env, &to, amount);
 
         events::transfer(&env, &from, &to, amount);
+        Ok(())
     }
 
     /// Transfer tokens using allowance
-    pub fn transfer_from(env: Env, spender: Address, from: Address, to: Address, amount: i128) {
+    pub fn transfer_from(env: Env, spender: Address, from: Address, to: Address, amount: i128) -> Result<(), TokenError> {
         spender.require_auth();
         storage::extend_instance_ttl(&env);
 
         if amount < 0 {
-            panic!("Error::InvalidAmount");
+            return Err(TokenError::InvalidAmount);
         }
 
-        allowance::spend_allowance(&env, &from, &spender, amount).unwrap();
-        balance::spend_balance(&env, &from, amount).unwrap();
+        allowance::spend_allowance(&env, &from, &spender, amount)?;
+        balance::spend_balance(&env, &from, amount)?;
         balance::receive_balance(&env, &to, amount);
 
         events::transfer(&env, &from, &to, amount);
+        Ok(())
     }
 
     /// Approve spender to spend tokens
-    pub fn approve(env: Env, from: Address, spender: Address, amount: i128, expiration_ledger: u32) {
+    pub fn approve(env: Env, from: Address, spender: Address, amount: i128, expiration_ledger: u32) -> Result<(), TokenError> {
         from.require_auth();
         storage::extend_instance_ttl(&env);
 
         if amount < 0 {
-            panic!("Error::InvalidAmount");
+            return Err(TokenError::InvalidAmount);
         }
 
         allowance::write_allowance(&env, &from, &spender, amount, expiration_ledger);
 
         events::approve(&env, &from, &spender, amount, expiration_ledger);
+        Ok(())
     }
 
     /// Get allowance
@@ -165,40 +166,42 @@ impl AstroToken {
     }
 
     /// Burn tokens (holder burns their own)
-    pub fn burn(env: Env, from: Address, amount: i128) {
+    pub fn burn(env: Env, from: Address, amount: i128) -> Result<(), TokenError> {
         from.require_auth();
         storage::extend_instance_ttl(&env);
 
         if amount < 0 {
-            panic!("Error::InvalidAmount");
+            return Err(TokenError::InvalidAmount);
         }
 
-        balance::spend_balance(&env, &from, amount).unwrap();
+        balance::spend_balance(&env, &from, amount)?;
 
         // Update total supply
         let total = storage::get_total_supply(&env);
         storage::set_total_supply(&env, total - amount);
 
         events::burn(&env, &from, amount);
+        Ok(())
     }
 
     /// Burn tokens using allowance
-    pub fn burn_from(env: Env, spender: Address, from: Address, amount: i128) {
+    pub fn burn_from(env: Env, spender: Address, from: Address, amount: i128) -> Result<(), TokenError> {
         spender.require_auth();
         storage::extend_instance_ttl(&env);
 
         if amount < 0 {
-            panic!("Error::InvalidAmount");
+            return Err(TokenError::InvalidAmount);
         }
 
-        allowance::spend_allowance(&env, &from, &spender, amount).unwrap();
-        balance::spend_balance(&env, &from, amount).unwrap();
+        allowance::spend_allowance(&env, &from, &spender, amount)?;
+        balance::spend_balance(&env, &from, amount)?;
 
         // Update total supply
         let total = storage::get_total_supply(&env);
         storage::set_total_supply(&env, total - amount);
 
         events::burn(&env, &from, amount);
+        Ok(())
     }
 
     /// Get decimals
@@ -224,24 +227,24 @@ impl AstroToken {
     /// * `admin` - Admin address (must be current admin)
     /// * `to` - Recipient address
     /// * `amount` - Amount to mint
-    pub fn mint(env: Env, admin: Address, to: Address, amount: i128) {
+    pub fn mint(env: Env, admin: Address, to: Address, amount: i128) -> Result<(), TokenError> {
         admin.require_auth();
         storage::extend_instance_ttl(&env);
 
         // Verify admin
-        let current_admin = admin::read_administrator(&env);
+        let current_admin = admin::read_administrator(&env).ok_or(TokenError::NotInitialized)?;
         if admin != current_admin {
-            panic!("Error::Unauthorized");
+            return Err(TokenError::Unauthorized);
         }
 
         if amount < 0 {
-            panic!("Error::InvalidAmount");
+            return Err(TokenError::InvalidAmount);
         }
 
         // Check max supply
         let total = storage::get_total_supply(&env);
-        if total + amount > MAX_SUPPLY {
-            panic!("Error::MaxSupplyExceeded");
+        if total + amount > storage::get_max_supply(&env) {
+            return Err(TokenError::MaxSupplyExceeded);
         }
 
         // Mint tokens
@@ -249,26 +252,55 @@ impl AstroToken {
         storage::set_total_supply(&env, total + amount);
 
         events::mint(&env, &admin, &to, amount);
+        Ok(())
     }
 
     /// Set new admin (admin only)
-    pub fn set_admin(env: Env, current_admin: Address, new_admin: Address) {
+    pub fn set_admin(env: Env, current_admin: Address, new_admin: Address) -> Result<(), TokenError> {
         current_admin.require_auth();
         storage::extend_instance_ttl(&env);
 
-        let admin = admin::read_administrator(&env);
+        let admin = admin::read_administrator(&env).ok_or(TokenError::NotInitialized)?;
         if current_admin != admin {
-            panic!("Error::Unauthorized");
+            return Err(TokenError::Unauthorized);
         }
 
         admin::write_administrator(&env, &new_admin);
 
         events::set_admin(&env, &current_admin, &new_admin);
+        Ok(())
+    }
+
+    /// Set max supply (admin only, can only decrease)
+    /// Once decreased, max supply cannot be increased above current total supply.
+    pub fn set_max_supply(env: Env, admin: Address, new_max_supply: i128) -> Result<(), TokenError> {
+        admin.require_auth();
+        storage::extend_instance_ttl(&env);
+
+        // Verify admin
+        let current_admin = admin::read_administrator(&env).ok_or(TokenError::NotInitialized)?;
+        if admin != current_admin {
+            return Err(TokenError::Unauthorized);
+        }
+
+        if new_max_supply <= 0 {
+            return Err(TokenError::InvalidAmount);
+        }
+
+        // Cannot set max supply below current total supply
+        let total = storage::get_total_supply(&env);
+        if new_max_supply < total {
+            return Err(TokenError::InvalidAmount);
+        }
+
+        storage::set_max_supply(&env, new_max_supply);
+
+        Ok(())
     }
 
     /// Get current admin
     pub fn admin(env: Env) -> Address {
-        admin::read_administrator(&env)
+        admin::read_administrator(&env).expect("Contract not initialized")
     }
 
     // ========== Extended Functions ==========
@@ -278,9 +310,9 @@ impl AstroToken {
         storage::get_total_supply(&env)
     }
 
-    /// Get max supply
-    pub fn max_supply(_env: Env) -> i128 {
-        MAX_SUPPLY
+    /// Get max supply (configurable by admin)
+    pub fn max_supply(env: Env) -> i128 {
+        storage::get_max_supply(&env)
     }
 
     /// Check if address is admin
@@ -288,7 +320,7 @@ impl AstroToken {
         if !storage::has_admin(&env) {
             return false;
         }
-        admin::read_administrator(&env) == address
+        admin::read_administrator(&env) == Some(address)
     }
 
     // ========== Buyback Integration ==========
@@ -299,22 +331,29 @@ impl AstroToken {
     /// to execute buyback & burn mechanism.
     ///
     /// # Arguments
-    /// * `caller` - The authorized buyback caller (SAC Factory)
+    /// * `caller` - The authorized buyback caller (must be admin or SAC Factory)
     /// * `amount` - Amount to burn from the caller's balance
     ///
     /// # Note
     /// The caller must have already purchased ASTRO tokens.
     /// This function burns tokens from the caller's balance.
-    pub fn buyback_burn(env: Env, caller: Address, amount: i128) {
+    /// Only the admin or an authorized caller can execute buyback burns.
+    pub fn buyback_burn(env: Env, caller: Address, amount: i128) -> Result<(), TokenError> {
         caller.require_auth();
         storage::extend_instance_ttl(&env);
 
+        // Verify caller is admin (authorized to perform buyback burns)
+        let current_admin = admin::read_administrator(&env).ok_or(TokenError::NotInitialized)?;
+        if caller != current_admin {
+            return Err(TokenError::Unauthorized);
+        }
+
         if amount <= 0 {
-            panic!("Error::InvalidAmount");
+            return Err(TokenError::InvalidAmount);
         }
 
         // Burn tokens from caller's balance
-        balance::spend_balance(&env, &caller, amount).unwrap();
+        balance::spend_balance(&env, &caller, amount)?;
 
         // Update total supply
         let total = storage::get_total_supply(&env);
@@ -322,6 +361,7 @@ impl AstroToken {
 
         // Emit buyback burn event
         events::buyback_burn(&env, &caller, amount);
+        Ok(())
     }
 }
 
