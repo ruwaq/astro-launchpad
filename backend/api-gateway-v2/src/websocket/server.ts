@@ -37,9 +37,6 @@ class WebSocketManager {
   private subscriptionCounts: Map<string, { count: number; lastReset: number }> = new Map();
 
   private static readonly SUBSCRIPTION_WINDOW_MS = 60000; // 1 minute window
-  private subscriptionCounts: Map<string, { count: number; lastReset: number }> = new Map();
-
-  private static readonly SUBSCRIPTION_WINDOW_MS = 60000; // 1 minute window
 
   constructor(server: ReturnType<typeof createServer>) {
     this.wss = new WebSocketServer({ server, path: '/ws' });

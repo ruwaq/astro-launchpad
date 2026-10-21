@@ -27,8 +27,8 @@ const isProduction = env.NODE_ENV === 'production';
 
 // Authentication middleware
 const API_KEYS = env.API_KEYS?.split(',').map(key => key.trim()) || [];
-const requireApiKey = !isProduction || !API_KEYS.length;
-
+// Require an API key only in production (fail-closed). In dev/test, allow open access.
+const requireApiKey = isProduction;
 function apiKeyAuthMiddleware(req: any, res: any, next: any) {
   if (!requireApiKey) {
     return next();
@@ -141,7 +141,9 @@ export async function createApp(): Promise<{
       const context = await createContext(req as any);
       // Add API key to context for resolvers if needed
       if (requireApiKey && req.headers['x-api-key']) {
-        context.user = context.user || {};
+        if (!context.user) {
+          context.user = { address: '', authenticated: false };
+        }
         context.user.apiKeyAuthenticated = true;
       }
       return context;

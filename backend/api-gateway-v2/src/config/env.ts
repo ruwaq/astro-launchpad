@@ -52,6 +52,9 @@ const envSchema = z.object({
   // Admin addresses (comma-separated list of Stellar addresses with admin privileges)
   ADMIN_ADDRESSES: z.string().optional(),
 
+  // API Keys (comma-separated) for API key authentication
+  API_KEYS: z.string().optional(),
+
   // Admin API Key (required in production for admin mutations)
   // SECURITY: Minimum 32 characters required for cryptographic security
   ADMIN_API_KEY: z.string().min(32, 'ADMIN_API_KEY must be at least 32 characters for security').optional(),

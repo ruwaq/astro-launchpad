@@ -318,7 +318,17 @@ export class FeeStatsMaintenance {
     logger.info('\n' + '='.repeat(80));
 
     // Send report via webhook if configured
-    await this.sendReportViaWebhook(report);
+    const report = {
+      totalTokens: 0,
+      activeTokens24h: 0,
+      totalFees: revenue.totalRevenue.day,
+      protocolFees: revenue.protocolFees.day,
+      lpFees: revenue.lpFees.day,
+      creationFees: revenue.creationFees.day,
+      revenue,
+      topTokens,
+    };
+    await this.sendReportViaWebhook(report as any);
 
     return 1; // 1 report generated
   }

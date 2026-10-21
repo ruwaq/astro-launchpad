@@ -4,6 +4,7 @@
  */
 
 import { PrismaClient } from '@astroshibapop/shared/prisma'
+import { requireEnv } from '@astroshibapop/shared/config'
 import { SorobanRpc, scValToNative } from '@stellar/stellar-sdk'
 import { logger } from '../lib/logger.js'
 import { CircuitBreaker, createCircuitBreaker, CircuitState } from '../lib/circuit-breaker.js'

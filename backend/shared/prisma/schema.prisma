@@ -409,6 +409,7 @@ enum FeeType {
   PROTOCOL_FEE_SELL
   LP_FEE_BUY
   LP_FEE_SELL
+  WITHDRAWAL
 }
 
 enum TransactionType {
@@ -451,6 +452,7 @@ enum GraduationEventType {
 
 enum AstroEventType {
   ASTRO_CONFIG_UPDATED
+  ASTRO_CONFIG_CLEARED
   ASTRO_BUYBACK_EXECUTED
   ASTRO_LIQUIDITY_ADDED
 }

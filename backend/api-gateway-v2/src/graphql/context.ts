@@ -26,6 +26,7 @@ export interface GraphQLContext {
     address: string;
     authenticated: boolean;
     isAdmin?: boolean;
+    apiKeyAuthenticated?: boolean;
   };
 }
 

@@ -26,7 +26,7 @@ import {
   cacheTrendingTokens,
 } from '../cache-helpers.js'
 import { getCacheStats } from '../../lib/cache.js'
-import { feeQueryResolvers, feeMutationResolvers, feeTypeResolvers } from './fee-resolvers.js'
+import { feeQueryResolvers, feeMutationResolvers, feeTypeResolvers, feeResolvers } from './fee-resolvers.js'
 import { syncTokenToDatabase } from '../../lib/sync-service.js'
 import { logger } from '../../lib/logger.js'
 import {
@@ -1312,10 +1312,4 @@ export const resolvers: IResolvers = {
   },
   ...fieldResolvers,
   ...feeTypeResolvers,
-  Query: {
-    ...feeQueryResolvers,
-  },
-  Mutation: {
-    ...feeMutationResolvers,
-  }
 } as any // Type assertion needed due to custom context type

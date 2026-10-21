@@ -12,6 +12,7 @@
  */
 
 import { PrismaClient, LedgerGapStatus } from '@astroshibapop/shared/prisma'
+import { requireEnv } from '@astroshibapop/shared/config'
 import { SorobanRpc } from '@stellar/stellar-sdk'
 import { logger } from './logger.js'
 import {
