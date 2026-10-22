@@ -50,25 +50,38 @@ Empezar simple y crecer.
 - Horizon público: https://horizon-testnet.stellar.org
 
 ## Roadmap incremental
-1. Entorno listo: Stellar CLI, Scaffold.
-2. Scaffold proyecto base (contracts + frontend) y verificar build/dev.
-3. Contrato token (OpenZeppelin fungible) + tests.
-4. Deploy token en testnet + generar bindings.
-5. Frontend: conectar wallet (login), mint/transfer token, ver balances desde la red.
-6. Integrar Soroswap: crear par token/XLM y swap (todo on-chain).
+1. Entorno listo: Stellar CLI, Scaffold. — **hecho**
+2. Scaffold proyecto base (contracts + frontend) y verificar build/dev. — **hecho**
+3. Contrato token (OpenZeppelin fungible) + tests. — **hecho** (6/6)
+4. Deploy token en testnet + generar bindings. — **hecho**
+   (token `CAI637WCEILQF3ZYOV6BRUCX532XQIVOOJ4CRWFPWHQRJHOH5OKHSXRE`,
+   wasm hash `438d12a7…1286` ya subido: el launchpad crea instancias nuevas)
+5. Frontend: conectar wallet (login), ver balances desde la red. — **hecho**
+6. Integrar Soroswap: crear par token/XLM y swap (todo on-chain). — **hecho**
+   (par `CA32TMZ2AODXI7K7B6T2YPZR52HJKFCY5GT2DNHMOL326DLSNPX55BUP`;
+   UI de liquidez + swap)
 7. UI/UX: listado de tokens, trading, charts, toasts, responsive, deploy Vercel.
+   — **pendiente** (deploy en Vercel es el objetivo del proyecto)
 8. Indexación ligera (eventos RPC o servicio existente) solo si se necesita.
 9. Escalar: monorepo, CI/CD, mainnet.
 
+## Dirección del roadmap tras la sesión 4
+- El flujo end-to-end ya funciona on-chain en testnet: crear token → crear par
+  → añadir liquidez → cotizar → swap. Lo que falta es producto (listado,
+  gráficos, feedback) y publicación (Vercel).
+- Decidir antes de seguir: ¿listado de tokens leído de eventos del RPC o
+  Soroswap API? Afecta a si hace falta backend/indexer.
+- Añadir CI (GitHub Actions) con `npm run build && npm run lint &&
+  npm run smoke:render` y `cargo test -p astro-token`.
+
+
 ## Entorno local (Termux) — solo para desarrollo
 - Proyecto: ~/projects/astro-launchpad (symlink ~/workspace/astro-launchpad)
-- Stellar CLI: instalando vía cargo (~/.cargo/bin).
-- PATH configurado en ~/.zshrc.
+- Stellar CLI 28.1.0 oficial (glibc) en `~/.local/opt/stellar`, wrapper en
+  `~/.local/bin/stellar`; `rustup` con target `wasm32v1-none`.
 - Servicios locales (Postgres/Redis) opcionales, no requeridos para el MVP descentralizado.
 
 ## Notas
 - El monorepo anterior se preservó en la rama `legacy/abandoned-monorepo`.
 - Login = wallet. No hay backend de usuarios.
 - Datos = red. No hay DB obligatoria.
-EOF
-echo "PLAN updated"

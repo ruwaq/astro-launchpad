@@ -1,75 +1,130 @@
 # Estado actual (para continuar en la próxima sesión)
 
-## Handoff rápido (Oct 22 2026, sesión 3)
-- Entorno activo: Ter Mux — proyecto en `~/projects/astro-launchpad`, todo commiteado en main.
-- **Token desplegado en testnet**: `CAI637WCEILQF3ZYOV6BRUCX532XQIVOOJ4CRWFPWHQRJHOH5OKHSXRE`
-  (wasm hash `438d12a7…1286` ya subido a la red: el launchpad crea instancias nuevas
-  sin resubir binario).
-- stellar-cli compilado en `~/.local/opt/stellar`. PENDIENTE: falla 
-  `libdbus-1.so.3 not found` → `pkg install dbus` (hubo procesos que sí corrieron,
-  revisar tras instalar).
-- Bindings TS regenerados desde contratos on-chain: `npm run bindings`
-  (token raíz + `soroswap-router/` + `soroswap-factory/`, con patch TS estricto).
-- Frontend cableado de punta a punta (ver abajo); `npm run build` verde;
-  dev server en `:5173` (nohup, sobrevive al cierre de la app).
+## Handoff rápido (Oct 22 2026, sesión 4)
 
-## Completado (sesión 3 — hoy 11:20→14:13)
-1. **stellar-cli** (`cargo install --locked stellar-cli` terminó OK; binario
-   movido a `~/.local/opt/stellar`). Con él: wasm subido + token deployed.
-2. **Bindings on-chain** (`frontend/scripts/`):
-   - `generate-bindings.mjs`: token + Soroswap router/factory vía CLI del JS SDK,
-     aplanado a `out/client.ts|types.ts|index.ts`.
-   - `patch-bindings.mjs`: imports de tipos, property-parameter del constructor,
-     unused imports, alias `export type X = {message:string}` para enums de error
-     (fix de TS2749). Idempotente, integrado en `npm run bindings`.
-3. **Frontend** (`frontend/src/`):
-   - `store/wallet.ts` (zustand) + `components/WalletButton.tsx` (stellar-wallets-kit).
-   - `hooks/useTokenInfo.ts` + `useTokenBalance.ts` (TanStack Query contra RPC).
-   - `lib/network.ts` (red + Soroswap + token/wasm-hash), `format.ts`, `signer.ts`,
-     `token.ts`.
-   - `components/TokenInfoCard.tsx` + `CreateTokenForm.tsx` (despliegue por
-     `Client.deploy` con wasm hash, camino igual que el smoke).
-   - `App.tsx` reescrita; Trash CSS→Tailwind (App.css eliminado),
-     `main.tsx` con QueryClientProvider; título "Astro Launchpad".
-   - `package.json`: deps `@stellar/stellar-sdk@17`, `@tanstack/react-query`,
-     `zustand`; scripts `bindings` + `verify:launchpad`; oxlint ignora bindings.
-4. **Smoke script** `scripts/verify-launchpad.mjs`: compara spec embebido vs
-   on-chain, prueba args del constructor, despliega instancia nueva y lee datos.
-   Está sin correr aún: necesita `STELLAR_SECRET` (cuenta fondeada).
-5. Diagnosis extra: el generador emite enums de error como `const` y el cliente
-   los usa como tipo → TS2749; lo parchea `patch-bindings.mjs`.
+- Entorno: Termux (bionic). Proyecto en `~/projects/astro-launchpad`.
+- **stellar-cli 28.1.0 corre nativo** (binario oficial glibc + libs de Debian
+  arm64 en `~/.local/opt/glibc-libs/lib`, wrapper `~/.local/bin/stellar` que
+  fija `LD_LIBRARY_PATH`). No hace falta proot/VM/CI.
+- `rustup` ya funciona (stable aarch64 1.99.1, targets `wasm32v1-none` y
+  `wasm32-unknown-unknown`).
+- Identidad testnet `dev` fondeada:
+  `GDCUL7MZ7SK4LXSLD7Z3TBOQBXZCHG3CJZ6K5P2W5R6AIFCKMOYQHFEY`
+  (secret en `~/.config/stellar/identity/dev.toml`).
+- **Token desplegado en testnet** (nombre "Astro Test", símbolo ASTRO, 7 dec,
+  supply 1e9):
+  `CAI637WCEILQF3ZYOV6BRUCX532XQIVOOJ4CRWFPWHQRJHOH5OKHSXRE`
+  - wasm hash (subido a la red, el launchpad crea instancias sin resubir):
+    `438d12a79855dd42c353d12bb42e6b57ed513eed47b7008094683ba33f971286`
+- **Par Soroswap ASTRO/XLM**:
+  `CA32TMZ2AODXI7K7B6T2YPZR52HJKFCY5GT2DNHMOL326DLSNPX55BUP`
+- Frontend completo y verificado on-chain (ver "Verificación" abajo).
+  Dev server en `:5173` (background, PID 14751, log `/tmp/opencode/vite-dev.log`).
 
-## Próximos pasos (en orden)
-1. **Soroswap** (paso en el que se cortó): crear par token/XLM vía factory +
-   `add_liquidity` vía router (bindings nuevos en `src/contracts/soroswap-*`),
-   con `increase_allowance` del token al router. UI: panel de liquidez después
-   de crear token en `CreateTokenForm`.
-2. `npm run verify:launchpad` con `STELLAR_SECRET` fondeado en testnet.
-3. Fix stellar CLI: `pkg install dbus` y verificar `stellar --version`.
-4. Frontend → Vercel (deploy testnet online).
+## Completado (sesión 4)
 
-## Diagnóstico clave (sesión 2, sigue vigente)
-- `soroban-sdk 28 build.rs` exige env de stellar-cli v25.2+ para wasm
-  (`SOROBAN_SDK_BUILD_SYSTEM_SUPPORTS_SPEC_SHAKING_V2`); NO bypass, build con
-  `stellar contract build` y target `wasm32v1-none`.
-- Dist oficial de rust no publica rustc/cargo para aarch64-linux-android;
-  `rustup` no funciona en Termux (rustls-platform-verifier). Targets con el
-  pkg de Termux (`rust-std-wasm32v1-none`).
-- stellar-cli prebuilt oficial solo darwin/linux-glibc: no corre nativo en
-  Termux (bionic) → por eso va compilado localmente. Alternativas: VM Debian
-  (pausa) o CI GitHub Actions (repo `ruwaq/astro-launchpad`, gh sin login).
-- Residuales: `frontend/pnpm-workspace.yaml` + `pnpm-lock.yaml` de una prueba
-  pnpm sin usarse; npm es el gestor vigente (package-lock.json).
+1. **Capa Soroswap en el frontend** (`frontend/src/lib/soroswap.ts`), una sola
+   capa con todo el AMM:
+   - `soroswapClients(signer?)` → clientes de factory y router.
+   - `fetchPoolState(tokenId)` → par, reservas y orden de tokens.
+   - `quoteTokenForXlm(amountIn, pool)` → cotización real.
+   - `ensurePair(tokenId, signer?)` → crea el par si no existe y espera a que
+     aparezca (la creación es asíncrona: espera acotada de 5 intentos).
+   - `addLiquidity({...})` → par + `add_liquidity`, devuelve amounts y LP.
+   - `swapTokenForXlm({...})` → swap con `amount_out_min` (slippage 2 %).
+2. **UI**:
+   - `components/LiquidityForm.tsx` → añadir liquidez tras crear el token.
+   - `components/SwapCard.tsx` → cotización + swap a XLM (también se muestra
+     para el token de ejemplo, que ya tiene par).
+   - `hooks/useSoroswapPool.ts` → estado del par con TanStack Query.
+   - `lib/token.ts` → `deployToken()` (antes vivía dentro del componente).
+   - `lib/signer.ts` → añade `signAuthEntry` (SEP-43) al `Signer`.
+3. **Bindings**: `src/contracts/xlm-sac/` (SAC nativo de XLM) añadido al
+   pipeline de `npm run bindings` (4 contratos en total).
+4. **Scripts de verificación** (`frontend/scripts/`):
+   - `verify-frontend-flow.mjs` → **carga el módulo real del frontend** con
+     Vite SSR y ejecuta en testnet: pool → cotización → swap → liquidez, y el
+     camino completo token nuevo → par → liquidez → swap.
+   - `verify-soroswap.mjs` → smoke del AMM (ya existía).
+   - `verify-launchpad.mjs` → smoke del deploy del token (ya existía).
+   - `probe-pool.mjs` → sonda de solo lectura (reservas + las dos cotizaciones).
+   - `smoke-render.mjs` + `scripts/fixtures/wallets-kit-stub.ts` → render del
+     árbol de componentes con `react-dom/server` (no hay navegador en el
+     entorno; la wallet se sustituye por un stub).
 
-## Comandos útiles
-- `vibe` · dev: `cd frontend && npm run dev`
-- bindings: `cd frontend && npm run bindings`
-- smoke: `cd frontend && STELLAR_SECRET=S... npm run verify:launchpad`
-- build/lint: `npm run build` · `npm run lint` · contrato: `cargo test -p astro-token`
-- CLI: `~/.local/opt stellar` (si falla libdbus → `pkg install dbus`)
-- Verificación puntual sin sleep: `pgrep -af stellar-cli; ls ~/.cargo/bin/stellar`
+## Verificación (todo en verde)
+
+| Comprobación | Comando | Resultado |
+| --- | --- | --- |
+| Tipos + bundle | `npm run build` | OK |
+| Lint | `npm run lint` | 0 avisos, 0 errores |
+| Render UI | `npm run smoke:render` | OK |
+| Contrato | `cargo test -p astro-token` | 6/6 |
+| Deploy + spec | `npm run verify:launchpad` | OK |
+| AMM on-chain | `npm run verify:soroswap` | OK |
+| Camino del frontend | `npm run verify:frontend` | OK |
+
+Los tres `verify:*` necesitan `STELLAR_SECRET` (cuenta `dev`).
+
+## Hallazgos clave (verificados on-chain)
+
+- **La cotización real es `router_get_amount_out(amount_in, reserve_in,
+  reserve_out)`** (30 bps de comisión). `router_get_amounts_out` de este
+  despliegue de Soroswap **devuelve el input sin cotizar**: no sirve.
+- **No hace falta allowance**: el router mueve los tokens con `transfer`
+  (auth de la cuenta que invoca), no con `transfer_from`. Comprobado:
+  allowance del router = 0 y `add_liquidity`/`swap` funcionaron.
+- **El `deadline` del router se pasa como unix timestamp** (`now + 300`), que
+  vale tanto si el router lo compara con el timestamp del ledger como con la
+  secuencia.
+- `get_reserves` devuelve las reservas en el orden `token_0 < token_1`: hay que
+  usar `sort_tokens` para saber cuál es la del token del launchpad.
+- Los contratos de Soroswap devuelven `Result<T, E>`: hay que desenvolverlo
+  (`isErr()`/`unwrap()`), no leer `.result` dos veces.
+
+## Pendiente
+
+1. **Verificación visual**: no hay navegador en el entorno. Con la app servida
+   en `:5173` hay que probar con wallet (Freighter) el flujo completo.
+2. **Deploy en Vercel** (testnet online, es el objetivo del proyecto).
+3. UI/UX del roadmap: listado de tokens, charts, toasts, responsive.
+4. Mint/transfer de tokens desde la UI (el contrato ya los soporta).
+5. CI en GitHub Actions (el repo no tiene workflows).
+
+## Comandos
+
+```bash
+export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
+
+# Frontend
+cd frontend
+npm run dev                 # :5173
+npm run build               # tsc + vite build
+npm run lint                # oxlint
+npm run smoke:render        # render del árbol de componentes
+npm run bindings            # regenera bindings TS desde los contratos on-chain
+node scripts/probe-pool.mjs # sonda de solo lectura del par
+
+# Verificaciones on-chain (necesitan STELLAR_SECRET)
+STELLAR_SECRET=... npm run verify:launchpad
+STELLAR_SECRET=... npm run verify:soroswap
+STELLAR_SECRET=... npm run verify:frontend
+
+# Contrato
+cargo test -p astro-token
+cd contracts/token && stellar contract build   # wasm32v1-none
+
+# CLI
+stellar --version
+```
 
 ## Notas
-- No usar sleep/polling; verificación puntual, background con nohup + log.
-- Datos = red (RPC público testnet). Login = wallet. Sin backend de usuarios.
-- Referencias: AGENTS.md (red/direcciones), PLAN.md (roadmap).
+
+- Sin `sleep`/polling de procesos: background con `nohup` + log y verificación
+  puntual (`pgrep`, `ls`, `curl`).
+- Datos = red (RPC público de testnet). Login = wallet. Sin backend.
+- `frontend/pnpm-lock.yaml` y `pnpm-workspace.yaml` son residuos de una
+  instalación con pnpm: están en `.gitignore`. El gestor vigente es npm
+  (`package-lock.json` versionado). Cambiar de gestor = cambio de
+  dependencias → requiere aprobación aparte.
+- Referencias: `AGENTS.md` (reglas y direcciones), `PLAN.md` (roadmap).
