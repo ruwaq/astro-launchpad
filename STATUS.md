@@ -14,7 +14,7 @@
 ## En progreso
 - Stellar CLI instalando desde fuente (sin default features) en background.
   - PID: ver `pgrep -af "cargo install"`.
-  - Log: ~/logs/stellar-install.log
+  - Log: logs/stellar-install.log (symlink a ~/logs/stellar-install.log)
   - Verificar: `pgrep -af "cargo install" | grep -v pgrep || echo finished; ls -la ~/.cargo/bin/stellar`
   - Si termina, ejecutar `stellar --version` y luego scaffold.
 
