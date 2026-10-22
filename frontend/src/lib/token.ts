@@ -13,6 +13,8 @@ export interface LaunchpadToken {
   id: string
   /** Decimales del token. */
   decimals: number
+  /** Símbolo si se conoce (para el arte generativo de la UI). */
+  symbol?: string
 }
 
 /**

@@ -1,6 +1,7 @@
 import { useTokenList } from '../hooks/useTokenList'
-import { formatAmount, shortAddress } from '../lib/format'
+import { formatAmount } from '../lib/format'
 import { tokenPriceInXlm } from '../lib/soroswap'
+import { TokenArt } from './TokenArt'
 import type { LaunchpadToken } from '../lib/token'
 import type { TokenListing } from '../lib/discovery'
 
@@ -20,11 +21,78 @@ function Price({ token }: { token: TokenListing }) {
   )
 }
 
+function MarketCard({
+  token,
+  selected,
+  onSelect,
+}: {
+  token: TokenListing
+  selected: boolean
+  onSelect: (token: LaunchpadToken) => void
+}) {
+  return (
+    <li
+      className={`relative flex flex-col overflow-hidden rounded-2xl border bg-slate-900/40 transition-colors ${
+        selected
+          ? 'border-emerald-500 ring-1 ring-emerald-500/40'
+          : 'border-slate-800 hover:border-slate-600'
+      }`}
+    >
+      <div className="relative">
+        <TokenArt
+          id={token.id}
+          symbol={token.symbol}
+          className="aspect-square w-full"
+        />
+        <a
+          href={`https://stellar.expert/explorer/testnet/contract/${token.pool.pairId}`}
+          target="_blank"
+          rel="noreferrer"
+          aria-label={`Ver ${token.symbol} en el explorador`}
+          className="absolute right-2 top-2 flex h-9 w-9 items-center justify-center rounded-full bg-slate-950/70 text-slate-300 backdrop-blur hover:text-emerald-300"
+        >
+          ↗
+        </a>
+        {selected ? (
+          <span className="absolute left-2 top-2 rounded-full bg-emerald-500 px-2 py-0.5 text-[10px] font-semibold text-slate-950">
+            en el swap
+          </span>
+        ) : null}
+      </div>
+
+      <div className="flex flex-1 flex-col p-3">
+        <button
+          type="button"
+          onClick={() => onSelect({ id: token.id, decimals: token.decimals })}
+          className="min-h-[44px] text-left"
+        >
+          <p className="truncate text-sm font-semibold text-slate-100">
+            {token.symbol}
+          </p>
+          <p className="truncate text-xs text-slate-500">{token.name}</p>
+        </button>
+        <div className="mt-auto pt-2">
+          <p className="flex items-baseline justify-between gap-2">
+            <span className="text-[11px] text-slate-500">Precio</span>
+            <Price token={token} />
+          </p>
+          <p className="mt-1 flex items-baseline justify-between gap-2">
+            <span className="text-[11px] text-slate-500">Liquidez</span>
+            <span className="font-mono text-xs text-slate-300">
+              {formatAmount(token.pool.reserveXlm, 7)}
+            </span>
+          </p>
+        </div>
+      </div>
+    </li>
+  )
+}
+
 /**
- * Tokens recientes con par en XLM, descubiertos de los eventos de la factory
- * de Soroswap. Seleccionar una fila cambia el swap de la página.
- *
- * Móvil: tarjetas con tap targets altos. Desktop: tabla compacta (sm+).
+ * Mercado estilo colección OpenSea: cada par pinta una tarjeta con arte
+ * generativo determinista (hash del contrato → paleta + formas). Los
+ * datos siguen siendo 100% de la red: eventos de la factory de Soroswap.
+ * Tocar una tarjeta la selecciona para el swap de abajo.
  */
 export function MarketList({ selectedId, onSelect }: Props) {
   const list = useTokenList()
@@ -35,8 +103,8 @@ export function MarketList({ selectedId, onSelect }: Props) {
         <div>
           <h2 className="text-lg font-semibold">Mercado</h2>
           <p className="mt-1 text-sm text-slate-400">
-            Pares token/XLM creados recientemente en Soroswap testnet, leídos de
-            los eventos de la factory.
+            Pares token/XLM leídos de los eventos de la factory de Soroswap.
+            Toca una tarjeta para swapearla abajo ⤵
           </p>
         </div>
         <button
@@ -69,118 +137,22 @@ export function MarketList({ selectedId, onSelect }: Props) {
       ) : null}
 
       {list.data && list.data.length > 0 ? (
-        <>
-          {/* Móvil: una tarjeta por par; el panel es el tap target. */}
-          <ul className="mt-4 flex flex-col gap-2 sm:hidden">
-            {list.data.map((token) => (
-              <li
-                key={token.id}
-                className={`rounded-lg border ${
-                  token.id === selectedId
-                    ? 'border-emerald-700 bg-emerald-950/20'
-                    : 'border-slate-800'
-                }`}
-              >
-                <div className="flex items-stretch gap-1 p-2">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      onSelect({ id: token.id, decimals: token.decimals })
-                    }
-                    className="min-w-0 flex-1 rounded px-1.5 py-1.5 text-left"
-                  >
-                    <div className="flex items-baseline justify-between gap-2">
-                      <span className="min-w-0 truncate text-base font-medium text-slate-100">
-                        {token.symbol}
-                        <span className="ml-2 text-xs font-normal text-slate-500">
-                          {token.name}
-                        </span>
-                      </span>
-                      <Price token={token} />
-                    </div>
-                    <div className="mt-1 text-xs text-slate-400">
-                      Liquidez {formatAmount(token.pool.reserveXlm, 7)} XLM
-                    </div>
-                  </button>
-                  <a
-                    href={`https://stellar.expert/explorer/testnet/contract/${token.pool.pairId}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    aria-label={`Ver ${token.symbol} en el explorador`}
-                    className="flex min-w-[44px] items-center justify-center rounded text-slate-400 hover:text-emerald-400"
-                  >
-                    ↗
-                  </a>
-                </div>
-              </li>
-            ))}
-          </ul>
-
-          {/* Desktop: tabla densa. */}
-          <div className="hidden overflow-x-auto sm:block">
-            <table className="w-full min-w-[36rem] text-left text-sm">
-              <thead className="text-xs uppercase tracking-wide text-slate-500">
-                <tr>
-                  <th className="pb-2 pr-3 font-medium">Token</th>
-                  <th className="pb-2 pr-3 font-medium">Precio</th>
-                  <th className="pb-2 pr-3 font-medium">Liquidez XLM</th>
-                  <th className="pb-2 font-medium">Par</th>
-                </tr>
-              </thead>
-              <tbody>
-                {list.data.map((token) => {
-                  const selected = token.id === selectedId
-                  return (
-                    <tr
-                      key={token.id}
-                      className={`border-t border-slate-800/70 ${
-                        selected ? 'bg-emerald-950/20' : ''
-                      }`}
-                    >
-                      <td className="py-2 pr-3">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            onSelect({ id: token.id, decimals: token.decimals })
-                          }
-                          className="text-left"
-                        >
-                          <span className="font-medium text-slate-100">
-                            {token.symbol}
-                          </span>
-                          <span className="ml-2 text-xs text-slate-500">
-                            {token.name}
-                          </span>
-                        </button>
-                      </td>
-                      <td className="py-2 pr-3">
-                        <Price token={token} />
-                      </td>
-                      <td className="py-2 pr-3 font-mono text-xs text-slate-300">
-                        {formatAmount(token.pool.reserveXlm, 7)}
-                      </td>
-                      <td className="py-2">
-                        <a
-                          href={`https://stellar.expert/explorer/testnet/contract/${token.pool.pairId}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="font-mono text-xs text-slate-400 hover:text-emerald-400"
-                        >
-                          {shortAddress(token.id)} ↗
-                        </a>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        </>
+        <ul className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          {list.data.map((token) => (
+            <MarketCard
+              key={token.id}
+              token={token}
+              selected={token.id === selectedId}
+              onSelect={onSelect}
+            />
+          ))}
+        </ul>
       ) : null}
 
       <p className="mt-4 text-xs text-slate-500">
         La ventana son los últimos ~14 h de ledgers (los eventos caducan en el
-        RPC). No hay índice propio: lo que ves sale de la red.
+        RPC). No hay índice propio: lo que ves sale de la red. El arte es
+        generativo: cada contrato tiene el suyo derivado de su hash.
       </p>
     </section>
   )

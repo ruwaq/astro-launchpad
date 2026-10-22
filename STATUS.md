@@ -1,5 +1,30 @@
 # Estado actual (para continuar en la próxima sesión)
 
+## Handoff rápido (Oct 22 2026, sesión 6b — UX guiada + mercado OpenSea)
+
+- **Ciclo guiado:** `Onboarding.tsx` — bienvenida de 4 pasos
+  (conectar→crear→liquidez→swap) con estado real de la sesión; se compacta a
+  tira "n/4 · siguiente: X" y persiste en `localStorage` (`floodgate.onboarding`).
+  Steps ligados a anclas `#sec-crear`/`#sec-mercado` (+ `scroll-mt-20` por el
+  header sticky).
+- **Orden móvil pensado en una meta por pantalla:** Mercado (grid cards) →
+  Swap del token elegido → Crear + Liquidez juntos → TokenInfoCard al final
+  etiquetada "· token de ejemplo".
+- **Compartir (Web Share API)** en los éxitos de crear y de liquidez, fallback
+  clipboard con "copiado ✓" (`ShareButton.tsx`).
+- **MAX** en SwapCard (balance del token) y en LiquidityForm (aporte token,
+  `useTokenBalance`).
+- **Mercado estilo OpenSea:** `lib/art.ts` + `TokenArt.tsx` — arte generativo
+  determinista por contrato (FNV-1a 32 bits del id → paleta curada de 8 +
+  formas SVG; mismo contrato = misma "NFT card" en cualquier dispositivo).
+  Grid `2/3/4` columnas; monograma = símbolo; chip "en el swap" y badge ↗ al
+  explorador. Avatar 36px en el header de SwapCard.
+- Accesibilidad: `role="alert"` en errores, `role="status"` en éxitos.
+- Smoke: 11 secciones verificadas (App base, liquidez, wallet ×2, guía ×2,
+  arte ×2). `LaunchpadToken` ganó `symbol?: string` para el demo generativo.
+- Commits: `6e14bab` (UX guiada+max+share), `siguiente` (mercado OpenSea) —
+  pendiente de registrar aquí tras el commit.
+
 ## Handoff rápido (Oct 22 2026, sesión 6 — rebrand + móvil + deploy)
 
 - Marca fijada: **Floodgate 🌊** (elección del usuario). Nombre extraído del

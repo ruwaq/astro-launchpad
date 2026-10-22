@@ -13,6 +13,7 @@ import {
 import type { LaunchpadToken } from '../lib/token'
 import { walletSigner } from '../lib/signer'
 import { useWallet } from '../store/wallet'
+import { TokenArt } from './TokenArt'
 
 const inputClass =
   'w-full rounded-lg border border-slate-800 bg-slate-950 px-3.5 py-3 text-base text-slate-100 outline-none focus:border-emerald-500'
@@ -100,8 +101,15 @@ export function SwapCard({
 
   return (
     <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-4 sm:p-6">
-      <h2 className="text-lg font-semibold">
-        Swap a XLM · {shortAddress(token.id)}
+      <h2 className="flex items-center gap-2 text-lg font-semibold">
+        <TokenArt
+          id={token.id}
+          symbol={token.symbol}
+          className="h-9 w-9 shrink-0 rounded-lg"
+        />
+        <span className="min-w-0 truncate">
+          Swap a XLM · {shortAddress(token.id)}
+        </span>
       </h2>
       <p className="mt-1 text-sm text-slate-400">
         Cotiza y cambia tu token por XLM nativo en el par de Soroswap.
