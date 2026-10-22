@@ -1,5 +1,23 @@
 # Estado actual (para siguiente sesión)
 
+## VM Debian (AVF Terminal) — armado listo
+- Terminal app de Android 16 inicializada (imagen descargada, Oct 2026).
+- Repo espejo en storage compartido: `~/storage/shared/Download/astro-launchpad`
+  (se sincroniza con `rsync -a --delete --exclude=logs --exclude=target --exclude=node_modules`)
+- Bootstrap una vez dentro de la VM:
+  `bash /mnt/shared/Download/astro-launchpad/scripts/vm-setup.sh`
+  (apt/build-essential/sshd + opencode + proyecto desde /mnt/shared)
+- Puente pendiente para ejecutar la VM desde Termux:
+  `pkg install -y android-tools` ya hecho (adb 1.0.41 OK).
+  1) teléfono: Opciones dev → Depuración inalámbrica ON
+  2) `adb pair localhost:PUERTO` (código de emparejamiento en pantalla)
+  3) `adb connect localhost:PUERTO`
+  4) anti-kill: `adb shell cmd deviceidle whitelist +com.android.virtualization.terminal`
+     `adb shell am set-standby-bucket com.android.virtualization.terminal active`
+- Nota: build nativo de stellar CLI en Termux falló (SIGABRT en rustc stellar-xdr);
+  reintento con `-j2` en curso en background. Alternativa robusta: instalar el
+  prebuilt oficial glibc dentro de la VM Debian (segundos).
+
 ## Completado
 - Repo reseteado a main limpio; legacy preservado en `legacy/abandoned-monorepo`.
 - AGENTS.md y PLAN.md actualizados (minimalista, descentralizado, testnet online).
@@ -12,22 +30,22 @@
   - Workspace symlink ~/workspace/astro-launchpad.
 
 ## En progreso
-- Stellar CLI instalando desde fuente (sin default features) en background.
-  - PID: ver `pgrep -af "cargo install"`.
-  - Log: logs/stellar-install.log (symlink a ~/logs/stellar-install.log)
-  - Verificar: `pgrep -af "cargo install" | grep -v pgrep || echo finished; ls -la ~/.cargo/bin/stellar`
-  - Si termina, ejecutar `stellar --version` y luego scaffold.
+- Frontend `frontend/` creado con `npm create vite@latest (react-ts)`:
+  - Tailwind v4 conectado (vite.config.ts + index.css).
+  - App mínima con login por wallet (@creit.tech/stellar-wallets-kit,
+    Network.TESTNET): conectar/desconectar y mostrar pubkey.
+  - deps instalándose en background (stellar-sdk, tanstack-query, zustand).
+- stellar CLI: reintento `-j2` en background (ver nota VM arriba).
 
 ## Siguiente sesión (sin sleep/polling)
-1. Verificar CLI (comando puntual).
-2. Si OK: `stellar scaffold init . --template react` (o crear proyecto).
-3. Crear contrato token OpenZeppelin fungible.
-4. Deploy testnet + bindings.
-5. Frontend: wallet login, token mint/transfer, Soroswap swap.
-6. Deploy Vercel.
+0. VM Debian: correr vm-setup.sh + puente adb (ver arriba).
+   Contratos y stellar CLI preferiblemente dentro de la VM (glibc).
+1. Frontend: `npm run build` + `npm run dev` OK, commit.
+2. Contrato token OpenZeppelin fungible (cargo test con target wasm32).
+3. Deploy testnet + bindings.
+4. Soroswap: crear par token/XLM y swap on-chain.
+5. Deploy Vercel.
 
 ## Notas
 - No usar sleep para esperar; verificar con comandos puntuales.
 - Preferir datos desde la red (RPC) y wallet login.
-EOF
-echo "STATUS.md written"
