@@ -39,6 +39,8 @@ Identidad = wallet. Datos = red (Soroban RPC / Horizon). Sin backend de usuarios
   `npm run lint` · `npm run smoke:render` · `npm run bindings`.
 - On-chain (`STELLAR_SECRET` obligatorio): `npm run verify:launchpad` ·
   `npm run verify:soroswap` · `npm run verify:frontend`.
+- Solo lectura (sin secret): `npm run verify:discovery` (parser de eventos +
+  descubrimiento real de pares en la factory).
 - Contrato: `cargo test -p astro-token` · build wasm:
   `cd contracts/token && stellar contract build` (target `wasm32v1-none`).
 - Servicios opcionales: `dev-up` / `dev-down`.
@@ -48,9 +50,14 @@ Identidad = wallet. Datos = red (Soroban RPC / Horizon). Sin backend de usuarios
   `router_get_amounts_out` devuelve el input sin cotizar.
 - No hace falta allowance: el router usa `transfer`, no `transfer_from`.
 - `deadline` = unix timestamp + 300 (vale bajo cualquier interpretación).
-- `get_reserves` va en el orden `token_0 < token_1`: usar `sort_tokens`.
+- El contrato del par es la fuente de verdad del orden y las reservas:
+  `token_0()`, `token_1()` y `get_reserves()` en el propio par. No asumir el
+  orden que devuelve `sort_tokens` del router.
 - Todo contrato de Soroswap devuelve `Result<T, E>`: desenvolver con
   `isErr()`/`unwrap()`, nunca leer `.result` dos veces.
+- La factory emite `["SoroswapFactory", "new_pair"]` con
+  `{ pair, token_0, token_1 }`; sirve para descubrir tokens sin backend
+  (`getEvents`, ventana limitada por la retención del RPC).
 
 
 ## Procesos largos

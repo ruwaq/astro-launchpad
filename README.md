@@ -13,6 +13,8 @@ Ver `PLAN.md` para arquitectura y roadmap, `STATUS.md` para el estado actual.
   nuevas de ese mismo wasm (cada token es su propio contrato).
 - `frontend/` — Vite + React 19 + TypeScript. Lee de Soroban RPC público, firma
   con la wallet (`@creit.tech/stellar-wallets-kit`) y usa Soroswap como AMM.
+  Incluye un listado de mercado que descubre pares token/XLM leyendo los
+  eventos `new_pair` de la factory (sin índice ni backend).
 
 ## Dev rápido
 
@@ -37,6 +39,9 @@ npm run bindings       # regenera los bindings TS desde los contratos on-chain
 npm run verify:launchpad   # despliega un token nuevo y lo lee
 npm run verify:soroswap    # par, liquidez, cotización y swap
 npm run verify:frontend    # el mismo código que la UI, de punta a punta
+
+# Solo lectura (sin secret): parser de eventos + descubrimiento real
+npm run verify:discovery
 
 # Contrato
 cargo test -p astro-token

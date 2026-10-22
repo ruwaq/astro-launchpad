@@ -1,5 +1,6 @@
 import type { Signer } from '@stellar/stellar-sdk/contract'
 import { Client as FactoryClient } from '../contracts/soroswap-factory'
+import { Client as PairClient } from '../contracts/soroswap-pair'
 import { Client as RouterClient } from '../contracts/soroswap-router'
 import {
   NETWORK_PASSPHRASE,
@@ -14,6 +15,12 @@ export const SLIPPAGE_PERCENT = 2
 
 /** Deadline para las operaciones del router: unix timestamp + 5 minutos. */
 const DEADLINE_SECONDS = 300
+
+/** Precio de 1 token en XLM (base units) según las reservas del par. */
+export function tokenPriceInXlm(pool: PoolState, decimals: number): bigint {
+  if (!pool.exists || pool.reserveToken === 0n) return 0n
+  return (pool.reserveXlm * 10n ** BigInt(decimals)) / pool.reserveToken
+}
 
 /** Estado del par token/XLM en Soroswap. */
 export type PoolState = {
@@ -40,17 +47,24 @@ export function withSlippage(
  * Lanza con el mensaje del error on-chain para poder mostrarlo en la UI.
  */
 export function unwrapResult<T>(
-  result: {
-    isErr(): boolean
-    unwrap(): T
-    unwrapErr(): { message: string }
-  },
+  result: unknown,
   what: string,
 ): T {
-  if (result.isErr()) {
-    throw new Error(`${what}: ${result.unwrapErr().message}`)
+  // Los contratos de Soroswap devuelven Result<T, E>; el SDK ya desenvuelve
+  // los métodos cuyo tipo de retorno no es Result. Aceptamos ambas formas.
+  if (
+    result &&
+    typeof result === 'object' &&
+    'isErr' in result &&
+    typeof (result as { isErr: unknown }).isErr === 'function'
+  ) {
+    const inner = result as { isErr(): boolean; unwrapErr(): { message: string }; unwrap(): T }
+    if (inner.isErr()) {
+      throw new Error(`${what}: ${inner.unwrapErr().message}`)
+    }
+    return inner.unwrap()
   }
-  return result.unwrap()
+  return result as T
 }
 
 /**
@@ -78,51 +92,53 @@ export function soroswapClients(signer?: Signer) {
  * `sort_tokens` para saber qué reserva es la del token del launchpad.
  */
 export async function fetchPoolState(tokenId: string): Promise<PoolState> {
-  const { factory, router } = soroswapClients()
+  const { factory } = soroswapClients()
 
   const existsTx = await factory.pair_exists({
     token_a: tokenId,
     token_b: XLM_SAC,
   })
-  if (!unwrapResult(existsTx.result, 'pair_exists')) {
+  if (!unwrapResult<boolean>(existsTx.result, 'pair_exists')) {
     return { exists: false, pairId: null, reserveToken: 0n, reserveXlm: 0n }
   }
 
   const pairTx = await factory.get_pair({ token_a: tokenId, token_b: XLM_SAC })
-  const pairId = unwrapResult(pairTx.result, 'get_pair')
+  const pairId = unwrapResult<string>(pairTx.result, 'get_pair')
 
-  const [token0] = await sortTokens(router, tokenId)
-  const [reserve0, reserve1] = await fetchReserves(router, tokenId)
+  // La única verdad sobre el orden y las reservas es el contrato del par:
+  // `sort_tokens` del router puede no coincidir con `token_0`/`token_1`.
+  const { token0, reserves } = await pairLayout(pairId)
 
   const tokenIsFirst = token0 === tokenId
   return {
     exists: true,
     pairId,
-    reserveToken: tokenIsFirst ? reserve0 : reserve1,
-    reserveXlm: tokenIsFirst ? reserve1 : reserve0,
+    reserveToken: tokenIsFirst ? reserves[0] : reserves[1],
+    reserveXlm: tokenIsFirst ? reserves[1] : reserves[0],
   }
 }
 
-/** Orden de tokens que usa el router: `[token_0, token_1]`. */
-async function sortTokens(
-  router: RouterClient,
-  tokenId: string,
-): Promise<[string, string]> {
-  const tx = await router.sort_tokens({ token_a: tokenId, token_b: XLM_SAC })
-  return unwrapResult(tx.result, 'sort_tokens')
+/** Cliente del contrato del par (fuente de verdad de orden y reservas). */
+function pairClientFor(pairId: string, signer?: Signer): PairClient {
+  return new PairClient({
+    contractId: pairId,
+    rpcUrl: RPC_URL,
+    networkPassphrase: NETWORK_PASSPHRASE,
+    publicKey: signer?.address,
+    signTransaction: signer,
+  })
 }
 
-/** Reservas del par, en el orden de `sort_tokens`. */
-async function fetchReserves(
-  router: RouterClient,
-  tokenId: string,
-): Promise<[bigint, bigint]> {
-  const tx = await router.get_reserves({
-    factory: SOROSWAP_FACTORY,
-    token_a: tokenId,
-    token_b: XLM_SAC,
-  })
-  return unwrapResult(tx.result, 'get_reserves')
+/** Orden interno `[token_0, token_1]` y reservas, tal como las guarda el par. */
+async function pairLayout(
+  pairId: string,
+  signer?: Signer,
+): Promise<{ token0: string; token1: string; reserves: [bigint, bigint] }> {
+  const pair = pairClientFor(pairId, signer)
+  const token0 = unwrapResult<string>((await pair.token_0()).result, 'token_0')
+  const token1 = unwrapResult<string>((await pair.token_1()).result, 'token_1')
+  const reserves = unwrapResult<[bigint, bigint]>((await pair.get_reserves()).result, 'get_reserves')
+  return { token0, token1, reserves }
 }
 
 /**
@@ -161,7 +177,7 @@ export async function ensurePair(
     token_a: tokenId,
     token_b: XLM_SAC,
   })
-  if (!unwrapResult(existsTx.result, 'pair_exists')) {
+  if (!unwrapResult<boolean>(existsTx.result, 'pair_exists')) {
     const createTx = await factory.create_pair({
       token_a: tokenId,
       token_b: XLM_SAC,
@@ -175,12 +191,12 @@ export async function ensurePair(
       token_a: tokenId,
       token_b: XLM_SAC,
     })
-    if (unwrapResult(checkTx.result, 'pair_exists')) {
+    if (unwrapResult<boolean>(checkTx.result, 'pair_exists')) {
       const pairTx = await factory.get_pair({
         token_a: tokenId,
         token_b: XLM_SAC,
       })
-      return unwrapResult(pairTx.result, 'get_pair')
+      return unwrapResult<string>(pairTx.result, 'get_pair')
     }
     await new Promise((resolve) => setTimeout(resolve, 1500))
   }
@@ -210,27 +226,33 @@ export async function addLiquidity(params: {
   const publicKey = signer.address
 
   const pair = await ensurePair(tokenId, signer)
-  const [token0] = await sortTokens(router, tokenId)
+  // La orientación real es la del par: montamos los amounts en el orden
+  // interno (token_0, token_1) para que el router no cruce los lados.
+  const { token0, token1 } = await pairLayout(pair, signer)
+  const tokenFirst = token0 === tokenId
+  if (!tokenFirst && token1 !== tokenId) {
+    throw new Error('El par no contiene el token del launchpad')
+  }
 
   const tx = await router.add_liquidity({
-    token_a: tokenId,
-    token_b: XLM_SAC,
-    amount_a_desired: amountToken,
-    amount_b_desired: amountXlm,
-    amount_a_min: withSlippage(amountToken),
-    amount_b_min: withSlippage(amountXlm),
+    token_a: tokenFirst ? tokenId : XLM_SAC,
+    token_b: tokenFirst ? XLM_SAC : tokenId,
+    amount_a_desired: tokenFirst ? amountToken : amountXlm,
+    amount_b_desired: tokenFirst ? amountXlm : amountToken,
+    amount_a_min: tokenFirst ? withSlippage(amountToken) : withSlippage(amountXlm),
+    amount_b_min: tokenFirst ? withSlippage(amountXlm) : withSlippage(amountToken),
     to: publicKey,
     deadline: unixDeadline(),
   })
   const { result } = await tx.signAndSend()
-  const [amountA, amountB, lpAmount] = unwrapResult(result, 'add_liquidity')
+  const [amountA, amountB, lpAmount] = unwrapResult<[bigint, bigint, bigint]>(result, 'add_liquidity')
 
-  // El router devuelve los amounts en el orden en que le pasamos los tokens.
-  const tokenIsFirst = token0 === tokenId
+  // El router devuelve los amounts en el orden en que le pasamos los tokens,
+  // que aquí es el orden real (token_0, token_1) del par.
   return {
     pair,
-    tokenAmount: tokenIsFirst ? amountA : amountB,
-    xlmAmount: tokenIsFirst ? amountB : amountA,
+    tokenAmount: tokenFirst ? amountA : amountB,
+    xlmAmount: tokenFirst ? amountB : amountA,
     lpAmount,
   }
 }
@@ -253,7 +275,7 @@ export async function swapTokenForXlm(params: {
     deadline: unixDeadline(),
   })
   const { result } = await tx.signAndSend()
-  return unwrapResult(result, 'swap')
+  return unwrapResult<bigint[]>(result, 'swap')
 }
 
 /** Deadline del router: unix timestamp + 5 minutos. */

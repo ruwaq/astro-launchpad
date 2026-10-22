@@ -1,6 +1,6 @@
 # Estado actual (para continuar en la próxima sesión)
 
-## Handoff rápido (Oct 22 2026, sesión 4)
+## Handoff rápido (Oct 22 2026, sesión 5)
 
 - Entorno: Termux (bionic). Proyecto en `~/projects/astro-launchpad`.
 - **stellar-cli 28.1.0 corre nativo** (binario oficial glibc + libs de Debian
@@ -21,6 +21,27 @@
 - Frontend completo y verificado on-chain (ver "Verificación" abajo).
   Dev server en `:5173` (background, PID 14751, log `/tmp/opencode/vite-dev.log`).
 
+## Sesión 5 — mercado sin backend
+
+- `frontend/src/lib/discovery.ts`: descubre pares token/XLM leyendo los eventos
+  `new_pair` de la factory (`getEvents` paginado con cursor, ventana de 10 000
+  ledgers). Para cada token lee metadata SEP-41 (nombre/símbolo/decimales) y
+  las reservas del par; tolera tokens rotos sin tumbar el listado.
+- `components/MarketList.tsx` + `hooks/useTokenList.ts`: tabla de tokens
+  recientes con precio en XLM, liquidez y enlace al par. Seleccionar una fila
+  cambia el swap de la página. El token de ejemplo (ASTRO) va fijado primero.
+- `tokenPriceInXlm()` en `lib/soroswap.ts`: precio de 1 token a partir de las
+  reservas.
+- El estado del par ahora se lee del contrato del par (`token_0`, `token_1`,
+  `get_reserves`) con bindings nuevos (`src/contracts/soroswap-pair/`), en vez
+  de fiarse del orden de `sort_tokens` del router. Verificado on-chain con
+  `verify:frontend` (swap + liquidez en par existente y en par nuevo).
+- `scripts/verify-discovery.mjs` (`npm run verify:discovery`): casos del parser
+  de eventos + descubrimiento real contra testnet, sin `STELLAR_SECRET`.
+- Límites conocidos: no es un indexer histórico. La ventana la marca la
+  retención de eventos del RPC (~14 h de testnet) y se listan 9 tokens como
+  máximo para no saturar el RPC público.
+
 ## Completado (sesión 4)
 
 1. **Capa Soroswap en el frontend** (`frontend/src/lib/soroswap.ts`), una sola
@@ -40,7 +61,7 @@
    - `lib/token.ts` → `deployToken()` (antes vivía dentro del componente).
    - `lib/signer.ts` → añade `signAuthEntry` (SEP-43) al `Signer`.
 3. **Bindings**: `src/contracts/xlm-sac/` (SAC nativo de XLM) añadido al
-   pipeline de `npm run bindings` (4 contratos en total).
+   pipeline de `npm run bindings` (5 contratos en total, con el par).
 4. **Scripts de verificación** (`frontend/scripts/`):
    - `verify-frontend-flow.mjs` → **carga el módulo real del frontend** con
      Vite SSR y ejecuta en testnet: pool → cotización → swap → liquidez, y el
@@ -77,8 +98,9 @@ Los tres `verify:*` necesitan `STELLAR_SECRET` (cuenta `dev`).
 - **El `deadline` del router se pasa como unix timestamp** (`now + 300`), que
   vale tanto si el router lo compara con el timestamp del ledger como con la
   secuencia.
-- `get_reserves` devuelve las reservas en el orden `token_0 < token_1`: hay que
-  usar `sort_tokens` para saber cuál es la del token del launchpad.
+- Orden y reservas se leen del contrato del par (`token_0`, `token_1`,
+  `get_reserves`); el `sort_tokens` del router no es la fuente de verdad.
+  `add_liquidity` monta los amounts en el orden interno del par.
 - Los contratos de Soroswap devuelven `Result<T, E>`: hay que desenvolverlo
   (`isErr()`/`unwrap()`), no leer `.result` dos veces.
 
@@ -87,7 +109,8 @@ Los tres `verify:*` necesitan `STELLAR_SECRET` (cuenta `dev`).
 1. **Verificación visual**: no hay navegador en el entorno. Con la app servida
    en `:5173` hay que probar con wallet (Freighter) el flujo completo.
 2. **Deploy en Vercel** (testnet online, es el objetivo del proyecto).
-3. UI/UX del roadmap: listado de tokens, charts, toasts, responsive.
+3. UI/UX del roadmap: charts, toasts, responsive. (El listado de tokens ya
+   está: `MarketList`, descubierto de eventos de la factory.)
 4. Mint/transfer de tokens desde la UI (el contrato ya los soporta).
 5. CI en GitHub Actions (el repo no tiene workflows).
 
@@ -109,6 +132,7 @@ node scripts/probe-pool.mjs # sonda de solo lectura del par
 STELLAR_SECRET=... npm run verify:launchpad
 STELLAR_SECRET=... npm run verify:soroswap
 STELLAR_SECRET=... npm run verify:frontend
+npm run verify:discovery    # solo lectura, sin secret
 
 # Contrato
 cargo test -p astro-token

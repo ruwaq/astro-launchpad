@@ -3,6 +3,7 @@ import { WalletButton } from './components/WalletButton'
 import { TokenInfoCard } from './components/TokenInfoCard'
 import { CreateTokenForm } from './components/CreateTokenForm'
 import { LiquidityForm } from './components/LiquidityForm'
+import { MarketList } from './components/MarketList'
 import { SwapCard } from './components/SwapCard'
 import { useWallet } from './store/wallet'
 import { ASTRO_TOKEN_ID, RPC_URL } from './lib/network'
@@ -13,7 +14,13 @@ const DEMO_TOKEN: LaunchpadToken = { id: ASTRO_TOKEN_ID, decimals: 7 }
 
 export default function App() {
   const { publicKey } = useWallet()
+  const [selectedToken, setSelectedToken] = useState<LaunchpadToken>(DEMO_TOKEN)
   const [createdToken, setCreatedToken] = useState<LaunchpadToken | null>(null)
+
+  function onCreate(token: LaunchpadToken) {
+    setCreatedToken(token)
+    setSelectedToken(token)
+  }
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
@@ -38,10 +45,10 @@ export default function App() {
         </div>
 
         <TokenInfoCard />
-        <SwapCard token={DEMO_TOKEN} />
-        <CreateTokenForm onCreated={(token) => setCreatedToken(token)} />
+        <MarketList selectedId={selectedToken.id} onSelect={setSelectedToken} />
+        <SwapCard token={selectedToken} />
+        <CreateTokenForm onCreated={onCreate} />
         {createdToken ? <LiquidityForm token={createdToken} /> : null}
-        {createdToken ? <SwapCard token={createdToken} /> : null}
 
         <footer className="mt-4 border-t border-slate-900 pt-4 text-xs text-slate-500">
           <p>

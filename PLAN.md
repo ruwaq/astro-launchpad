@@ -60,17 +60,20 @@ Empezar simple y crecer.
 6. Integrar Soroswap: crear par token/XLM y swap (todo on-chain). — **hecho**
    (par `CA32TMZ2AODXI7K7B6T2YPZR52HJKFCY5GT2DNHMOL326DLSNPX55BUP`;
    UI de liquidez + swap)
-7. UI/UX: listado de tokens, trading, charts, toasts, responsive, deploy Vercel.
-   — **pendiente** (deploy en Vercel es el objetivo del proyecto)
+7. UI/UX: listado de tokens (**hecho**: eventos `new_pair` de la factory),
+   trading, charts, toasts, responsive, deploy Vercel.
+   — **parcial** (deploy en Vercel es el objetivo del proyecto)
 8. Indexación ligera (eventos RPC o servicio existente) solo si se necesita.
 9. Escalar: monorepo, CI/CD, mainnet.
 
-## Dirección del roadmap tras la sesión 4
+## Dirección del roadmap tras la sesión 5
 - El flujo end-to-end ya funciona on-chain en testnet: crear token → crear par
-  → añadir liquidez → cotizar → swap. Lo que falta es producto (listado,
-  gráficos, feedback) y publicación (Vercel).
-- Decidir antes de seguir: ¿listado de tokens leído de eventos del RPC o
-  Soroswap API? Afecta a si hace falta backend/indexer.
+  → añadir liquidez → cotizar → swap, más un listado de mercado descubierto de
+  los eventos `new_pair` de la factory. Lo que falta es producto (gráficos,
+  feedback, responsive) y publicación (Vercel).
+- Decidido: el listado sale de `getEvents` del RPC, sin backend. Limitación
+  asumida: ventana de retención de eventos (~14 h) y 9 tokens por carga. Un
+  indexer solo hará falta si se quiere histórico completo.
 - Añadir CI (GitHub Actions) con `npm run build && npm run lint &&
   npm run smoke:render` y `cargo test -p astro-token`.
 

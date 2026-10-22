@@ -41,6 +41,13 @@ const CONTRACTS = [
     out: 'src/contracts/soroswap-factory',
   },
   {
+    // El spec del par es común a todos los pares (mismo wasm); el client se
+    // construye con el contractId de cada par en runtime.
+    id: 'CA32TMZ2AODXI7K7B6T2YPZR52HJKFCY5GT2DNHMOL326DLSNPX55BUP',
+    name: 'SoroswapPair',
+    out: 'src/contracts/soroswap-pair',
+  },
+  {
     id: constant('XLM_SAC'),
     name: 'XlmSac',
     out: 'src/contracts/xlm-sac',
