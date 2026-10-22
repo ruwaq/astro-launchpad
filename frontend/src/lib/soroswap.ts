@@ -88,8 +88,8 @@ export function soroswapClients(signer?: Signer) {
 /**
  * Estado del par token/XLM: si existe, su id y las reservas.
  *
- * El router ordena los tokens (`token_0 < token_1`), así que usamos
- * `sort_tokens` para saber qué reserva es la del token del launchpad.
+ * Tras confirmar la existencia en la factory, el orden y las reservas se
+ * leyen del contrato del par (`token_0`/`token_1`), que es la única verdad.
  */
 export async function fetchPoolState(tokenId: string): Promise<PoolState> {
   const { factory } = soroswapClients()
