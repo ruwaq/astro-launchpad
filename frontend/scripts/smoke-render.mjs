@@ -93,8 +93,25 @@ try {
     throw new Error('el hint de wallet no muestra las tarjetas de descarga')
   }
 
+  // Guía paso a paso: expandida (bienvenida) y tira compacta, con estados
+  // de preview porque localStorage no existe en SSR.
+  const { Onboarding } = await vite.ssrLoadModule('/src/components/Onboarding.tsx')
+  const stepsProps = { created: false, liquidity: false, swapped: false }
+  const guideOpen = renderToString(
+    createElement(Onboarding, { ...stepsProps, preview: 'open' }),
+  )
+  if (!guideOpen.includes('Bienvenido a Floodgate') || !guideOpen.includes('Conecta tu wallet')) {
+    throw new Error('la guía no muestra la bienvenida con los pasos')
+  }
+  const guideMini = renderToString(
+    createElement(Onboarding, { ...stepsProps, preview: 'collapsed' }),
+  )
+  if (!guideMini.includes('siguiente:')) {
+    throw new Error('la guía no muestra la tira de progreso')
+  }
+
   console.log(
-    `render OK (${html.length} + ${liquidityHtml.length} + ${walletFound.length} + ${walletMissing.length} chars) · ${checks.length + 3} secciones`,
+    `render OK (${html.length} + ${liquidityHtml.length} + ${walletFound.length} + ${walletMissing.length} + ${guideOpen.length} + ${guideMini.length} chars) · ${checks.length + 5} secciones`,
   )
 } catch (err) {
   failed = true

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { WalletButton } from './components/WalletButton'
 import { WalletInstallHint } from './components/WalletInstallHint'
+import { Onboarding } from './components/Onboarding'
 import { TokenInfoCard } from './components/TokenInfoCard'
 import { CreateTokenForm } from './components/CreateTokenForm'
 import { LiquidityForm } from './components/LiquidityForm'
@@ -18,6 +19,8 @@ export default function App() {
   const { publicKey } = useWallet()
   const [selectedToken, setSelectedToken] = useState<LaunchpadToken>(DEMO_TOKEN)
   const [createdToken, setCreatedToken] = useState<LaunchpadToken | null>(null)
+  const [liquidityDone, setLiquidityDone] = useState(false)
+  const [swappedOnce, setSwappedOnce] = useState(false)
 
   function onCreate(token: LaunchpadToken) {
     setCreatedToken(token)
@@ -29,7 +32,7 @@ export default function App() {
       <header className="sticky top-0 z-40 border-b border-slate-900 bg-slate-950/90 backdrop-blur-md">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3 sm:py-4">
           <h1 className="min-w-0 truncate text-lg font-semibold tracking-tight">
-            {BRAND.emoji} {BRAND.name}
+          {BRAND.emoji} {BRAND.name}
           </h1>
           <WalletButton />
         </div>
@@ -56,11 +59,30 @@ export default function App() {
           <WalletInstallHint />
         </div>
 
+        <Onboarding
+          created={Boolean(createdToken)}
+          liquidity={liquidityDone}
+          swapped={swappedOnce}
+        />
+
+        {/* Orden móvil pensado en una sola meta por pantalla:
+            1) explorar el mercado → 2) swap del token elegido →
+            3) lanzar el propio (crear + liquidez juntos). */}
+        <div id="sec-mercado" className="scroll-mt-20">
+          <MarketList selectedId={selectedToken.id} onSelect={setSelectedToken} />
+        </div>
+        <div id="sec-swap" className="scroll-mt-20">
+          <SwapCard token={selectedToken} onSwapped={() => setSwappedOnce(true)} />
+        </div>
+        <div id="sec-crear" className="scroll-mt-20 flex flex-col gap-4 sm:gap-6">
+          <CreateTokenForm onCreated={onCreate} />
+          {createdToken ? (
+            <LiquidityForm token={createdToken} onAdded={() => setLiquidityDone(true)} />
+          ) : null}
+        </div>
+
+        {/* Info del token de ejemplo: demo artifact al final de la página. */}
         <TokenInfoCard />
-        <MarketList selectedId={selectedToken.id} onSelect={setSelectedToken} />
-        <SwapCard token={selectedToken} />
-        <CreateTokenForm onCreated={onCreate} />
-        {createdToken ? <LiquidityForm token={createdToken} /> : null}
 
         <footer className="mt-4 border-t border-slate-900 pt-4 text-xs text-slate-500">
           <p>

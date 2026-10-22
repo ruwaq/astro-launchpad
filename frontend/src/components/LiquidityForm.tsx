@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { addLiquidity } from '../lib/soroswap'
 import { errorMessage, formatAmount, parseAmount, shortAddress } from '../lib/format'
+import { useTokenBalance } from '../hooks/useTokenBalance'
+import { ShareButton } from './ShareButton'
 import { walletSigner } from '../lib/signer'
 import type { LaunchpadToken } from '../lib/token'
 import { useWallet } from '../store/wallet'
@@ -15,9 +17,16 @@ const inputClass =
  * Dos pasos on-chain: la factory crea el par (si no existe) y el router
  * aporta ambos lados. El usuario firma cada transacción desde su wallet.
  */
-export function LiquidityForm({ token }: { token: LaunchpadToken }) {
+export function LiquidityForm({
+  token,
+  onAdded,
+}: {
+  token: LaunchpadToken
+  onAdded?: () => void
+}) {
   const { publicKey } = useWallet()
   const queryClient = useQueryClient()
+  const balance = useTokenBalance(publicKey, token.id)
   const [amountToken, setAmountToken] = useState('')
   const [amountXlm, setAmountXlm] = useState('')
   const [busy, setBusy] = useState(false)
@@ -56,6 +65,7 @@ export function LiquidityForm({ token }: { token: LaunchpadToken }) {
       setLp(result)
       setAmountToken('')
       setAmountXlm('')
+      onAdded?.()
       // Las reservas han cambiado: refrescamos el pool.
       await queryClient.invalidateQueries({
         queryKey: ['soroswap-pool', token.id],
@@ -98,6 +108,21 @@ export function LiquidityForm({ token }: { token: LaunchpadToken }) {
           />
         </label>
 
+        {publicKey && balance.data !== undefined ? (
+          <p className="text-xs text-slate-500">
+            Balance: {formatAmount(balance.data, token.decimals)}
+            <button
+              type="button"
+              onClick={() =>
+                setAmountToken(formatAmount(balance.data, token.decimals))
+              }
+              className="ml-2 -mt-1 inline-flex min-h-[44px] items-center rounded-md border border-slate-700 px-3 py-1.5 text-xs font-medium text-emerald-300 hover:border-emerald-500"
+            >
+              MAX
+            </button>
+          </p>
+        ) : null}
+
         <label className="block text-sm">
           <span className="text-slate-400">Monto en XLM (7 dec)</span>
           <input
@@ -125,7 +150,10 @@ export function LiquidityForm({ token }: { token: LaunchpadToken }) {
       ) : null}
 
       {error ? (
-        <p className="mt-4 rounded-lg border border-rose-900 bg-rose-950/40 px-3 py-2 text-sm text-rose-300">
+        <p
+          role="alert"
+          className="mt-4 rounded-lg border border-rose-900 bg-rose-950/40 px-3 py-2 text-sm text-rose-300"
+        >
           {error}
         </p>
       ) : null}
@@ -141,6 +169,12 @@ export function LiquidityForm({ token }: { token: LaunchpadToken }) {
             aportado: {formatAmount(lp.xlmAmount, 7)} · tokens LP minteados:{' '}
             {formatAmount(lp.lpAmount, 7)}
           </p>
+          <div className="pt-1">
+            <ShareButton
+              text={`🚀 Mi token ya tiene liquidez y es negociable en Floodgate 🌊 (testnet de Stellar)`}
+              url={`https://stellar.expert/explorer/testnet/contract/${lp.pair}`}
+            />
+          </div>
         </div>
       ) : null}
     </section>

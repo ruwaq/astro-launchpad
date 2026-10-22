@@ -48,7 +48,9 @@ export function TokenInfoCard() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-lg font-semibold">
           {token.name}{' '}
-          <span className="text-slate-500">({token.symbol})</span>
+          <span className="text-slate-500">
+            ({token.symbol}) · token de ejemplo
+          </span>
         </h2>
         <a
           href={`https://stellar.expert/explorer/testnet/contract/${ASTRO_TOKEN_ID}`}

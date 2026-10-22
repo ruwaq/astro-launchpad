@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { deployToken } from '../lib/token'
 import { walletSigner } from '../lib/signer'
+import { ShareButton } from './ShareButton'
 import { useWallet } from '../store/wallet'
 import { errorMessage, parseAmount } from '../lib/format'
 
@@ -177,27 +178,43 @@ export function CreateTokenForm({
       </div>
 
       {error ? (
-        <p className="mt-4 rounded-lg border border-rose-900 bg-rose-950/40 px-3 py-2 text-sm text-rose-300">
+        <p
+          role="alert"
+          className="mt-4 rounded-lg border border-rose-900 bg-rose-950/40 px-3 py-2 text-sm text-rose-300"
+        >
           {error}
         </p>
       ) : null}
 
       {createdId ? (
-        <p className="mt-4 rounded-lg border border-emerald-900 bg-emerald-950/40 px-3 py-2 text-sm text-emerald-300">
-          Token creado:{' '}
-          <a
-            href={`https://stellar.expert/explorer/testnet/contract/${createdId}`}
-            target="_blank"
-            rel="noreferrer"
-            className="font-mono underline"
-          >
-            {createdId}
-          </a>
-          {' · '}
-          <span className="text-emerald-200">
-            siguiente paso: añade liquidez con el panel de abajo
-          </span>
-        </p>
+        <div
+          role="status"
+          className="mt-4 rounded-lg border border-emerald-900 bg-emerald-950/40 px-3 py-2 text-sm text-emerald-300"
+        >
+          <p>
+            Token creado:{' '}
+            <a
+              href={`https://stellar.expert/explorer/testnet/contract/${createdId}`}
+              target="_blank"
+              rel="noreferrer"
+              className="font-mono underline"
+            >
+              {createdId}
+            </a>
+            {' · '}
+            <span className="text-emerald-200">
+              siguiente paso: añade liquidez con el panel de abajo
+            </span>
+          </p>
+          <div className="mt-2">
+            <ShareButton
+              text={`🌊 Lanzé ${
+                symbol.trim() || 'mi token'
+              } en Floodgate (testnet de Stellar) — ¡pronto en mainnet!`}
+              url={`https://stellar.expert/explorer/testnet/contract/${createdId}`}
+            />
+          </div>
+        </div>
       ) : null}
     </section>
   )

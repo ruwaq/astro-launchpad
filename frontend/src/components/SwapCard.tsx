@@ -23,7 +23,13 @@ const inputClass =
  * La cotización se lee del router (`router_get_amount_out` con las reservas
  * on-chain) y el swap se firma con un mínimo de salida con slippage.
  */
-export function SwapCard({ token }: { token: LaunchpadToken }) {
+export function SwapCard({
+  token,
+  onSwapped,
+}: {
+  token: LaunchpadToken
+  onSwapped?: () => void
+}) {
   const { publicKey } = useWallet()
   const queryClient = useQueryClient()
   const [amount, setAmount] = useState('')
@@ -73,6 +79,7 @@ export function SwapCard({ token }: { token: LaunchpadToken }) {
       })
       setSwapped({ in: amountIn, out: amounts[1] ?? quoted })
       setAmount('')
+      onSwapped?.()
       await queryClient.invalidateQueries({
         queryKey: ['soroswap-pool', token.id],
       })
@@ -128,6 +135,15 @@ export function SwapCard({ token }: { token: LaunchpadToken }) {
         {publicKey && balance.data !== undefined ? (
           <p className="text-xs text-slate-500">
             Tu balance: {formatAmount(balance.data, token.decimals)}
+            <button
+              type="button"
+              onClick={() =>
+                setAmount(formatAmount(balance.data, token.decimals))
+              }
+              className="ml-2 -mt-1 inline-flex min-h-[44px] items-center rounded-md border border-slate-700 px-3 py-1.5 text-xs font-medium text-emerald-300 hover:border-emerald-500"
+            >
+              MAX
+            </button>
           </p>
         ) : null}
 
@@ -158,7 +174,10 @@ export function SwapCard({ token }: { token: LaunchpadToken }) {
       </form>
 
       {error ? (
-        <p className="mt-4 rounded-lg border border-rose-900 bg-rose-950/40 px-3 py-2 text-sm text-rose-300">
+        <p
+          role="alert"
+          className="mt-4 rounded-lg border border-rose-900 bg-rose-950/40 px-3 py-2 text-sm text-rose-300"
+        >
           {error}
         </p>
       ) : null}
