@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "check": "npm run build && npm run lint && npm run smoke:render",
+    "deploy": "npm run build && npx -y wrangler@latest deploy",
     "smoke:render": "node scripts/smoke-render.mjs",
     "preview": "vite preview",
     "bindings": "node scripts/generate-bindings.mjs",

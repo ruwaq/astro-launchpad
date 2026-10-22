@@ -27,6 +27,21 @@
 - `smoke:render` ahora comprueba "Floodgate" y sobres de WC en el stub
   (`scripts/fixtures/wallets-kit-stub.ts`). `npm run check` verde pre-commit.
 
+- **Deploy hecho (2026-10-22)**: URL de producción
+  **https://floodgate-stellar.pepepop2000.workers.dev** (Cloudflare Worker con
+  assets estáticos; token API del usuario en `~/.config/cloudflare/cf-api-token`,
+  perms de Workers sí / Pages no — por eso es Workers, no Pages).
+  - Verificado online: `/` 200 con título "Floodgate 🌊", fallback SPA `=/mercado`
+    200, manifest + icon-192/512 200, vendors con etag.
+  - Config: `frontend/wrangler.jsonc` (assets-only, `not_found_handling`
+    "single-page-application"). El `_redirects` de Pages NO vale en Workers
+    (regla infinita, error 100324) — el fallback lo da `not_found_handling`.
+  - Versión desplegada: `86a8b734-a60c-498a-a400-fe56d61f4808`.
+  - Re-desplegar: `cd frontend && npm run deploy` (build + wrangler deploy,
+    con `CLOUDFLARE_API_TOKEN` de ese fichero) — comentar variantes custom
+    domain en el dashboard de CF.
+  - Bundle optimizado (sección perf abajo): main 84 kB + 3 vendors cacheables.
+
 ## (Historia) Handoff rápido (Oct 22 2026, sesión 5)
 
 - Entorno: Termux (bionic). Proyecto en `~/projects/astro-launchpad`.
