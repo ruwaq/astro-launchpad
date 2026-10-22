@@ -9,6 +9,8 @@ const queryClient = new QueryClient({
     queries: {
       retry: 1,
       refetchOnWindowFocus: false,
+      // Ligero con el RPC público: cada consulta vive 30 s sin re-fetch.
+      staleTime: 30_000,
     },
   },
 })

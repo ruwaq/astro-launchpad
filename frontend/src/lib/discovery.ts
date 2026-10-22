@@ -136,11 +136,22 @@ export async function discoverPairs(options?: {
 }
 
 /** Metadata SEP-41 con fallback legible si el contrato no la implementa. */
+const METADATA_TTL_MS = 10 * 60 * 1000
+const metadataCache = new Map<
+  string,
+  { at: number; meta: { name: string; symbol: string; decimals: number } }
+>()
+
 async function fetchTokenMetadata(tokenId: string): Promise<{
   name: string
   symbol: string
   decimals: number
 }> {
+  // Indexado ligero: la metadata SEP-41 no cambia; 10 min de caché evitan
+  // 3 simulaciones por token en cada refresh del feed.
+  const cached = metadataCache.get(tokenId)
+  if (cached && Date.now() - cached.at < METADATA_TTL_MS) return cached.meta
+
   const client = tokenClient(tokenId)
   const fallback = {
     name: 'Token sin metadata',
@@ -154,12 +165,15 @@ async function fetchTokenMetadata(tokenId: string): Promise<{
       client.symbol(),
       client.decimals(),
     ])
-    return {
+    const meta = {
       name: nameTx.result || fallback.name,
       symbol: symbolTx.result || fallback.symbol,
       decimals: decimalsTx.result,
     }
+    metadataCache.set(tokenId, { at: Date.now(), meta })
+    return meta
   } catch {
+    // Sin cachear el fallback: puede ser un fallo transitorio del RPC.
     return fallback
   }
 }
@@ -228,6 +242,7 @@ export async function discoverTokens(options?: {
   )
   const selected = [...pinnedPairs, ...discovered].slice(0, maxTokens)
 
+  // Concurrency 3 medida: 5 dispara throttling del RPC público y sale peor.
   const listings = await mapLimit(selected, 3, fetchTokenListing)
   return listings.filter((listing): listing is TokenListing => listing !== null)
 }
