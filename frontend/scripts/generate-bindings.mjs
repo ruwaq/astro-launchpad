@@ -40,6 +40,11 @@ const CONTRACTS = [
     name: 'SoroswapFactory',
     out: 'src/contracts/soroswap-factory',
   },
+  {
+    id: constant('XLM_SAC'),
+    name: 'XlmSac',
+    out: 'src/contracts/xlm-sac',
+  },
 ]
 
 for (const contract of CONTRACTS) {

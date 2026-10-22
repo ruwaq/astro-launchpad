@@ -1,0 +1,169 @@
+import { useState } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useSoroswapPool } from '../hooks/useSoroswapPool'
+import { useTokenBalance } from '../hooks/useTokenBalance'
+import { errorMessage, formatAmount, parseAmount, shortAddress } from '../lib/format'
+import {
+  quoteTokenForXlm,
+  SLIPPAGE_PERCENT,
+  swapTokenForXlm,
+  withSlippage,
+  type PoolState,
+} from '../lib/soroswap'
+import type { LaunchpadToken } from '../lib/token'
+import { walletSigner } from '../lib/signer'
+import { useWallet } from '../store/wallet'
+
+const inputClass =
+  'w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-emerald-500'
+
+/**
+ * Intercambio de token por XLM contra el par de Soroswap.
+ *
+ * La cotización se lee del router (`router_get_amount_out` con las reservas
+ * on-chain) y el swap se firma con un mínimo de salida con slippage.
+ */
+export function SwapCard({ token }: { token: LaunchpadToken }) {
+  const { publicKey } = useWallet()
+  const queryClient = useQueryClient()
+  const [amount, setAmount] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [swapped, setSwapped] = useState<{ in: bigint; out: bigint } | null>(
+    null,
+  )
+
+  const pool = useSoroswapPool(token.id)
+  const balance = useTokenBalance(publicKey, token.id)
+
+  const amountIn = parseAmount(amount, token.decimals)
+  const quote = useQuery({
+    queryKey: ['soroswap-quote', token.id, amountIn.toString()],
+    queryFn: () => quoteTokenForXlm(amountIn, pool.data as PoolState),
+    enabled: amountIn > 0n && Boolean(pool.data?.exists),
+    staleTime: 5_000,
+  })
+
+  async function onSwap(event: React.FormEvent) {
+    event.preventDefault()
+    setError(null)
+    setSwapped(null)
+
+    if (!publicKey) {
+      setError('Conecta tu wallet para hacer el swap.')
+      return
+    }
+    if (amountIn <= 0n) {
+      setError('Introduce un monto mayor que 0.')
+      return
+    }
+    const quoted = quote.data ?? 0n
+    if (quoted <= 0n) {
+      setError('No hay cotización para ese monto (el par puede no tener liquidez).')
+      return
+    }
+
+    setBusy(true)
+    try {
+      const amounts = await swapTokenForXlm({
+        tokenId: token.id,
+        amountIn,
+        amountOutMin: withSlippage(quoted),
+        signer: walletSigner(publicKey),
+      })
+      setSwapped({ in: amountIn, out: amounts[1] ?? quoted })
+      setAmount('')
+      await queryClient.invalidateQueries({
+        queryKey: ['soroswap-pool', token.id],
+      })
+      await queryClient.invalidateQueries({
+        queryKey: ['token-balance', token.id],
+      })
+    } catch (err) {
+      setError(errorMessage(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-6">
+      <h2 className="text-lg font-semibold">
+        Swap a XLM · {shortAddress(token.id)}
+      </h2>
+      <p className="mt-1 text-sm text-slate-400">
+        Cotiza y cambia tu token por XLM nativo en el par de Soroswap.
+      </p>
+
+      {pool.data?.exists ? (
+        <p className="mt-3 text-xs text-slate-500">
+          Reservas: {formatAmount(pool.data.reserveToken, token.decimals)} token ·{' '}
+          {formatAmount(pool.data.reserveXlm, 7)} XLM
+        </p>
+      ) : (
+        <p className="mt-3 text-xs text-amber-400">
+          Este token todavía no tiene par con XLM: añade liquidez primero.
+        </p>
+      )}
+
+      <form onSubmit={onSwap} className="mt-4 grid gap-3">
+        <label className="block text-sm">
+          <span className="text-slate-400">
+            Monto del token ({token.decimals} dec)
+          </span>
+          <input
+            className={`${inputClass} mt-1`}
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            placeholder="1"
+            inputMode="decimal"
+          />
+        </label>
+
+        {publicKey && balance.data !== undefined ? (
+          <p className="text-xs text-slate-500">
+            Tu balance: {formatAmount(balance.data, token.decimals)}
+          </p>
+        ) : null}
+
+        {amountIn > 0n && pool.data?.exists ? (
+          <p className="text-sm text-slate-300">
+            Recibes ≈{' '}
+            <span className="font-medium text-emerald-400">
+              {quote.data !== undefined
+                ? `${formatAmount(quote.data, 7)} XLM`
+                : 'cotizando…'}
+            </span>
+          </p>
+        ) : null}
+
+        <div>
+          <button
+            type="submit"
+            disabled={busy || !publicKey || !pool.data?.exists}
+            className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-medium text-slate-950 hover:bg-emerald-400 disabled:opacity-60"
+          >
+            {busy ? 'Cambiando…' : 'Cambiar por XLM'}
+          </button>
+          <p className="mt-2 text-xs text-slate-500">
+            Slippage {SLIPPAGE_PERCENT}% · mínimo de salida aplicado por el
+            router.
+          </p>
+        </div>
+      </form>
+
+      {error ? (
+        <p className="mt-4 rounded-lg border border-rose-900 bg-rose-950/40 px-3 py-2 text-sm text-rose-300">
+          {error}
+        </p>
+      ) : null}
+
+      {swapped ? (
+        <p className="mt-4 rounded-lg border border-emerald-900 bg-emerald-950/40 px-3 py-2 text-sm text-emerald-300">
+          Swap hecho ✓ {formatAmount(swapped.in, token.decimals)} token →{' '}
+          {formatAmount(swapped.out, 7)} XLM
+        </p>
+      ) : null}
+    </section>
+  )
+}

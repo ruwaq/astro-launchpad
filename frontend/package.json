@@ -7,9 +7,12 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
+    "smoke:render": "node scripts/smoke-render.mjs",
     "preview": "vite preview",
     "bindings": "node scripts/generate-bindings.mjs",
-    "verify:launchpad": "node scripts/verify-launchpad.mjs"
+    "verify:launchpad": "node scripts/verify-launchpad.mjs",
+    "verify:soroswap": "node scripts/verify-soroswap.mjs",
+    "verify:frontend": "node scripts/verify-frontend-flow.mjs"
   },
   "dependencies": {
     "@creit.tech/stellar-wallets-kit": "^2.7.1",

@@ -13,5 +13,10 @@ export function walletSigner(address: string): Signer {
         networkPassphrase: opts?.networkPassphrase,
         address: opts?.address ?? address,
       }),
+    signAuthEntry: (authEntry, opts) =>
+      StellarWalletsKit.signAuthEntry(authEntry, {
+        networkPassphrase: opts?.networkPassphrase,
+        address: opts?.address ?? address,
+      }),
   }
 }

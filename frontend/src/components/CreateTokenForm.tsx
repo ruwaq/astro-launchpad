@@ -1,6 +1,5 @@
 import { useState } from 'react'
-import { Client as AstroTokenClient } from '../contracts'
-import { ASTRO_WASM_HASH, NETWORK_PASSPHRASE, RPC_URL } from '../lib/network'
+import { deployToken } from '../lib/token'
 import { walletSigner } from '../lib/signer'
 import { useWallet } from '../store/wallet'
 import { errorMessage, parseAmount } from '../lib/format'
@@ -8,7 +7,11 @@ import { errorMessage, parseAmount } from '../lib/format'
 const inputClass =
   'w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-emerald-500'
 
-export function CreateTokenForm() {
+export function CreateTokenForm({
+  onCreated,
+}: {
+  onCreated?: (token: { id: string; decimals: number }) => void
+}) {
   const { publicKey } = useWallet()
   const [name, setName] = useState('')
   const [symbol, setSymbol] = useState('')
@@ -34,25 +37,15 @@ export function CreateTokenForm() {
 
     setBusy(true)
     try {
-      const tx = await AstroTokenClient.deploy(
-        {
-          name: name.trim(),
-          symbol: symbol.trim().toUpperCase(),
-          decimals,
-          owner: publicKey,
-          initial_supply: parseAmount(supply, decimals),
-        },
-        {
-          wasmHash: ASTRO_WASM_HASH,
-          rpcUrl: RPC_URL,
-          networkPassphrase: NETWORK_PASSPHRASE,
-          publicKey,
-          address: publicKey,
-          signTransaction: walletSigner(publicKey),
-        },
-      )
-      const { result } = await tx.signAndSend()
-      setCreatedId(result.options.contractId)
+      const newId = await deployToken({
+        name: name.trim(),
+        symbol: symbol.trim().toUpperCase(),
+        decimals,
+        initialSupply: parseAmount(supply, decimals),
+        signer: walletSigner(publicKey),
+      })
+      setCreatedId(newId)
+      onCreated?.({ id: newId, decimals })
     } catch (err) {
       setError(errorMessage(err))
     } finally {

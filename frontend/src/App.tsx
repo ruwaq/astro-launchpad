@@ -1,11 +1,19 @@
+import { useState } from 'react'
 import { WalletButton } from './components/WalletButton'
 import { TokenInfoCard } from './components/TokenInfoCard'
 import { CreateTokenForm } from './components/CreateTokenForm'
+import { LiquidityForm } from './components/LiquidityForm'
+import { SwapCard } from './components/SwapCard'
 import { useWallet } from './store/wallet'
 import { ASTRO_TOKEN_ID, RPC_URL } from './lib/network'
+import type { LaunchpadToken } from './lib/token'
+
+/** Token de ejemplo: ya está desplegado y con par en Soroswap. */
+const DEMO_TOKEN: LaunchpadToken = { id: ASTRO_TOKEN_ID, decimals: 7 }
 
 export default function App() {
   const { publicKey } = useWallet()
+  const [createdToken, setCreatedToken] = useState<LaunchpadToken | null>(null)
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
@@ -30,7 +38,10 @@ export default function App() {
         </div>
 
         <TokenInfoCard />
-        <CreateTokenForm />
+        <SwapCard token={DEMO_TOKEN} />
+        <CreateTokenForm onCreated={(token) => setCreatedToken(token)} />
+        {createdToken ? <LiquidityForm token={createdToken} /> : null}
+        {createdToken ? <SwapCard token={createdToken} /> : null}
 
         <footer className="mt-4 border-t border-slate-900 pt-4 text-xs text-slate-500">
           <p>

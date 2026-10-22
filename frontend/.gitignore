@@ -12,6 +12,11 @@ dist
 dist-ssr
 *.local
 
+# El lockfile del repo es package-lock.json (npm). Los ficheros de pnpm son
+# artefactos locales de una instalacion con pnpm: no se versionan.
+pnpm-lock.yaml
+pnpm-workspace.yaml
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
