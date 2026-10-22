@@ -79,6 +79,11 @@ export function SwapCard({ token }: { token: LaunchpadToken }) {
       await queryClient.invalidateQueries({
         queryKey: ['token-balance', token.id],
       })
+      // El precio del mercado cambia: se marca stale sin refetch inmediato.
+      await queryClient.invalidateQueries({
+        queryKey: ['token-list'],
+        refetchType: 'none',
+      })
     } catch (err) {
       setError(errorMessage(err))
     } finally {

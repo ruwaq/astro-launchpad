@@ -51,7 +51,7 @@ try {
     ),
   )
 
-  const checks = ['Astro Launchpad', 'Crea tu token', 'Swap a XLM']
+  const checks = ['Astro Launchpad', 'Mercado', 'Crea tu token', 'Swap a XLM']
   for (const text of checks) {
     if (!html.includes(text)) {
       throw new Error(`el render no contiene "${text}"`)

@@ -60,6 +60,8 @@ export function LiquidityForm({ token }: { token: LaunchpadToken }) {
       await queryClient.invalidateQueries({
         queryKey: ['soroswap-pool', token.id],
       })
+      // El par puede ser nuevo: que aparezca en el mercado.
+      await queryClient.invalidateQueries({ queryKey: ['token-list'] })
     } catch (err) {
       setError(errorMessage(err))
     } finally {
