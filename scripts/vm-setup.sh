@@ -10,7 +10,6 @@ sudo apt -y install \
   git curl unzip rsync jq ca-certificates \
   build-essential pkg-config libssl-dev \
   openssh-server
-sudo systemctl enable --now ssh
 
 echo "== 2/4 acceso SSH desde Termux =="
 mkdir -p "$HOME/.ssh" && chmod 700 "$HOME/.ssh"
@@ -29,6 +28,16 @@ if ! command -v opencode >/dev/null 2>&1; then
   curl -fsSL https://opencode.ai/install | bash
 else
   echo "opencode ya instalado: $(opencode --version 2>/dev/null || echo ok)"
+fi
+
+echo "== 2c/4 config opencode desde el espejo =="
+cfgsrc="/mnt/shared/Download/astro-launchpad/scripts/opencode-env"
+if [ -d "$cfgsrc" ]; then
+  mkdir -p "$HOME/.config/opencode"
+  cp -a "$cfgsrc"/. "$HOME/.config/opencode/"
+  echo "config copiada"
+else
+  echo "AVISO: sin $cfgsrc (opencode pedirá login la primera vez)"
 fi
 
 echo "== 3/4 proyecto desde storage compartido =="
