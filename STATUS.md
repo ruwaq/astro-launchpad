@@ -123,6 +123,7 @@ export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
 # Frontend
 cd frontend
 npm run dev                 # :5173
+npm run check               # build + lint + smoke (sin red)
 npm run build               # tsc + vite build
 npm run lint                # oxlint
 npm run smoke:render        # render del árbol de componentes

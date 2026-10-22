@@ -30,6 +30,7 @@ npm run dev          # http://localhost:5173
 
 ```bash
 # Frontend
+npm run check          # build + lint + smoke de render (sin red)
 npm run build          # tsc + vite build
 npm run lint           # oxlint
 npm run smoke:render   # render del árbol de componentes (sin navegador)
