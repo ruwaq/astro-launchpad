@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { WalletButton } from './components/WalletButton'
+import { WalletInstallHint } from './components/WalletInstallHint'
 import { TokenInfoCard } from './components/TokenInfoCard'
 import { CreateTokenForm } from './components/CreateTokenForm'
 import { LiquidityForm } from './components/LiquidityForm'
@@ -52,6 +53,7 @@ export default function App() {
             <span className="h-2 w-2 rounded-full bg-amber-400" />
             testnet · login = wallet
           </span>
+          <WalletInstallHint />
         </div>
 
         <TokenInfoCard />

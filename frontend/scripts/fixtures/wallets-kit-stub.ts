@@ -20,6 +20,29 @@ export const StellarWalletsKit = {
   async signAuthEntry() {
     return { signedAuthEntry: '' }
   },
+  async refreshSupportedWallets() {
+    // Detección determinista para el smoke: una disponible y otra no.
+    return [
+      {
+        id: 'freighter',
+        name: 'Freighter',
+        type: 'HOT_WALLET',
+        isAvailable: true,
+        isPlatformWrapper: false,
+        icon: 'freighter.svg',
+        url: 'https://freighter.app',
+      },
+      {
+        id: 'xbull',
+        name: 'xBull',
+        type: 'HOT_WALLET',
+        isAvailable: false,
+        isPlatformWrapper: false,
+        icon: 'xbull.svg',
+        url: 'https://xbull.app',
+      },
+    ]
+  },
 }
 
 export const defaultModules = () => []

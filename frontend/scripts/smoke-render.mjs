@@ -75,8 +75,26 @@ try {
     throw new Error('el render de LiquidityForm no contiene "Añade liquidez"')
   }
 
+  // Detección de wallet: ambas ramas (detectada / por instalar), con datos
+  // deterministas porque los effects no corren en SSR.
+  const { WalletInstallHint } = await vite.ssrLoadModule(
+    '/src/components/WalletInstallHint.tsx',
+  )
+  const walletFound = renderToString(
+    createElement(WalletInstallHint, { preview: 'found' }),
+  )
+  if (!walletFound.includes('Wallet detectada')) {
+    throw new Error('el hint de wallet no muestra la detección')
+  }
+  const walletMissing = renderToString(
+    createElement(WalletInstallHint, { preview: 'missing' }),
+  )
+  if (!walletMissing.includes('Descargar') || !walletMissing.includes('Freighter')) {
+    throw new Error('el hint de wallet no muestra las tarjetas de descarga')
+  }
+
   console.log(
-    `render OK (${html.length} + ${liquidityHtml.length} chars) · ${checks.length + 1} secciones`,
+    `render OK (${html.length} + ${liquidityHtml.length} + ${walletFound.length} + ${walletMissing.length} chars) · ${checks.length + 3} secciones`,
   )
 } catch (err) {
   failed = true
