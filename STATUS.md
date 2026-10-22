@@ -22,8 +22,9 @@
 - Accesibilidad: `role="alert"` en errores, `role="status"` en éxitos.
 - Smoke: 11 secciones verificadas (App base, liquidez, wallet ×2, guía ×2,
   arte ×2). `LaunchpadToken` ganó `symbol?: string` para el demo generativo.
-- Commits: `6e14bab` (UX guiada+max+share), `siguiente` (mercado OpenSea) —
-  pendiente de registrar aquí tras el commit.
+- Commits: `6e14bab` (UX guiada+MAX+share) y `683de9e` (mercado OpenSea).
+  Deploy: versión `e428aa63-c79e-4b0e-b744-4b9ebf416bd9` (200 en `/`,
+  arte dentro del bundle, la guía arranca compacta hasta primer uso).
 
 ## Handoff rápido (Oct 22 2026, sesión 6 — rebrand + móvil + deploy)
 
