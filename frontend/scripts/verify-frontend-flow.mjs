@@ -36,6 +36,7 @@ let failed = false
 try {
   const soroswap = await vite.ssrLoadModule('/src/lib/soroswap.ts')
   const tokenLib = await vite.ssrLoadModule('/src/lib/token.ts')
+  const discovery = await vite.ssrLoadModule('/src/lib/discovery.ts')
 
   // 1. Estado del par (lectura).
   const pool = await soroswap.fetchPoolState(ASTRO)
@@ -158,8 +159,32 @@ try {
   })
   console.log('swap del par nuevo -> out:', newSwap[1]?.toString())
 
+  // 6. El token nuevo tiene que aparecer en el mercado (eventos de la factory).
+  // Los eventos se indexan en el ledger siguiente: reintentos acotados.
+  let listing = null
+  for (let attempt = 1; attempt <= 5 && !listing; attempt++) {
+    const tokens = await discovery.discoverTokens({ maxTokens: 12 })
+    listing = tokens.find((item) => item.id === token) ?? null
+    console.log(`mercado intento ${attempt}: ${listing ? 'encontrado' : 'aun no'}`)
+    if (!listing && attempt < 5) {
+      await new Promise((resolve) => setTimeout(resolve, 1500))
+    }
+  }
+  if (!listing) throw new Error('el token nuevo no aparece en el mercado')
+  console.log(
+    'mercado:',
+    listing.symbol,
+    '|',
+    listing.name,
+    '| reservas',
+    listing.pool.reserveToken.toString(),
+    '/',
+    listing.pool.reserveXlm.toString(),
+  )
+
   console.log('\nOK: pool + cotizacion + swap + liquidez (mismo codigo que la UI)')
   console.log('OK: token nuevo -> par -> liquidez -> swap')
+  console.log('OK: el token nuevo aparece en el mercado (descubierto de eventos)')
 } catch (err) {
   failed = true
   console.error('\nFALLO:', err?.message ?? err)

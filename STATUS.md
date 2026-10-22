@@ -64,8 +64,9 @@
    pipeline de `npm run bindings` (5 contratos en total, con el par).
 4. **Scripts de verificación** (`frontend/scripts/`):
    - `verify-frontend-flow.mjs` → **carga el módulo real del frontend** con
-     Vite SSR y ejecuta en testnet: pool → cotización → swap → liquidez, y el
-     camino completo token nuevo → par → liquidez → swap.
+     Vite SSR y ejecuta en testnet: pool → cotización → swap → liquidez, el
+     camino completo token nuevo → par → liquidez → swap, y comprueba que ese
+     token aparece en el mercado descubierto de eventos.
    - `verify-soroswap.mjs` → smoke del AMM (ya existía).
    - `verify-launchpad.mjs` → smoke del deploy del token (ya existía).
    - `probe-pool.mjs` → sonda de solo lectura (reservas + las dos cotizaciones).
