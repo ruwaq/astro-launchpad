@@ -1,8 +1,13 @@
-# Astro Launchpad (Minimal MVP)
+# Floodgate 🌊 (Launchpad de Stellar, Minimal MVP)
 
 Launchpad + AMM sobre Stellar/Soroban: crea tu token, añádele liquidez contra
 XLM y swapea, todo on-chain en testnet. Sin backend de usuarios: la identidad es
 la wallet y los datos se leen de la red.
+
+**Nombre de la marca:** *Floodgate* viene del código interno de `stellar-core`
+(`Floodgate`, `src/overlay/Floodgate.cpp`): la compuerta que inunda la red con
+las transacciones de los peers hasta que el ledger cierra. Fuente única de la
+marca: `frontend/src/lib/brand.ts`. **El token de ejemplo (ASTRO) no cambia.**
 
 Ver `PLAN.md` para arquitectura y roadmap, `STATUS.md` para el estado actual.
 
@@ -59,6 +64,22 @@ cd contracts/token && stellar contract build
 - XLM SAC: `CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC`
 
 Direcciones y trampas de Soroswap: `AGENTS.md`.
+
+## Móvil y deploy (Vercel)
+
+- **PWA instalable**: manifest (`frontend/public/manifest.webmanifest`),
+  `theme-color` e iconos PNG (`icon-192.png`/`icon-512.png`, rasterizados con
+  ImageMagick desde `frontend/scripts/assets/brand-icon.svg`). En el teléfono:
+  menú del navegador → *Añadir a la pantalla de inicio*.
+- **Wallets móviles (WalletConnect v2)**: activar con `VITE_WC_PROJECT_ID`
+  (proyecto gratis en <https://cloud.reown.com>); ver `.env.example`. La app
+  firma con `signTransaction`, que el módulo WC cubre.
+- **Deploy**:
+  ```bash
+  cd frontend
+  npx vercel login
+  npx vercel --prod      # dominio *.vercel.app; el build usa vercel.json
+  ```
 
 ## Servicios locales
 

@@ -23,12 +23,14 @@ function Price({ token }: { token: TokenListing }) {
 /**
  * Tokens recientes con par en XLM, descubiertos de los eventos de la factory
  * de Soroswap. Seleccionar una fila cambia el swap de la página.
+ *
+ * Móvil: tarjetas con tap targets altos. Desktop: tabla compacta (sm+).
  */
 export function MarketList({ selectedId, onSelect }: Props) {
   const list = useTokenList()
 
   return (
-    <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-6">
+    <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-4 sm:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold">Mercado</h2>
@@ -41,7 +43,7 @@ export function MarketList({ selectedId, onSelect }: Props) {
           type="button"
           onClick={() => void list.refetch()}
           disabled={list.isFetching}
-          className="rounded-lg border border-slate-800 px-3 py-1.5 text-xs text-slate-300 hover:border-slate-600 disabled:opacity-50"
+          className="min-h-[44px] rounded-lg border border-slate-800 px-3 py-2 text-xs text-slate-300 hover:border-slate-600 disabled:opacity-50"
         >
           {list.isFetching ? 'Actualizando…' : 'Actualizar'}
         </button>
@@ -67,64 +69,113 @@ export function MarketList({ selectedId, onSelect }: Props) {
       ) : null}
 
       {list.data && list.data.length > 0 ? (
-        <div className="mt-4 overflow-x-auto">
-          <table className="w-full min-w-[36rem] text-left text-sm">
-            <thead className="text-xs uppercase tracking-wide text-slate-500">
-              <tr>
-                <th className="pb-2 pr-3 font-medium">Token</th>
-                <th className="pb-2 pr-3 font-medium">Precio</th>
-                <th className="pb-2 pr-3 font-medium">Liquidez XLM</th>
-                <th className="pb-2 font-medium">Par</th>
-              </tr>
-            </thead>
-            <tbody>
-              {list.data.map((token) => {
-                const selected = token.id === selectedId
-                return (
-                  <tr
-                    key={token.id}
-                    className={`border-t border-slate-800/70 ${
-                      selected ? 'bg-emerald-950/20' : ''
-                    }`}
+        <>
+          {/* Móvil: una tarjeta por par; el panel es el tap target. */}
+          <ul className="mt-4 flex flex-col gap-2 sm:hidden">
+            {list.data.map((token) => (
+              <li
+                key={token.id}
+                className={`rounded-lg border ${
+                  token.id === selectedId
+                    ? 'border-emerald-700 bg-emerald-950/20'
+                    : 'border-slate-800'
+                }`}
+              >
+                <div className="flex items-stretch gap-1 p-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onSelect({ id: token.id, decimals: token.decimals })
+                    }
+                    className="min-w-0 flex-1 rounded px-1.5 py-1.5 text-left"
                   >
-                    <td className="py-2 pr-3">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          onSelect({ id: token.id, decimals: token.decimals })
-                        }
-                        className="text-left"
-                      >
-                        <span className="font-medium text-slate-100">
-                          {token.symbol}
-                        </span>
-                        <span className="ml-2 text-xs text-slate-500">
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="min-w-0 truncate text-base font-medium text-slate-100">
+                        {token.symbol}
+                        <span className="ml-2 text-xs font-normal text-slate-500">
                           {token.name}
                         </span>
-                      </button>
-                    </td>
-                    <td className="py-2 pr-3">
+                      </span>
                       <Price token={token} />
-                    </td>
-                    <td className="py-2 pr-3 font-mono text-xs text-slate-300">
-                      {formatAmount(token.pool.reserveXlm, 7)}
-                    </td>
-                    <td className="py-2">
-                      <a
-                        href={`https://stellar.expert/explorer/testnet/contract/${token.pool.pairId}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="font-mono text-xs text-slate-400 hover:text-emerald-400"
-                      >
-                        {shortAddress(token.id)} ↗
-                      </a>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
+                    </div>
+                    <div className="mt-1 text-xs text-slate-400">
+                      Liquidez {formatAmount(token.pool.reserveXlm, 7)} XLM
+                    </div>
+                  </button>
+                  <a
+                    href={`https://stellar.expert/explorer/testnet/contract/${token.pool.pairId}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label={`Ver ${token.symbol} en el explorador`}
+                    className="flex min-w-[44px] items-center justify-center rounded text-slate-400 hover:text-emerald-400"
+                  >
+                    ↗
+                  </a>
+                </div>
+              </li>
+            ))}
+          </ul>
+
+          {/* Desktop: tabla densa. */}
+          <div className="hidden overflow-x-auto sm:block">
+            <table className="w-full min-w-[36rem] text-left text-sm">
+              <thead className="text-xs uppercase tracking-wide text-slate-500">
+                <tr>
+                  <th className="pb-2 pr-3 font-medium">Token</th>
+                  <th className="pb-2 pr-3 font-medium">Precio</th>
+                  <th className="pb-2 pr-3 font-medium">Liquidez XLM</th>
+                  <th className="pb-2 font-medium">Par</th>
+                </tr>
+              </thead>
+              <tbody>
+                {list.data.map((token) => {
+                  const selected = token.id === selectedId
+                  return (
+                    <tr
+                      key={token.id}
+                      className={`border-t border-slate-800/70 ${
+                        selected ? 'bg-emerald-950/20' : ''
+                      }`}
+                    >
+                      <td className="py-2 pr-3">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            onSelect({ id: token.id, decimals: token.decimals })
+                          }
+                          className="text-left"
+                        >
+                          <span className="font-medium text-slate-100">
+                            {token.symbol}
+                          </span>
+                          <span className="ml-2 text-xs text-slate-500">
+                            {token.name}
+                          </span>
+                        </button>
+                      </td>
+                      <td className="py-2 pr-3">
+                        <Price token={token} />
+                      </td>
+                      <td className="py-2 pr-3 font-mono text-xs text-slate-300">
+                        {formatAmount(token.pool.reserveXlm, 7)}
+                      </td>
+                      <td className="py-2">
+                        <a
+                          href={`https://stellar.expert/explorer/testnet/contract/${token.pool.pairId}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="font-mono text-xs text-slate-400 hover:text-emerald-400"
+                        >
+                          {shortAddress(token.id)} ↗
+                        </a>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
       ) : null}
 
       <p className="mt-4 text-xs text-slate-500">

@@ -1,6 +1,33 @@
 # Estado actual (para continuar en la próxima sesión)
 
-## Handoff rápido (Oct 22 2026, sesión 5)
+## Handoff rápido (Oct 22 2026, sesión 6 — rebrand + móvil + deploy)
+
+- Marca fijada: **Floodgate 🌊** (elección del usuario). Nombre extraído del
+  código interno de `stellar-core` (`Floodgate`, `src/overlay/Floodgate.cpp`:
+  la compuerta que inunda la red con transacciones hasta el cierre del ledger);
+  disponibilidad como marca crypto verificada (solo existe una firma de VC en
+  otro rubro). Fuente única: `frontend/src/lib/brand.ts`. **El token de ejemplo
+  ASTRO no cambia.**
+- **Mobile-first**: inputs ≥16px (`px-3.5 py-3 text-base`, evita el zoom de
+  iOS), CTAs `py-3` a ancho completo en móvil, mercado como **tarjetas** en
+  `<sm` (tabla solo en sm+), header sticky con blur, `tap-highlight` off,
+  safe-areas con `env(safe-area-inset-bottom)` + `viewport-fit=cover`.
+- **PWA instalable**: `public/manifest.webmanifest`, `theme-color`,
+  `apple-touch-icon` e iconos `icon-192.png`/`icon-512.png` rasterizados con
+  ImageMagick desde `scripts/assets/brand-icon.svg` (olsa emerald/cyan).
+- **Deploy listo (Vercel)**: `frontend/vercel.json` (framework vite, build
+  `npm run build`, output `dist`, SPA rewrite). Pasos del usuario:
+  `cd frontend && npx vercel login && npx vercel --prod`.
+- **WalletConnect v2** wireado en `store/wallet.ts` con el módulo oficial de
+  la kit 2.7.1 (`WalletConnectModule`, `allowedChains=[stellar:testnet]`,
+  metadata desde BRAND + origin); se activa con `VITE_WC_PROJECT_ID`
+  (Reown Cloud gratis, ver `.env.example`). Sin esa var, igual funciona en
+  desktop. Cobertura por WC: `signTransaction`/`signAndSubmitTransaction`,
+  justo lo que la app necesita.
+- `smoke:render` ahora comprueba "Floodgate" y sobres de WC en el stub
+  (`scripts/fixtures/wallets-kit-stub.ts`). `npm run check` verde pre-commit.
+
+## (Historia) Handoff rápido (Oct 22 2026, sesión 5)
 
 - Entorno: Termux (bionic). Proyecto en `~/projects/astro-launchpad`.
 - **stellar-cli 28.1.0 corre nativo** (binario oficial glibc + libs de Debian

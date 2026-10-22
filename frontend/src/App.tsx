@@ -7,6 +7,7 @@ import { MarketList } from './components/MarketList'
 import { SwapCard } from './components/SwapCard'
 import { useWallet } from './store/wallet'
 import { ASTRO_TOKEN_ID, RPC_URL } from './lib/network'
+import { BRAND } from './lib/brand'
 import type { LaunchpadToken } from './lib/token'
 
 /** Token de ejemplo: ya está desplegado y con par en Soroswap. */
@@ -24,19 +25,28 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
-      <header className="border-b border-slate-900">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-4">
-          <h1 className="text-lg font-semibold tracking-tight">Astro Launchpad</h1>
+      <header className="sticky top-0 z-40 border-b border-slate-900 bg-slate-950/90 backdrop-blur-md">
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3 sm:py-4">
+          <h1 className="min-w-0 truncate text-lg font-semibold tracking-tight">
+            {BRAND.emoji} {BRAND.name}
+          </h1>
           <WalletButton />
         </div>
       </header>
 
-      <main className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-10">
+      <main className="mx-auto flex max-w-5xl flex-col gap-4 px-4 py-6 sm:gap-6 sm:py-10">
         <div className="flex flex-col gap-3">
-          <h2 className="text-3xl font-bold">Launchpad + AMM en Stellar</h2>
+          <p className="text-xs font-medium uppercase tracking-widest text-emerald-400">
+            {BRAND.tagline} · {BRAND.taglineEn}
+          </p>
+          <h2 className="text-2xl font-bold sm:text-3xl">{BRAND.hero}</h2>
           <p className="max-w-xl text-slate-400">
             Crea tu token, añade liquidez y swapea — todo on-chain, con la red
-            como única fuente de datos.
+            como única fuente de datos.{' '}
+            <span className="text-slate-300">
+              Te quedas con tus LP tokens: ganas fees de cada swap mientras
+              sostengas tu liquidez.
+            </span>
           </p>
           <span className="inline-flex w-fit items-center gap-2 rounded-full border border-slate-800 px-3 py-1 text-xs text-slate-400">
             <span className="h-2 w-2 rounded-full bg-amber-400" />
@@ -52,12 +62,13 @@ export default function App() {
 
         <footer className="mt-4 border-t border-slate-900 pt-4 text-xs text-slate-500">
           <p>
+            {BRAND.name}: {BRAND.provenance}.
+          </p>
+          <p className="mt-1">
             RPC: <span className="font-mono">{RPC_URL}</span> · contrato:{' '}
             <span className="font-mono">{ASTRO_TOKEN_ID}</span>
           </p>
-          {publicKey ? (
-            <p className="mt-1">Conectado como {publicKey}</p>
-          ) : null}
+          {publicKey ? <p className="mt-1">Conectado como {publicKey}</p> : null}
         </footer>
       </main>
     </div>

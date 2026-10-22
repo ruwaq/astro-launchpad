@@ -5,7 +5,7 @@ import { useWallet } from '../store/wallet'
 import { errorMessage, parseAmount } from '../lib/format'
 
 const inputClass =
-  'w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-emerald-500'
+  'w-full rounded-lg border border-slate-800 bg-slate-950 px-3.5 py-3 text-base text-slate-100 outline-none focus:border-emerald-500'
 
 export function CreateTokenForm({
   onCreated,
@@ -54,7 +54,7 @@ export function CreateTokenForm({
   }
 
   return (
-    <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-6">
+    <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-4 sm:p-6">
       <h2 className="text-lg font-semibold">Crea tu token</h2>
       <p className="mt-1 text-sm text-slate-400">
         Se despliega una instancia nueva del contrato del launchpad en testnet.
@@ -112,7 +112,7 @@ export function CreateTokenForm({
           <button
             type="submit"
             disabled={busy}
-            className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-medium text-slate-950 hover:bg-emerald-400 disabled:opacity-60"
+            className="w-full rounded-lg bg-emerald-500 px-6 py-3 text-base font-medium text-slate-950 hover:bg-emerald-400 disabled:opacity-60 sm:w-auto"
           >
             {busy ? 'Creando en testnet…' : 'Crear token'}
           </button>

@@ -1,1 +1,12 @@
 @import 'tailwindcss';
+
+/* Móvil primero (2026): taps limpios, sin auto-zoom de iOS, safe areas. */
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  padding-bottom: env(safe-area-inset-bottom);
+}

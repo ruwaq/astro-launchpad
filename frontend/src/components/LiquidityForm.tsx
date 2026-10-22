@@ -7,7 +7,7 @@ import type { LaunchpadToken } from '../lib/token'
 import { useWallet } from '../store/wallet'
 
 const inputClass =
-  'w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-emerald-500'
+  'w-full rounded-lg border border-slate-800 bg-slate-950 px-3.5 py-3 text-base text-slate-100 outline-none focus:border-emerald-500'
 
 /**
  * Añade liquidez al par token/XLM en Soroswap.
@@ -71,13 +71,17 @@ export function LiquidityForm({ token }: { token: LaunchpadToken }) {
   }
 
   return (
-    <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-6">
+    <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-4 sm:p-6">
       <h2 className="text-lg font-semibold">
         Añade liquidez · {shortAddress(token.id)}
       </h2>
       <p className="mt-1 text-sm text-slate-400">
         Crea el par token/XLM en Soroswap y aporta ambos lados. Tu wallet firma
         cada transacción (testnet).
+      </p>
+      <p className="mt-2 text-xs text-emerald-300">
+        🔥 Tú posees los LP tokens: cada swap paga fees al pool y tu parte se
+        acumula hasta que retires la liquidez.
       </p>
 
       <form onSubmit={onSubmit} className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -109,7 +113,7 @@ export function LiquidityForm({ token }: { token: LaunchpadToken }) {
           <button
             type="submit"
             disabled={busy || !publicKey}
-            className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-medium text-slate-950 hover:bg-emerald-400 disabled:opacity-60"
+            className="w-full rounded-lg bg-emerald-500 px-6 py-3 text-base font-medium text-slate-950 hover:bg-emerald-400 disabled:opacity-60 sm:w-auto"
           >
             {busy ? 'Liquidez en camino…' : 'Crear par + añadir liquidez'}
           </button>

@@ -13,7 +13,7 @@ export function WalletButton() {
         <button
           type="button"
           onClick={() => void disconnect()}
-          className="rounded-lg border border-slate-700 px-3 py-1 text-sm hover:bg-slate-800"
+          className="min-h-[44px] rounded-lg border border-slate-700 px-3 py-2 text-sm hover:bg-slate-800"
         >
           Salir
         </button>
@@ -26,7 +26,7 @@ export function WalletButton() {
       type="button"
       disabled={pending}
       onClick={() => void connect()}
-      className="rounded-lg bg-emerald-500 px-4 py-1.5 text-sm font-medium text-slate-950 hover:bg-emerald-400 disabled:opacity-60"
+      className="min-h-[44px] rounded-lg bg-emerald-500 px-4 py-2.5 text-sm font-medium text-slate-950 hover:bg-emerald-400 disabled:opacity-60"
     >
       {pending ? 'Conectando…' : 'Conectar wallet'}
     </button>

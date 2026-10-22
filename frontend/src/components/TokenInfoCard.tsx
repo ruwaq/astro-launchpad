@@ -20,7 +20,7 @@ export function TokenInfoCard() {
 
   if (info.isPending) {
     return (
-      <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-6 text-slate-400">
+      <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-4 text-slate-400 sm:p-6">
         Leyendo el token on-chain…
       </div>
     )
@@ -28,7 +28,7 @@ export function TokenInfoCard() {
 
   if (info.isError) {
     return (
-      <div className="rounded-xl border border-rose-900 bg-rose-950/40 p-6 text-rose-300">
+      <div className="rounded-xl border border-rose-900 bg-rose-950/40 p-4 text-rose-300 sm:p-6">
         No se pudo leer el token: {info.error.message}
         <button
           type="button"
@@ -44,7 +44,7 @@ export function TokenInfoCard() {
   const token = info.data
 
   return (
-    <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-6">
+    <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-4 sm:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-lg font-semibold">
           {token.name}{' '}

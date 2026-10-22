@@ -24,4 +24,23 @@ export const StellarWalletsKit = {
 
 export const defaultModules = () => []
 
-export default { Networks, StellarWalletsKit, defaultModules }
+// El módulo WalletConnect se referencia en store/wallet.ts aunque el env no
+// traiga projectId: aquí basta con una forma inerte para pintar el árbol.
+export const WalletConnectModule = class WalletConnectStubModule {
+  constructor(_wcParams: unknown) {
+    void _wcParams
+  }
+}
+
+export const WalletConnectTargetChain = {
+  PUBLIC: 'stellar:pubnet',
+  TESTNET: 'stellar:testnet',
+} as const
+
+export default {
+  Networks,
+  StellarWalletsKit,
+  defaultModules,
+  WalletConnectModule,
+  WalletConnectTargetChain,
+}

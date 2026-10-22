@@ -1,8 +1,10 @@
-# AGENTS.md — Astro Launchpad (Minimal, Descentralizado, Online)
+# AGENTS.md — Floodgate (launchpad Stellar; token de ejemplo: ASTRO)
 
 ## Contexto del proyecto
 Launchpad + AMM sobre Stellar/Soroban. Minimalista, descentralizado, desplegado en testnet online.
 Identidad = wallet. Datos = red (Soroban RPC / Horizon). Sin backend de usuarios obligatorio.
+- Marca: **Floodgate** 🌊 — única fuente `frontend/src/lib/brand.ts`; el token
+  de ejemplo ASTRO no cambia con la marca.
 
 ## Stack
 - Contratos: Rust + Soroban SDK + OpenZeppelin Stellar (fungible SEP-41).

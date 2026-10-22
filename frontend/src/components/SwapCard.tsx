@@ -15,7 +15,7 @@ import { walletSigner } from '../lib/signer'
 import { useWallet } from '../store/wallet'
 
 const inputClass =
-  'w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-emerald-500'
+  'w-full rounded-lg border border-slate-800 bg-slate-950 px-3.5 py-3 text-base text-slate-100 outline-none focus:border-emerald-500'
 
 /**
  * Intercambio de token por XLM contra el par de Soroswap.
@@ -92,7 +92,7 @@ export function SwapCard({ token }: { token: LaunchpadToken }) {
   }
 
   return (
-    <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-6">
+    <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-4 sm:p-6">
       <h2 className="text-lg font-semibold">
         Swap a XLM · {shortAddress(token.id)}
       </h2>
@@ -146,7 +146,7 @@ export function SwapCard({ token }: { token: LaunchpadToken }) {
           <button
             type="submit"
             disabled={busy || !publicKey || !pool.data?.exists}
-            className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-medium text-slate-950 hover:bg-emerald-400 disabled:opacity-60"
+            className="w-full rounded-lg bg-emerald-500 px-6 py-3 text-base font-medium text-slate-950 hover:bg-emerald-400 disabled:opacity-60"
           >
             {busy ? 'Cambiando…' : 'Cambiar por XLM'}
           </button>
