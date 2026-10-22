@@ -49,3 +49,12 @@
 ## Notas
 - No usar sleep para esperar; verificar con comandos puntuales.
 - Preferir datos desde la red (RPC) y wallet login.
+- **Decisión 2026-10-22**: vibe coding queda en **Termux** (opencode local funciona,
+  botones extra-keys ya configurados). `~/bin/vibe` abre opencode en el proyecto.
+- VM Debian (AVF): **en pausa**. Estado: opencode v2.0.27 instalado y corriendo
+  vía `qemu-aarch64-static -cpu max,sve=off` (kernel invitado Debian 6.1-avf
+  no soporta SVE aunque el CPU lo anuncia → SIGILL sin la máscara).
+  Boot del server es lento bajo qemu → quedo en `run --standalone` pendiente.
+  SSH: `ssh -i ~/.ssh/vm_droid_ed25519 droid@10.230.41.46` (VM encendida).
+  Resume: probar versión con kernel nuevo (Debian 13/Android 17) o instalar
+  node+npm y correr opencode vía npm con un bun sin SVE.
