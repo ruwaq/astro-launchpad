@@ -1,0 +1,150 @@
+import { useState } from 'react'
+import { Client as AstroTokenClient } from '../contracts'
+import { ASTRO_WASM_HASH, NETWORK_PASSPHRASE, RPC_URL } from '../lib/network'
+import { walletSigner } from '../lib/signer'
+import { useWallet } from '../store/wallet'
+import { errorMessage, parseAmount } from '../lib/format'
+
+const inputClass =
+  'w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-emerald-500'
+
+export function CreateTokenForm() {
+  const { publicKey } = useWallet()
+  const [name, setName] = useState('')
+  const [symbol, setSymbol] = useState('')
+  const [decimals, setDecimals] = useState(7)
+  const [supply, setSupply] = useState('1000000')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [createdId, setCreatedId] = useState<string | null>(null)
+
+  async function onSubmit(event: React.FormEvent) {
+    event.preventDefault()
+    setError(null)
+    setCreatedId(null)
+
+    if (!publicKey) {
+      setError('Conecta tu wallet para crear el token.')
+      return
+    }
+    if (!name.trim() || !symbol.trim()) {
+      setError('Nombre y símbolo son obligatorios.')
+      return
+    }
+
+    setBusy(true)
+    try {
+      const tx = await AstroTokenClient.deploy(
+        {
+          name: name.trim(),
+          symbol: symbol.trim().toUpperCase(),
+          decimals,
+          owner: publicKey,
+          initial_supply: parseAmount(supply, decimals),
+        },
+        {
+          wasmHash: ASTRO_WASM_HASH,
+          rpcUrl: RPC_URL,
+          networkPassphrase: NETWORK_PASSPHRASE,
+          publicKey,
+          address: publicKey,
+          signTransaction: walletSigner(publicKey),
+        },
+      )
+      const { result } = await tx.signAndSend()
+      setCreatedId(result.options.contractId)
+    } catch (err) {
+      setError(errorMessage(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-6">
+      <h2 className="text-lg font-semibold">Crea tu token</h2>
+      <p className="mt-1 text-sm text-slate-400">
+        Se despliega una instancia nueva del contrato del launchpad en testnet.
+        Tu wallet firma la transacción y queda como owner.
+      </p>
+
+      <form onSubmit={onSubmit} className="mt-4 grid gap-3 sm:grid-cols-2">
+        <label className="block text-sm">
+          <span className="text-slate-400">Nombre</span>
+          <input
+            className={`${inputClass} mt-1`}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Astro Coin"
+            maxLength={32}
+          />
+        </label>
+
+        <label className="block text-sm">
+          <span className="text-slate-400">Símbolo</span>
+          <input
+            className={`${inputClass} mt-1`}
+            value={symbol}
+            onChange={(e) => setSymbol(e.target.value)}
+            placeholder="ASTRO"
+            maxLength={12}
+          />
+        </label>
+
+        <label className="block text-sm">
+          <span className="text-slate-400">Decimales</span>
+          <input
+            className={`${inputClass} mt-1`}
+            type="number"
+            min={0}
+            max={18}
+            value={decimals}
+            onChange={(e) => setDecimals(Number(e.target.value))}
+          />
+        </label>
+
+        <label className="block text-sm">
+          <span className="text-slate-400">Supply inicial</span>
+          <input
+            className={`${inputClass} mt-1`}
+            type="number"
+            min={0}
+            step="any"
+            value={supply}
+            onChange={(e) => setSupply(e.target.value)}
+          />
+        </label>
+
+        <div className="sm:col-span-2">
+          <button
+            type="submit"
+            disabled={busy}
+            className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-medium text-slate-950 hover:bg-emerald-400 disabled:opacity-60"
+          >
+            {busy ? 'Creando en testnet…' : 'Crear token'}
+          </button>
+        </div>
+      </form>
+
+      {error ? (
+        <p className="mt-4 rounded-lg border border-rose-900 bg-rose-950/40 px-3 py-2 text-sm text-rose-300">
+          {error}
+        </p>
+      ) : null}
+
+      {createdId ? (
+        <p className="mt-4 rounded-lg border border-emerald-900 bg-emerald-950/40 px-3 py-2 text-sm text-emerald-300">
+          Token creado:{' '}
+          <a
+            href={`https://stellar.expert/explorer/testnet/contract/${createdId}`}
+            target="_blank"
+            rel="noreferrer"
+            className="font-mono underline"
+          >
+            {createdId}
+          </a>
+        </p>
+      ) : null}
+    </section>
+  )
+}

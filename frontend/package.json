@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "bindings": "node scripts/generate-bindings.mjs",
+    "verify:launchpad": "node scripts/verify-launchpad.mjs"
   },
   "dependencies": {
     "@creit.tech/stellar-wallets-kit": "^2.7.1",
