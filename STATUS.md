@@ -59,8 +59,8 @@
 - **Commit**: `c350ffd` (`feat(frontend): historial local de actividad de
   operaciones`).
 - **Siguiente**: Fase 2b (indexer global para mercado/histórico/actividad) o
-  P2 (metadata/IPFS, i18n, PWA offline, Sentry/analytics, E2E, locker). El
-  indexer requiere recursos/credenciales Cloudflare y aprobación.
+  P2 restante (metadata/IPFS, i18n, Sentry/analytics, E2E, locker, dashboard).
+  El indexer requiere recursos/credenciales Cloudflare y aprobación.
 
 ## Handoff rápido (Nov 1 2026, sesión 10 — Fase 2a: snapshots y gráfico local)
 
@@ -195,9 +195,11 @@
   iOS), CTAs `py-3` a ancho completo en móvil, mercado como **tarjetas** en
   `<sm` (tabla solo en sm+), header sticky con blur, `tap-highlight` off,
   safe-areas con `env(safe-area-inset-bottom)` + `viewport-fit=cover`.
-- **PWA instalable**: `public/manifest.webmanifest`, `theme-color`,
-  `apple-touch-icon` e iconos `icon-192.png`/`icon-512.png` rasterizados con
-  ImageMagick desde `scripts/assets/brand-icon.svg` (olsa emerald/cyan).
+- **PWA instalable + shell offline**: `public/manifest.webmanifest`,
+  `theme-color`, `apple-touch-icon` e iconos `icon-192.png`/`icon-512.png`
+  rasterizados con ImageMagick desde `scripts/assets/brand-icon.svg` (olsa
+  emerald/cyan). El service worker cachea el shell y los assets, nunca RPC, y
+  avisa cuando no hay conexión.
 - **Deploy listo (Vercel)**: `frontend/vercel.json` (framework vite, build
   `npm run build`, output `dist`, SPA rewrite). Pasos del usuario:
   `cd frontend && npx vercel login && npx vercel --prod`.

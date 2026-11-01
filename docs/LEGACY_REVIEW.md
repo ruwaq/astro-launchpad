@@ -115,8 +115,9 @@ AMM propio, GraphQL, gamificación prematura y la deuda de tipos del legado
     cliente).
 14. **i18n es/en/pt**: centralizar strings ya; migrar a `react-i18next` cuando
     el producto esté estable.
-15. **PWA completa**: ya hay manifest e iconos; faltan service worker/offline
-    shell e install prompt. No cachear RPC.
+15. **PWA completa**: manifest, iconos y shell offline con service worker ya
+    hechos; falta un install prompt explícito y E2E offline en navegador. No se
+    cachea RPC.
 16. **Sentry + analytics**: Sentry opcional con DSN por env y
     `sendDefaultPii: false`; Cloudflare Web Analytics. Medir éxito de
     create/swap/liquidity/withdraw.
@@ -211,9 +212,9 @@ failed_events(id, stream, payload, error, attempts, next_retry_at, created_at)
 - **Seguridad:** sanear metadata (nombres/símbolos/URLs), no renderizar HTML de
   tokens, `rel="noreferrer"`, CSP, validar address/amount y no meter secretos en
   el bundle.
-- **SEO/PWA:** manifest ya existe; añadir `robots.txt`, `sitemap.xml` generado
-  desde el indexer, OG meta por token vía Worker y service worker offline shell.
-  No migrar a Next.
+- **SEO/PWA:** manifest y service worker offline shell ya existen; añadir
+  `robots.txt`, `sitemap.xml` generado desde el indexer y OG meta por token vía
+  Worker. No migrar a Next.
 - **Tests:** Vitest para lógica; Playwright para flujos UI con RPC mock; los
   `verify:*` on-chain siguen siendo manuales.
 
@@ -224,7 +225,7 @@ failed_events(id, stream, payload, error, attempts, next_retry_at, created_at)
 | 0 (2–4 días) | CI, Vitest, ErrorBoundary, toasts/tx progress, CSP, a11y básica | `check` + tests en CI; flujo demo con feedback claro |
 | 1 (1–2 semanas) | Transfer/mint UI, routing, token detail, portfolio v1, búsqueda/filtros | Crear → transferir → swap → portfolio sin backend |
 | 2 (2–3 semanas) | Indexer Worker+D1, snapshots, API, charts de reservas, Sentry/analytics | Mercado >14 h/9 tokens; fallback RPC intacto |
-| 3 (después) | Metadata/IPFS, i18n, PWA completa, E2E, liquidity locker, creator dashboard | Producto listo para mainnet/auditoría |
+| 3 (después) | Metadata/IPFS, i18n, install prompt/E2E PWA, E2E, liquidity locker, creator dashboard | Producto listo para mainnet/auditoría |
 
 ## 8. Decisiones pendientes
 
