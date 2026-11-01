@@ -7,6 +7,7 @@ import { CreateTokenForm } from './components/CreateTokenForm'
 import { LiquidityForm } from './components/LiquidityForm'
 import { MarketList } from './components/MarketList'
 import { SwapCard } from './components/SwapCard'
+import { LiquidityPosition } from './components/LiquidityPosition'
 import { useWallet } from './store/wallet'
 import { ASTRO_TOKEN_ID, RPC_URL } from './lib/network'
 import { BRAND } from './lib/brand'
@@ -74,6 +75,7 @@ export default function App() {
         <div id="sec-swap" className="scroll-mt-20">
           <SwapCard token={selectedToken} onSwapped={() => setSwappedOnce(true)} />
         </div>
+        <LiquidityPosition key={selectedToken.id} token={selectedToken} />
         <div id="sec-crear" className="scroll-mt-20 flex flex-col gap-4 sm:gap-6">
           <CreateTokenForm onCreated={onCreate} />
           {createdToken ? (

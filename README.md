@@ -1,8 +1,8 @@
 # Floodgate 🌊 (Launchpad de Stellar, Minimal MVP)
 
 Launchpad + AMM sobre Stellar/Soroban: crea tu token, añádele liquidez contra
-XLM y swapea, todo on-chain en testnet. Sin backend de usuarios: la identidad es
-la wallet y los datos se leen de la red.
+XLM, swapea y retira tu liquidez, todo on-chain en testnet. Sin backend de
+usuarios: la identidad es la wallet y los datos se leen de la red.
 
 **Nombre de la marca:** *Floodgate* viene del código interno de `stellar-core`
 (`Floodgate`, `src/overlay/Floodgate.cpp`): la compuerta que inunda la red con
@@ -19,7 +19,8 @@ Ver `PLAN.md` para arquitectura y roadmap, `STATUS.md` para el estado actual.
 - `frontend/` — Vite + React 19 + TypeScript. Lee de Soroban RPC público, firma
   con la wallet (`@creit.tech/stellar-wallets-kit`) y usa Soroswap como AMM.
   Incluye un listado de mercado que descubre pares token/XLM leyendo los
-  eventos `new_pair` de la factory (sin índice ni backend).
+  eventos `new_pair` de la factory (sin índice ni backend), swap y gestión de
+  la posición de liquidez (añadir, ver LP y retirar).
 
 ## Dev rápido
 
@@ -65,7 +66,7 @@ cd contracts/token && stellar contract build
 
 Direcciones y trampas de Soroswap: `AGENTS.md`.
 
-## Móvil y deploy (Vercel)
+## Móvil y deploy (Cloudflare Workers)
 
 - **PWA instalable**: manifest (`frontend/public/manifest.webmanifest`),
   `theme-color` e iconos PNG (`icon-192.png`/`icon-512.png`, rasterizados con
@@ -74,12 +75,15 @@ Direcciones y trampas de Soroswap: `AGENTS.md`.
 - **Wallets móviles (WalletConnect v2)**: activar con `VITE_WC_PROJECT_ID`
   (proyecto gratis en <https://cloud.reown.com>); ver `.env.example`. La app
   firma con `signTransaction`, que el módulo WC cubre.
-- **Deploy**:
+- **Deploy actual** (assets estáticos en un Worker; el fallback SPA lo da
+  `not_found_handling` en `frontend/wrangler.jsonc`):
   ```bash
+  export CLOUDFLARE_API_TOKEN=...   # token con permiso de Workers
   cd frontend
-  npx vercel login
-  npx vercel --prod      # dominio *.vercel.app; el build usa vercel.json
+  npm run deploy                    # build + wrangler deploy
   ```
+  Producción: <https://floodgate-stellar.pepepop2000.workers.dev>.
+  `vercel.json` se conserva como alternativa (framework vite, output `dist`).
 
 ## Servicios locales
 

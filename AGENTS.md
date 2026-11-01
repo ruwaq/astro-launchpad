@@ -60,6 +60,12 @@ Identidad = wallet. Datos = red (Soroban RPC / Horizon). Sin backend de usuarios
 - La factory emite `["SoroswapFactory", "new_pair"]` con
   `{ pair, token_0, token_1 }`; sirve para descubrir tokens sin backend
   (`getEvents`, ventana limitada por la retención del RPC).
+- Retirar liquidez: `transfer` de los LP de la wallet al par y después
+  `withdraw(to)`; el par quema su propio balance de LP (sin allowance) y
+  devuelve los amounts en el orden interno del par.
+- Esta versión del par **no emite eventos `swap`** (0 en 10k ledgers): el
+  histórico de precios no se puede reconstruir con `getEvents`; haría falta un
+  indexer.
 
 
 ## Procesos largos

@@ -42,6 +42,40 @@ export function withSlippage(
   return (amount * BigInt(100 - percent)) / 100n
 }
 
+/** Posición de liquidez del usuario en un par token/XLM. */
+export type LpPosition = {
+  pairId: string
+  /** Tokens LP en la wallet (el par usa 7 decimales). */
+  lpBalance: bigint
+  /** Suministro total de tokens LP del par. */
+  totalSupply: bigint
+  /** Reserva del token del launchpad (base units). */
+  reserveToken: bigint
+  /** Reserva de XLM nativo (base units). */
+  reserveXlm: bigint
+}
+
+/** Parte del pool que representa `lpAmount` sobre el total, en porcentaje. */
+export function lpSharePercent(lpAmount: bigint, totalSupply: bigint): number {
+  if (totalSupply <= 0n) return 0
+  // Basis points enteros: dos decimales sin pasar por coma flotante.
+  return Number((lpAmount * 10_000n) / totalSupply) / 100
+}
+
+/** Cantidades estimadas al retirar `lpAmount` (proporción de las reservas). */
+export function withdrawPreview(
+  position: Pick<LpPosition, 'totalSupply' | 'reserveToken' | 'reserveXlm'>,
+  lpAmount: bigint,
+): { tokenAmount: bigint; xlmAmount: bigint } {
+  if (position.totalSupply <= 0n || lpAmount <= 0n) {
+    return { tokenAmount: 0n, xlmAmount: 0n }
+  }
+  return {
+    tokenAmount: (lpAmount * position.reserveToken) / position.totalSupply,
+    xlmAmount: (lpAmount * position.reserveXlm) / position.totalSupply,
+  }
+}
+
 /**
  * Desenvuelve el `Result` que devuelven todos los contratos de Soroswap.
  * Lanza con el mensaje del error on-chain para poder mostrarlo en la UI.
@@ -118,6 +152,31 @@ export async function fetchPoolState(tokenId: string): Promise<PoolState> {
   }
 }
 
+/**
+ * Posición de liquidez de `account` en el par token/XLM, o `null` si el par
+ * no existe. Todo se lee del contrato del par: LP, suministro y reservas.
+ */
+export async function fetchLpPosition(
+  tokenId: string,
+  account: string,
+): Promise<LpPosition | null> {
+  const pool = await fetchPoolState(tokenId)
+  if (!pool.exists || !pool.pairId) return null
+
+  const pair = pairClientFor(pool.pairId)
+  const [balanceTx, supplyTx] = await Promise.all([
+    pair.balance({ id: account }),
+    pair.total_supply(),
+  ])
+  return {
+    pairId: pool.pairId,
+    lpBalance: unwrapResult<bigint>(balanceTx.result, 'balance'),
+    totalSupply: unwrapResult<bigint>(supplyTx.result, 'total_supply'),
+    reserveToken: pool.reserveToken,
+    reserveXlm: pool.reserveXlm,
+  }
+}
+
 /** Cliente del contrato del par (fuente de verdad de orden y reservas). */
 function pairClientFor(pairId: string, signer?: Signer): PairClient {
   return new PairClient({
@@ -126,6 +185,7 @@ function pairClientFor(pairId: string, signer?: Signer): PairClient {
     networkPassphrase: NETWORK_PASSPHRASE,
     publicKey: signer?.address,
     signTransaction: signer,
+    signAuthEntry: signer,
   })
 }
 
@@ -254,6 +314,53 @@ export async function addLiquidity(params: {
     tokenAmount: tokenFirst ? amountA : amountB,
     xlmAmount: tokenFirst ? amountB : amountA,
     lpAmount,
+  }
+}
+
+/**
+ * Retira liquidez del par token/XLM.
+ *
+ * `withdraw` quema los LP que el par tiene en su propio balance: primero se
+ * transfieren desde la wallet (el par no usa allowance, igual que el router).
+ * Devuelve los amounts reales en orden token/XLM.
+ */
+export async function withdrawLiquidity(params: {
+  tokenId: string
+  lpAmount: bigint
+  signer: Signer
+}): Promise<{ pair: string; tokenAmount: bigint; xlmAmount: bigint }> {
+  const { tokenId, lpAmount, signer } = params
+  if (lpAmount <= 0n) {
+    throw new Error('La cantidad de LP a retirar debe ser mayor que 0')
+  }
+
+  const pool = await fetchPoolState(tokenId)
+  if (!pool.exists || !pool.pairId) {
+    throw new Error('El par token/XLM no existe')
+  }
+
+  const pair = pairClientFor(pool.pairId, signer)
+  const { token0 } = await pairLayout(pool.pairId, signer)
+
+  // Sin allowance: el par quema los LP que tiene en su balance, así que el
+  // usuario se los transfiere primero y luego llama a `withdraw`.
+  const transferTx = await pair.transfer({
+    from: signer.address,
+    to: pool.pairId,
+    amount: lpAmount,
+  })
+  await transferTx.signAndSend()
+
+  const withdrawTx = await pair.withdraw({ to: signer.address })
+  const { result } = await withdrawTx.signAndSend()
+  const [amount0, amount1] = unwrapResult<[bigint, bigint]>(result, 'withdraw')
+
+  // El par devuelve los amounts en su orden interno (token_0, token_1).
+  const tokenFirst = token0 === tokenId
+  return {
+    pair: pool.pairId,
+    tokenAmount: tokenFirst ? amount0 : amount1,
+    xlmAmount: tokenFirst ? amount1 : amount0,
   }
 }
 

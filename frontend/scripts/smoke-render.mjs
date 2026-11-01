@@ -133,8 +133,34 @@ try {
     throw new Error('el SVG del arte no renderiza el monograma')
   }
 
+  // Retiro de liquidez: reparto proporcional de reservas + guarda sin wallet.
+  const soroswap = await vite.ssrLoadModule('/src/lib/soroswap.ts')
+  const preview = soroswap.withdrawPreview(
+    { totalSupply: 1000n, reserveToken: 5000n, reserveXlm: 2500n },
+    250n,
+  )
+  if (preview.tokenAmount !== 1250n || preview.xlmAmount !== 625n) {
+    throw new Error('withdrawPreview no reparte las reservas en proporción')
+  }
+  if (soroswap.lpSharePercent(250n, 1000n) !== 25) {
+    throw new Error('lpSharePercent no calcula la parte del pool')
+  }
+  const { LiquidityPosition } = await vite.ssrLoadModule(
+    '/src/components/LiquidityPosition.tsx',
+  )
+  const positionHtml = renderToString(
+    createElement(
+      QueryClientProvider,
+      { client: queryClient },
+      createElement(LiquidityPosition, { token: { id: 'CTOKEN', decimals: 7 } }),
+    ),
+  )
+  if (positionHtml !== '') {
+    throw new Error('LiquidityPosition sin wallet debería no pintar nada')
+  }
+
   console.log(
-    `render OK (${html.length} + ${liquidityHtml.length} + ${walletFound.length} + ${walletMissing.length} + ${guideOpen.length} + ${guideMini.length} + ${artHtml.length} chars) · ${checks.length + 7} secciones`,
+    `render OK (${html.length} + ${liquidityHtml.length} + ${walletFound.length} + ${walletMissing.length} + ${guideOpen.length} + ${guideMini.length} + ${artHtml.length} chars) · ${checks.length + 8} secciones`,
   )
 } catch (err) {
   failed = true
