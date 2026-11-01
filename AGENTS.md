@@ -56,6 +56,8 @@ Identidad = wallet. Datos = red (Soroban RPC / Horizon). Sin backend de usuarios
 - Cotizar con `router_get_amount_out(amount_in, reserve_in, reserve_out)`;
   `router_get_amounts_out` devuelve el input sin cotizar.
 - No hace falta allowance: el router usa `transfer`, no `transfer_from`.
+- Compra XLM→token: path `[XLM_SAC, token]`; `router_get_amount_out` con
+  `reserve_in = reserveXlm`. Verificada en testnet con `verify:demo`.
 - `deadline` = unix timestamp + 300 (vale bajo cualquier interpretación).
 - El contrato del par es la fuente de verdad del orden y las reservas:
   `token_0()`, `token_1()` y `get_reserves()` en el propio par. No asumir el

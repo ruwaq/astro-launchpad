@@ -1,5 +1,31 @@
 # Estado actual (para continuar en la próxima sesión)
 
+## Handoff rápido (Nov 1 2026, sesión 14 — Compra con XLM y preview viva)
+
+- **Swap bidireccional**: `SwapCard` permite vender token → XLM y comprar
+  XLM → token. La cotización usa `router_get_amount_out` con las reservas del
+  lado correcto; el mínimo de salida mantiene el slippage del 2%.
+- **Impacto de precio**: `spotAmountOut`/`priceImpactPercent` calculan el coste
+  real contra la salida spot (incluye fee). La UI avisa si supera 5% y muestra
+  el mínimo protegido.
+- **Seguridad de compra**: valida balance XLM, MAX deja 1 XLM para fees/reserva
+  y bloquea compras que dejarían la cuenta sin fondos para firmar. Se refresca
+  el balance XLM tras cada operación.
+- **Actividad**: los swaps guardan dirección (`buy`/`sell`) para que el feed
+  muestre “XLM → token” en compras y “token → XLM” en ventas.
+- **Verificación real**: `npm run verify:demo` ejecutó el ciclo completo en
+  testnet, incluida la compra de `99,489931` tokens pagando 1 XLM por el
+  router. `npm run check` verde (60 tests + smoke + `verify:pwa`).
+- **Preview viva (temporal, sin cuenta)**: <https://floodgate-stellar.extreme-hardboard.workers.dev>
+  — verificada con HTTP 200 en `/`, `/sw.js`, `/manifest.webmanifest` y
+  fallback SPA. Caduca/reclama en ~60 min; no es el Worker de producción.
+- **Commit**: `23c2928` (`feat(frontend): compra de tokens con XLM e impacto de
+  precio`).
+- **Bloqueado**: el Worker real y GitHub siguen sin sesión (`wrangler login` /
+  `gh auth login`). No se ha hecho push, PR ni deploy de producción.
+- **Siguiente**: autenticar `gh`/`wrangler` para publicar el Worker real y
+  abrir PR; luego Fase 2b (indexer) o P2 restante.
+
 ## Handoff rápido (Nov 1 2026, sesión 13 — Shell offline PWA)
 
 - **Service worker** (`frontend/public/sw.js`): precarga el index y sus assets

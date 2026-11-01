@@ -1,7 +1,7 @@
 # Floodgate 🌊 (Launchpad de Stellar, Minimal MVP)
 
 Launchpad + AMM sobre Stellar/Soroban: crea tu token, añádele liquidez contra
-XLM, swapea y retira tu liquidez, todo on-chain en testnet. Sin backend de
+XLM, compra o vende y retira tu liquidez, todo on-chain en testnet. Sin backend de
 usuarios: la identidad es la wallet y los datos se leen de la red.
 
 **Nombre de la marca:** *Floodgate* viene del código interno de `stellar-core`
@@ -20,8 +20,9 @@ Ver `PLAN.md` para arquitectura y roadmap, `STATUS.md` para el estado actual.
   con la wallet (`@creit.tech/stellar-wallets-kit`) y usa Soroswap como AMM.
   Incluye rutas compartibles, un listado de mercado que descubre pares
   token/XLM leyendo los eventos `new_pair` de la factory (sin índice ni
-  backend), búsqueda/orden, detalle de token con swap, liquidez, transferir,
-  quemar y mintear (solo owner), portfolio local con tokens creados y holdings
+  backend), búsqueda/orden, detalle de token con compra/venta contra XLM,
+  impacto de precio, liquidez, transferir, quemar y mintear (solo owner),
+  portfolio local con tokens creados y holdings
   recientes, gráfico de precio/liquidez con snapshots locales del par,
   historial local de actividad de las operaciones y actividad on-chain reciente
   del token (transfer/mint/burn) leída de `getEvents`.
@@ -69,7 +70,7 @@ npm run verify:frontend    # el mismo código que la UI, de punta a punta
 # Solo lectura / cuentas nuevas (sin secret)
 npm run verify:discovery     # parser de eventos + descubrimiento real
 npm run verify:token-events  # transfer/mint/burn reales del token
-npm run verify:demo          # cuentas nuevas: crear, liquidez, swap, mint y burn
+npm run verify:demo          # cuentas nuevas: crear, liquidez, vender, comprar, mint y burn
 
 # Contrato
 cargo test -p astro-token
@@ -92,11 +93,22 @@ Direcciones y trampas de Soroswap: `AGENTS.md`.
 El panel **Modo prueba · sin wallet** crea 3 cuentas nuevas de testnet
 fondeadas con 10 000 XLM cada una (Friendbot) y permite cambiar entre A/B/C.
 Cada cuenta firma con `KeypairSigner`, así que se puede probar crear token,
-liquidez, swap, retiro y transferencias entre usuarios sin instalar wallet.
+liquidez, compra/venta, retiro y transferencias entre usuarios sin instalar
+wallet. `verify:demo` ejecuta el ciclo completo, incluida una compra real de
+tokens pagando XLM por el router de Soroswap.
 
 **Seguridad:** son claves de testnet sin valor real, guardadas en
 `localStorage` de este navegador (visibles para cualquiera con acceso a él).
 No reutilizar este patrón para fondos reales.
+
+## Swap: compra y venta
+
+El detalle de token permite las dos direcciones contra XLM: **vender token**
+(token → XLM) y **comprar token** (XLM → token). La cotización sale del router
+con las reservas reales, se exige un mínimo de salida con slippage del 2% y se
+muestra el impacto de precio contra la salida spot (incluye la comisión). En
+compras, MAX deja 1 XLM para fees/reserva y se valida el balance nativo antes
+de firmar.
 
 ## Historial de precio y liquidez (local)
 

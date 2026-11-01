@@ -105,6 +105,9 @@ Empezar simple y crecer.
   index/assets, navegación network-first, caché versionada por build y banner
   de sin conexión. No cachea RPC ni permite operar offline. Verificado con
   `verify:pwa`; falta prueba E2E en navegador.
+- **Compra/venta**: swap bidireccional contra XLM, mínimo de salida con
+  slippage, impacto de precio y validación de balance XLM. Verificado con una
+  compra real en `verify:demo`; la UI mantiene el modo demo como usuario B.
 - **Siguiente (Fase 2b)**: indexer ligero para histórico global. El par de
   Soroswap no emite `swap`; el indexer es necesario para reconstruir precios
   anteriores. Requiere recursos/credenciales Cloudflare y aprobación.
