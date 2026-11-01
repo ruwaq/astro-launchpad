@@ -2,6 +2,7 @@ import { Link, NavLink, Route, Routes } from 'react-router'
 import { WalletButton } from './components/WalletButton'
 import { ScrollToTop } from './components/ScrollToTop'
 import { OfflineBanner } from './components/OfflineBanner'
+import { PwaInstallPrompt } from './components/PwaInstallPrompt'
 import { HomePage } from './pages/HomePage'
 import { MarketPage } from './pages/MarketPage'
 import { TokenPage } from './pages/TokenPage'
@@ -94,6 +95,8 @@ export default function App() {
         </p>
         {publicKey ? <p className="mt-1">Conectado como {publicKey}</p> : null}
       </footer>
+
+      <PwaInstallPrompt />
     </div>
   )
 }

@@ -36,9 +36,10 @@ AMM propio, GraphQL, gamificación prematura y la deuda de tipos del legado
   `getEvents`). **P1 11 (indexer)**: pendiente como Fase 2b; snapshots/charts
   locales y actividad on-chain reciente ya existen, pero sin histórico
   completo.
-- **P2 13–19**: P2 15 (PWA shell offline) hecho: manifest + service worker con
-  precache, network-first y caché versionada por build; no cachea RPC ni
-  permite operar offline. Pendientes: metadata/IPFS, i18n, Sentry, Playwright,
+- **P2 13–19**: P2 15 (PWA) hecho: manifest + service worker con precache,
+  network-first y caché versionada por build; no cachea RPC ni permite operar
+  offline. Añadido install prompt nativo descartable en Chromium; falta E2E
+  offline en navegador. Pendientes: metadata/IPFS, i18n, Sentry, Playwright,
   liquidity locker y creator dashboard. Los que dependen de credenciales,
   navegador o auditoría no se simulan: quedan documentados como bloqueos en
   `STATUS.md`.
@@ -117,9 +118,9 @@ AMM propio, GraphQL, gamificación prematura y la deuda de tipos del legado
     cliente).
 14. **i18n es/en/pt**: centralizar strings ya; migrar a `react-i18next` cuando
     el producto esté estable.
-15. **PWA completa**: manifest, iconos y shell offline con service worker ya
-    hechos; falta un install prompt explícito y E2E offline en navegador. No se
-    cachea RPC.
+15. **PWA completa**: manifest, iconos, shell offline con service worker e
+    install prompt nativo (Chromium, descartable) hechos; falta E2E offline en
+    navegador. No se cachea RPC.
 16. **Sentry + analytics**: Sentry opcional con DSN por env y
     `sendDefaultPii: false`; Cloudflare Web Analytics. Medir éxito de
     create/swap/liquidity/withdraw.

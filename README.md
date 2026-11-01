@@ -148,10 +148,11 @@ de token). El histórico completo sigue necesitando un indexer (Fase 2b).
   (`frontend/public/sw.js`) precarga index/assets y usa navegación
   network-first con fallback al shell; los assets llevan cache-first y **nunca**
   se cachean RPC, Horizon ni wallet. `stamp-sw.mjs` versiona la caché por build
-  y `register-sw.ts` solo registra en producción. Si no hay red, un banner
-  avisa: el shell y el historial local abren, pero las operaciones necesitan
-  conexión. En el teléfono: menú del navegador → *Añadir a la pantalla de
-  inicio*.
+  y `register-sw.ts` solo registra en producción. La app muestra un prompt
+  nativo de instalación en Chromium (descartable, oculto en standalone); en
+  iOS/Safari se usa el menú del navegador → *Añadir a la pantalla de inicio*.
+  Si no hay red, un banner avisa: el shell y el historial local abren, pero las
+  operaciones necesitan conexión.
 - **Wallets móviles (WalletConnect v2)**: activar con `VITE_WC_PROJECT_ID`
   (proyecto gratis en <https://cloud.reown.com>); ver `.env.example`. La app
   firma con `signTransaction`, que el módulo WC cubre.
@@ -163,7 +164,8 @@ de token). El histórico completo sigue necesitando un indexer (Fase 2b).
   npm run deploy                    # build + wrangler deploy
   ```
   Producción: <https://floodgate-stellar.pepepop2000.workers.dev>.
-  `vercel.json` se conserva como alternativa (framework vite, output `dist`).
+  `vercel.json` se conserva como alternativa (framework vite, output `dist`,
+  `npm ci` explícito para no confundirse con lockfiles viejos).
 - **Seguridad de despliegue**: `public/_headers` (Cloudflare) y `vercel.json`
   aplican CSP, HSTS, `nosniff`, `frame-ancestors`, Permissions-Policy y caché
   inmutable para `/assets/*`.
