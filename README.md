@@ -22,7 +22,8 @@ Ver `PLAN.md` para arquitectura y roadmap, `STATUS.md` para el estado actual.
   token/XLM leyendo los eventos `new_pair` de la factory (sin índice ni
   backend), búsqueda/orden, detalle de token con swap, liquidez, transferir,
   quemar y mintear (solo owner), portfolio local con tokens creados y holdings
-  recientes, y un gráfico de precio/liquidez con snapshots locales del par.
+  recientes, gráfico de precio/liquidez con snapshots locales del par e
+  historial local de actividad de las operaciones.
 - **Modo prueba sin wallet**: crea 3 cuentas desechables de testnet fondeadas
   por Friendbot y permite cambiar entre ellas para probar todo el ciclo como
   usuarios distintos, incluido pasar tokens de una cuenta a otra. Sin instalar
@@ -33,7 +34,7 @@ Ver `PLAN.md` para arquitectura y roadmap, `STATUS.md` para el estado actual.
 - `/` — inicio, guía, modo prueba, mercado reciente y swap del token elegido.
 - `/market` — mercado completo con búsqueda y orden.
 - `/token/:id` — detalle on-chain del token, sus acciones y gráfico local.
-- `/portfolio` — tokens creados en este navegador + holdings de pares recientes.
+- `/portfolio` — tokens creados + holdings recientes + actividad local.
 - `/create` — crear token SEP-41 y añadir liquidez en Soroswap.
 
 ## Dev rápido
@@ -53,7 +54,7 @@ npm run dev          # http://localhost:5173
 npm run check          # build + lint + tests + smoke de render (sin red)
 npm run build          # tsc + vite build
 npm run lint           # oxlint
-npm test               # Vitest (formato, mercado, AMM, eventos, snapshots)
+npm test               # Vitest (formato, mercado, AMM, eventos, snapshots, actividad)
 npm run smoke:render   # render del árbol de componentes (sin navegador)
 npm run bindings       # regenera los bindings TS desde los contratos on-chain
 
@@ -102,6 +103,14 @@ los cambios se apuntan al instante, hay un pulso cada ~5 min y se conservan
 como máximo 288 snapshots por token (30 tokens). El gráfico muestra precio o
 liquidez y avisa de que solo cubre lo que ha visto este navegador; no es un
 histórico global ni sustituye a un indexer.
+
+## Actividad local
+
+Las operaciones firmadas (crear token, añadir/retirar liquidez, swap,
+transferir, mintear y quemar) se guardan en `localStorage` con tipo, estado,
+token, montos, cuenta, hash, fecha y error si falló. `/portfolio` muestra las
+últimas 200 y enlaza cada hash a `stellar.expert`. También es local: sirve como
+historial de este navegador, no como feed global (eso requiere indexer).
 
 ## Móvil y deploy (Cloudflare Workers)
 

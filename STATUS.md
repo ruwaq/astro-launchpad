@@ -1,5 +1,27 @@
 # Estado actual (para continuar en la próxima sesión)
 
+## Handoff rápido (Nov 1 2026, sesión 11 — Historial local de actividad)
+
+- **`store/activity.ts`**: Zustand persistido en
+  `floodgate.activity.v1` (máx. 200 operaciones) con tipo, estado
+  (`success`/`failed`), token, montos, cuenta, hash, detalle, error y fecha.
+  Funciones puras `appendActivity`, `activityLabel` y `activitySummary` con 8
+  tests.
+- **Registro real**: crear token, añadir/retirar liquidez, swap, transferencia
+  (wallet y modo demo), mint y burn; también se guardan fallos on-chain con su
+  mensaje.
+- **UI**: `ActivityFeed` en `/portfolio` con enlaces a `stellar.expert`,
+  estado, cuenta, fecha y borrado del historial local. Aviso explícito de que
+  no es un feed global.
+- **Verificación**: `npm run check` verde (build + lint + 50 tests + smoke con
+  actividad vacía en portfolio). Sin cambios on-chain; se reutilizan los flujos
+  ya verificados.
+- **Commit**: `c350ffd` (`feat(frontend): historial local de actividad de
+  operaciones`).
+- **Siguiente**: Fase 2b (indexer global para mercado/histórico/actividad) o
+  P2 (metadata/IPFS, i18n, PWA offline, Sentry/analytics, E2E, locker). El
+  indexer requiere recursos/credenciales Cloudflare y aprobación.
+
 ## Handoff rápido (Nov 1 2026, sesión 10 — Fase 2a: snapshots y gráfico local)
 
 - **`lib/snapshots.ts`**: snapshots de reservas en `localStorage`

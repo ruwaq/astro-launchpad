@@ -27,6 +27,16 @@ Y evitar: infraestructura obligatoria, auth JWT/passkey como flujo principal,
 AMM propio, GraphQL, gamificación prematura y la deuda de tipos del legado
 (246 `any` explícitos en backend, 35 en web; Floodgate tiene 0).
 
+### Estado de adopción (Nov 2026)
+
+- **P0 1–6**: hechos (CI, Vitest, toasts/`TxProgress`, `ErrorBoundary`,
+  CSP/headers, a11y básica).
+- **P1 7–10 y 12**: hechos (transfer/mint/burn, rutas, portfolio v1,
+  búsqueda/filtros, actividad local). **P1 11 (indexer)**: pendiente como Fase
+  2b; snapshots/charts locales ya existen.
+- **P2 13–19**: pendientes (metadata/IPFS, i18n, PWA offline, Sentry,
+  Playwright, liquidity locker, creator dashboard).
+
 ## 2. Inventario del legado
 
 ### Backend
