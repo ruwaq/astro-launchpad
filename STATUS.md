@@ -13,24 +13,33 @@
   el balance XLM tras cada operación.
 - **Actividad**: los swaps guardan dirección (`buy`/`sell`) para que el feed
   muestre “XLM → token” en compras y “token → XLM” en ventas.
+- **Transparencia de riesgo**: la página del token avisa si el owner puede
+  emitir más supply; el formulario de creación ya no dice “supply fijo” y
+  explica que no hay cap en este MVP.
+- **Seguridad/release**: `SECURITY.md` (modelo de confianza, límites y reporte)
+  y `docs/RELEASE_CHECKLIST.md` (gates, deploy, verificación, rollback).
 - **Verificación real**: `npm run verify:demo` ejecutó el ciclo completo en
   testnet, incluida la compra de `99,489931` tokens pagando 1 XLM por el
   router. `npm run check` verde (60 tests + smoke + `verify:pwa`).
 - **Preview viva (temporal, sin cuenta)**: <https://floodgate-stellar.extreme-hardboard.workers.dev>
-  — verificada con HTTP 200 en `/`, `/sw.js`, `/manifest.webmanifest` y
-  fallback SPA. Caduca/reclama en ~60 min; no es el Worker de producción.
+  — redeployada con el bundle actual (`index-TBBannzx.js`, SW
+  `floodgate-shell-af0d1f8f8a77`), HTTP 200 en `/`, `/sw.js`,
+  `/manifest.webmanifest` y fallback SPA. Caduca/reclama en ~53 min; no es el
+  Worker de producción.
 - **Git**: rama `ai/market-discovery` publicada. Draft PR
   [#1](https://github.com/ruwaq/astro-launchpad/pull/1), base
   `floodgate/testnet-base` y `mergeable`. `origin/main` es el monorepo legacy
   y **no comparte ancestro** con este proyecto; no se ha forzado ni reemplazado
   `main`.
-- **Commits**: `23c2928` (`feat(frontend): compra de tokens con XLM e impacto
-  de precio`) y `d1c00ab` (docs).
+- **Commits**: `23c2928` (compra XLM), `d1c00ab`/`35b9624` (docs y preview) y
+  `c61a2f9` (riesgo/seguridad).
 - **Bloqueado**: el Worker real sigue sin sesión (`wrangler login`); el draft
-  PR no se ha fusionado y no hay deploy de producción.
+  PR no se ha fusionado y no hay deploy de producción. `origin/main` sigue
+  siendo el monorepo legacy sin ancestro común.
 - **Siguiente**: revisar/mergear el draft PR (o decidir si `main` debe
   reemplazarse por el proyecto), autenticar `wrangler` para publicar el Worker
-  real y luego Fase 2b (indexer) o P2 restante.
+  real y luego Fase 2b (indexer) o P2 restante (metadata/IPFS, i18n, Sentry,
+  Playwright, locker) cuando haya credenciales/auditoría.
 
 ## Handoff rápido (Nov 1 2026, sesión 13 — Shell offline PWA)
 
