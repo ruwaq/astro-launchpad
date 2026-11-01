@@ -3,8 +3,9 @@ import { useQueryClient } from '@tanstack/react-query'
 import { deployToken } from '../lib/token'
 import { ShareButton } from './ShareButton'
 import { useWallet } from '../store/wallet'
-import { errorMessage, parseAmount } from '../lib/format'
+import { errorMessage, formatAmount, parseAmount } from '../lib/format'
 import { toast } from '../lib/toast'
+import { recordActivity } from '../store/activity'
 import { TxProgress } from './TxProgress'
 
 const inputClass =
@@ -58,11 +59,12 @@ export function CreateTokenForm({
     setBusy(true)
     let hash: string | undefined
     try {
+      const initialSupply = parseAmount(supply, decimals)
       const newId = await deployToken({
         name: name.trim(),
         symbol: symbol.trim().toUpperCase(),
         decimals,
-        initialSupply: parseAmount(supply, decimals),
+        initialSupply,
         signer,
         onHash: (value) => {
           hash = value
@@ -71,6 +73,14 @@ export function CreateTokenForm({
       const ticker = symbol.trim().toUpperCase()
       setCreatedId(newId)
       onCreated?.({ id: newId, decimals, symbol: ticker })
+      recordActivity({
+        kind: 'create',
+        tokenId: newId,
+        tokenSymbol: ticker,
+        amount: formatAmount(initialSupply, decimals),
+        account: publicKey,
+        hash,
+      })
       toast.success('Token creado en testnet', {
         message: `${ticker} · ${newId}`,
         hash,

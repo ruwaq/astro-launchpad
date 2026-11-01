@@ -4,6 +4,7 @@ import { useTokenBalance } from '../hooks/useTokenBalance'
 import { useTokenInfo } from '../hooks/useTokenInfo'
 import { tokenClient, type LaunchpadToken } from '../lib/token'
 import { useWallet } from '../store/wallet'
+import { recordActivity } from '../store/activity'
 import { errorMessage, formatAmount, parseAmount } from '../lib/format'
 import { invalidateTokenData } from '../lib/query'
 import { toast } from '../lib/toast'
@@ -61,6 +62,14 @@ export function BurnCard({ token }: { token: LaunchpadToken }) {
       hash = sentTx.sendTransactionResponse?.hash
       setBurned({ amount: amountBase, hash })
       setAmount('')
+      recordActivity({
+        kind: 'burn',
+        tokenId: token.id,
+        tokenSymbol: token.symbol,
+        amount: formatAmount(amountBase, token.decimals),
+        account: publicKey,
+        hash,
+      })
       toast.success('Tokens quemados', {
         message: `${formatAmount(amountBase, token.decimals)} ${token.symbol ?? 'token'} salen del supply para siempre`,
         hash,
@@ -69,6 +78,15 @@ export function BurnCard({ token }: { token: LaunchpadToken }) {
     } catch (err) {
       const message = errorMessage(err)
       setError(message)
+      recordActivity({
+        kind: 'burn',
+        status: 'failed',
+        tokenId: token.id,
+        tokenSymbol: token.symbol,
+        amount: formatAmount(amountBase, token.decimals),
+        account: publicKey,
+        error: message,
+      })
       toast.error('No se pudieron quemar los tokens', { message })
     } finally {
       setBusy(false)

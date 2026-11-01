@@ -7,6 +7,7 @@ import { ShareButton } from './ShareButton'
 import type { LaunchpadToken } from '../lib/token'
 import { useWallet } from '../store/wallet'
 import { useProgress } from '../store/progress'
+import { recordActivity } from '../store/activity'
 import { toast } from '../lib/toast'
 import { TxProgress } from './TxProgress'
 
@@ -79,6 +80,17 @@ export function LiquidityForm({
       setAmountToken('')
       setAmountXlm('')
       markProgress('liquidity')
+      recordActivity({
+        kind: 'add-liquidity',
+        tokenId: token.id,
+        tokenSymbol: token.symbol,
+        amount: formatAmount(result.tokenAmount, token.decimals),
+        secondaryAmount: formatAmount(result.xlmAmount, 7),
+        secondarySymbol: 'XLM',
+        detail: `${formatAmount(result.lpAmount, 7)} LP`,
+        account: publicKey,
+        hash,
+      })
       toast.success('Liquidez añadida', {
         message: `${formatAmount(result.lpAmount, 7)} LP · par ${shortAddress(result.pair)}`,
         hash,
@@ -104,6 +116,17 @@ export function LiquidityForm({
     } catch (err) {
       const message = errorMessage(err)
       setError(message)
+      recordActivity({
+        kind: 'add-liquidity',
+        status: 'failed',
+        tokenId: token.id,
+        tokenSymbol: token.symbol,
+        amount: formatAmount(tokenDesired, token.decimals),
+        secondaryAmount: formatAmount(xlmDesired, 7),
+        secondarySymbol: 'XLM',
+        account: publicKey,
+        error: message,
+      })
       toast.error('No se pudo añadir liquidez', { message })
     } finally {
       setBusy(false)

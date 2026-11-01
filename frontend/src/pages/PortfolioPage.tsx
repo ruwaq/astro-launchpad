@@ -8,6 +8,7 @@ import { fetchTokenBalance } from '../lib/token'
 import { formatAmount, shortAddress } from '../lib/format'
 import { tokenPriceInXlm, type PoolState } from '../lib/soroswap'
 import { TokenArt } from '../components/TokenArt'
+import { ActivityFeed } from '../components/ActivityFeed'
 
 type PortfolioToken = {
   id: string
@@ -202,6 +203,8 @@ export function PortfolioPage() {
           </ul>
         )}
       </section>
+
+      <ActivityFeed />
     </>
   )
 }

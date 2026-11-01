@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useTokenInfo } from '../hooks/useTokenInfo'
 import { tokenClient, type LaunchpadToken } from '../lib/token'
 import { useWallet } from '../store/wallet'
+import { recordActivity } from '../store/activity'
 import { errorMessage, formatAmount, parseAmount, shortAddress } from '../lib/format'
 import { isValidStellarAddress } from '../lib/address'
 import { invalidateTokenData } from '../lib/query'
@@ -39,6 +40,10 @@ export function MintCard({ token }: { token: LaunchpadToken }) {
     setError(null)
     setMinted(null)
 
+    if (!publicKey) {
+      setError('Conecta tu wallet o activa el modo prueba para emitir tokens.')
+      return
+    }
     const signer = getSigner()
     if (!signer) {
       setError('No se pudo preparar el firmante de la cuenta activa.')
@@ -69,6 +74,15 @@ export function MintCard({ token }: { token: LaunchpadToken }) {
       hash = sentTx.sendTransactionResponse?.hash
       setMinted({ amount: amountBase, to: destination, hash })
       setAmount('')
+      recordActivity({
+        kind: 'mint',
+        tokenId: token.id,
+        tokenSymbol: token.symbol,
+        amount: formatAmount(amountBase, token.decimals),
+        counterparty: destination,
+        account: publicKey,
+        hash,
+      })
       toast.success('Tokens emitidos', {
         message: `${formatAmount(amountBase, token.decimals)} ${token.symbol ?? 'token'} → ${shortAddress(destination)}`,
         hash,
@@ -77,6 +91,16 @@ export function MintCard({ token }: { token: LaunchpadToken }) {
     } catch (err) {
       const message = errorMessage(err)
       setError(message)
+      recordActivity({
+        kind: 'mint',
+        status: 'failed',
+        tokenId: token.id,
+        tokenSymbol: token.symbol,
+        amount: formatAmount(amountBase, token.decimals),
+        counterparty: destination,
+        account: publicKey,
+        error: message,
+      })
       toast.error('No se pudieron emitir los tokens', { message })
     } finally {
       setBusy(false)

@@ -13,6 +13,7 @@ import {
 import type { LaunchpadToken } from '../lib/token'
 import { useWallet } from '../store/wallet'
 import { useProgress } from '../store/progress'
+import { recordActivity } from '../store/activity'
 import { toast } from '../lib/toast'
 import { TokenArt } from './TokenArt'
 import { TxProgress } from './TxProgress'
@@ -94,6 +95,16 @@ export function SwapCard({
       setSwapped({ in: amountIn, out: received })
       setAmount('')
       markProgress('swapped')
+      recordActivity({
+        kind: 'swap',
+        tokenId: token.id,
+        tokenSymbol: token.symbol,
+        amount: formatAmount(amountIn, token.decimals),
+        secondaryAmount: formatAmount(received, 7),
+        secondarySymbol: 'XLM',
+        account: publicKey,
+        hash,
+      })
       toast.success('Swap completado', {
         message: `${formatAmount(amountIn, token.decimals)} token → ${formatAmount(received, 7)} XLM`,
         hash,
@@ -117,6 +128,15 @@ export function SwapCard({
     } catch (err) {
       const message = errorMessage(err)
       setError(message)
+      recordActivity({
+        kind: 'swap',
+        status: 'failed',
+        tokenId: token.id,
+        tokenSymbol: token.symbol,
+        amount: formatAmount(amountIn, token.decimals),
+        account: publicKey,
+        error: message,
+      })
       toast.error('No se pudo completar el swap', { message })
     } finally {
       setBusy(false)

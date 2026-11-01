@@ -81,8 +81,12 @@ try {
   }
 
   const portfolioHtml = renderApp('/portfolio')
-  if (!portfolioHtml.includes('Tu portfolio')) {
-    throw new Error('la ruta /portfolio no renderiza')
+  if (
+    !portfolioHtml.includes('Tu portfolio') ||
+    !portfolioHtml.includes('Actividad reciente') ||
+    !portfolioHtml.includes('Aún no hay actividad')
+  ) {
+    throw new Error('la ruta /portfolio no renderiza su actividad vacía')
   }
 
   const tokenHtml = renderApp('/token/CTOKEN')

@@ -9,6 +9,7 @@ import {
 } from '../lib/soroswap'
 import type { LaunchpadToken } from '../lib/token'
 import { useWallet } from '../store/wallet'
+import { recordActivity } from '../store/activity'
 import { toast } from '../lib/toast'
 import { TxProgress } from './TxProgress'
 
@@ -73,6 +74,17 @@ export function LiquidityPosition({ token }: { token: LaunchpadToken }) {
         },
       })
       setWithdrawn({ ...result, lpAmount })
+      recordActivity({
+        kind: 'remove-liquidity',
+        tokenId: token.id,
+        tokenSymbol: token.symbol,
+        amount: formatAmount(result.tokenAmount, token.decimals),
+        secondaryAmount: formatAmount(result.xlmAmount, 7),
+        secondarySymbol: 'XLM',
+        detail: `${formatAmount(lpAmount, LP_DECIMALS)} LP quemados`,
+        account: publicKey,
+        hash,
+      })
       toast.success('Liquidez retirada', {
         message: `${formatAmount(result.tokenAmount, token.decimals)} token + ${formatAmount(result.xlmAmount, 7)} XLM`,
         hash,
@@ -100,6 +112,18 @@ export function LiquidityPosition({ token }: { token: LaunchpadToken }) {
     } catch (err) {
       const message = errorMessage(err)
       setError(message)
+      recordActivity({
+        kind: 'remove-liquidity',
+        status: 'failed',
+        tokenId: token.id,
+        tokenSymbol: token.symbol,
+        amount: formatAmount(preview.tokenAmount, token.decimals),
+        secondaryAmount: formatAmount(preview.xlmAmount, 7),
+        secondarySymbol: 'XLM',
+        detail: `${formatAmount(lpAmount, LP_DECIMALS)} LP`,
+        account: publicKey,
+        error: message,
+      })
       toast.error('No se pudo retirar la liquidez', { message })
     } finally {
       setBusy(false)

@@ -15,6 +15,7 @@ import {
 } from '../lib/format'
 import { tokenClient } from '../lib/token'
 import type { LaunchpadToken } from '../lib/token'
+import { recordActivity } from '../store/activity'
 import { toast } from '../lib/toast'
 import { TxProgress } from './TxProgress'
 
@@ -108,6 +109,16 @@ export function DemoMode({ token }: { token: LaunchpadToken }) {
       const hash = sentTx.sendTransactionResponse?.hash
       setSent({ amount: amountBase, label: recipient.account.label })
       setAmount('')
+      recordActivity({
+        kind: 'transfer',
+        tokenId: token.id,
+        tokenSymbol: token.symbol,
+        amount: formatAmount(amountBase, token.decimals),
+        counterparty: recipient.account.publicKey,
+        detail: `cuenta demo ${recipient.account.label}`,
+        account: publicKey,
+        hash,
+      })
       toast.success('Transferencia enviada', {
         message: `${formatAmount(amountBase, token.decimals)} ${token.symbol ?? 'token'} → cuenta ${recipient.account.label}`,
         hash,
@@ -121,6 +132,17 @@ export function DemoMode({ token }: { token: LaunchpadToken }) {
     } catch (err) {
       const message = errorMessage(err)
       setError(message)
+      recordActivity({
+        kind: 'transfer',
+        status: 'failed',
+        tokenId: token.id,
+        tokenSymbol: token.symbol,
+        amount: formatAmount(amountBase, token.decimals),
+        counterparty: recipient.account.publicKey,
+        detail: `cuenta demo ${recipient.account.label}`,
+        account: publicKey,
+        error: message,
+      })
       toast.error('No se pudo enviar la transferencia', { message })
     } finally {
       setBusy(false)
