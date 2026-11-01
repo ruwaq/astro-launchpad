@@ -4,7 +4,6 @@ import { addLiquidity } from '../lib/soroswap'
 import { errorMessage, formatAmount, parseAmount, shortAddress } from '../lib/format'
 import { useTokenBalance } from '../hooks/useTokenBalance'
 import { ShareButton } from './ShareButton'
-import { walletSigner } from '../lib/signer'
 import type { LaunchpadToken } from '../lib/token'
 import { useWallet } from '../store/wallet'
 
@@ -24,7 +23,7 @@ export function LiquidityForm({
   token: LaunchpadToken
   onAdded?: () => void
 }) {
-  const { publicKey } = useWallet()
+  const { publicKey, getSigner } = useWallet()
   const queryClient = useQueryClient()
   const balance = useTokenBalance(publicKey, token.id)
   const [amountToken, setAmountToken] = useState('')
@@ -43,7 +42,12 @@ export function LiquidityForm({
     setLp(null)
 
     if (!publicKey) {
-      setError('Conecta tu wallet para añadir liquidez.')
+      setError('Conecta tu wallet o activa el modo prueba para añadir liquidez.')
+      return
+    }
+    const signer = getSigner()
+    if (!signer) {
+      setError('No se pudo preparar el firmante de la cuenta activa.')
       return
     }
     const tokenDesired = parseAmount(amountToken, token.decimals)
@@ -60,7 +64,7 @@ export function LiquidityForm({
         tokenId: token.id,
         amountToken: tokenDesired,
         amountXlm: xlmDesired,
-        signer: walletSigner(publicKey),
+        signer,
       })
       setLp(result)
       setAmountToken('')

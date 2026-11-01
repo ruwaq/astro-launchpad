@@ -45,7 +45,7 @@ export function Onboarding({ created, liquidity, swapped, preview }: Props) {
     {
       key: 'wallet',
       title: 'Conecta tu wallet',
-      hint: 'Freighter, xBull, LOBSTR…',
+      hint: 'Freighter, xBull… o el modo prueba de abajo',
       done: connected,
       onClick: connected ? undefined : () => void connect(),
     },

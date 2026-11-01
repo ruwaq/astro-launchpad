@@ -159,8 +159,24 @@ try {
     throw new Error('LiquidityPosition sin wallet debería no pintar nada')
   }
 
+  // Modo prueba: estado inicial sin cuentas, invita a crearlas.
+  const { DemoMode } = await vite.ssrLoadModule('/src/components/DemoMode.tsx')
+  const demoHtml = renderToString(
+    createElement(
+      QueryClientProvider,
+      { client: queryClient },
+      createElement(DemoMode, { token: { id: 'CTOKEN', decimals: 7 } }),
+    ),
+  )
+  if (
+    !demoHtml.includes('Modo prueba') ||
+    !demoHtml.includes('Crear 3 cuentas de prueba')
+  ) {
+    throw new Error('el modo prueba no muestra el estado inicial')
+  }
+
   console.log(
-    `render OK (${html.length} + ${liquidityHtml.length} + ${walletFound.length} + ${walletMissing.length} + ${guideOpen.length} + ${guideMini.length} + ${artHtml.length} chars) · ${checks.length + 8} secciones`,
+    `render OK (${html.length} + ${liquidityHtml.length} + ${walletFound.length} + ${walletMissing.length} + ${guideOpen.length} + ${guideMini.length} + ${artHtml.length} + ${demoHtml.length} chars) · ${checks.length + 9} secciones`,
   )
 } catch (err) {
   failed = true

@@ -7,7 +7,6 @@ import {
   withdrawLiquidity,
   withdrawPreview,
 } from '../lib/soroswap'
-import { walletSigner } from '../lib/signer'
 import type { LaunchpadToken } from '../lib/token'
 import { useWallet } from '../store/wallet'
 
@@ -24,7 +23,7 @@ const LP_DECIMALS = 7
  * y devuelve ambos lados del par en proporción a las reservas.
  */
 export function LiquidityPosition({ token }: { token: LaunchpadToken }) {
-  const { publicKey } = useWallet()
+  const { publicKey, getSigner } = useWallet()
   const queryClient = useQueryClient()
   const position = useLpPosition(token.id, publicKey)
   const [percent, setPercent] = useState<Percent>(100)
@@ -54,13 +53,18 @@ export function LiquidityPosition({ token }: { token: LaunchpadToken }) {
       setError('No hay LP disponibles para retirar.')
       return
     }
+    const signer = getSigner()
+    if (!signer) {
+      setError('No se pudo preparar el firmante de la cuenta activa.')
+      return
+    }
 
     setBusy(true)
     try {
       const result = await withdrawLiquidity({
         tokenId: token.id,
         lpAmount,
-        signer: walletSigner(publicKey),
+        signer,
       })
       setWithdrawn({ ...result, lpAmount })
       await Promise.all([

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { WalletButton } from './components/WalletButton'
 import { WalletInstallHint } from './components/WalletInstallHint'
 import { Onboarding } from './components/Onboarding'
+import { DemoMode } from './components/DemoMode'
 import { TokenInfoCard } from './components/TokenInfoCard'
 import { CreateTokenForm } from './components/CreateTokenForm'
 import { LiquidityForm } from './components/LiquidityForm'
@@ -17,7 +18,7 @@ import type { LaunchpadToken } from './lib/token'
 const DEMO_TOKEN: LaunchpadToken = { id: ASTRO_TOKEN_ID, decimals: 7 }
 
 export default function App() {
-  const { publicKey } = useWallet()
+  const { publicKey, demoActive } = useWallet()
   const [selectedToken, setSelectedToken] = useState<LaunchpadToken>(DEMO_TOKEN)
   const [createdToken, setCreatedToken] = useState<LaunchpadToken | null>(null)
   const [liquidityDone, setLiquidityDone] = useState(false)
@@ -64,6 +65,11 @@ export default function App() {
           created={Boolean(createdToken)}
           liquidity={liquidityDone}
           swapped={swappedOnce}
+        />
+
+        <DemoMode
+          key={`${selectedToken.id}-${demoActive}`}
+          token={selectedToken}
         />
 
         {/* Orden móvil pensado en una sola meta por pantalla:

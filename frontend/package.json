@@ -15,6 +15,7 @@
     "verify:launchpad": "node scripts/verify-launchpad.mjs",
     "verify:soroswap": "node scripts/verify-soroswap.mjs",
     "verify:discovery": "node scripts/verify-discovery.mjs",
+    "verify:demo": "node scripts/verify-demo.mjs",
     "verify:frontend": "node scripts/verify-frontend-flow.mjs"
   },
   "dependencies": {

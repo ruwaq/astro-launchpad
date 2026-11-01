@@ -11,7 +11,6 @@ import {
   type PoolState,
 } from '../lib/soroswap'
 import type { LaunchpadToken } from '../lib/token'
-import { walletSigner } from '../lib/signer'
 import { useWallet } from '../store/wallet'
 import { TokenArt } from './TokenArt'
 
@@ -31,7 +30,7 @@ export function SwapCard({
   token: LaunchpadToken
   onSwapped?: () => void
 }) {
-  const { publicKey } = useWallet()
+  const { publicKey, getSigner } = useWallet()
   const queryClient = useQueryClient()
   const [amount, setAmount] = useState('')
   const [busy, setBusy] = useState(false)
@@ -57,7 +56,12 @@ export function SwapCard({
     setSwapped(null)
 
     if (!publicKey) {
-      setError('Conecta tu wallet para hacer el swap.')
+      setError('Conecta tu wallet o activa el modo prueba para hacer el swap.')
+      return
+    }
+    const signer = getSigner()
+    if (!signer) {
+      setError('No se pudo preparar el firmante de la cuenta activa.')
       return
     }
     if (amountIn <= 0n) {
@@ -76,7 +80,7 @@ export function SwapCard({
         tokenId: token.id,
         amountIn,
         amountOutMin: withSlippage(quoted),
-        signer: walletSigner(publicKey),
+        signer,
       })
       setSwapped({ in: amountIn, out: amounts[1] ?? quoted })
       setAmount('')

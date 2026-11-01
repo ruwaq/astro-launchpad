@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { deployToken } from '../lib/token'
-import { walletSigner } from '../lib/signer'
 import { ShareButton } from './ShareButton'
 import { useWallet } from '../store/wallet'
 import { errorMessage, parseAmount } from '../lib/format'
@@ -21,9 +20,9 @@ const inputClass =
 export function CreateTokenForm({
   onCreated,
 }: {
-  onCreated?: (token: { id: string; decimals: number }) => void
+  onCreated?: (token: { id: string; decimals: number; symbol?: string }) => void
 }) {
-  const { publicKey } = useWallet()
+  const { publicKey, getSigner } = useWallet()
   const [expert, setExpert] = useState(false)
   const [name, setName] = useState('')
   const [symbol, setSymbol] = useState('')
@@ -39,7 +38,12 @@ export function CreateTokenForm({
     setCreatedId(null)
 
     if (!publicKey) {
-      setError('Conecta tu wallet para crear el token.')
+      setError('Conecta tu wallet o activa el modo prueba para crear el token.')
+      return
+    }
+    const signer = getSigner()
+    if (!signer) {
+      setError('No se pudo preparar el firmante de la cuenta activa.')
       return
     }
     if (!name.trim() || !symbol.trim()) {
@@ -54,10 +58,10 @@ export function CreateTokenForm({
         symbol: symbol.trim().toUpperCase(),
         decimals,
         initialSupply: parseAmount(supply, decimals),
-        signer: walletSigner(publicKey),
+        signer,
       })
       setCreatedId(newId)
-      onCreated?.({ id: newId, decimals })
+      onCreated?.({ id: newId, decimals, symbol: symbol.trim().toUpperCase() })
     } catch (err) {
       setError(errorMessage(err))
     } finally {

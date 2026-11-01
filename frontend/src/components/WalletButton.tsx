@@ -2,11 +2,23 @@ import { useWallet } from '../store/wallet'
 import { shortAddress } from '../lib/format'
 
 export function WalletButton() {
-  const { publicKey, pending, connect, disconnect } = useWallet()
+  const {
+    publicKey,
+    pending,
+    mode,
+    demoActive,
+    connect,
+    disconnect,
+  } = useWallet()
 
   if (publicKey) {
     return (
       <div className="flex items-center gap-2">
+        {mode === 'demo' ? (
+          <span className="rounded bg-emerald-500/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-300">
+            demo {String.fromCharCode(65 + demoActive)}
+          </span>
+        ) : null}
         <code className="rounded bg-slate-800 px-2 py-1 text-xs">
           {shortAddress(publicKey)}
         </code>
