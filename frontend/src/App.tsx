@@ -1,6 +1,7 @@
 import { Link, NavLink, Route, Routes } from 'react-router'
 import { WalletButton } from './components/WalletButton'
 import { ScrollToTop } from './components/ScrollToTop'
+import { OfflineBanner } from './components/OfflineBanner'
 import { HomePage } from './pages/HomePage'
 import { MarketPage } from './pages/MarketPage'
 import { TokenPage } from './pages/TokenPage'
@@ -30,6 +31,8 @@ export default function App() {
       >
         Saltar al contenido
       </a>
+
+      <OfflineBanner />
 
       <header className="sticky top-0 z-40 border-b border-slate-900 bg-slate-950/90 backdrop-blur-md">
         <div className="mx-auto max-w-5xl px-4">

@@ -6,6 +6,7 @@ import './index.css'
 import App from './App.tsx'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { Toaster } from './components/Toaster'
+import { registerServiceWorker } from './lib/register-sw'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -30,3 +31,5 @@ createRoot(document.getElementById('root')!).render(
     </ErrorBoundary>
   </StrictMode>,
 )
+
+registerServiceWorker()
