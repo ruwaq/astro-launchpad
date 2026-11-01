@@ -6,6 +6,8 @@ import { useTokenBalance } from '../hooks/useTokenBalance'
 import { ShareButton } from './ShareButton'
 import type { LaunchpadToken } from '../lib/token'
 import { useWallet } from '../store/wallet'
+import { toast } from '../lib/toast'
+import { TxProgress } from './TxProgress'
 
 const inputClass =
   'w-full rounded-lg border border-slate-800 bg-slate-950 px-3.5 py-3 text-base text-slate-100 outline-none focus:border-emerald-500'
@@ -29,7 +31,7 @@ export function LiquidityForm({
   const [amountToken, setAmountToken] = useState('')
   const [amountXlm, setAmountXlm] = useState('')
   const [busy, setBusy] = useState(false)
-  const [stage, setStage] = useState<string | null>(null)
+  const [phase, setPhase] = useState<'pair' | 'liquidity' | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [lp, setLp] = useState<
     | { pair: string; tokenAmount: bigint; xlmAmount: bigint; lpAmount: bigint }
@@ -58,17 +60,26 @@ export function LiquidityForm({
     }
 
     setBusy(true)
+    setPhase('pair')
+    let hash: string | undefined
     try {
-      setStage('Creando el par y añadiendo liquidez…')
       const result = await addLiquidity({
         tokenId: token.id,
         amountToken: tokenDesired,
         amountXlm: xlmDesired,
         signer,
+        onStep: setPhase,
+        onHash: (value) => {
+          hash = value
+        },
       })
       setLp(result)
       setAmountToken('')
       setAmountXlm('')
+      toast.success('Liquidez añadida', {
+        message: `${formatAmount(result.lpAmount, 7)} LP · par ${shortAddress(result.pair)}`,
+        hash,
+      })
       onAdded?.()
       // Las reservas han cambiado: refrescamos el pool.
       await queryClient.invalidateQueries({
@@ -81,10 +92,12 @@ export function LiquidityForm({
         queryKey: ['demo-xlm-balances'],
       })
     } catch (err) {
-      setError(errorMessage(err))
+      const message = errorMessage(err)
+      setError(message)
+      toast.error('No se pudo añadir liquidez', { message })
     } finally {
       setBusy(false)
-      setStage(null)
+      setPhase(null)
     }
   }
 
@@ -102,7 +115,11 @@ export function LiquidityForm({
         acumula hasta que retires la liquidez.
       </p>
 
-      <form onSubmit={onSubmit} className="mt-4 grid gap-3 sm:grid-cols-2">
+      <form
+        onSubmit={onSubmit}
+        aria-busy={busy}
+        className="mt-4 grid gap-3 sm:grid-cols-2"
+      >
         <label className="block text-sm">
           <span className="text-slate-400">
             Monto del token ({token.decimals} dec)
@@ -153,8 +170,21 @@ export function LiquidityForm({
         </div>
       </form>
 
-      {busy && stage ? (
-        <p className="mt-4 animate-pulse text-sm text-amber-300">{stage}</p>
+      {busy && phase ? (
+        <div className="mt-4">
+          <TxProgress
+            steps={[
+              {
+                label: 'Verificando o creando el par token/XLM',
+                status: phase === 'liquidity' ? 'done' : 'active',
+              },
+              {
+                label: 'Firmando y añadiendo liquidez con el router',
+                status: phase === 'liquidity' ? 'active' : 'pending',
+              },
+            ]}
+          />
+        </div>
       ) : null}
 
       {error ? (

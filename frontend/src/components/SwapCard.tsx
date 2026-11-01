@@ -12,7 +12,9 @@ import {
 } from '../lib/soroswap'
 import type { LaunchpadToken } from '../lib/token'
 import { useWallet } from '../store/wallet'
+import { toast } from '../lib/toast'
 import { TokenArt } from './TokenArt'
+import { TxProgress } from './TxProgress'
 
 const inputClass =
   'w-full rounded-lg border border-slate-800 bg-slate-950 px-3.5 py-3 text-base text-slate-100 outline-none focus:border-emerald-500'
@@ -75,15 +77,24 @@ export function SwapCard({
     }
 
     setBusy(true)
+    let hash: string | undefined
     try {
       const amounts = await swapTokenForXlm({
         tokenId: token.id,
         amountIn,
         amountOutMin: withSlippage(quoted),
         signer,
+        onHash: (value) => {
+          hash = value
+        },
       })
-      setSwapped({ in: amountIn, out: amounts[1] ?? quoted })
+      const received = amounts[1] ?? quoted
+      setSwapped({ in: amountIn, out: received })
       setAmount('')
+      toast.success('Swap completado', {
+        message: `${formatAmount(amountIn, token.decimals)} token → ${formatAmount(received, 7)} XLM`,
+        hash,
+      })
       onSwapped?.()
       await queryClient.invalidateQueries({
         queryKey: ['soroswap-pool', token.id],
@@ -101,7 +112,9 @@ export function SwapCard({
         queryKey: ['demo-xlm-balances'],
       })
     } catch (err) {
-      setError(errorMessage(err))
+      const message = errorMessage(err)
+      setError(message)
+      toast.error('No se pudo completar el swap', { message })
     } finally {
       setBusy(false)
     }
@@ -134,7 +147,7 @@ export function SwapCard({
         </p>
       )}
 
-      <form onSubmit={onSwap} className="mt-4 grid gap-3">
+      <form onSubmit={onSwap} aria-busy={busy} className="mt-4 grid gap-3">
         <label className="block text-sm">
           <span className="text-slate-400">
             Monto del token ({token.decimals} dec)
@@ -187,6 +200,17 @@ export function SwapCard({
             router.
           </p>
         </div>
+
+        {busy ? (
+          <TxProgress
+            steps={[
+              {
+                label: 'Firmando y enviando el swap al router',
+                status: 'active',
+              },
+            ]}
+          />
+        ) : null}
       </form>
 
       {error ? (

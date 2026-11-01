@@ -9,6 +9,8 @@ import {
 } from '../lib/soroswap'
 import type { LaunchpadToken } from '../lib/token'
 import { useWallet } from '../store/wallet'
+import { toast } from '../lib/toast'
+import { TxProgress } from './TxProgress'
 
 const PERCENTS = [25, 50, 100] as const
 type Percent = (typeof PERCENTS)[number]
@@ -60,13 +62,21 @@ export function LiquidityPosition({ token }: { token: LaunchpadToken }) {
     }
 
     setBusy(true)
+    let hash: string | undefined
     try {
       const result = await withdrawLiquidity({
         tokenId: token.id,
         lpAmount,
         signer,
+        onHash: (value) => {
+          hash = value
+        },
       })
       setWithdrawn({ ...result, lpAmount })
+      toast.success('Liquidez retirada', {
+        message: `${formatAmount(result.tokenAmount, token.decimals)} token + ${formatAmount(result.xlmAmount, 7)} XLM`,
+        hash,
+      })
       await Promise.all([
         queryClient.invalidateQueries({
           queryKey: ['soroswap-pool', token.id],
@@ -88,14 +98,19 @@ export function LiquidityPosition({ token }: { token: LaunchpadToken }) {
         }),
       ])
     } catch (err) {
-      setError(errorMessage(err))
+      const message = errorMessage(err)
+      setError(message)
+      toast.error('No se pudo retirar la liquidez', { message })
     } finally {
       setBusy(false)
     }
   }
 
   return (
-    <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-4 sm:p-6">
+    <section
+      aria-busy={busy}
+      className="rounded-xl border border-slate-800 bg-slate-900/40 p-4 sm:p-6"
+    >
       <h2 className="text-lg font-semibold">
         Tu liquidez · {shortAddress(token.id)}
       </h2>
@@ -144,6 +159,19 @@ export function LiquidityPosition({ token }: { token: LaunchpadToken }) {
               ? 'Retirando…'
               : `Retirar ${percent === 100 ? 'todo' : `${percent} %`} · ${formatAmount(lpAmount, LP_DECIMALS)} LP`}
           </button>
+
+          {busy ? (
+            <div className="mt-4">
+              <TxProgress
+                steps={[
+                  {
+                    label: 'Quemando LP y devolviendo ambos lados del par',
+                    status: 'active',
+                  },
+                ]}
+              />
+            </div>
+          ) : null}
         </>
       ) : null}
 

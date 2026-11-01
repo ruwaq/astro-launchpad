@@ -275,16 +275,21 @@ export async function addLiquidity(params: {
   amountToken: bigint
   amountXlm: bigint
   signer: Signer
+  /** Se invoca al entrar en cada fase, para pintar progreso real. */
+  onStep?: (step: 'pair' | 'liquidity') => void
+  /** Se invoca con el hash en cuanto la tx de liquidez se envía. */
+  onHash?: (hash: string) => void
 }): Promise<{
   pair: string
   tokenAmount: bigint
   xlmAmount: bigint
   lpAmount: bigint
 }> {
-  const { tokenId, amountToken, amountXlm, signer } = params
+  const { tokenId, amountToken, amountXlm, signer, onStep, onHash } = params
   const { router } = soroswapClients(signer)
   const publicKey = signer.address
 
+  onStep?.('pair')
   const pair = await ensurePair(tokenId, signer)
   // La orientación real es la del par: montamos los amounts en el orden
   // interno (token_0, token_1) para que el router no cruce los lados.
@@ -294,6 +299,7 @@ export async function addLiquidity(params: {
     throw new Error('El par no contiene el token del launchpad')
   }
 
+  onStep?.('liquidity')
   const tx = await router.add_liquidity({
     token_a: tokenFirst ? tokenId : XLM_SAC,
     token_b: tokenFirst ? XLM_SAC : tokenId,
@@ -304,8 +310,13 @@ export async function addLiquidity(params: {
     to: publicKey,
     deadline: unixDeadline(),
   })
-  const { result } = await tx.signAndSend()
-  const [amountA, amountB, lpAmount] = unwrapResult<[bigint, bigint, bigint]>(result, 'add_liquidity')
+  const sent = await tx.signAndSend()
+  const hash = sent.sendTransactionResponse?.hash
+  if (hash) onHash?.(hash)
+  const [amountA, amountB, lpAmount] = unwrapResult<[bigint, bigint, bigint]>(
+    sent.result,
+    'add_liquidity',
+  )
 
   // El router devuelve los amounts en el orden en que le pasamos los tokens,
   // que aquí es el orden real (token_0, token_1) del par.
@@ -327,8 +338,10 @@ export async function withdrawLiquidity(params: {
   tokenId: string
   lpAmount: bigint
   signer: Signer
+  /** Se invoca con el hash en cuanto la tx se envía a la red. */
+  onHash?: (hash: string) => void
 }): Promise<{ pair: string; tokenAmount: bigint; xlmAmount: bigint }> {
-  const { tokenId, lpAmount, signer } = params
+  const { tokenId, lpAmount, signer, onHash } = params
   if (lpAmount <= 0n) {
     throw new Error('La cantidad de LP a retirar debe ser mayor que 0')
   }
@@ -370,9 +383,11 @@ export async function withdrawLiquidity(params: {
     to: signer.address,
     deadline: unixDeadline(),
   })
-  const { result } = await tx.signAndSend()
+  const sent = await tx.signAndSend()
+  const hash = sent.sendTransactionResponse?.hash
+  if (hash) onHash?.(hash)
   const [amountA, amountB] = unwrapResult<[bigint, bigint]>(
-    result,
+    sent.result,
     'remove_liquidity',
   )
 
@@ -390,8 +405,10 @@ export async function swapTokenForXlm(params: {
   amountIn: bigint
   amountOutMin: bigint
   signer: Signer
+  /** Se invoca con el hash en cuanto la tx se envía a la red. */
+  onHash?: (hash: string) => void
 }): Promise<bigint[]> {
-  const { tokenId, amountIn, amountOutMin, signer } = params
+  const { tokenId, amountIn, amountOutMin, signer, onHash } = params
   const { router } = soroswapClients(signer)
 
   const tx = await router.swap_exact_tokens_for_tokens({
@@ -401,8 +418,10 @@ export async function swapTokenForXlm(params: {
     to: signer.address,
     deadline: unixDeadline(),
   })
-  const { result } = await tx.signAndSend()
-  return unwrapResult<bigint[]>(result, 'swap')
+  const sent = await tx.signAndSend()
+  const hash = sent.sendTransactionResponse?.hash
+  if (hash) onHash?.(hash)
+  return unwrapResult<bigint[]>(sent.result, 'swap')
 }
 
 /** Deadline del router: unix timestamp + 5 minutos. */

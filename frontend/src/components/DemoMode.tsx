@@ -15,6 +15,8 @@ import {
 } from '../lib/format'
 import { tokenClient } from '../lib/token'
 import type { LaunchpadToken } from '../lib/token'
+import { toast } from '../lib/toast'
+import { TxProgress } from './TxProgress'
 
 const inputClass =
   'w-full rounded-lg border border-slate-800 bg-slate-950 px-3.5 py-3 text-base text-slate-100 outline-none focus:border-emerald-500'
@@ -102,9 +104,14 @@ export function DemoMode({ token }: { token: LaunchpadToken }) {
         to: recipient.account.publicKey,
         amount: amountBase,
       })
-      await tx.signAndSend()
+      const sentTx = await tx.signAndSend()
+      const hash = sentTx.sendTransactionResponse?.hash
       setSent({ amount: amountBase, label: recipient.account.label })
       setAmount('')
+      toast.success('Transferencia enviada', {
+        message: `${formatAmount(amountBase, token.decimals)} ${token.symbol ?? 'token'} → cuenta ${recipient.account.label}`,
+        hash,
+      })
       await Promise.all([
         queryClient.invalidateQueries({
           queryKey: ['token-balance', token.id],
@@ -112,7 +119,9 @@ export function DemoMode({ token }: { token: LaunchpadToken }) {
         queryClient.invalidateQueries({ queryKey: ['demo-xlm-balances'] }),
       ])
     } catch (err) {
-      setError(errorMessage(err))
+      const message = errorMessage(err)
+      setError(message)
+      toast.error('No se pudo enviar la transferencia', { message })
     } finally {
       setBusy(false)
     }
@@ -214,6 +223,7 @@ export function DemoMode({ token }: { token: LaunchpadToken }) {
           {recipient ? (
             <form
               onSubmit={onTransfer}
+              aria-busy={busy}
               className="mt-5 rounded-lg border border-emerald-900/60 bg-slate-950/40 p-3"
             >
               <h3 className="text-sm font-semibold">Pasar token a otra cuenta</h3>
@@ -282,6 +292,19 @@ export function DemoMode({ token }: { token: LaunchpadToken }) {
                   </button>
                 ) : null}
               </p>
+
+              {busy ? (
+                <div className="mt-3">
+                  <TxProgress
+                    steps={[
+                      {
+                        label: 'Firmando y enviando la transferencia',
+                        status: 'active',
+                      },
+                    ]}
+                  />
+                </div>
+              ) : null}
 
               {sent ? (
                 <p

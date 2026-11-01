@@ -4,6 +4,8 @@ import { deployToken } from '../lib/token'
 import { ShareButton } from './ShareButton'
 import { useWallet } from '../store/wallet'
 import { errorMessage, parseAmount } from '../lib/format'
+import { toast } from '../lib/toast'
+import { TxProgress } from './TxProgress'
 
 const inputClass =
   'w-full rounded-lg border border-slate-800 bg-slate-950 px-3.5 py-3 text-base text-slate-100 outline-none focus:border-emerald-500'
@@ -54,6 +56,7 @@ export function CreateTokenForm({
     }
 
     setBusy(true)
+    let hash: string | undefined
     try {
       const newId = await deployToken({
         name: name.trim(),
@@ -61,15 +64,25 @@ export function CreateTokenForm({
         decimals,
         initialSupply: parseAmount(supply, decimals),
         signer,
+        onHash: (value) => {
+          hash = value
+        },
       })
+      const ticker = symbol.trim().toUpperCase()
       setCreatedId(newId)
-      onCreated?.({ id: newId, decimals, symbol: symbol.trim().toUpperCase() })
+      onCreated?.({ id: newId, decimals, symbol: ticker })
+      toast.success('Token creado en testnet', {
+        message: `${ticker} · ${newId}`,
+        hash,
+      })
       // El deploy gasta XLM de la cuenta activa (demo o wallet).
       await queryClient.invalidateQueries({
         queryKey: ['demo-xlm-balances'],
       })
     } catch (err) {
-      setError(errorMessage(err))
+      const message = errorMessage(err)
+      setError(message)
+      toast.error('No se pudo crear el token', { message })
     } finally {
       setBusy(false)
     }
@@ -93,7 +106,11 @@ export function CreateTokenForm({
         todo.
       </p>
 
-      <form onSubmit={onSubmit} className="mt-4 grid gap-3 sm:grid-cols-2">
+      <form
+        onSubmit={onSubmit}
+        aria-busy={busy}
+        className="mt-4 grid gap-3 sm:grid-cols-2"
+      >
         <label className="block text-sm">
           <span className="text-slate-400">Nombre</span>
           <input
@@ -161,6 +178,19 @@ export function CreateTokenForm({
             {busy ? 'Creando en testnet…' : 'Crear token (gratis)'}
           </button>
         </div>
+
+        {busy ? (
+          <div className="sm:col-span-2">
+            <TxProgress
+              steps={[
+                {
+                  label: 'Desplegando el contrato y minteando el supply',
+                  status: 'active',
+                },
+              ]}
+            />
+          </div>
+        ) : null}
       </form>
 
       <div className="mt-4 rounded-lg border border-slate-800 bg-slate-950/60 p-3 text-xs text-slate-400">

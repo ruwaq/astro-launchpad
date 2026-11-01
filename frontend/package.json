@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "check": "npm run build && npm run lint && npm run smoke:render",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check": "npm run build && npm run lint && npm run test && npm run smoke:render",
     "deploy": "npm run build && npx -y wrangler@latest deploy",
     "smoke:render": "node scripts/smoke-render.mjs",
     "preview": "vite preview",
@@ -35,6 +37,7 @@
     "@vitejs/plugin-react": "^6.1.2",
     "oxlint": "^1.88.0",
     "typescript": "~6.0.3",
-    "vite": "^8.3.4"
+    "vite": "^8.3.4",
+    "vitest": "^5.0.5"
   }
 }

@@ -52,8 +52,10 @@ export async function deployToken(params: {
   decimals: number
   initialSupply: bigint
   signer: Signer
+  /** Se invoca con el hash en cuanto la tx se envía a la red. */
+  onHash?: (hash: string) => void
 }): Promise<string> {
-  const { name, symbol, decimals, initialSupply, signer } = params
+  const { name, symbol, decimals, initialSupply, signer, onHash } = params
 
   const tx = await AstroTokenClient.deploy(
     {
@@ -73,6 +75,8 @@ export async function deployToken(params: {
       signAuthEntry: signer,
     },
   )
-  const { result } = await tx.signAndSend()
-  return result.options.contractId
+  const sent = await tx.signAndSend()
+  const hash = sent.sendTransactionResponse?.hash
+  if (hash) onHash?.(hash)
+  return sent.result.options.contractId
 }

@@ -31,6 +31,13 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[110] focus:rounded-lg focus:bg-emerald-500 focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-slate-950"
+      >
+        Saltar al contenido
+      </a>
+
       <header className="sticky top-0 z-40 border-b border-slate-900 bg-slate-950/90 backdrop-blur-md">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3 sm:py-4">
           <h1 className="min-w-0 truncate text-lg font-semibold tracking-tight">
@@ -40,7 +47,11 @@ export default function App() {
         </div>
       </header>
 
-      <main className="mx-auto flex max-w-5xl flex-col gap-4 px-4 py-6 sm:gap-6 sm:py-10">
+      <main
+        id="main"
+        tabIndex={-1}
+        className="mx-auto flex max-w-5xl flex-col gap-4 px-4 py-6 sm:gap-6 sm:py-10"
+      >
         <div className="flex flex-col gap-3">
           <p className="text-xs font-medium uppercase tracking-widest text-emerald-400">
             {BRAND.tagline} · {BRAND.taglineEn}
