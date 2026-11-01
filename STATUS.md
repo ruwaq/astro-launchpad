@@ -26,6 +26,10 @@
   `floodgate-shell-af0d1f8f8a77`), HTTP 200 en `/`, `/sw.js`,
   `/manifest.webmanifest` y fallback SPA. Caduca/reclama en ~53 min; no es el
   Worker de producción.
+- **Vercel**: se probó `vercel deploy --temporary`; el CLI se quedó en `npm ci`
+  y no llegó a publicar. `frontend/vercel.json` ahora fuerza `npm ci` (el
+  `pnpm-lock.yaml` local está ignorado y es viejo), pero no se usó como
+  producción.
 - **Git**: rama `ai/market-discovery` publicada. Draft PR
   [#1](https://github.com/ruwaq/astro-launchpad/pull/1), base
   `floodgate/testnet-base` y `mergeable`. `origin/main` es el monorepo legacy
