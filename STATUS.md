@@ -1,5 +1,35 @@
 # Estado actual (para continuar en la próxima sesión)
 
+## Handoff rápido (Nov 1 2026, sesión 15 — PWA install prompt y SDK 17.4)
+
+- **Instalación PWA**: `PwaInstallPrompt` usa `beforeinstallprompt`, se oculta
+  en standalone/SSR, se puede descartar (persistido en `localStorage`) y se
+  cierra con `appinstalled`. En iOS/Safari no hay prompt nativo: se usa el menú
+  del navegador → *Añadir a la pantalla de inicio*.
+- **SDK alineado**: los bindings generados usan `txFromJson`, disponible en
+  `@stellar/stellar-sdk@17.4.0`; `package.json`/`package-lock.json` quedaron en
+  esa versión. El `npm ci` interrumpido de Vercel había dejado `node_modules`
+  sin `.bin`; se restauró con `npm install` y se repitieron los gates.
+- **Gates**: `npm run check` verde (build + lint + 60 tests + smoke +
+  `verify:pwa`) y `npm run verify:demo` verde con el SDK nuevo: ciclo completo
+  en testnet y compra de `99,489931` tokens pagando 1 XLM.
+- **Preview actual**: <https://floodgate-stellar.extreme-hardboard.workers.dev>
+  sirve `index-Dyp2_r-W.js`, `index-CxHzngq0.css` y SW
+  `floodgate-shell-f6814337acfe`; HTTP 200 en `/`, `/sw.js`,
+  `/manifest.webmanifest` y fallback SPA. Es temporal y caduca/reclama en
+  minutos; **no** es el Worker de producción.
+- **Vercel**: `frontend/vercel.json` fuerza `npm ci`; el deploy anónimo se
+  quedó en la instalación y no llegó a publicar. No se usó como producción.
+- **Git**: commit local `31e0082` (se publica en esta sesión). Draft PR
+  [#1](https://github.com/ruwaq/astro-launchpad/pull/1), base
+  `floodgate/testnet-base`, `mergeable` y sin checks de CI.
+- **Bloqueado**: Worker real sin `wrangler login`; `origin/main` es el monorepo
+  legacy sin ancestro común; indexer/P2 restante requiere credenciales,
+  navegador o auditoría.
+- **Siguiente**: autenticar `wrangler` y desplegar el Worker real; decidir la
+  base del PR/`main`; luego indexer opcional o P2 (metadata/IPFS, i18n, Sentry,
+  Playwright, locker).
+
 ## Handoff rápido (Nov 1 2026, sesión 14 — Compra con XLM y preview viva)
 
 - **Swap bidireccional**: `SwapCard` permite vender token → XLM y comprar
