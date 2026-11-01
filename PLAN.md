@@ -61,8 +61,9 @@ Empezar simple y crecer.
    (par `CA32TMZ2AODXI7K7B6T2YPZR52HJKFCY5GT2DNHMOL326DLSNPX55BUP`;
    UI de liquidez + swap)
 7. UI/UX: listado de tokens (**hecho**: eventos `new_pair` de la factory),
-   trading, charts, toasts, responsive, deploy Vercel.
-   — **parcial** (deploy en Vercel es el objetivo del proyecto)
+   búsqueda/orden, rutas y detalle de token, portfolio, transferir/quemar/
+   mintear, toasts y responsive. — **hecho** (deploy online en Cloudflare
+   Workers; `vercel.json` se conserva como alternativa). Charts: Fase 2.
 8. Indexación ligera (eventos RPC o servicio existente) solo si se necesita.
 9. Escalar: monorepo, CI/CD, mainnet.
 
@@ -74,9 +75,22 @@ Empezar simple y crecer.
 - Decidido: el listado sale de `getEvents` del RPC, sin backend. Limitación
   asumida: ventana de retención de eventos (~14 h) y 9 tokens por carga. Un
   indexer solo hará falta si se quiere histórico completo.
-- Añadir CI (GitHub Actions) con `npm run build && npm run lint &&
-  npm run smoke:render` y `cargo test -p astro-token`.
+- CI añadida (GitHub Actions): `npm run check` (build + lint + tests +
+  smoke), `cargo fmt --check`, `cargo clippy -D warnings` y
+  `cargo test -p astro-token`.
 
+
+## Estado Nov 2026 (Fase 0/1 completadas)
+
+- **Fase 0**: CI + Dependabot, Vitest, toasts accesibles, `TxProgress`,
+  `ErrorBoundary`, a11y (skip link, foco, reduced-motion), CSP/security headers
+  en Cloudflare y Vercel.
+- **Fase 1**: rutas `/`, `/market`, `/token/:id`, `/portfolio`, `/create`;
+  búsqueda/orden del mercado; detalle con swap, liquidez, transferir, quemar y
+  mintear (solo owner); portfolio v1 con creaciones locales y holdings.
+- **Siguiente (Fase 2)**: indexer ligero + snapshots de reservas para charts
+  históricos. El par de Soroswap no emite `swap`; el indexer es necesario para
+  el histórico. Requiere recursos/credenciales Cloudflare y aprobación.
 
 ## Entorno local (Termux) — solo para desarrollo
 - Proyecto: ~/projects/astro-launchpad (symlink ~/workspace/astro-launchpad)

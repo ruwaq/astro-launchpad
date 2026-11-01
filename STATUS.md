@@ -1,5 +1,34 @@
 # Estado actual (para continuar en la próxima sesión)
 
+## Handoff rápido (Nov 1 2026, sesión 9 — Fase 0/1: CI, rutas y acciones)
+
+- **Fase 0 (`5eda96d`)**: GitHub Actions (frontend build/lint/tests/smoke;
+  contratos fmt/clippy/tests), Dependabot, Vitest, toasts accesibles,
+  `TxProgress`, `ErrorBoundary`, skip-link/foco/reduced-motion, CSP y headers
+  de seguridad en Cloudflare `_headers` y `vercel.json`, y caché inmutable de
+  assets.
+- **Fase 1 (`62eb981`)**: React Router 8 con `/`, `/market`, `/token/:id`,
+  `/portfolio` y `/create`; layout con navegación y footer; mercado con
+  búsqueda, filtro y orden (lógica pura en `lib/market.ts`); detalle de token
+  con precio/liquidez/supply/owner; `TransferCard`, `BurnCard` y `MintCard`
+  (solo owner, oculto para el resto); portfolio v1 con creaciones locales
+  (`store/creations.ts`) y holdings vía `useQueries`; progreso de onboarding
+  local (`store/progress.ts`).
+- **Verificación**: `npm run check` verde (build + lint + 30 tests + smoke de 5
+  rutas); `npm run verify:discovery` OK (se corrigió la comprobación obsoleta
+  de ASTRO en la ventana de eventos; ASTRO se valida en `discoverTokens`
+  porque está fijado); `npm run verify:demo` OK con 3 cuentas nuevas, pago
+  A→B, crear+LP+liquidez, transferencia, swap, mint del owner a C y burn de B
+  (el supply baja). `verify:frontend` no se ejecutó por falta de
+  `STELLAR_SECRET`; el mismo camino quedó cubierto por `verify:demo`.
+- **Pendiente**: deploy a producción requiere aprobación explícita
+  (`npm run deploy`); no hay navegador en este entorno, así que falta
+  verificación visual; Fase 2 (indexer + snapshots/charts) sigue pendiente de
+  recursos/credenciales Cloudflare y aprobación.
+- **Auditoría**: `npm audit` reporta 30 vulnerabilidades (12 low, 6 moderate,
+  12 high), casi todas transitivas de wallet-kit; no hay críticas. No ejecutar
+  `npm audit fix --force` (degrada wallet-kit a 1.9.5).
+
 ## Handoff rápido (Nov 1 2026, sesión 8 — modo prueba sin wallet)
 
 - **`lib/demo.ts`**: 3 cuentas nuevas (`Keypair.random`) fondeadas en secuencia

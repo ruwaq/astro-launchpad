@@ -18,13 +18,23 @@ Ver `PLAN.md` para arquitectura y roadmap, `STATUS.md` para el estado actual.
   nuevas de ese mismo wasm (cada token es su propio contrato).
 - `frontend/` — Vite + React 19 + TypeScript. Lee de Soroban RPC público, firma
   con la wallet (`@creit.tech/stellar-wallets-kit`) y usa Soroswap como AMM.
-  Incluye un listado de mercado que descubre pares token/XLM leyendo los
-  eventos `new_pair` de la factory (sin índice ni backend), swap y gestión de
-  la posición de liquidez (añadir, ver LP y retirar).
+  Incluye rutas compartibles, un listado de mercado que descubre pares
+  token/XLM leyendo los eventos `new_pair` de la factory (sin índice ni
+  backend), búsqueda/orden, detalle de token con swap, liquidez, transferir,
+  quemar y mintear (solo owner), y un portfolio local con tokens creados y
+  holdings recientes.
 - **Modo prueba sin wallet**: crea 3 cuentas desechables de testnet fondeadas
   por Friendbot y permite cambiar entre ellas para probar todo el ciclo como
   usuarios distintos, incluido pasar tokens de una cuenta a otra. Sin instalar
   ni conectar ninguna wallet.
+
+## Rutas
+
+- `/` — inicio, guía, modo prueba, mercado reciente y swap del token elegido.
+- `/market` — mercado completo con búsqueda y orden.
+- `/token/:id` — detalle on-chain del token y sus acciones.
+- `/portfolio` — tokens creados en este navegador + holdings de pares recientes.
+- `/create` — crear token SEP-41 y añadir liquidez en Soroswap.
 
 ## Dev rápido
 
@@ -40,9 +50,10 @@ npm run dev          # http://localhost:5173
 
 ```bash
 # Frontend
-npm run check          # build + lint + smoke de render (sin red)
+npm run check          # build + lint + tests + smoke de render (sin red)
 npm run build          # tsc + vite build
 npm run lint           # oxlint
+npm test               # Vitest (lógica pura: formato, mercado, AMM, eventos)
 npm run smoke:render   # render del árbol de componentes (sin navegador)
 npm run bindings       # regenera los bindings TS desde los contratos on-chain
 
@@ -53,7 +64,7 @@ npm run verify:frontend    # el mismo código que la UI, de punta a punta
 
 # Solo lectura / cuentas nuevas (sin secret)
 npm run verify:discovery   # parser de eventos + descubrimiento real
-npm run verify:demo        # crea 3 cuentas demo y prueba el flujo A -> B
+npm run verify:demo        # cuentas nuevas: crear, liquidez, swap, mint y burn
 
 # Contrato
 cargo test -p astro-token
@@ -100,6 +111,9 @@ No reutilizar este patrón para fondos reales.
   ```
   Producción: <https://floodgate-stellar.pepepop2000.workers.dev>.
   `vercel.json` se conserva como alternativa (framework vite, output `dist`).
+- **Seguridad de despliegue**: `public/_headers` (Cloudflare) y `vercel.json`
+  aplican CSP, HSTS, `nosniff`, `frame-ancestors`, Permissions-Policy y caché
+  inmutable para `/assets/*`.
 
 ## Servicios locales
 
