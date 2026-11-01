@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { ASTRO_TOKEN_ID } from '../lib/network'
-import { tokenClient } from '../lib/token'
+import { fetchTokenBalance } from '../lib/token'
 
 /** Balance SEP-41 de una cuenta para un token (por defecto, el de ejemplo). */
 export function useTokenBalance(
@@ -9,12 +9,8 @@ export function useTokenBalance(
 ) {
   return useQuery({
     queryKey: ['token-balance', contractId, account],
-    queryFn: async (): Promise<bigint> => {
-      const client = tokenClient(contractId)
-      const tx = await client.balance({ account: account as string })
-      return tx.result
-    },
-    enabled: Boolean(account),
+    queryFn: () => fetchTokenBalance(contractId, account as string),
+    enabled: Boolean(account && contractId),
     staleTime: 10_000,
   })
 }

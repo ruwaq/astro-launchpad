@@ -51,7 +51,7 @@ export function Toaster() {
           >
             <span
               aria-hidden="true"
-              className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-current/15 text-xs font-bold"
+              className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/10 text-xs font-bold"
             >
               {style.icon}
             </span>

@@ -145,8 +145,54 @@ try {
     throw new Error('el swap de B no devolvio XLM')
   }
 
+  const balanceBAfterSwap = await tokenLib
+    .tokenClient(token)
+    .balance({ account: receiver.publicKey })
+  if (balanceBAfterSwap.result !== 5n * unit) {
+    throw new Error('el balance de B tras el swap no es el esperado')
+  }
+
+  // Emisión: solo el owner A puede mintear; C recibe 1 token.
+  const mintTx = await tokenLib.tokenClient(token, signerA).mint({
+    to: accounts[2].publicKey,
+    amount: 1n * unit,
+  })
+  await mintTx.signAndSend()
+  const balanceC = await tokenLib
+    .tokenClient(token)
+    .balance({ account: accounts[2].publicKey })
+  console.log('C recibio', balanceC.result.toString(), 'base units (mint del owner)')
+  if (balanceC.result !== 1n * unit) {
+    throw new Error('el mint del owner no llego a C')
+  }
+
+  // Quema: B destruye 1 token propio y el supply baja exactamente.
+  const supplyBeforeBurn = await tokenLib.tokenClient(token).total_supply()
+  const burnTx = await tokenLib.tokenClient(token, signerB).burn({
+    from: receiver.publicKey,
+    amount: 1n * unit,
+  })
+  await burnTx.signAndSend()
+  const [balanceBAfterBurn, supplyAfterBurn] = await Promise.all([
+    tokenLib.tokenClient(token).balance({ account: receiver.publicKey }),
+    tokenLib.tokenClient(token).total_supply(),
+  ])
+  console.log(
+    'B quemo 1 DEMO; balance',
+    balanceBAfterBurn.result.toString(),
+    '| supply',
+    supplyAfterBurn.result.toString(),
+  )
+  if (balanceBAfterBurn.result !== balanceBAfterSwap.result - 1n * unit) {
+    throw new Error('el burn no desconto el balance de B')
+  }
+  if (supplyAfterBurn.result !== supplyBeforeBurn.result - 1n * unit) {
+    throw new Error('el burn no desconto el supply total')
+  }
+
   console.log('\nOK: 3 cuentas demo fondeadas, firmantes válidos y pago entre cuentas')
   console.log('OK: A crea token + liquidez -> transfiere a B -> B swapea')
+  console.log('OK: owner A mintea a C -> B quema su token y baja el supply')
 } catch (err) {
   failed = true
   console.error('\nFALLO:', err?.message ?? err)

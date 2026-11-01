@@ -6,6 +6,7 @@ import { useTokenBalance } from '../hooks/useTokenBalance'
 import { ShareButton } from './ShareButton'
 import type { LaunchpadToken } from '../lib/token'
 import { useWallet } from '../store/wallet'
+import { useProgress } from '../store/progress'
 import { toast } from '../lib/toast'
 import { TxProgress } from './TxProgress'
 
@@ -27,6 +28,7 @@ export function LiquidityForm({
 }) {
   const { publicKey, getSigner } = useWallet()
   const queryClient = useQueryClient()
+  const markProgress = useProgress((state) => state.mark)
   const balance = useTokenBalance(publicKey, token.id)
   const [amountToken, setAmountToken] = useState('')
   const [amountXlm, setAmountXlm] = useState('')
@@ -76,21 +78,29 @@ export function LiquidityForm({
       setLp(result)
       setAmountToken('')
       setAmountXlm('')
+      markProgress('liquidity')
       toast.success('Liquidez añadida', {
         message: `${formatAmount(result.lpAmount, 7)} LP · par ${shortAddress(result.pair)}`,
         hash,
       })
       onAdded?.()
-      // Las reservas han cambiado: refrescamos el pool.
-      await queryClient.invalidateQueries({
-        queryKey: ['soroswap-pool', token.id],
-      })
-      // El par puede ser nuevo: que aparezca en el mercado.
-      await queryClient.invalidateQueries({ queryKey: ['token-list'] })
-      // El XLM de la cuenta demo cambió al aportar liquidez.
-      await queryClient.invalidateQueries({
-        queryKey: ['demo-xlm-balances'],
-      })
+      // Cambian reservas, balance del usuario, posición LP y XLM de la demo.
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: ['soroswap-pool', token.id],
+        }),
+        // El par puede ser nuevo: que aparezca en el mercado.
+        queryClient.invalidateQueries({ queryKey: ['token-list'] }),
+        queryClient.invalidateQueries({
+          queryKey: ['token-balance', token.id],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ['lp-position', token.id],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ['demo-xlm-balances'],
+        }),
+      ])
     } catch (err) {
       const message = errorMessage(err)
       setError(message)

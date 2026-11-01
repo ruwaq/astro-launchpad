@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router'
 import { useWallet } from '../store/wallet'
 
 const KEY = 'floodgate.onboarding'
@@ -12,6 +13,9 @@ type Props = {
   swapped: boolean
   /** Para el smoke: localStorage y effects no existen en SSR. */
   preview?: 'open' | 'collapsed'
+  /** Rutas internas; se pueden sobrescribir si la guía vive en otra página. */
+  createHref?: string
+  marketHref?: string
 }
 
 type Step = {
@@ -28,7 +32,14 @@ type Step = {
  * liquidez → swap. Primera visita: tarjeta expandida con los pasos;
  * después: tira compacta de progreso hasta completar los 4.
  */
-export function Onboarding({ created, liquidity, swapped, preview }: Props) {
+export function Onboarding({
+  created,
+  liquidity,
+  swapped,
+  preview,
+  createHref = '/create',
+  marketHref = '/market',
+}: Props) {
   const { publicKey, connect } = useWallet()
   const [dismissed, setDismissed] = useState(() => {
     if (preview) return false
@@ -54,21 +65,21 @@ export function Onboarding({ created, liquidity, swapped, preview }: Props) {
       title: 'Crea tu token',
       hint: 'Nombre y símbolo — el resto va solo',
       done: created,
-      href: '#sec-crear',
+      href: createHref,
     },
     {
       key: 'liquidez',
       title: 'Añade liquidez',
       hint: 'Hace negociable tu token y acumula fees',
       done: liquidity,
-      href: created ? '#sec-crear' : undefined,
+      href: liquidity ? undefined : createHref,
     },
     {
       key: 'swap',
       title: 'Swapea',
       hint: 'Elige un token del mercado y véndelo a XLM',
       done: swapped,
-      href: '#sec-mercado',
+      href: marketHref,
     },
   ]
 
@@ -169,9 +180,9 @@ export function Onboarding({ created, liquidity, swapped, preview }: Props) {
           return (
             <li key={step.key}>
               {step.href ? (
-                <a href={step.href} className={rowClass}>
+                <Link to={step.href} className={rowClass}>
                   {content}
-                </a>
+                </Link>
               ) : (
                 <button
                   type="button"

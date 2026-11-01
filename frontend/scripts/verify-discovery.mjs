@@ -94,10 +94,8 @@ try {
     )} ms)`,
   )
   check('hay pares recientes en la ventana', pairs.length > 0)
-  check(
-    'el par de ASTRO aparece',
-    pairs.some((p) => p.tokenId === ASTRO),
-  )
+  // ASTRO es el token fijado del launchpad: su par puede ser más antiguo que
+  // la ventana de eventos del RPC. Se comprueba abajo en `discoverTokens`.
 
   startedAt = performance.now()
   const listings = await discovery.discoverTokens({ maxTokens: 6 })

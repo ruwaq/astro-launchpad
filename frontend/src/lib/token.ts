@@ -39,6 +39,16 @@ export function astroTokenClient(signer?: Signer): AstroTokenClient {
   return tokenClient(ASTRO_TOKEN_ID, signer)
 }
 
+/** Balance SEP-41 de una cuenta, sin acoplar la UI al cliente generado. */
+export async function fetchTokenBalance(
+  contractId: string,
+  account: string,
+): Promise<bigint> {
+  const client = tokenClient(contractId)
+  const tx = await client.balance({ account })
+  return tx.result
+}
+
 /**
  * Despliega una instancia nueva del contrato del launchpad.
  *

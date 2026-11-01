@@ -10,7 +10,7 @@ export default defineConfig({
       output: {
         // Vendor estable en chunks separados: descarga paralela en el móvil
         // y caché entre deploys (los hashes de los vendors no cambian).
-        advancedChunks: {
+        codeSplitting: {
           groups: [
             { name: 'vendor-stellar', test: /node_modules\/@stellar\// },
             { name: 'vendor-kit', test: /node_modules\/@creit\.tech\// },

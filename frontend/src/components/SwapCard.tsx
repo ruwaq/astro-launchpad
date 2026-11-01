@@ -12,6 +12,7 @@ import {
 } from '../lib/soroswap'
 import type { LaunchpadToken } from '../lib/token'
 import { useWallet } from '../store/wallet'
+import { useProgress } from '../store/progress'
 import { toast } from '../lib/toast'
 import { TokenArt } from './TokenArt'
 import { TxProgress } from './TxProgress'
@@ -34,6 +35,7 @@ export function SwapCard({
 }) {
   const { publicKey, getSigner } = useWallet()
   const queryClient = useQueryClient()
+  const markProgress = useProgress((state) => state.mark)
   const [amount, setAmount] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -91,6 +93,7 @@ export function SwapCard({
       const received = amounts[1] ?? quoted
       setSwapped({ in: amountIn, out: received })
       setAmount('')
+      markProgress('swapped')
       toast.success('Swap completado', {
         message: `${formatAmount(amountIn, token.decimals)} token → ${formatAmount(received, 7)} XLM`,
         hash,

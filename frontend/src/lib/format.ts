@@ -13,11 +13,19 @@ export function formatAmount(amount: bigint, decimals: number): string {
 /** Convierte un valor decimal legible a base units (i128). */
 export function parseAmount(value: string, decimals: number): bigint {
   const trimmed = value.trim()
-  if (!trimmed) return 0n
+  // Entrada inválida = 0: los formularios muestran "monto mayor que 0" en vez
+  // de romper el handler con un SyntaxError de BigInt.
+  if (!trimmed || !/^\d*(\.\d*)?$/.test(trimmed)) return 0n
+
+  const safeDecimals = Math.max(0, Math.trunc(decimals))
   const [whole = '0', fraction = ''] = trimmed.split('.')
-  const padded = fraction.padEnd(decimals, '0').slice(0, decimals)
-  const base = 10n ** BigInt(decimals)
-  return BigInt(whole || '0') * base + BigInt(padded || '0')
+  const padded = fraction.padEnd(safeDecimals, '0').slice(0, safeDecimals)
+  try {
+    const base = 10n ** BigInt(safeDecimals)
+    return BigInt(whole || '0') * base + BigInt(padded || '0')
+  } catch {
+    return 0n
+  }
 }
 
 /** Recorta una dirección para mostrarla: GABC…WXYZ */

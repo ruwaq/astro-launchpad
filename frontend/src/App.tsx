@@ -1,33 +1,26 @@
-import { useState } from 'react'
+import { Link, NavLink, Route, Routes } from 'react-router'
 import { WalletButton } from './components/WalletButton'
-import { WalletInstallHint } from './components/WalletInstallHint'
-import { Onboarding } from './components/Onboarding'
-import { DemoMode } from './components/DemoMode'
-import { TokenInfoCard } from './components/TokenInfoCard'
-import { CreateTokenForm } from './components/CreateTokenForm'
-import { LiquidityForm } from './components/LiquidityForm'
-import { MarketList } from './components/MarketList'
-import { SwapCard } from './components/SwapCard'
-import { LiquidityPosition } from './components/LiquidityPosition'
+import { ScrollToTop } from './components/ScrollToTop'
+import { HomePage } from './pages/HomePage'
+import { MarketPage } from './pages/MarketPage'
+import { TokenPage } from './pages/TokenPage'
+import { PortfolioPage } from './pages/PortfolioPage'
+import { CreatePage } from './pages/CreatePage'
+import { NotFoundPage } from './pages/NotFoundPage'
 import { useWallet } from './store/wallet'
 import { ASTRO_TOKEN_ID, RPC_URL } from './lib/network'
 import { BRAND } from './lib/brand'
-import type { LaunchpadToken } from './lib/token'
 
-/** Token de ejemplo: ya está desplegado y con par en Soroswap. */
-const DEMO_TOKEN: LaunchpadToken = { id: ASTRO_TOKEN_ID, decimals: 7 }
+function navClass({ isActive }: { isActive: boolean }) {
+  return `inline-flex min-h-[44px] items-center whitespace-nowrap rounded-lg px-3 text-sm ${
+    isActive
+      ? 'bg-emerald-500/10 font-medium text-emerald-300'
+      : 'text-slate-400 hover:bg-slate-900 hover:text-slate-200'
+  }`
+}
 
 export default function App() {
-  const { publicKey, demoActive } = useWallet()
-  const [selectedToken, setSelectedToken] = useState<LaunchpadToken>(DEMO_TOKEN)
-  const [createdToken, setCreatedToken] = useState<LaunchpadToken | null>(null)
-  const [liquidityDone, setLiquidityDone] = useState(false)
-  const [swappedOnce, setSwappedOnce] = useState(false)
-
-  function onCreate(token: LaunchpadToken) {
-    setCreatedToken(token)
-    setSelectedToken(token)
-  }
+  const { publicKey } = useWallet()
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
@@ -39,11 +32,36 @@ export default function App() {
       </a>
 
       <header className="sticky top-0 z-40 border-b border-slate-900 bg-slate-950/90 backdrop-blur-md">
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3 sm:py-4">
-          <h1 className="min-w-0 truncate text-lg font-semibold tracking-tight">
-          {BRAND.emoji} {BRAND.name}
-          </h1>
-          <WalletButton />
+        <div className="mx-auto max-w-5xl px-4">
+          <div className="flex items-center justify-between gap-3 py-3 sm:py-4">
+            <Link
+              to="/"
+              aria-label={`${BRAND.name} — inicio`}
+              className="flex min-w-0 items-center gap-2 text-lg font-semibold tracking-tight"
+            >
+              <span aria-hidden="true">{BRAND.emoji}</span>
+              <span className="truncate">{BRAND.name}</span>
+            </Link>
+            <WalletButton />
+          </div>
+
+          <nav
+            aria-label="Navegación principal"
+            className="flex gap-1 overflow-x-auto pb-2"
+          >
+            <NavLink to="/" end className={navClass}>
+              Inicio
+            </NavLink>
+            <NavLink to="/market" className={navClass}>
+              Mercado
+            </NavLink>
+            <NavLink to="/portfolio" className={navClass}>
+              Portfolio
+            </NavLink>
+            <NavLink to="/create" className={navClass}>
+              Crear
+            </NavLink>
+          </nav>
         </div>
       </header>
 
@@ -52,68 +70,27 @@ export default function App() {
         tabIndex={-1}
         className="mx-auto flex max-w-5xl flex-col gap-4 px-4 py-6 sm:gap-6 sm:py-10"
       >
-        <div className="flex flex-col gap-3">
-          <p className="text-xs font-medium uppercase tracking-widest text-emerald-400">
-            {BRAND.tagline} · {BRAND.taglineEn}
-          </p>
-          <h2 className="text-2xl font-bold sm:text-3xl">{BRAND.hero}</h2>
-          <p className="max-w-xl text-slate-400">
-            Crea tu token, añade liquidez y swapea — todo on-chain, con la red
-            como única fuente de datos.{' '}
-            <span className="text-slate-300">
-              Te quedas con tus LP tokens: ganas fees de cada swap mientras
-              sostengas tu liquidez.
-            </span>
-          </p>
-          <span className="inline-flex w-fit items-center gap-2 rounded-full border border-slate-800 px-3 py-1 text-xs text-slate-400">
-            <span className="h-2 w-2 rounded-full bg-amber-400" />
-            testnet · login = wallet
-          </span>
-          <WalletInstallHint />
-        </div>
-
-        <Onboarding
-          created={Boolean(createdToken)}
-          liquidity={liquidityDone}
-          swapped={swappedOnce}
-        />
-
-        <DemoMode
-          key={`${selectedToken.id}-${demoActive}`}
-          token={selectedToken}
-        />
-
-        {/* Orden móvil pensado en una sola meta por pantalla:
-            1) explorar el mercado → 2) swap del token elegido →
-            3) lanzar el propio (crear + liquidez juntos). */}
-        <div id="sec-mercado" className="scroll-mt-20">
-          <MarketList selectedId={selectedToken.id} onSelect={setSelectedToken} />
-        </div>
-        <div id="sec-swap" className="scroll-mt-20">
-          <SwapCard token={selectedToken} onSwapped={() => setSwappedOnce(true)} />
-        </div>
-        <LiquidityPosition key={selectedToken.id} token={selectedToken} />
-        <div id="sec-crear" className="scroll-mt-20 flex flex-col gap-4 sm:gap-6">
-          <CreateTokenForm onCreated={onCreate} />
-          {createdToken ? (
-            <LiquidityForm token={createdToken} onAdded={() => setLiquidityDone(true)} />
-          ) : null}
-        </div>
-
-        {/* Info del token de ejemplo: demo artifact al final de la página. */}
-        <TokenInfoCard />
-
-        <footer className="mt-4 border-t border-slate-900 pt-4 text-xs text-slate-500">
-          <p>
-            {BRAND.name}: {BRAND.provenance}.
-          </p>
-          <p className="mt-1">
-            RPC: <span className="font-mono">{RPC_URL}</span> · contrato:{' '}
-            <span className="font-mono">{ASTRO_TOKEN_ID}</span>
-          </p>
-          {publicKey ? <p className="mt-1">Conectado como {publicKey}</p> : null}
-        </footer>
+        <ScrollToTop />
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/market" element={<MarketPage />} />
+          <Route path="/token/:id" element={<TokenPage />} />
+          <Route path="/portfolio" element={<PortfolioPage />} />
+          <Route path="/create" element={<CreatePage />} />
+          <Route path="*" element={<NotFoundPage />} />
+        </Routes>
       </main>
+
+      <footer className="mx-auto max-w-5xl border-t border-slate-900 px-4 pb-8 pt-4 text-xs text-slate-500">
+        <p>
+          {BRAND.name}: {BRAND.provenance}.
+        </p>
+        <p className="mt-1">
+          RPC: <span className="font-mono">{RPC_URL}</span> · contrato:{' '}
+          <span className="font-mono">{ASTRO_TOKEN_ID}</span>
+        </p>
+        {publicKey ? <p className="mt-1">Conectado como {publicKey}</p> : null}
+      </footer>
     </div>
   )
 }

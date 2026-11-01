@@ -13,10 +13,17 @@ function Stat({ label, value }: { label: string; value: string }) {
   )
 }
 
-export function TokenInfoCard() {
+export function TokenInfoCard({
+  tokenId = ASTRO_TOKEN_ID,
+  example = true,
+}: {
+  tokenId?: string
+  /** En el home mostramos el token de ejemplo; en su detalle no. */
+  example?: boolean
+}) {
   const { publicKey } = useWallet()
-  const info = useTokenInfo()
-  const balance = useTokenBalance(publicKey)
+  const info = useTokenInfo(tokenId)
+  const balance = useTokenBalance(publicKey, tokenId)
 
   if (info.isPending) {
     return (
@@ -49,21 +56,24 @@ export function TokenInfoCard() {
         <h2 className="text-lg font-semibold">
           {token.name}{' '}
           <span className="text-slate-500">
-            ({token.symbol}) · token de ejemplo
+            ({token.symbol}){example ? ' · token de ejemplo' : ''}
           </span>
         </h2>
         <a
-          href={`https://stellar.expert/explorer/testnet/contract/${ASTRO_TOKEN_ID}`}
+          href={`https://stellar.expert/explorer/testnet/contract/${tokenId}`}
           target="_blank"
           rel="noreferrer"
-          className="text-xs text-emerald-400 hover:underline"
+          className="font-mono text-xs text-emerald-400 hover:underline"
         >
-          {ASTRO_TOKEN_ID.slice(0, 8)}…{ASTRO_TOKEN_ID.slice(-4)} ↗
+          {tokenId.slice(0, 8)}…{tokenId.slice(-4)} ↗
         </a>
       </div>
 
       <div className="mt-4 grid gap-3 sm:grid-cols-3">
-        <Stat label="Supply total" value={formatAmount(token.totalSupply, token.decimals)} />
+        <Stat
+          label="Supply total"
+          value={formatAmount(token.totalSupply, token.decimals)}
+        />
         <Stat label="Decimales" value={String(token.decimals)} />
         <Stat
           label="Tu balance"

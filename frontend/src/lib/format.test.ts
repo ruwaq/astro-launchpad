@@ -31,6 +31,13 @@ describe('parseAmount', () => {
     expect(parseAmount('', 7)).toBe(0n)
     expect(parseAmount('   ', 7)).toBe(0n)
   })
+
+  it('devuelve 0 con entradas inválidas en vez de lanzar', () => {
+    expect(parseAmount('abc', 7)).toBe(0n)
+    expect(parseAmount('1.2.3', 7)).toBe(0n)
+    expect(parseAmount('-1', 7)).toBe(0n)
+    expect(parseAmount('1e3', 7)).toBe(0n)
+  })
 })
 
 describe('shortAddress', () => {

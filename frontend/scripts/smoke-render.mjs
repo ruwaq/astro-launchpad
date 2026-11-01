@@ -11,6 +11,7 @@
 import { createServer } from 'vite'
 import { createElement } from 'react'
 import { renderToString } from 'react-dom/server'
+import { MemoryRouter } from 'react-router'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fileURLToPath } from 'node:url'
 
@@ -43,19 +44,50 @@ try {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, enabled: false } },
   })
-  const html = renderToString(
-    createElement(
-      QueryClientProvider,
-      { client: queryClient },
-      createElement(App),
-    ),
-  )
 
-  const checks = ['Floodgate', 'Mercado', 'Crea tu token', 'Swap a XLM']
+  function renderApp(path) {
+    return renderToString(
+      createElement(
+        QueryClientProvider,
+        { client: queryClient },
+        createElement(
+          MemoryRouter,
+          { initialEntries: [path] },
+          createElement(App),
+        ),
+      ),
+    )
+  }
+
+  const html = renderApp('/')
+  const checks = ['Floodgate', 'Mercado', 'Swap a XLM', 'Crear mi token']
   for (const text of checks) {
     if (!html.includes(text)) {
       throw new Error(`el render no contiene "${text}"`)
     }
+  }
+
+  const createHtml = renderApp('/create')
+  if (!createHtml.includes('Crea tu token')) {
+    throw new Error('la ruta /create no muestra el formulario de creación')
+  }
+
+  const marketHtml = renderApp('/market')
+  if (
+    !marketHtml.includes('Buscar por nombre') ||
+    !marketHtml.includes('Ordenar')
+  ) {
+    throw new Error('la ruta /market no muestra búsqueda y orden')
+  }
+
+  const portfolioHtml = renderApp('/portfolio')
+  if (!portfolioHtml.includes('Tu portfolio')) {
+    throw new Error('la ruta /portfolio no renderiza')
+  }
+
+  const tokenHtml = renderApp('/token/CTOKEN')
+  if (!tokenHtml.includes('Leyendo el token')) {
+    throw new Error('la ruta /token/:id no renderiza su estado de carga')
   }
 
   // El panel de liquidez solo aparece tras crear un token: se monta aparte.
@@ -98,13 +130,21 @@ try {
   const { Onboarding } = await vite.ssrLoadModule('/src/components/Onboarding.tsx')
   const stepsProps = { created: false, liquidity: false, swapped: false }
   const guideOpen = renderToString(
-    createElement(Onboarding, { ...stepsProps, preview: 'open' }),
+    createElement(
+      MemoryRouter,
+      null,
+      createElement(Onboarding, { ...stepsProps, preview: 'open' }),
+    ),
   )
   if (!guideOpen.includes('Bienvenido a Floodgate') || !guideOpen.includes('Conecta tu wallet')) {
     throw new Error('la guía no muestra la bienvenida con los pasos')
   }
   const guideMini = renderToString(
-    createElement(Onboarding, { ...stepsProps, preview: 'collapsed' }),
+    createElement(
+      MemoryRouter,
+      null,
+      createElement(Onboarding, { ...stepsProps, preview: 'collapsed' }),
+    ),
   )
   if (!guideMini.includes('siguiente:')) {
     throw new Error('la guía no muestra la tira de progreso')
@@ -176,7 +216,7 @@ try {
   }
 
   console.log(
-    `render OK (${html.length} + ${liquidityHtml.length} + ${walletFound.length} + ${walletMissing.length} + ${guideOpen.length} + ${guideMini.length} + ${artHtml.length} + ${demoHtml.length} chars) · ${checks.length + 9} secciones`,
+    `render OK (${html.length} + ${createHtml.length} + ${marketHtml.length} + ${portfolioHtml.length} + ${tokenHtml.length} + ${liquidityHtml.length} + ${walletFound.length} + ${walletMissing.length} + ${guideOpen.length} + ${guideMini.length} + ${artHtml.length} + ${demoHtml.length} chars) · rutas y componentes`,
   )
 } catch (err) {
   failed = true
