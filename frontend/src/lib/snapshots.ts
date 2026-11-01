@@ -17,7 +17,7 @@ export type ReserveSnapshot = {
 
 export type SnapshotHistory = Record<string, ReserveSnapshot[]>
 
-/** Una lectura por bucket de 5 minutos: 288 puntos cubren 24 h. */
+/** Pulso mínimo de 5 minutos; 288 puntos cubren al menos 24 h de pulsos. */
 export const SNAPSHOT_BUCKET_MS = 5 * 60_000
 export const MAX_SNAPSHOTS_PER_TOKEN = 288
 export const MAX_TRACKED_TOKENS = 30

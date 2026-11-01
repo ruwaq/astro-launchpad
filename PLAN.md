@@ -63,8 +63,10 @@ Empezar simple y crecer.
 7. UI/UX: listado de tokens (**hecho**: eventos `new_pair` de la factory),
    búsqueda/orden, rutas y detalle de token, portfolio, transferir/quemar/
    mintear, toasts y responsive. — **hecho** (deploy online en Cloudflare
-   Workers; `vercel.json` se conserva como alternativa). Charts: Fase 2.
-8. Indexación ligera (eventos RPC o servicio existente) solo si se necesita.
+   Workers; `vercel.json` se conserva como alternativa). Charts locales:
+   **hecho** en Fase 2a; histórico global: Fase 2b.
+8. Indexación ligera para histórico global (eventos RPC o servicio existente)
+   solo si se aprueba la infraestructura (Fase 2b).
 9. Escalar: monorepo, CI/CD, mainnet.
 
 ## Dirección del roadmap tras la sesión 5
@@ -80,7 +82,7 @@ Empezar simple y crecer.
   `cargo test -p astro-token`.
 
 
-## Estado Nov 2026 (Fase 0/1 completadas)
+## Estado Nov 2026 (Fase 0/1/2a completadas)
 
 - **Fase 0**: CI + Dependabot, Vitest, toasts accesibles, `TxProgress`,
   `ErrorBoundary`, a11y (skip link, foco, reduced-motion), CSP/security headers
@@ -88,9 +90,13 @@ Empezar simple y crecer.
 - **Fase 1**: rutas `/`, `/market`, `/token/:id`, `/portfolio`, `/create`;
   búsqueda/orden del mercado; detalle con swap, liquidez, transferir, quemar y
   mintear (solo owner); portfolio v1 con creaciones locales y holdings.
-- **Siguiente (Fase 2)**: indexer ligero + snapshots de reservas para charts
-  históricos. El par de Soroswap no emite `swap`; el indexer es necesario para
-  el histórico. Requiere recursos/credenciales Cloudflare y aprobación.
+- **Fase 2a**: snapshots de reservas en `localStorage` + gráfico SVG de
+  precio/liquidez en el detalle de token. Polling del pool cada 60 s; cambios
+  al instante y pulso cada ~5 min. La UI avisa de que es historial local, no
+  global.
+- **Siguiente (Fase 2b)**: indexer ligero para histórico global. El par de
+  Soroswap no emite `swap`; el indexer es necesario para reconstruir precios
+  anteriores. Requiere recursos/credenciales Cloudflare y aprobación.
 
 ## Entorno local (Termux) — solo para desarrollo
 - Proyecto: ~/projects/astro-launchpad (symlink ~/workspace/astro-launchpad)

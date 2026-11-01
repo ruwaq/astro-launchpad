@@ -1,5 +1,27 @@
 # Estado actual (para continuar en la próxima sesión)
 
+## Handoff rápido (Nov 1 2026, sesión 10 — Fase 2a: snapshots y gráfico local)
+
+- **`lib/snapshots.ts`**: snapshots de reservas en `localStorage`
+  (`floodgate.reserve-history.v1`) con caché en memoria y
+  `useSyncExternalStore`. Máximo 288 por token y 30 tokens; los cambios se
+  guardan al instante y hay un pulso cada ~5 min. Tests puros de bucketing,
+  recorte, coordenadas SVG y precio/liquidez.
+- **`useReserveHistory` + `ReserveChart`**: el detalle de token pinta un SVG
+  accesible con toggle precio/liquidez, mínimo/máximo, variación y estado
+  vacío. `useSoroswapPool` refresca cada 60 s solo con la pestaña activa.
+- **Límite explícito**: es historial local de este navegador, no un indexer.
+  No incluye lo anterior a abrir el token ni lo visto por otras personas. El
+  par de Soroswap no emite `swap`, así que el histórico global sigue
+  necesitando un indexer (Fase 2b, con recursos/credenciales Cloudflare y
+  aprobación).
+- **Verificación**: `npm run check` verde (build + lint + 42 tests + smoke con
+  el gráfico). No hubo cambios on-chain: se reutilizan las lecturas de pool ya
+  verificadas por `verify:discovery` y `verify:demo`. Falta verificación
+  visual en navegador real.
+- **Commit**: `1d14562` (`feat(frontend): snapshots locales y gráfico de
+  precio/liquidez`).
+
 ## Handoff rápido (Nov 1 2026, sesión 9 — Fase 0/1: CI, rutas y acciones)
 
 - **Fase 0 (`5eda96d`)**: GitHub Actions (frontend build/lint/tests/smoke;
@@ -23,8 +45,8 @@
   `STELLAR_SECRET`; el mismo camino quedó cubierto por `verify:demo`.
 - **Pendiente**: deploy a producción requiere aprobación explícita
   (`npm run deploy`); no hay navegador en este entorno, así que falta
-  verificación visual; Fase 2 (indexer + snapshots/charts) sigue pendiente de
-  recursos/credenciales Cloudflare y aprobación.
+  verificación visual; Fase 2b (indexer para histórico global) sigue pendiente
+  de recursos/credenciales Cloudflare y aprobación.
 - **Auditoría**: `npm audit` reporta 30 vulnerabilidades (12 low, 6 moderate,
   12 high), casi todas transitivas de wallet-kit; no hay críticas. No ejecutar
   `npm audit fix --force` (degrada wallet-kit a 1.9.5).

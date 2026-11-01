@@ -21,8 +21,8 @@ Ver `PLAN.md` para arquitectura y roadmap, `STATUS.md` para el estado actual.
   Incluye rutas compartibles, un listado de mercado que descubre pares
   token/XLM leyendo los eventos `new_pair` de la factory (sin índice ni
   backend), búsqueda/orden, detalle de token con swap, liquidez, transferir,
-  quemar y mintear (solo owner), y un portfolio local con tokens creados y
-  holdings recientes.
+  quemar y mintear (solo owner), portfolio local con tokens creados y holdings
+  recientes, y un gráfico de precio/liquidez con snapshots locales del par.
 - **Modo prueba sin wallet**: crea 3 cuentas desechables de testnet fondeadas
   por Friendbot y permite cambiar entre ellas para probar todo el ciclo como
   usuarios distintos, incluido pasar tokens de una cuenta a otra. Sin instalar
@@ -32,7 +32,7 @@ Ver `PLAN.md` para arquitectura y roadmap, `STATUS.md` para el estado actual.
 
 - `/` — inicio, guía, modo prueba, mercado reciente y swap del token elegido.
 - `/market` — mercado completo con búsqueda y orden.
-- `/token/:id` — detalle on-chain del token y sus acciones.
+- `/token/:id` — detalle on-chain del token, sus acciones y gráfico local.
 - `/portfolio` — tokens creados en este navegador + holdings de pares recientes.
 - `/create` — crear token SEP-41 y añadir liquidez en Soroswap.
 
@@ -53,7 +53,7 @@ npm run dev          # http://localhost:5173
 npm run check          # build + lint + tests + smoke de render (sin red)
 npm run build          # tsc + vite build
 npm run lint           # oxlint
-npm test               # Vitest (lógica pura: formato, mercado, AMM, eventos)
+npm test               # Vitest (formato, mercado, AMM, eventos, snapshots)
 npm run smoke:render   # render del árbol de componentes (sin navegador)
 npm run bindings       # regenera los bindings TS desde los contratos on-chain
 
@@ -92,6 +92,16 @@ liquidez, swap, retiro y transferencias entre usuarios sin instalar wallet.
 **Seguridad:** son claves de testnet sin valor real, guardadas en
 `localStorage` de este navegador (visibles para cualquiera con acceso a él).
 No reutilizar este patrón para fondos reales.
+
+## Historial de precio y liquidez (local)
+
+El par de Soroswap **no emite eventos `swap`**, así que el RPC no permite
+reconstruir el histórico. Mientras no haya un indexer, el detalle de token
+guarda snapshots de las reservas en `localStorage` mientras abres esa página:
+los cambios se apuntan al instante, hay un pulso cada ~5 min y se conservan
+como máximo 288 snapshots por token (30 tokens). El gráfico muestra precio o
+liquidez y avisa de que solo cubre lo que ha visto este navegador; no es un
+histórico global ni sustituye a un indexer.
 
 ## Móvil y deploy (Cloudflare Workers)
 
