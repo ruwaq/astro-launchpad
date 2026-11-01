@@ -9,7 +9,7 @@
 import { Keypair } from '@stellar/stellar-sdk'
 import { KeypairSigner } from '@stellar/stellar-sdk/contract'
 import type { Signer } from '@stellar/stellar-sdk/contract'
-import { HORIZON_URL, NETWORK_PASSPHRASE } from './network'
+import { NETWORK_PASSPHRASE } from './network'
 
 /** Cuántas cuentas crea el modo prueba (usuarios A, B y C). */
 export const DEMO_ACCOUNT_COUNT = 3
@@ -147,17 +147,6 @@ export function demoSigner(account: DemoAccount): Signer {
   )
 }
 
-/** Balance nativo (XLM) de una cuenta desde Horizon. */
-export async function fetchXlmBalance(publicKey: string): Promise<number> {
-  const response = await fetch(
-    `${HORIZON_URL}/accounts/${encodeURIComponent(publicKey)}`,
-  )
-  if (!response.ok) return 0
-  const data = (await response.json()) as {
-    balances?: Array<{ asset_type?: string; balance?: string }>
-  }
-  const native = data.balances?.find(
-    (balance) => balance.asset_type === 'native',
-  )
-  return native?.balance ? Number(native.balance) : 0
-}
+// Se mantiene el re-export para el modo demo y `verify-demo`; la
+// implementación vive en `xlm.ts` para reutilizarla en el swap de compra.
+export { fetchXlmBalance } from './xlm'

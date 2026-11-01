@@ -39,6 +39,20 @@ describe('activitySummary', () => {
     ).toBe('5 MOON → 4.7 XLM')
   })
 
+  it('invierte la dirección visible en una compra', () => {
+    expect(
+      activitySummary(
+        entry({
+          amount: '10',
+          secondaryAmount: '1',
+          secondarySymbol: 'XLM',
+          swapDirection: 'buy',
+          detail: 'compra',
+        }),
+      ),
+    ).toBe('1 XLM → 10 MOON · compra')
+  })
+
   it('resume liquidez con detalle de LP', () => {
     expect(
       activitySummary(

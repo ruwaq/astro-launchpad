@@ -22,6 +22,37 @@ export function tokenPriceInXlm(pool: PoolState, decimals: number): bigint {
   return (pool.reserveXlm * 10n ** BigInt(decimals)) / pool.reserveToken
 }
 
+/**
+ * Salida a precio spot, sin comisión ni slippage. Sirve solo para estimar el
+ * impacto de una operación; la cotización real sale del router.
+ */
+export function spotAmountOut(
+  amountIn: bigint,
+  reserveIn: bigint,
+  reserveOut: bigint,
+): bigint {
+  if (amountIn <= 0n || reserveIn <= 0n) return 0n
+  return (amountIn * reserveOut) / reserveIn
+}
+
+/**
+ * Impacto de precio en porcentaje, incluyendo la comisión del router. Se
+ * calcula contra la salida spot para que el usuario vea el coste real de su
+ * tamaño de operación.
+ */
+export function priceImpactPercent(
+  amountIn: bigint,
+  amountOut: bigint,
+  reserveIn: bigint,
+  reserveOut: bigint,
+): number {
+  const spot = spotAmountOut(amountIn, reserveIn, reserveOut)
+  if (spot <= 0n || amountOut <= 0n) return 0
+  const difference = spot - amountOut
+  if (difference <= 0n) return 0
+  return Number((difference * 10_000n) / spot) / 100
+}
+
 /** Estado del par token/XLM en Soroswap. */
 export type PoolState = {
   /** ¿Existe el par en la factory? */
@@ -222,6 +253,21 @@ export async function quoteTokenForXlm(
   return unwrapResult(tx.result, 'router_get_amount_out')
 }
 
+/** Cotiza cuántos tokens salen por una cantidad de XLM. */
+export async function quoteXlmForToken(
+  amountIn: bigint,
+  pool: PoolState,
+): Promise<bigint> {
+  if (!pool.exists || amountIn <= 0n) return 0n
+  const { router } = soroswapClients()
+  const tx = await router.router_get_amount_out({
+    amount_in: amountIn,
+    reserve_in: pool.reserveXlm,
+    reserve_out: pool.reserveToken,
+  })
+  return unwrapResult(tx.result, 'router_get_amount_out')
+}
+
 /**
  * Crea el par token/XLM en la factory (si no existe) y espera a que
  * aparezca. La creación es asíncrona: la factory despliega el par y el
@@ -397,6 +443,31 @@ export async function withdrawLiquidity(params: {
     tokenAmount: tokenFirst ? amountA : amountB,
     xlmAmount: tokenFirst ? amountB : amountA,
   }
+}
+
+/** Compra tokens pagando XLM, con un mínimo de tokens de salida. */
+export async function swapXlmForToken(params: {
+  tokenId: string
+  amountIn: bigint
+  amountOutMin: bigint
+  signer: Signer
+  /** Se invoca con el hash en cuanto la tx se envía a la red. */
+  onHash?: (hash: string) => void
+}): Promise<bigint[]> {
+  const { tokenId, amountIn, amountOutMin, signer, onHash } = params
+  const { router } = soroswapClients(signer)
+
+  const tx = await router.swap_exact_tokens_for_tokens({
+    amount_in: amountIn,
+    amount_out_min: amountOutMin,
+    path: [XLM_SAC, tokenId],
+    to: signer.address,
+    deadline: unixDeadline(),
+  })
+  const sent = await tx.signAndSend()
+  const hash = sent.sendTransactionResponse?.hash
+  if (hash) onHash?.(hash)
+  return unwrapResult<bigint[]>(sent.result, 'swap')
 }
 
 /** Cambia token por XLM con un mínimo de salida (slippage). */

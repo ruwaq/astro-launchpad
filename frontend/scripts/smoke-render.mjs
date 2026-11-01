@@ -60,7 +60,13 @@ try {
   }
 
   const html = renderApp('/')
-  const checks = ['Floodgate', 'Mercado', 'Swap a XLM', 'Crear mi token']
+  const checks = [
+    'Floodgate',
+    'Mercado',
+    'Swap con XLM',
+    'Comprar con XLM',
+    'Crear mi token',
+  ]
   for (const text of checks) {
     if (!html.includes(text)) {
       throw new Error(`el render no contiene "${text}"`)

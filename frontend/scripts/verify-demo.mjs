@@ -190,9 +190,35 @@ try {
     throw new Error('el burn no desconto el supply total')
   }
 
+  // Compra: B paga 1 XLM y recibe tokens del par. Es la dirección inversa del
+  // primer swap y usa la misma ruta del router con el XLM SAC como input.
+  const poolAfterBurn = await soroswap.fetchPoolState(token)
+  const buyQuote = await soroswap.quoteXlmForToken(1n * unit, poolAfterBurn)
+  if (buyQuote <= 0n) {
+    throw new Error('la cotización XLM -> token devolvió 0')
+  }
+  const buy = await soroswap.swapXlmForToken({
+    tokenId: token,
+    amountIn: 1n * unit,
+    amountOutMin: soroswap.withSlippage(buyQuote),
+    signer: signerB,
+  })
+  const bought = buy[1] ?? 0n
+  if (bought <= 0n) {
+    throw new Error('la compra no devolvió tokens')
+  }
+  const balanceBAfterBuy = await tokenLib
+    .tokenClient(token)
+    .balance({ account: receiver.publicKey })
+  console.log('B compro con 1 XLM y recibio', bought.toString(), 'base units')
+  if (balanceBAfterBuy.result !== balanceBAfterBurn.result + bought) {
+    throw new Error('el balance de B tras la compra no cuadra')
+  }
+
   console.log('\nOK: 3 cuentas demo fondeadas, firmantes válidos y pago entre cuentas')
   console.log('OK: A crea token + liquidez -> transfiere a B -> B swapea')
   console.log('OK: owner A mintea a C -> B quema su token y baja el supply')
+  console.log('OK: B compra tokens pagando XLM por el router')
 } catch (err) {
   failed = true
   console.error('\nFALLO:', err?.message ?? err)

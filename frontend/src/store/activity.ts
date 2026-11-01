@@ -25,6 +25,8 @@ export type ActivityEntry = {
   /** Segundo monto, típicamente XLM en liquidez/swaps. */
   secondaryAmount?: string
   secondarySymbol?: string
+  /** En swaps: `buy` = XLM → token; `sell` = token → XLM. */
+  swapDirection?: 'buy' | 'sell'
   counterparty?: string
   /** Detalle extra, p. ej. "3.16 LP". */
   detail?: string
@@ -77,7 +79,10 @@ export function activitySummary(entry: ActivityEntry): string {
     case 'remove-liquidity':
       return second ? `${amount} + ${second}${suffix}` : `${amount}${suffix}`
     case 'swap':
-      return second ? `${amount} → ${second}${suffix}` : `${amount}${suffix}`
+      if (!second) return `${amount}${suffix}`
+      return entry.swapDirection === 'buy'
+        ? `${second} → ${amount}${suffix}`
+        : `${amount} → ${second}${suffix}`
     case 'transfer':
     case 'mint':
       return `${amount} → ${counterparty}${suffix}`
@@ -122,6 +127,9 @@ function isActivity(value: unknown): value is ActivityEntry {
     isOptionalString(entry.amount) &&
     isOptionalString(entry.secondaryAmount) &&
     isOptionalString(entry.secondarySymbol) &&
+    (entry.swapDirection === undefined ||
+      entry.swapDirection === 'buy' ||
+      entry.swapDirection === 'sell') &&
     isOptionalString(entry.counterparty) &&
     isOptionalString(entry.detail) &&
     isOptionalString(entry.account) &&

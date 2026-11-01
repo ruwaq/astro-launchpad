@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   lpSharePercent,
+  priceImpactPercent,
+  spotAmountOut,
   tokenPriceInXlm,
   unwrapResult,
   withSlippage,
@@ -27,6 +29,25 @@ describe('tokenPriceInXlm', () => {
   it('devuelve 0 si el par no existe o no hay reserva de token', () => {
     expect(tokenPriceInXlm(pool({ exists: false }), 7)).toBe(0n)
     expect(tokenPriceInXlm(pool({ reserveToken: 0n }), 7)).toBe(0n)
+  })
+})
+
+describe('impacto de precio', () => {
+  it('calcula la salida spot antes de comisión/slippage', () => {
+    expect(spotAmountOut(10_000n, 100_000n, 50_000n)).toBe(5_000n)
+    expect(spotAmountOut(0n, 100_000n, 50_000n)).toBe(0n)
+    expect(spotAmountOut(10_000n, 0n, 50_000n)).toBe(0n)
+  })
+
+  it('expresa el impacto contra la salida spot', () => {
+    // Spot: 5.000 XLM. Salida real: 4.970 XLM => 0.6% de impacto.
+    expect(priceImpactPercent(10_000n, 4_970n, 100_000n, 50_000n)).toBe(0.6)
+  })
+
+  it('no inventa impacto si no hay cotización o el precio mejora', () => {
+    expect(priceImpactPercent(10_000n, 0n, 100_000n, 50_000n)).toBe(0)
+    expect(priceImpactPercent(10_000n, 5_100n, 100_000n, 50_000n)).toBe(0)
+    expect(priceImpactPercent(0n, 0n, 100_000n, 50_000n)).toBe(0)
   })
 })
 
