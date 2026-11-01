@@ -15,6 +15,7 @@ import { TransferCard } from '../components/TransferCard'
 import { BurnCard } from '../components/BurnCard'
 import { MintCard } from '../components/MintCard'
 import { ReserveChart } from '../components/ReserveChart'
+import { TokenActivity } from '../components/TokenActivity'
 import { NotFoundPage } from './NotFoundPage'
 import type { LaunchpadToken } from '../lib/token'
 
@@ -198,6 +199,8 @@ export function TokenPage() {
           symbol={token.symbol}
         />
       ) : null}
+
+      <TokenActivity token={token} />
 
       <SwapCard token={token} />
       <LiquidityPosition token={token} />

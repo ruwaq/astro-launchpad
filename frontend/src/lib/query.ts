@@ -12,6 +12,7 @@ export async function invalidateTokenData(
   await Promise.all([
     queryClient.invalidateQueries({ queryKey: ['token-balance', tokenId] }),
     queryClient.invalidateQueries({ queryKey: ['token-info', tokenId] }),
+    queryClient.invalidateQueries({ queryKey: ['token-events', tokenId] }),
     queryClient.invalidateQueries({ queryKey: ['demo-xlm-balances'] }),
   ])
 }

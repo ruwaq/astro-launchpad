@@ -99,6 +99,9 @@ export function LiquidityPosition({ token }: { token: LaunchpadToken }) {
         queryClient.invalidateQueries({
           queryKey: ['token-balance', token.id],
         }),
+        queryClient.invalidateQueries({
+          queryKey: ['token-events', token.id],
+        }),
         // Las reservas cambiaron: el precio del mercado queda stale.
         queryClient.invalidateQueries({
           queryKey: ['token-list'],

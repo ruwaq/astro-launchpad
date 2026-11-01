@@ -17,6 +17,7 @@
     "verify:launchpad": "node scripts/verify-launchpad.mjs",
     "verify:soroswap": "node scripts/verify-soroswap.mjs",
     "verify:discovery": "node scripts/verify-discovery.mjs",
+    "verify:token-events": "node scripts/verify-token-events.mjs",
     "verify:demo": "node scripts/verify-demo.mjs",
     "verify:frontend": "node scripts/verify-frontend-flow.mjs"
   },

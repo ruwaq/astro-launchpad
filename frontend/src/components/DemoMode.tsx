@@ -127,6 +127,9 @@ export function DemoMode({ token }: { token: LaunchpadToken }) {
         queryClient.invalidateQueries({
           queryKey: ['token-balance', token.id],
         }),
+        queryClient.invalidateQueries({
+          queryKey: ['token-events', token.id],
+        }),
         queryClient.invalidateQueries({ queryKey: ['demo-xlm-balances'] }),
       ])
     } catch (err) {

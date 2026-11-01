@@ -107,6 +107,9 @@ export function LiquidityForm({
           queryKey: ['token-balance', token.id],
         }),
         queryClient.invalidateQueries({
+          queryKey: ['token-events', token.id],
+        }),
+        queryClient.invalidateQueries({
           queryKey: ['lp-position', token.id],
         }),
         queryClient.invalidateQueries({

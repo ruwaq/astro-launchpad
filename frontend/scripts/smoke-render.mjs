@@ -233,6 +233,23 @@ try {
     throw new Error('el gráfico de reservas no renderiza')
   }
 
+  // Actividad on-chain: se renderiza en estado de carga con QueryClient.
+  const { TokenActivity } = await vite.ssrLoadModule(
+    '/src/components/TokenActivity.tsx',
+  )
+  const tokenActivityHtml = renderToString(
+    createElement(
+      QueryClientProvider,
+      { client: new QueryClient() },
+      createElement(TokenActivity, {
+        token: { id: 'CTOKEN', decimals: 7, symbol: 'MOON' },
+      }),
+    ),
+  )
+  if (!tokenActivityHtml.includes('Actividad on-chain reciente')) {
+    throw new Error('la actividad on-chain no renderiza su sección')
+  }
+
   // Modo prueba: estado inicial sin cuentas, invita a crearlas.
   const { DemoMode } = await vite.ssrLoadModule('/src/components/DemoMode.tsx')
   const demoHtml = renderToString(
@@ -250,7 +267,7 @@ try {
   }
 
   console.log(
-    `render OK (${html.length} + ${createHtml.length} + ${marketHtml.length} + ${portfolioHtml.length} + ${tokenHtml.length} + ${liquidityHtml.length} + ${walletFound.length} + ${walletMissing.length} + ${guideOpen.length} + ${guideMini.length} + ${artHtml.length} + ${chartHtml.length} + ${demoHtml.length} chars) · rutas y componentes`,
+    `render OK (${html.length} + ${createHtml.length} + ${marketHtml.length} + ${portfolioHtml.length} + ${tokenHtml.length} + ${liquidityHtml.length} + ${walletFound.length} + ${walletMissing.length} + ${guideOpen.length} + ${guideMini.length} + ${artHtml.length} + ${chartHtml.length} + ${tokenActivityHtml.length} + ${demoHtml.length} chars) · rutas y componentes`,
   )
 } catch (err) {
   failed = true

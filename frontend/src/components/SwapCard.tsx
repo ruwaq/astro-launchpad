@@ -114,6 +114,9 @@ export function SwapCard({
         queryKey: ['soroswap-pool', token.id],
       })
       await queryClient.invalidateQueries({
+        queryKey: ['token-events', token.id],
+      })
+      await queryClient.invalidateQueries({
         queryKey: ['token-balance', token.id],
       })
       // El precio del mercado cambia: se marca stale sin refetch inmediato.
