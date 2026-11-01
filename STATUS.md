@@ -18,8 +18,12 @@
   `floodgate-shell-f6814337acfe`; HTTP 200 en `/`, `/sw.js`,
   `/manifest.webmanifest` y fallback SPA. Es temporal y caduca/reclama en
   minutos; **no** es el Worker de producción.
-- **Vercel**: `frontend/vercel.json` fuerza `npm ci`; el deploy anónimo se
-  quedó en la instalación y no llegó a publicar. No se usó como producción.
+- **Vercel**: `vercel deploy --temporary` desde fuente se quedó en `npm ci`;
+  el modo **prebuilt** sí publicó <https://rushing-sapphire-n233dra.tmp.now>
+  (HTTP 200 en `/`, `/sw.js`, manifest, `/market` y fallback SPA; bundle
+  `index-Dyp2_r-W.js`). Es temporal (~21 min), sin los headers completos del
+  `vercel.json` porque el config prebuilt se generó aparte; no es producción.
+  `frontend/vercel.json` fuerza `npm ci` para el flujo normal.
 - **CI**: `.github/workflows/ci.yml` existe y los gates pasan en local, pero
   GitHub Actions está **deshabilitado** en el repositorio (`enabled: false`);
   por eso el PR no muestra checks. Habilitarlo es una decisión de repo y no se
