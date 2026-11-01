@@ -1,12 +1,32 @@
 # Estado actual (para continuar en la próxima sesión)
 
+## Handoff rápido (Nov 1 2026, sesión 8 — modo prueba sin wallet)
+
+- **`lib/demo.ts`**: 3 cuentas nuevas (`Keypair.random`) fondeadas en secuencia
+  con Friendbot (10 000 XLM cada una). Semillas en `localStorage`
+  (`floodgate.demo.accounts.v1`); modo e índice activo persistidos. Solo
+  testnet y sin valor real: nunca reutilizar este patrón con fondos reales.
+- **Store (`store/wallet.ts`)**: `mode: 'wallet' | 'demo'`, `startDemo`,
+  `selectDemo`, `disconnect` y `getSigner()` unificado (`KeypairSigner` para
+  demo, `walletSigner` para wallet real). Crear token, liquidez, swap y retiro
+  usan `getSigner()`.
+- **`DemoMode.tsx`** (bajo la guía): crea/entra al modo prueba, muestra saldos
+  XLM, cambia entre A/B/C y transfiere el token seleccionado a otra cuenta demo
+  (así B puede swapear el token que creó A).
+- **Verificado con `npm run verify:demo`** (sin `STELLAR_SECRET`): 3 cuentas
+  fondeadas, firmantes válidos, pago A→B y flujo completo: A crea token +
+  liquidez → transfiere a B → B swapea 5 DEMO por XLM.
+- Smoke: 13 secciones. `npm run check` verde.
+- Commits: `fe8462a` (modo demo) y `a3be870` (retiro atómico con router).
+- Deploy: pendiente de `npm run deploy` (la versión online sigue en 6b).
+
 ## Handoff rápido (Nov 1 2026, sesión 7 — retirar liquidez)
 
 - **Retirar liquidez** (el hueco funcional que quedaba: se podía aportar pero no
-  sacar): `withdrawLiquidity()` en `lib/soroswap.ts` transfiere los LP de la
-  wallet al par y llama a `withdraw(to)`; el par quema su balance de LP y
-  devuelve ambos lados (sin allowance, igual que el router). Los amounts se
-  mapean al orden real `token_0`/`token_1`.
+  sacar): `withdrawLiquidity()` usa `router.remove_liquidity` — atómico: mueve
+  los LP, los quema y devuelve ambos lados en una sola transacción, así que un
+  fallo no deja LP atrapados en el par. Los amounts se mapean al orden real
+  `token_0`/`token_1`.
 - **`useLpPosition` + `LiquidityPosition`**: tarjeta "Tu liquidez" bajo el swap
   (solo si la wallet conectada tiene LP), con % del pool, retiro 25/50/100 %,
   preview de cuánto token + XLM se recibe y refresco de pool/balances/mercado.
@@ -20,8 +40,9 @@
 - Nota verificada: **el par de Soroswap no emite eventos `swap`** (0 eventos en
   la ventana de 10k ledgers, con actividad sí en la factory). Un chart de
   histórico de precio necesita indexer; no se puede sacar de `getEvents` hoy.
-- Commits: `1aa41df` · deploy: pendiente de `npm run deploy` para publicar
-  el retiro (la versión online sigue siendo la de la sesión 6b).
+- Commits: `1aa41df` (feature) · `a3be870` (retiro atómico con el router) ·
+  deploy: pendiente de `npm run deploy` para publicar el retiro (la versión
+  online sigue siendo la de la sesión 6b).
 
 ## Handoff rápido (Oct 22 2026, sesión 6b — UX guiada + mercado OpenSea)
 
@@ -176,6 +197,7 @@
 | Deploy + spec | `npm run verify:launchpad` | OK |
 | AMM on-chain | `npm run verify:soroswap` | OK |
 | Camino del frontend | `npm run verify:frontend` | OK (swap + liquidez + **retiro**) |
+| Modo prueba | `npm run verify:demo` | OK (3 cuentas + flujo A→B) |
 
 Los tres `verify:*` necesitan `STELLAR_SECRET` (cuenta `dev`).
 
@@ -199,9 +221,9 @@ Los tres `verify:*` necesitan `STELLAR_SECRET` (cuenta `dev`).
 ## Pendiente
 
 1. **Verificación visual**: no hay navegador en el entorno. Con la app servida
-   en `:5173` hay que probar con wallet (Freighter) el flujo completo, incluido
-   el retiro de liquidez.
-2. **Re-deploy** del frontend para publicar el retiro:
+   en `:5173` hay que probar con wallet (Freighter) y con el modo prueba (sin
+   wallet) el flujo completo, incluido el retiro de liquidez.
+2. **Re-deploy** del frontend para publicar retiro + modo prueba:
    `cd frontend && npm run deploy` (Cloudflare Workers).
 3. UI/UX del roadmap: toasts, responsive fino. Charts de precio **bloqueados**
    sin indexer: el par de Soroswap no emite eventos `swap`.
@@ -228,6 +250,7 @@ STELLAR_SECRET=... npm run verify:launchpad
 STELLAR_SECRET=... npm run verify:soroswap
 STELLAR_SECRET=... npm run verify:frontend
 npm run verify:discovery    # solo lectura, sin secret
+npm run verify:demo         # 3 cuentas nuevas + flujo A->B, sin secret
 
 # Contrato
 cargo test -p astro-token

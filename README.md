@@ -21,6 +21,10 @@ Ver `PLAN.md` para arquitectura y roadmap, `STATUS.md` para el estado actual.
   Incluye un listado de mercado que descubre pares token/XLM leyendo los
   eventos `new_pair` de la factory (sin índice ni backend), swap y gestión de
   la posición de liquidez (añadir, ver LP y retirar).
+- **Modo prueba sin wallet**: crea 3 cuentas desechables de testnet fondeadas
+  por Friendbot y permite cambiar entre ellas para probar todo el ciclo como
+  usuarios distintos, incluido pasar tokens de una cuenta a otra. Sin instalar
+  ni conectar ninguna wallet.
 
 ## Dev rápido
 
@@ -47,8 +51,9 @@ npm run verify:launchpad   # despliega un token nuevo y lo lee
 npm run verify:soroswap    # par, liquidez, cotización y swap
 npm run verify:frontend    # el mismo código que la UI, de punta a punta
 
-# Solo lectura (sin secret): parser de eventos + descubrimiento real
-npm run verify:discovery
+# Solo lectura / cuentas nuevas (sin secret)
+npm run verify:discovery   # parser de eventos + descubrimiento real
+npm run verify:demo        # crea 3 cuentas demo y prueba el flujo A -> B
 
 # Contrato
 cargo test -p astro-token
@@ -65,6 +70,17 @@ cd contracts/token && stellar contract build
 - XLM SAC: `CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC`
 
 Direcciones y trampas de Soroswap: `AGENTS.md`.
+
+## Modo prueba sin wallet
+
+El panel **Modo prueba · sin wallet** crea 3 cuentas nuevas de testnet
+fondeadas con 10 000 XLM cada una (Friendbot) y permite cambiar entre A/B/C.
+Cada cuenta firma con `KeypairSigner`, así que se puede probar crear token,
+liquidez, swap, retiro y transferencias entre usuarios sin instalar wallet.
+
+**Seguridad:** son claves de testnet sin valor real, guardadas en
+`localStorage` de este navegador (visibles para cualquiera con acceso a él).
+No reutilizar este patrón para fondos reales.
 
 ## Móvil y deploy (Cloudflare Workers)
 

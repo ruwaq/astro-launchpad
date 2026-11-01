@@ -21,6 +21,8 @@ Identidad = wallet. Datos = red (Soroban RPC / Horizon). Sin backend de usuarios
 5. Servicios locales (Postgres/Redis) son opcionales para dev, no requeridos para el MVP.
 6. Usar Stellar CLI + Scaffold Stellar para contratos y bindings TS.
 7. No usar `sleep` para esperar procesos; usar background + verificación puntual.
+8. Modo prueba (solo testnet): 3 cuentas desechables fondeadas con Friendbot,
+   semillas en `localStorage` del navegador. Nunca fondos reales ni mainnet.
 
 ## Red (testnet)
 - RPC: https://soroban-testnet.stellar.org
@@ -43,6 +45,8 @@ Identidad = wallet. Datos = red (Soroban RPC / Horizon). Sin backend de usuarios
   `npm run verify:soroswap` · `npm run verify:frontend`.
 - Solo lectura (sin secret): `npm run verify:discovery` (parser de eventos +
   descubrimiento real de pares en la factory).
+- Modo prueba: `npm run verify:demo` (3 cuentas nuevas fondeadas con Friendbot
+  + flujo A→B, sin secret).
 - Contrato: `cargo test -p astro-token` · build wasm:
   `cd contracts/token && stellar contract build` (target `wasm32v1-none`).
 - Servicios opcionales: `dev-up` / `dev-down`.
@@ -60,9 +64,10 @@ Identidad = wallet. Datos = red (Soroban RPC / Horizon). Sin backend de usuarios
 - La factory emite `["SoroswapFactory", "new_pair"]` con
   `{ pair, token_0, token_1 }`; sirve para descubrir tokens sin backend
   (`getEvents`, ventana limitada por la retención del RPC).
-- Retirar liquidez: `transfer` de los LP de la wallet al par y después
-  `withdraw(to)`; el par quema su propio balance de LP (sin allowance) y
-  devuelve los amounts en el orden interno del par.
+- Retirar liquidez con `router.remove_liquidity` (atómico: mueve y quema los
+  LP y devuelve ambos lados en una tx); amounts en el orden interno del par.
+  El camino manual `transfer` al par + `withdraw(to)` también funciona, pero
+  puede dejar LP atrapados si falla el segundo paso.
 - Esta versión del par **no emite eventos `swap`** (0 en 10k ledgers): el
   histórico de precios no se puede reconstruir con `getEvents`; haría falta un
   indexer.
