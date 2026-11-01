@@ -1,5 +1,28 @@
 # Estado actual (para continuar en la próxima sesión)
 
+## Handoff rápido (Nov 1 2026, sesión 7 — retirar liquidez)
+
+- **Retirar liquidez** (el hueco funcional que quedaba: se podía aportar pero no
+  sacar): `withdrawLiquidity()` en `lib/soroswap.ts` transfiere los LP de la
+  wallet al par y llama a `withdraw(to)`; el par quema su balance de LP y
+  devuelve ambos lados (sin allowance, igual que el router). Los amounts se
+  mapean al orden real `token_0`/`token_1`.
+- **`useLpPosition` + `LiquidityPosition`**: tarjeta "Tu liquidez" bajo el swap
+  (solo si la wallet conectada tiene LP), con % del pool, retiro 25/50/100 %,
+  preview de cuánto token + XLM se recibe y refresco de pool/balances/mercado.
+- **Verificado on-chain** con `verify:frontend`: añadió liquidez al par
+  ASTRO/XLM, retiró el 10 % de los LP y comprobó que el balance LP bajó
+  exactamente lo retirado y que las reservas también bajaron. El camino de
+  token nuevo → par → liquidez → swap → mercado sigue OK.
+- **Smoke: 12 secciones** (matemática del retiro + guarda sin wallet).
+- Docs: README ahora refleja el deploy real (Cloudflare Workers) y el flujo
+  con retiro.
+- Nota verificada: **el par de Soroswap no emite eventos `swap`** (0 eventos en
+  la ventana de 10k ledgers, con actividad sí en la factory). Un chart de
+  histórico de precio necesita indexer; no se puede sacar de `getEvents` hoy.
+- Commits: `1aa41df` · deploy: pendiente de `npm run deploy` para publicar
+  el retiro (la versión online sigue siendo la de la sesión 6b).
+
 ## Handoff rápido (Oct 22 2026, sesión 6b — UX guiada + mercado OpenSea)
 
 - **Ciclo guiado:** `Onboarding.tsx` — bienvenida de 4 pasos
@@ -148,11 +171,11 @@
 | --- | --- | --- |
 | Tipos + bundle | `npm run build` | OK |
 | Lint | `npm run lint` | 0 avisos, 0 errores |
-| Render UI | `npm run smoke:render` | OK |
+| Render UI | `npm run smoke:render` | OK · 12 secciones |
 | Contrato | `cargo test -p astro-token` | 6/6 |
 | Deploy + spec | `npm run verify:launchpad` | OK |
 | AMM on-chain | `npm run verify:soroswap` | OK |
-| Camino del frontend | `npm run verify:frontend` | OK |
+| Camino del frontend | `npm run verify:frontend` | OK (swap + liquidez + **retiro**) |
 
 Los tres `verify:*` necesitan `STELLAR_SECRET` (cuenta `dev`).
 
@@ -176,10 +199,12 @@ Los tres `verify:*` necesitan `STELLAR_SECRET` (cuenta `dev`).
 ## Pendiente
 
 1. **Verificación visual**: no hay navegador en el entorno. Con la app servida
-   en `:5173` hay que probar con wallet (Freighter) el flujo completo.
-2. **Deploy en Vercel** (testnet online, es el objetivo del proyecto).
-3. UI/UX del roadmap: charts, toasts, responsive. (El listado de tokens ya
-   está: `MarketList`, descubierto de eventos de la factory.)
+   en `:5173` hay que probar con wallet (Freighter) el flujo completo, incluido
+   el retiro de liquidez.
+2. **Re-deploy** del frontend para publicar el retiro:
+   `cd frontend && npm run deploy` (Cloudflare Workers).
+3. UI/UX del roadmap: toasts, responsive fino. Charts de precio **bloqueados**
+   sin indexer: el par de Soroswap no emite eventos `swap`.
 4. Mint/transfer de tokens desde la UI (el contrato ya los soporta).
 5. CI en GitHub Actions (el repo no tiene workflows).
 
