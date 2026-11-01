@@ -2,6 +2,7 @@ import { Link, useParams } from 'react-router'
 import { useTokenInfo } from '../hooks/useTokenInfo'
 import { useTokenBalance } from '../hooks/useTokenBalance'
 import { useSoroswapPool } from '../hooks/useSoroswapPool'
+import { useReserveHistory } from '../hooks/useReserveHistory'
 import { useWallet } from '../store/wallet'
 import { formatAmount, shortAddress } from '../lib/format'
 import { tokenPriceInXlm } from '../lib/soroswap'
@@ -13,6 +14,7 @@ import { LiquidityForm } from '../components/LiquidityForm'
 import { TransferCard } from '../components/TransferCard'
 import { BurnCard } from '../components/BurnCard'
 import { MintCard } from '../components/MintCard'
+import { ReserveChart } from '../components/ReserveChart'
 import { NotFoundPage } from './NotFoundPage'
 import type { LaunchpadToken } from '../lib/token'
 
@@ -31,6 +33,7 @@ export function TokenPage() {
   const info = useTokenInfo(id)
   const pool = useSoroswapPool(id || null)
   const balance = useTokenBalance(publicKey, id)
+  const history = useReserveHistory(id, pool.data)
 
   if (!id) return <NotFoundPage />
 
@@ -187,6 +190,14 @@ export function TokenPage() {
           )}
         </p>
       </section>
+
+      {pool.data?.exists || history.length > 0 ? (
+        <ReserveChart
+          snapshots={history}
+          decimals={token.decimals}
+          symbol={token.symbol}
+        />
+      ) : null}
 
       <SwapCard token={token} />
       <LiquidityPosition token={token} />

@@ -199,6 +199,36 @@ try {
     throw new Error('LiquidityPosition sin wallet debería no pintar nada')
   }
 
+  // Gráfico local: renderiza sin navegador y no promete un histórico global.
+  const { ReserveChart } = await vite.ssrLoadModule(
+    '/src/components/ReserveChart.tsx',
+  )
+  const chartHtml = renderToString(
+    createElement(ReserveChart, {
+      snapshots: [
+        {
+          t: Date.parse('2026-11-01T10:00:00Z'),
+          xlm: '10000000',
+          token: '100000000',
+        },
+        {
+          t: Date.parse('2026-11-01T10:05:00Z'),
+          xlm: '12000000',
+          token: '100000000',
+        },
+      ],
+      decimals: 7,
+      symbol: 'MOON',
+    }),
+  )
+  if (
+    !chartHtml.includes('Historial del par') ||
+    !chartHtml.includes('<svg') ||
+    !chartHtml.includes('MOON')
+  ) {
+    throw new Error('el gráfico de reservas no renderiza')
+  }
+
   // Modo prueba: estado inicial sin cuentas, invita a crearlas.
   const { DemoMode } = await vite.ssrLoadModule('/src/components/DemoMode.tsx')
   const demoHtml = renderToString(
@@ -216,7 +246,7 @@ try {
   }
 
   console.log(
-    `render OK (${html.length} + ${createHtml.length} + ${marketHtml.length} + ${portfolioHtml.length} + ${tokenHtml.length} + ${liquidityHtml.length} + ${walletFound.length} + ${walletMissing.length} + ${guideOpen.length} + ${guideMini.length} + ${artHtml.length} + ${demoHtml.length} chars) · rutas y componentes`,
+    `render OK (${html.length} + ${createHtml.length} + ${marketHtml.length} + ${portfolioHtml.length} + ${tokenHtml.length} + ${liquidityHtml.length} + ${walletFound.length} + ${walletMissing.length} + ${guideOpen.length} + ${guideMini.length} + ${artHtml.length} + ${chartHtml.length} + ${demoHtml.length} chars) · rutas y componentes`,
   )
 } catch (err) {
   failed = true
