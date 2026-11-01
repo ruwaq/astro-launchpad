@@ -20,6 +20,10 @@
   minutos; **no** es el Worker de producción.
 - **Vercel**: `frontend/vercel.json` fuerza `npm ci`; el deploy anónimo se
   quedó en la instalación y no llegó a publicar. No se usó como producción.
+- **CI**: `.github/workflows/ci.yml` existe y los gates pasan en local, pero
+  GitHub Actions está **deshabilitado** en el repositorio (`enabled: false`);
+  por eso el PR no muestra checks. Habilitarlo es una decisión de repo y no se
+  forzó.
 - **Git**: commit local `31e0082` (se publica en esta sesión). Draft PR
   [#1](https://github.com/ruwaq/astro-launchpad/pull/1), base
   `floodgate/testnet-base`, `mergeable` y sin checks de CI.
@@ -27,8 +31,8 @@
   legacy sin ancestro común; indexer/P2 restante requiere credenciales,
   navegador o auditoría.
 - **Siguiente**: autenticar `wrangler` y desplegar el Worker real; decidir la
-  base del PR/`main`; luego indexer opcional o P2 (metadata/IPFS, i18n, Sentry,
-  Playwright, locker).
+  base del PR/`main` y si se habilita GitHub Actions; luego indexer opcional o
+  P2 (metadata/IPFS, i18n, Sentry, Playwright, locker).
 
 ## Handoff rápido (Nov 1 2026, sesión 14 — Compra con XLM y preview viva)
 
