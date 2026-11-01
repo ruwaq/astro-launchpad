@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { deployToken } from '../lib/token'
 import { ShareButton } from './ShareButton'
 import { useWallet } from '../store/wallet'
@@ -23,6 +24,7 @@ export function CreateTokenForm({
   onCreated?: (token: { id: string; decimals: number; symbol?: string }) => void
 }) {
   const { publicKey, getSigner } = useWallet()
+  const queryClient = useQueryClient()
   const [expert, setExpert] = useState(false)
   const [name, setName] = useState('')
   const [symbol, setSymbol] = useState('')
@@ -62,6 +64,10 @@ export function CreateTokenForm({
       })
       setCreatedId(newId)
       onCreated?.({ id: newId, decimals, symbol: symbol.trim().toUpperCase() })
+      // El deploy gasta XLM de la cuenta activa (demo o wallet).
+      await queryClient.invalidateQueries({
+        queryKey: ['demo-xlm-balances'],
+      })
     } catch (err) {
       setError(errorMessage(err))
     } finally {

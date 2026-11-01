@@ -76,6 +76,10 @@ export function LiquidityForm({
       })
       // El par puede ser nuevo: que aparezca en el mercado.
       await queryClient.invalidateQueries({ queryKey: ['token-list'] })
+      // El XLM de la cuenta demo cambió al aportar liquidez.
+      await queryClient.invalidateQueries({
+        queryKey: ['demo-xlm-balances'],
+      })
     } catch (err) {
       setError(errorMessage(err))
     } finally {

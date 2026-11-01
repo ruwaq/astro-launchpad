@@ -82,6 +82,10 @@ export function LiquidityPosition({ token }: { token: LaunchpadToken }) {
           queryKey: ['token-list'],
           refetchType: 'none',
         }),
+        // El retiro devuelve XLM a la cuenta demo.
+        queryClient.invalidateQueries({
+          queryKey: ['demo-xlm-balances'],
+        }),
       ])
     } catch (err) {
       setError(errorMessage(err))

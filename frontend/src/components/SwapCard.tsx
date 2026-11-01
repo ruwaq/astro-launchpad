@@ -96,6 +96,10 @@ export function SwapCard({
         queryKey: ['token-list'],
         refetchType: 'none',
       })
+      // El XLM de la cuenta demo cambió con el swap.
+      await queryClient.invalidateQueries({
+        queryKey: ['demo-xlm-balances'],
+      })
     } catch (err) {
       setError(errorMessage(err))
     } finally {
