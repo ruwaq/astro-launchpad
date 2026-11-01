@@ -62,9 +62,10 @@ Empezar simple y crecer.
    UI de liquidez + swap)
 7. UI/UX: listado de tokens (**hecho**: eventos `new_pair` de la factory),
    búsqueda/orden, rutas y detalle de token, portfolio, transferir/quemar/
-   mintear, actividad local, toasts y responsive. — **hecho** (deploy online
-   en Cloudflare Workers; `vercel.json` se conserva como alternativa). Charts
-   locales: **hecho** en Fase 2a; histórico global: Fase 2b.
+   mintear, actividad local y on-chain reciente, toasts y responsive. —
+   **hecho** (deploy online en Cloudflare Workers; `vercel.json` se conserva
+   como alternativa). Charts locales: **hecho** en Fase 2a; histórico global:
+   Fase 2b.
 8. Indexación ligera para histórico global (eventos RPC o servicio existente)
    solo si se aprueba la infraestructura (Fase 2b).
 9. Escalar: monorepo, CI/CD, mainnet.
@@ -82,7 +83,7 @@ Empezar simple y crecer.
   `cargo test -p astro-token`.
 
 
-## Estado Nov 2026 (Fase 0/1/2a + actividad local)
+## Estado Nov 2026 (Fase 0/1/2a + actividad)
 
 - **Fase 0**: CI + Dependabot, Vitest, toasts accesibles, `TxProgress`,
   `ErrorBoundary`, a11y (skip link, foco, reduced-motion), CSP/security headers
@@ -97,6 +98,9 @@ Empezar simple y crecer.
 - **Actividad local**: historial Zustand + `localStorage` de crear, liquidez,
   swap, transferir, mintear y quemar, con hash/estado/monto; feed en
   `/portfolio`. Es local, no un feed global.
+- **Actividad on-chain reciente**: transfer/mint/burn del contrato leídos con
+  `getEvents` en una ventana de ~14 h, con enlace a la tx. Es global pero
+  acotada; no sustituye al indexer y no muestra swaps como tales.
 - **Siguiente (Fase 2b)**: indexer ligero para histórico global. El par de
   Soroswap no emite `swap`; el indexer es necesario para reconstruir precios
   anteriores. Requiere recursos/credenciales Cloudflare y aprobación.

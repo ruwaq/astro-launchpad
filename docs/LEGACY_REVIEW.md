@@ -32,10 +32,13 @@ AMM propio, GraphQL, gamificación prematura y la deuda de tipos del legado
 - **P0 1–6**: hechos (CI, Vitest, toasts/`TxProgress`, `ErrorBoundary`,
   CSP/headers, a11y básica).
 - **P1 7–10 y 12**: hechos (transfer/mint/burn, rutas, portfolio v1,
-  búsqueda/filtros, actividad local). **P1 11 (indexer)**: pendiente como Fase
-  2b; snapshots/charts locales ya existen.
-- **P2 13–19**: pendientes (metadata/IPFS, i18n, PWA offline, Sentry,
-  Playwright, liquidity locker, creator dashboard).
+  búsqueda/filtros, actividad local y actividad on-chain reciente vía
+  `getEvents`). **P1 11 (indexer)**: pendiente como Fase 2b; snapshots/charts
+  locales y actividad on-chain reciente ya existen, pero sin histórico
+  completo.
+- **P2 13–19**: pendientes (metadata/IPFS, i18n, service worker offline,
+  Sentry, Playwright, liquidity locker, creator dashboard). El manifest PWA
+  instalable ya existe; falta la capa offline.
 
 ## 2. Inventario del legado
 

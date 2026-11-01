@@ -44,7 +44,8 @@ Identidad = wallet. Datos = red (Soroban RPC / Horizon). Sin backend de usuarios
 - On-chain (`STELLAR_SECRET` obligatorio): `npm run verify:launchpad` ·
   `npm run verify:soroswap` · `npm run verify:frontend`.
 - Solo lectura (sin secret): `npm run verify:discovery` (parser de eventos +
-  descubrimiento real de pares en la factory).
+  descubrimiento real de pares en la factory) · `npm run verify:token-events`
+  (transfer/mint/burn reales del token).
 - Modo prueba: `npm run verify:demo` (3 cuentas nuevas fondeadas con Friendbot
   + flujo A→B, sin secret).
 - Contrato: `cargo test -p astro-token` · build wasm:

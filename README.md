@@ -22,8 +22,9 @@ Ver `PLAN.md` para arquitectura y roadmap, `STATUS.md` para el estado actual.
   token/XLM leyendo los eventos `new_pair` de la factory (sin índice ni
   backend), búsqueda/orden, detalle de token con swap, liquidez, transferir,
   quemar y mintear (solo owner), portfolio local con tokens creados y holdings
-  recientes, gráfico de precio/liquidez con snapshots locales del par e
-  historial local de actividad de las operaciones.
+  recientes, gráfico de precio/liquidez con snapshots locales del par,
+  historial local de actividad de las operaciones y actividad on-chain reciente
+  del token (transfer/mint/burn) leída de `getEvents`.
 - **Modo prueba sin wallet**: crea 3 cuentas desechables de testnet fondeadas
   por Friendbot y permite cambiar entre ellas para probar todo el ciclo como
   usuarios distintos, incluido pasar tokens de una cuenta a otra. Sin instalar
@@ -33,7 +34,8 @@ Ver `PLAN.md` para arquitectura y roadmap, `STATUS.md` para el estado actual.
 
 - `/` — inicio, guía, modo prueba, mercado reciente y swap del token elegido.
 - `/market` — mercado completo con búsqueda y orden.
-- `/token/:id` — detalle on-chain del token, sus acciones y gráfico local.
+- `/token/:id` — detalle on-chain del token, sus acciones, gráfico local y
+  actividad on-chain reciente.
 - `/portfolio` — tokens creados + holdings recientes + actividad local.
 - `/create` — crear token SEP-41 y añadir liquidez en Soroswap.
 
@@ -64,8 +66,9 @@ npm run verify:soroswap    # par, liquidez, cotización y swap
 npm run verify:frontend    # el mismo código que la UI, de punta a punta
 
 # Solo lectura / cuentas nuevas (sin secret)
-npm run verify:discovery   # parser de eventos + descubrimiento real
-npm run verify:demo        # cuentas nuevas: crear, liquidez, swap, mint y burn
+npm run verify:discovery     # parser de eventos + descubrimiento real
+npm run verify:token-events  # transfer/mint/burn reales del token
+npm run verify:demo          # cuentas nuevas: crear, liquidez, swap, mint y burn
 
 # Contrato
 cargo test -p astro-token
@@ -111,6 +114,15 @@ transferir, mintear y quemar) se guardan en `localStorage` con tipo, estado,
 token, montos, cuenta, hash, fecha y error si falló. `/portfolio` muestra las
 últimas 200 y enlaza cada hash a `stellar.expert`. También es local: sirve como
 historial de este navegador, no como feed global (eso requiere indexer).
+
+## Actividad on-chain reciente
+
+El detalle de token lee `getEvents` del contrato para mostrar transferencias,
+emisiones y quemas de la ventana reciente del RPC (~14 h), con monto, cuentas,
+fecha y enlace a la transacción. Es actividad global, no del usuario, pero
+sigue siendo una ventana: no reconstruye el histórico. El par de Soroswap no
+emite `swap`, así que los swaps no aparecen como tales (sí sus transferencias
+de token). El histórico completo sigue necesitando un indexer (Fase 2b).
 
 ## Móvil y deploy (Cloudflare Workers)
 

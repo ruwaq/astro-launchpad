@@ -1,5 +1,23 @@
 # Estado actual (para continuar en la próxima sesión)
 
+## Handoff rápido (Nov 1 2026, sesión 12 — Actividad on-chain reciente)
+
+- **`lib/token-events.ts`**: parser de eventos SEP-41 (`transfer`, `mint`,
+  `burn`) y lectura paginada de `getEvents` en una ventana de ~14 h. Es una
+  lectura directa del RPC, no un indexer.
+- **`TokenActivity`**: sección en `/token/:id` con tipo, monto, from/to, fecha
+  y enlace a la tx en `stellar.expert`; estados de carga/error/vacío y aviso de
+  que el par de Soroswap no emite swaps.
+- **Invalidación**: swap, liquidez, transfer, mint y burn refrescan
+  `token-events`; la sección también hace polling cada 2 min.
+- **Verificación**: `npm run check` verde (54 tests + smoke) y
+  `npm run verify:token-events` contra ASTRO real (6 transferencias, orden
+  descendente, montos/timestamps válidos). Sin escrituras on-chain.
+- **Commit**: `ca40cbf` (`feat(frontend): actividad on-chain reciente del
+  token`).
+- **Siguiente**: Fase 2b indexer global (requiere Cloudflare/credenciales y
+  aprobación) o P2 sin infraestructura.
+
 ## Handoff rápido (Nov 1 2026, sesión 11 — Historial local de actividad)
 
 - **`store/activity.ts`**: Zustand persistido en
