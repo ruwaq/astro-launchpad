@@ -19,12 +19,18 @@
 - **Preview viva (temporal, sin cuenta)**: <https://floodgate-stellar.extreme-hardboard.workers.dev>
   — verificada con HTTP 200 en `/`, `/sw.js`, `/manifest.webmanifest` y
   fallback SPA. Caduca/reclama en ~60 min; no es el Worker de producción.
-- **Commit**: `23c2928` (`feat(frontend): compra de tokens con XLM e impacto de
-  precio`).
-- **Bloqueado**: el Worker real y GitHub siguen sin sesión (`wrangler login` /
-  `gh auth login`). No se ha hecho push, PR ni deploy de producción.
-- **Siguiente**: autenticar `gh`/`wrangler` para publicar el Worker real y
-  abrir PR; luego Fase 2b (indexer) o P2 restante.
+- **Git**: rama `ai/market-discovery` publicada. Draft PR
+  [#1](https://github.com/ruwaq/astro-launchpad/pull/1), base
+  `floodgate/testnet-base` y `mergeable`. `origin/main` es el monorepo legacy
+  y **no comparte ancestro** con este proyecto; no se ha forzado ni reemplazado
+  `main`.
+- **Commits**: `23c2928` (`feat(frontend): compra de tokens con XLM e impacto
+  de precio`) y `d1c00ab` (docs).
+- **Bloqueado**: el Worker real sigue sin sesión (`wrangler login`); el draft
+  PR no se ha fusionado y no hay deploy de producción.
+- **Siguiente**: revisar/mergear el draft PR (o decidir si `main` debe
+  reemplazarse por el proyecto), autenticar `wrangler` para publicar el Worker
+  real y luego Fase 2b (indexer) o P2 restante.
 
 ## Handoff rápido (Nov 1 2026, sesión 13 — Shell offline PWA)
 
