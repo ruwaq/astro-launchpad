@@ -36,9 +36,10 @@ AMM propio, GraphQL, gamificación prematura y la deuda de tipos del legado
   `getEvents`). **P1 11 (indexer)**: pendiente como Fase 2b; snapshots/charts
   locales y actividad on-chain reciente ya existen, pero sin histórico
   completo.
-- **P2 13–19**: pendientes (metadata/IPFS, i18n, service worker offline,
-  Sentry, Playwright, liquidity locker, creator dashboard). El manifest PWA
-  instalable ya existe; falta la capa offline.
+- **P2 13–19**: P2 15 (PWA shell offline) hecho: manifest + service worker con
+  precache, network-first y caché versionada por build; no cachea RPC ni
+  permite operar offline. Pendientes: metadata/IPFS, i18n, Sentry, Playwright,
+  liquidity locker y creator dashboard.
 
 ## 2. Inventario del legado
 

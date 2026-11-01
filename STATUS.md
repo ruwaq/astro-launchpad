@@ -1,5 +1,27 @@
 # Estado actual (para continuar en la próxima sesión)
 
+## Handoff rápido (Nov 1 2026, sesión 13 — Shell offline PWA)
+
+- **Service worker** (`frontend/public/sw.js`): precarga el index y sus assets
+  con hash, navegación network-first con fallback al shell, assets cache-first
+  y **cero** caché de RPC/Horizon/wallet. `stamp-sw.mjs` inyecta un id de build
+  y `activate` borra cachés viejas.
+- **Registro**: solo en producción (`lib/register-sw.ts`), después de `load`;
+  en dev no interfiere con Vite/HMR. `_headers` revalida `/sw.js` con
+  `no-cache`.
+- **UX offline**: `OfflineBanner` avisa que el shell/historial local abren sin
+  red, pero los datos on-chain y las operaciones no. No se permite operar
+  offline.
+- **Verificación**: `npm run check` verde (build + lint + 54 tests + smoke +
+  `verify:pwa`). `verify:pwa` valida manifest, SW estampado, precache,
+  network-first, ausencia de caché externa, headers y registro en el bundle.
+  Sin navegador disponible: no hay E2E offline real.
+- **Commit**: `305b530` (`feat(frontend): shell offline PWA con service
+  worker`).
+- **Siguiente**: Fase 2b indexer global (requiere Cloudflare/credenciales y
+  aprobación) o P2 sin infraestructura restante (i18n, metadata/IPFS, Sentry,
+  Playwright, locker, dashboard).
+
 ## Handoff rápido (Nov 1 2026, sesión 12 — Actividad on-chain reciente)
 
 - **`lib/token-events.ts`**: parser de eventos SEP-41 (`transfer`, `mint`,

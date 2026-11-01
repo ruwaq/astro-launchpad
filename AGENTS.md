@@ -40,7 +40,7 @@ Identidad = wallet. Datos = red (Soroban RPC / Horizon). Sin backend de usuarios
   28.1.0 en `~/.local/opt/stellar` + libs glibc en `~/.local/opt/glibc-libs/lib`).
   Verificar: `stellar --version`.
 - Frontend (`cd frontend`): `npm run dev` (:5173) · `npm run check`
-  (build + lint + tests + smoke) · `npm run bindings`.
+  (build + lint + tests + smoke + `verify:pwa`) · `npm run bindings`.
 - On-chain (`STELLAR_SECRET` obligatorio): `npm run verify:launchpad` ·
   `npm run verify:soroswap` · `npm run verify:frontend`.
 - Solo lectura (sin secret): `npm run verify:discovery` (parser de eventos +

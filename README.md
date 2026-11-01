@@ -53,11 +53,12 @@ npm run dev          # http://localhost:5173
 
 ```bash
 # Frontend
-npm run check          # build + lint + tests + smoke de render (sin red)
-npm run build          # tsc + vite build
+npm run check          # build + lint + tests + smoke + verify:pwa (sin red)
+npm run build          # tsc + vite build + estampado del service worker
 npm run lint           # oxlint
 npm test               # Vitest (formato, mercado, AMM, eventos, snapshots, actividad)
 npm run smoke:render   # render del árbol de componentes (sin navegador)
+npm run verify:pwa     # artefactos PWA: manifest, SW estampado y registro
 npm run bindings       # regenera los bindings TS desde los contratos on-chain
 
 # Verificaciones on-chain (necesitan STELLAR_SECRET de una cuenta de testnet)
@@ -126,10 +127,17 @@ de token). El histórico completo sigue necesitando un indexer (Fase 2b).
 
 ## Móvil y deploy (Cloudflare Workers)
 
-- **PWA instalable**: manifest (`frontend/public/manifest.webmanifest`),
-  `theme-color` e iconos PNG (`icon-192.png`/`icon-512.png`, rasterizados con
-  ImageMagick desde `frontend/scripts/assets/brand-icon.svg`). En el teléfono:
-  menú del navegador → *Añadir a la pantalla de inicio*.
+- **PWA instalable + shell offline**: manifest
+  (`frontend/public/manifest.webmanifest`), `theme-color` e iconos PNG
+  (`icon-192.png`/`icon-512.png`, rasterizados con ImageMagick desde
+  `frontend/scripts/assets/brand-icon.svg`). El service worker
+  (`frontend/public/sw.js`) precarga index/assets y usa navegación
+  network-first con fallback al shell; los assets llevan cache-first y **nunca**
+  se cachean RPC, Horizon ni wallet. `stamp-sw.mjs` versiona la caché por build
+  y `register-sw.ts` solo registra en producción. Si no hay red, un banner
+  avisa: el shell y el historial local abren, pero las operaciones necesitan
+  conexión. En el teléfono: menú del navegador → *Añadir a la pantalla de
+  inicio*.
 - **Wallets móviles (WalletConnect v2)**: activar con `VITE_WC_PROJECT_ID`
   (proyecto gratis en <https://cloud.reown.com>); ver `.env.example`. La app
   firma con `signTransaction`, que el módulo WC cubre.

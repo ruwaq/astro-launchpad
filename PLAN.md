@@ -79,7 +79,7 @@ Empezar simple y crecer.
   asumida: ventana de retención de eventos (~14 h) y 9 tokens por carga. Un
   indexer solo hará falta si se quiere histórico completo.
 - CI añadida (GitHub Actions): `npm run check` (build + lint + tests +
-  smoke), `cargo fmt --check`, `cargo clippy -D warnings` y
+  smoke + `verify:pwa`), `cargo fmt --check`, `cargo clippy -D warnings` y
   `cargo test -p astro-token`.
 
 
@@ -101,6 +101,10 @@ Empezar simple y crecer.
 - **Actividad on-chain reciente**: transfer/mint/burn del contrato leídos con
   `getEvents` en una ventana de ~14 h, con enlace a la tx. Es global pero
   acotada; no sustituye al indexer y no muestra swaps como tales.
+- **PWA shell offline**: manifest + service worker conservador; precache de
+  index/assets, navegación network-first, caché versionada por build y banner
+  de sin conexión. No cachea RPC ni permite operar offline. Verificado con
+  `verify:pwa`; falta prueba E2E en navegador.
 - **Siguiente (Fase 2b)**: indexer ligero para histórico global. El par de
   Soroswap no emite `swap`; el indexer es necesario para reconstruir precios
   anteriores. Requiere recursos/credenciales Cloudflare y aprobación.
