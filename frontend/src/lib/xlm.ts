@@ -4,13 +4,15 @@ export const XLM_DECIMALS = 7
 /** Reserva mínima que dejamos al usar MAX en una compra. */
 export const XLM_FEE_BUFFER = 10_000_000n
 
+import { HORIZON_URL } from './network'
+
 /**
  * Balance nativo (XLM) de una cuenta desde Horizon. Se usa para mostrar el
  * saldo disponible antes de comprar un token con XLM.
  */
 export async function fetchXlmBalance(publicKey: string): Promise<number> {
   const response = await fetch(
-    `https://horizon-testnet.stellar.org/accounts/${encodeURIComponent(publicKey)}`,
+    `${HORIZON_URL}/accounts/${encodeURIComponent(publicKey)}`,
   )
   if (!response.ok) return 0
   const data = (await response.json()) as {
@@ -29,5 +31,7 @@ export async function fetchXlmBalance(publicKey: string): Promise<number> {
  */
 export function xlmToStroops(value: number): bigint {
   if (!Number.isFinite(value) || value <= 0) return 0n
-  return BigInt(Math.floor(value * 10 ** XLM_DECIMALS))
+  // Horizon devuelve como máximo 7 decimales; redondear evita que un valor
+  // como 0.29 se convierta en 2.899.999 stroops por representación binaria.
+  return BigInt(Math.round(value * 10 ** XLM_DECIMALS))
 }

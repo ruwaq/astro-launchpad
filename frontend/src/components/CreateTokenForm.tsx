@@ -112,8 +112,8 @@ export function CreateTokenForm({
       </div>
       <p className="mt-1 text-sm text-slate-400">
         Lanzas con el estándar de los memes: <span className="text-slate-200">1 000
-        000 000 tokens</span>, 7 decimales, supply fijo. En modo experto decides
-        todo.
+        000 000 tokens</span>, 7 decimales de supply inicial. En modo experto
+        decides todo.
       </p>
 
       <form
@@ -206,8 +206,9 @@ export function CreateTokenForm({
       <div className="mt-4 rounded-lg border border-slate-800 bg-slate-950/60 p-3 text-xs text-slate-400">
         <p className="font-medium text-slate-300">Reglas claras del launchpad</p>
         <p className="mt-1">
-          · Supply fijo al desplegar (por defecto 1B). Emitir más solo puede tu
-          wallet (owner) — queda visible on-chain.
+          · Supply inicial al desplegar (por defecto 1B). Como owner puedes
+          emitir más después: este MVP no tiene cap de supply y la comunidad
+          puede verificarlo on-chain.
         </p>
         <p className="mt-0.5">
           · Estándar SEP-41 (OpenZeppelin Stellar): wallets, exploradores y DEX
@@ -218,8 +219,8 @@ export function CreateTokenForm({
           mientras sostengas el pool.
         </p>
         <p className="mt-0.5">
-          · Burn disponible: los holders quemar token reduce el supply para
-          siempre.
+          · Burn disponible: los holders pueden quemar tokens y reducir el
+          supply para siempre.
         </p>
         <p className="mt-0.5 text-amber-400">
           · Estamos en testnet: todo es gratis y sin valor real — perfecto para

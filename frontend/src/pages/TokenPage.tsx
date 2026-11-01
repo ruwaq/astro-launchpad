@@ -190,6 +190,25 @@ export function TokenPage() {
             'renunciado'
           )}
         </p>
+
+        <div
+          className={`mt-3 rounded-lg border px-3 py-2 text-xs ${
+            owner
+              ? 'border-amber-900/60 bg-amber-950/20 text-amber-200'
+              : 'border-emerald-900/60 bg-emerald-950/20 text-emerald-200'
+          }`}
+        >
+          <p className="font-medium">Riesgo del token (testnet)</p>
+          <p className="mt-1 opacity-80">
+            {owner
+              ? 'El owner puede emitir más supply con mint. Revisa quién controla esa cuenta antes de comprar.'
+              : 'El owner renunció a la propiedad: el contrato no puede emitir más supply.'}
+          </p>
+          <p className="mt-1 opacity-60">
+            Proyecto en testnet, sin auditoría ni valor real. No es asesoramiento
+            financiero.
+          </p>
+        </div>
       </section>
 
       {pool.data?.exists || history.length > 0 ? (

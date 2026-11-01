@@ -9,7 +9,9 @@ usuarios: la identidad es la wallet y los datos se leen de la red.
 las transacciones de los peers hasta que el ledger cierra. Fuente única de la
 marca: `frontend/src/lib/brand.ts`. **El token de ejemplo (ASTRO) no cambia.**
 
-Ver `PLAN.md` para arquitectura y roadmap, `STATUS.md` para el estado actual.
+Ver `PLAN.md` para arquitectura y roadmap, `STATUS.md` para el estado actual,
+`SECURITY.md` para el modelo de seguridad/límites y
+`docs/RELEASE_CHECKLIST.md` para publicar y verificar sin saltarse pasos.
 
 ## Qué hay
 

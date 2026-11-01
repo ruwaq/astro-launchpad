@@ -39,7 +39,9 @@ AMM propio, GraphQL, gamificación prematura y la deuda de tipos del legado
 - **P2 13–19**: P2 15 (PWA shell offline) hecho: manifest + service worker con
   precache, network-first y caché versionada por build; no cachea RPC ni
   permite operar offline. Pendientes: metadata/IPFS, i18n, Sentry, Playwright,
-  liquidity locker y creator dashboard.
+  liquidity locker y creator dashboard. Los que dependen de credenciales,
+  navegador o auditoría no se simulan: quedan documentados como bloqueos en
+  `STATUS.md`.
 
 ## 2. Inventario del legado
 
