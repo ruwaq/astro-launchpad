@@ -318,11 +318,10 @@ export async function addLiquidity(params: {
 }
 
 /**
- * Retira liquidez del par token/XLM.
+ * Retira liquidez del par token/XLM con el router (atómico).
  *
- * `withdraw` quema los LP que el par tiene en su propio balance: primero se
- * transfieren desde la wallet (el par no usa allowance, igual que el router).
- * Devuelve los amounts reales en orden token/XLM.
+ * `remove_liquidity` toma los LP del usuario, los quema y devuelve ambos
+ * lados en una sola transacción: si algo falla no quedan LP atrapados.
  */
 export async function withdrawLiquidity(params: {
   tokenId: string
@@ -339,28 +338,49 @@ export async function withdrawLiquidity(params: {
     throw new Error('El par token/XLM no existe')
   }
 
-  const pair = pairClientFor(pool.pairId, signer)
-  const { token0 } = await pairLayout(pool.pairId, signer)
+  // Orden real del par y suministro LP para fijar los mínimos de salida.
+  const pair = pairClientFor(pool.pairId)
+  const [token0Tx, supplyTx] = await Promise.all([
+    pair.token_0(),
+    pair.total_supply(),
+  ])
+  const tokenFirst =
+    unwrapResult<string>(token0Tx.result, 'token_0') === tokenId
+  const totalSupply = unwrapResult<bigint>(supplyTx.result, 'total_supply')
+  const expected = withdrawPreview(
+    {
+      totalSupply,
+      reserveToken: pool.reserveToken,
+      reserveXlm: pool.reserveXlm,
+    },
+    lpAmount,
+  )
 
-  // Sin allowance: el par quema los LP que tiene en su balance, así que el
-  // usuario se los transfiere primero y luego llama a `withdraw`.
-  const transferTx = await pair.transfer({
-    from: signer.address,
-    to: pool.pairId,
-    amount: lpAmount,
+  const { router } = soroswapClients(signer)
+  const tx = await router.remove_liquidity({
+    token_a: tokenFirst ? tokenId : XLM_SAC,
+    token_b: tokenFirst ? XLM_SAC : tokenId,
+    liquidity: lpAmount,
+    amount_a_min: withSlippage(
+      tokenFirst ? expected.tokenAmount : expected.xlmAmount,
+    ),
+    amount_b_min: withSlippage(
+      tokenFirst ? expected.xlmAmount : expected.tokenAmount,
+    ),
+    to: signer.address,
+    deadline: unixDeadline(),
   })
-  await transferTx.signAndSend()
+  const { result } = await tx.signAndSend()
+  const [amountA, amountB] = unwrapResult<[bigint, bigint]>(
+    result,
+    'remove_liquidity',
+  )
 
-  const withdrawTx = await pair.withdraw({ to: signer.address })
-  const { result } = await withdrawTx.signAndSend()
-  const [amount0, amount1] = unwrapResult<[bigint, bigint]>(result, 'withdraw')
-
-  // El par devuelve los amounts en su orden interno (token_0, token_1).
-  const tokenFirst = token0 === tokenId
+  // El router devuelve los amounts en el orden token_a/token_b que le dimos.
   return {
     pair: pool.pairId,
-    tokenAmount: tokenFirst ? amount0 : amount1,
-    xlmAmount: tokenFirst ? amount1 : amount0,
+    tokenAmount: tokenFirst ? amountA : amountB,
+    xlmAmount: tokenFirst ? amountB : amountA,
   }
 }
 
