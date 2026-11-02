@@ -6,6 +6,21 @@ import { useCreatedTokens } from '../store/creations'
 import { shortAddress } from '../lib/format'
 import type { LaunchpadToken } from '../lib/token'
 
+const LAUNCH_STEPS = [
+  {
+    title: 'Crea el token',
+    hint: 'Despliega un SEP-41 en testnet.',
+  },
+  {
+    title: 'Añade liquidez',
+    hint: 'Crea el par token/XLM en Soroswap.',
+  },
+  {
+    title: 'Sale al mercado',
+    hint: 'El par aparece en Mercado y ya se puede swapear.',
+  },
+]
+
 export function CreatePage() {
   const createdTokens = useCreatedTokens((state) => state.tokens)
   const addCreatedToken = useCreatedTokens((state) => state.add)
@@ -40,10 +55,30 @@ export function CreatePage() {
         </p>
       </div>
 
+      <ol
+        aria-label="Cómo sale un token al mercado"
+        className="grid gap-2 sm:grid-cols-3"
+      >
+        {LAUNCH_STEPS.map((step, index) => (
+          <li
+            key={step.title}
+            className="rounded-lg border border-slate-800 bg-slate-900/40 p-3"
+          >
+            <span className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-700 text-xs font-semibold text-slate-300">
+              {index + 1}
+            </span>
+            <p className="mt-2 text-sm font-medium text-slate-200">
+              {step.title}
+            </p>
+            <p className="mt-0.5 text-xs text-slate-500">{step.hint}</p>
+          </li>
+        ))}
+      </ol>
+
       <CreateTokenForm onCreated={onCreated} />
 
       {liquidityToken ? (
-        <div className="flex flex-col gap-3">
+        <div id="add-liquidity" className="scroll-mt-20 flex flex-col gap-3">
           {createdTokens.length > 1 ? (
             <label className="block max-w-md text-sm">
               <span className="text-slate-400">Token para añadir liquidez</span>

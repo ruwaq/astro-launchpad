@@ -45,12 +45,18 @@ Ver `PLAN.md` para arquitectura y roadmap, `STATUS.md` para el estado actual,
 ## Dev rápido
 
 ```bash
-export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
+export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"   # solo Termux
+git clone https://github.com/ruwaq/astro-launchpad.git
+cd astro-launchpad
+git checkout ai/market-discovery
 
 cd frontend
-npm install
+npm ci
 npm run dev          # http://localhost:5173
 ```
+
+En macOS (u otra máquina) sigue `docs/MAC_SETUP.md`: instala Node/Rust/Stellar
+CLI, clona la rama y qué estado es local y no viaja en el repo.
 
 ## Comandos
 

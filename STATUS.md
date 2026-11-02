@@ -1,5 +1,32 @@
 # Estado actual (para continuar en la próxima sesión)
 
+## Handoff rápido (Nov 2 2026, sesión 16 — onboarding y traslado al Mac)
+
+- **Objetivo de la sesión**: que el flujo *crear token → añadir liquidez →
+  mercado* se entienda sin explicación externa.
+- **`CreatePage`**: stepper de 3 pasos (`Crea el token`, `Añade liquidez`,
+  `Sale al mercado`) antes del formulario.
+- **`CreateTokenForm`**: tras desplegar muestra CTA "Añadir liquidez ahora ↓"
+  (ancla `#add-liquidity`), enlace "Ver el token" y aviso de que hasta añadir
+  liquidez no aparece en Mercado. El share usa la URL de la app
+  (`/token/:id`) en vez de stellar.expert.
+- **`LiquidityForm`**: el contenedor del panel tiene `id="add-liquidity"` y
+  `scroll-mt-20`. Se eliminó un `import { Link }` sin usar que rompía `tsc`
+  (el build fallaba con TS6133); queda pendiente decidir si ese enlace se
+  añade de verdad al terminar la liquidez.
+- **Gates**: `npm run check` verde (build + lint + 60 tests + smoke +
+  `verify:pwa`).
+- **Git**: rama `ai/market-discovery` sincronizada con `origin`; repo
+  `ruwaq/astro-launchpad`. Se añadió `docs/MAC_SETUP.md` (cuenta, rama,
+  prerequisitos de macOS, qué estado es local y no viaja) y el README apunta
+  ahí.
+- **Traslado a Mac**: clonar la rama, `npm ci`, `npm run check`. Las cuentas
+  del modo prueba viven en `localStorage` y hay que recrearlas; `node_modules`,
+  `target`, `dist`, `.vercel` y `STELLAR_SECRET` no están en el repo.
+- **Siguiente**: probar el flujo en navegador real; decidir el enlace
+  post-liquidez a `/token/:id` y `/market`; `wrangler login` para el Worker
+  real; GitHub Actions sigue deshabilitado.
+
 ## Handoff rápido (Nov 1 2026, sesión 15 — PWA install prompt y SDK 17.4)
 
 - **Instalación PWA**: `PwaInstallPrompt` usa `beforeinstallprompt`, se oculta

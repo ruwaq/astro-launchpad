@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { deployToken } from '../lib/token'
 import { ShareButton } from './ShareButton'
@@ -252,17 +253,33 @@ export function CreateTokenForm({
             >
               {createdId}
             </a>
-            {' · '}
-            <span className="text-emerald-200">
-              siguiente paso: añade liquidez con el panel de abajo
-            </span>
           </p>
+          <p className="mt-1 text-emerald-200">
+            Todavía no está en el mercado: añade liquidez para crear el par
+            token/XLM y que aparezca en <strong>Mercado</strong>.
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <a
+              href="#add-liquidity"
+              className="inline-flex min-h-[44px] items-center rounded-lg bg-emerald-500 px-4 text-sm font-medium text-slate-950 hover:bg-emerald-400"
+            >
+              Añadir liquidez ahora ↓
+            </a>
+            <Link
+              to={`/token/${createdId}`}
+              className="inline-flex min-h-[44px] items-center rounded-lg border border-emerald-800 px-4 text-sm text-emerald-200 hover:border-emerald-600"
+            >
+              Ver el token
+            </Link>
+          </div>
           <div className="mt-2">
             <ShareButton
-              text={`🌊 Lanzé ${
+              text={`🌊 Lancé ${
                 symbol.trim() || 'mi token'
-              } en Floodgate (testnet de Stellar) — ¡pronto en mainnet!`}
-              url={`https://stellar.expert/explorer/testnet/contract/${createdId}`}
+              } en Floodgate (testnet de Stellar) — ya está on-chain`}
+              url={`${
+                typeof window !== 'undefined' ? window.location.origin : ''
+              }/token/${createdId}`}
             />
           </div>
         </div>
