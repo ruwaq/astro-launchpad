@@ -1,6 +1,9 @@
 import {
   activityLabel,
   activitySummary,
+  exportActivityAsCsv,
+  exportActivityAsJson,
+  triggerDownload,
   useActivity,
   type ActivityEntry,
   type ActivityKind,
@@ -89,6 +92,20 @@ export function ActivityFeed({ limit = 20 }: { limit?: number }) {
     }
   }
 
+  function onExportCsv() {
+    const csv = exportActivityAsCsv(entries)
+    triggerDownload(csv, `astrogate-activity-${Date.now()}.csv`, 'text/csv')
+  }
+
+  function onExportJson() {
+    const json = exportActivityAsJson(entries)
+    triggerDownload(
+      json,
+      `astrogate-activity-${Date.now()}.json`,
+      'application/json',
+    )
+  }
+
   return (
     <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-4 sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -100,13 +117,31 @@ export function ActivityFeed({ limit = 20 }: { limit?: number }) {
           </p>
         </div>
         {entries.length > 0 ? (
-          <button
-            type="button"
-            onClick={onClear}
-            className="min-h-[44px] rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-400 hover:border-slate-500 hover:text-slate-200"
-          >
-            Clear history
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={onExportCsv}
+              title="Download CSV spreadsheet"
+              className="min-h-[44px] rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:border-slate-500 hover:text-white"
+            >
+              📥 Export CSV
+            </button>
+            <button
+              type="button"
+              onClick={onExportJson}
+              title="Download JSON record"
+              className="min-h-[44px] rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:border-slate-500 hover:text-white"
+            >
+              {'{ }'} JSON
+            </button>
+            <button
+              type="button"
+              onClick={onClear}
+              className="min-h-[44px] rounded-lg border border-rose-900/60 bg-rose-950/20 px-3 py-1.5 text-xs text-rose-300 hover:border-rose-700 hover:text-rose-100"
+            >
+              Clear
+            </button>
+          </div>
         ) : null}
       </div>
 

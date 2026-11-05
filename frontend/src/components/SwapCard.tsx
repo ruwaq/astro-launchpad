@@ -414,9 +414,15 @@ export function SwapCard({
                     {impact.toFixed(2)}%
                   </span>
                 </div>
-                {impact >= 5 ? (
-                  <p className="text-rose-300">
-                    High price impact: consider a smaller amount or deepening pool liquidity.
+                {impact >= 15 ? (
+                  <div className="mt-1 rounded border border-rose-800 bg-rose-950/50 p-2 text-xs text-rose-300">
+                    ⚠️ <strong>Extreme price impact ({impact.toFixed(1)}%)!</strong>{' '}
+                    Liquidity in this pool is shallow for this order size. You
+                    will experience significant slippage.
+                  </div>
+                ) : impact >= 5 ? (
+                  <p className="text-amber-300">
+                    Moderate/high price impact: consider a smaller trade size.
                   </p>
                 ) : null}
               </div>

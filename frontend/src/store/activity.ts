@@ -193,3 +193,56 @@ export const useActivity = create<ActivityStore>((set, get) => ({
 export function recordActivity(input: ActivityInput): ActivityEntry {
   return useActivity.getState().record(input)
 }
+
+/** Formats local entries as readable, pretty-printed JSON. */
+export function exportActivityAsJson(entries: ActivityEntry[]): string {
+  return JSON.stringify(entries, null, 2)
+}
+
+/** Exports local entries as a standard CSV spreadsheet for auditing / tax. */
+export function exportActivityAsCsv(entries: ActivityEntry[]): string {
+  const headers = [
+    'Date (ISO)',
+    'Type',
+    'Status',
+    'Token ID',
+    'Symbol',
+    'Amount',
+    'Secondary Amount',
+    'Summary',
+    'Account',
+    'Transaction Hash',
+  ]
+  const rows = entries.map((e) => [
+    new Date(e.at).toISOString(),
+    e.kind,
+    e.status,
+    e.tokenId,
+    e.tokenSymbol ?? '',
+    e.amount ?? '',
+    e.secondaryAmount ?? '',
+    `"${activitySummary(e).replace(/"/g, '""')}"`,
+    e.account ?? '',
+    e.hash ?? '',
+  ])
+
+  return [headers.join(','), ...rows.map((r) => r.join(','))].join('\n')
+}
+
+/** Triggers a browser download of a given text file payload. */
+export function triggerDownload(
+  content: string,
+  filename: string,
+  mimeType = 'text/plain',
+): void {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return
+  const blob = new Blob([content], { type: mimeType })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}

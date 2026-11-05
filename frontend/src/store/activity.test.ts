@@ -3,6 +3,8 @@ import {
   activityLabel,
   activitySummary,
   appendActivity,
+  exportActivityAsCsv,
+  exportActivityAsJson,
   type ActivityEntry,
 } from './activity'
 
@@ -112,5 +114,28 @@ describe('appendActivity', () => {
     const entries = [entry({ id: 'a' }), entry({ id: 'b' })]
     const next = appendActivity(entries, entry({ id: 'c' }), 2)
     expect(next.map((item) => item.id)).toEqual(['c', 'a'])
+  })
+})
+
+describe('exportActivity', () => {
+  it('exports valid JSON and CSV formats', () => {
+    const item = entry({
+      id: 'tx-1',
+      kind: 'swap',
+      amount: '50',
+      secondaryAmount: '10',
+      tokenSymbol: 'ASTRO',
+      account: 'GDQJMSA5...',
+      hash: 'abc123',
+    })
+    const json = JSON.parse(exportActivityAsJson([item]))
+    expect(Array.isArray(json)).toBe(true)
+    expect(json[0].id).toBe('tx-1')
+
+    const csv = exportActivityAsCsv([item])
+    expect(csv).toContain('Date (ISO),Type,Status')
+    expect(csv).toContain('swap')
+    expect(csv).toContain('ASTRO')
+    expect(csv).toContain('GDQJMSA5...')
   })
 })

@@ -7,6 +7,7 @@ import { explorerContractUrl } from '../lib/explorer'
 import { graduationProgress } from '../lib/tokenomics'
 import { tokenPriceInXlm } from '../lib/soroswap'
 import { useXlmUsdPrice } from '../hooks/useXlmUsdPrice'
+import { useWatchlist } from '../store/watchlist'
 import {
   filterAndSortTokens,
   MARKET_SORT_OPTIONS,
@@ -53,6 +54,8 @@ function MarketCard({
   onSelect: (token: LaunchpadToken) => void
 }) {
   const grad = graduationProgress(token.pool.reserveXlm)
+  const isFav = useWatchlist((s) => s.isFavorite(token.id))
+  const toggleFav = useWatchlist((s) => s.toggle)
 
   return (
     <li
@@ -68,15 +71,36 @@ function MarketCard({
           symbol={token.symbol}
           className="aspect-square w-full"
         />
-        <a
-          href={explorerContractUrl(token.pool.pairId ?? token.id)}
-          target="_blank"
-          rel="noreferrer"
-          aria-label={`View ${token.symbol} in explorer`}
-          className="absolute right-2 top-2 flex h-9 w-9 items-center justify-center rounded-full bg-slate-950/70 text-slate-300 backdrop-blur hover:text-emerald-300"
-        >
-          ↗
-        </a>
+        <div className="absolute right-2 top-2 flex items-center gap-1">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              toggleFav(token.id)
+            }}
+            aria-label={
+              isFav
+                ? `Remove ${token.symbol} from favorites`
+                : `Add ${token.symbol} to favorites`
+            }
+            className={`flex h-9 w-9 items-center justify-center rounded-full text-sm backdrop-blur transition ${
+              isFav
+                ? 'border border-amber-500/40 bg-amber-500/20 text-amber-400'
+                : 'bg-slate-950/70 text-slate-400 hover:text-amber-300'
+            }`}
+          >
+            {isFav ? '★' : '☆'}
+          </button>
+          <a
+            href={explorerContractUrl(token.pool.pairId ?? token.id)}
+            target="_blank"
+            rel="noreferrer"
+            aria-label={`View ${token.symbol} in explorer`}
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-950/70 text-slate-300 backdrop-blur hover:text-emerald-300"
+          >
+            ↗
+          </a>
+        </div>
         {selected ? (
           <span className="absolute left-2 top-2 rounded-full bg-emerald-500 px-2 py-0.5 text-[10px] font-semibold text-slate-950">
             in swap
@@ -175,11 +199,16 @@ export function MarketList({
   const list = useTokenList()
   const [query, setQuery] = useState('')
   const [sort, setSort] = useState<MarketSortKey>('recent')
+  const [favsOnly, setFavsOnly] = useState(false)
+  const isFavorite = useWatchlist((s) => s.isFavorite)
 
-  const tokens = useMemo(
-    () => filterAndSortTokens(list.data ?? [], query, sort, limit),
-    [list.data, query, sort, limit],
-  )
+  const tokens = useMemo(() => {
+    let result = filterAndSortTokens(list.data ?? [], query, sort, limit)
+    if (favsOnly) {
+      result = result.filter((t) => isFavorite(t.id))
+    }
+    return result
+  }, [list.data, query, sort, limit, favsOnly, isFavorite])
   const trimmedQuery = query.trim()
   const isDirectContract = isValidContractAddress(trimmedQuery)
   const exactMatchInList = tokens.some((t) => t.id === trimmedQuery)
@@ -237,22 +266,36 @@ export function MarketList({
             </span>
           </label>
 
-          <label className="flex items-center gap-2 text-xs text-slate-400">
-            <span>Sort by</span>
-            <select
-              value={sort}
-              onChange={(event) =>
-                setSort(event.target.value as MarketSortKey)
-              }
-              className="min-h-[44px] rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-200 outline-none focus:border-emerald-500"
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setFavsOnly(!favsOnly)}
+              className={`min-h-[44px] rounded-lg border px-3 py-2 text-xs font-medium transition ${
+                favsOnly
+                  ? 'border-amber-500/60 bg-amber-950/40 text-amber-300'
+                  : 'border-slate-800 bg-slate-950 text-slate-400 hover:text-slate-200'
+              }`}
             >
-              {MARKET_SORT_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
+              {favsOnly ? '★ Favorites Only' : '☆ All'}
+            </button>
+
+            <label className="flex items-center gap-2 text-xs text-slate-400">
+              <span>Sort by</span>
+              <select
+                value={sort}
+                onChange={(event) =>
+                  setSort(event.target.value as MarketSortKey)
+                }
+                className="min-h-[44px] rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-200 outline-none focus:border-emerald-500"
+              >
+                {MARKET_SORT_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
         </div>
       ) : null}
 

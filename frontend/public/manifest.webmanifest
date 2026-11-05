@@ -1,7 +1,7 @@
 {
-  "name": "Floodgate — Launchpad de Stellar",
-  "short_name": "Floodgate",
-  "description": "Floodgate — crea tu token en segundos y swapea en Stellar testnet.",
+  "name": "AstroGate — Stellar Fair Launchpad & AMM",
+  "short_name": "AstroGate",
+  "description": "AstroGate — Fair meme launchpad & instant AMM trading on Stellar testnet.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
