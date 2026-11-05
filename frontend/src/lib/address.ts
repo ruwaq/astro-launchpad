@@ -9,3 +9,12 @@ export function isValidStellarAddress(value: string): boolean {
   if (!address) return false
   return StrKey.isValidEd25519PublicKey(address)
 }
+
+/**
+ * Valida si un string es una dirección de contrato Soroban válida (C...).
+ */
+export function isValidContractAddress(value: string): boolean {
+  const address = value.trim()
+  if (!address) return false
+  return StrKey.isValidContract(address)
+}

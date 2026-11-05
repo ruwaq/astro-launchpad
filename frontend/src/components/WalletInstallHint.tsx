@@ -11,7 +11,6 @@ type DetectionState = {
 
 const initial: DetectionState = { done: false, available: [], notInstalled: [] }
 
-/** Datos deterministas para el smoke de render (los effects no corren en SSR). */
 const PREVIEW_FOUND: DetectionState = {
   done: true,
   available: [
@@ -63,18 +62,9 @@ const PREVIEW_MISSING: DetectionState = {
 }
 
 type Props = {
-  /** Solo para tests: fuerza el estado y salta la detección real. */
   preview?: 'found' | 'missing'
 }
 
-/**
- * Detección de wallet al cargar + recomendación de instalación.
- *
- * - Si hay wallet detectada: aviso verde con su nombre (conectar con el
- *   botón del header).
- * - Si no hay: tarjetas con el link oficial de descarga (Freighter
- *   recomendada, xBull, LOBSTR…) y nota móvil vía WalletConnect.
- */
 export function WalletInstallHint({ preview }: Props) {
   const { publicKey } = useWallet()
   const [state, setState] = useState<DetectionState>(
@@ -106,8 +96,7 @@ export function WalletInstallHint({ preview }: Props) {
     const first = withRecommendation(state.available)[0]
     return (
       <p className="inline-flex w-fit items-center gap-2 rounded-lg border border-emerald-900 bg-emerald-950/30 px-3 py-2 text-sm text-emerald-300">
-        ✓ Wallet detectada: <strong>{first.label}</strong> — lista para
-        conectar.
+        ✓ Wallet detected: <strong>{first.label}</strong> — ready to connect.
       </p>
     )
   }
@@ -118,8 +107,7 @@ export function WalletInstallHint({ preview }: Props) {
   return (
     <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-3">
       <p className="text-sm text-slate-300">
-        No detectamos ninguna wallet en este navegador. Instala una para firmar
-        en testnet:
+        No Stellar wallet detected in this browser. Install one to sign on testnet:
       </p>
       <ul className="mt-2 grid gap-2 sm:grid-cols-3">
         {recommended.map((wallet) => (
@@ -137,15 +125,14 @@ export function WalletInstallHint({ preview }: Props) {
                 {wallet.why}
               </span>
               <span className="mt-1 block text-xs text-emerald-400">
-                Descargar ↗
+                Download ↗
               </span>
             </a>
           </li>
         ))}
       </ul>
       <p className="mt-2 text-xs text-slate-500">
-        En el móvil, las apps como Freighter Mobile se conectan vía
-        WalletConnect (QR) — se activa con un projectId de Reown.
+        On mobile, wallets connect seamlessly via WalletConnect QR code scan.
       </p>
     </div>
   )

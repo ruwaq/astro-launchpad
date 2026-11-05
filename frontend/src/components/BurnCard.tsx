@@ -6,12 +6,15 @@ import { tokenClient, type LaunchpadToken } from '../lib/token'
 import { useWallet } from '../store/wallet'
 import { recordActivity } from '../store/activity'
 import { errorMessage, formatAmount, parseAmount } from '../lib/format'
+import { explorerTxUrl } from '../lib/explorer'
 import { invalidateTokenData } from '../lib/query'
 import { toast } from '../lib/toast'
 import { TxProgress } from './TxProgress'
 
 const inputClass =
   'mt-1 w-full rounded-lg border border-slate-800 bg-slate-950 px-3.5 py-3 text-base text-slate-100 outline-none focus:border-emerald-500'
+
+const AMOUNT_PERCENTS = [25, 50, 75, 100] as const
 
 export function BurnCard({ token }: { token: LaunchpadToken }) {
   const { publicKey, getSigner } = useWallet()
@@ -31,22 +34,22 @@ export function BurnCard({ token }: { token: LaunchpadToken }) {
     setBurned(null)
 
     if (!publicKey) {
-      setError('Conecta tu wallet o activa el modo prueba para quemar tokens.')
+      setError('Connect your wallet or activate demo mode to burn tokens.')
       return
     }
     const signer = getSigner()
     if (!signer) {
-      setError('No se pudo preparar el firmante de la cuenta activa.')
+      setError('Unable to prepare signer for the active account.')
       return
     }
 
     const amountBase = parseAmount(amount, token.decimals)
     if (amountBase <= 0n) {
-      setError('Introduce un monto mayor que 0.')
+      setError('Please enter an amount greater than 0.')
       return
     }
     if (balance.data !== undefined && amountBase > balance.data) {
-      setError('No puedes quemar más tokens de los que tienes.')
+      setError('You cannot burn more tokens than your balance.')
       return
     }
 
@@ -70,8 +73,8 @@ export function BurnCard({ token }: { token: LaunchpadToken }) {
         account: publicKey,
         hash,
       })
-      toast.success('Tokens quemados', {
-        message: `${formatAmount(amountBase, token.decimals)} ${token.symbol ?? 'token'} salen del supply para siempre`,
+      toast.success('Tokens burned', {
+        message: `${formatAmount(amountBase, token.decimals)} ${token.symbol ?? 'token'} removed from supply permanently`,
         hash,
       })
       await invalidateTokenData(queryClient, token.id)
@@ -87,7 +90,7 @@ export function BurnCard({ token }: { token: LaunchpadToken }) {
         account: publicKey,
         error: message,
       })
-      toast.error('No se pudieron quemar los tokens', { message })
+      toast.error('Failed to burn tokens', { message })
     } finally {
       setBusy(false)
     }
@@ -95,21 +98,20 @@ export function BurnCard({ token }: { token: LaunchpadToken }) {
 
   return (
     <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-4 sm:p-6">
-      <h2 className="text-lg font-semibold">Quemar {token.symbol ?? 'token'}</h2>
+      <h2 className="text-lg font-semibold">Burn {token.symbol ?? 'token'}</h2>
       <p className="mt-1 text-sm text-slate-400">
-        Destruye tokens de tu propia cuenta. El supply baja para siempre; nadie
-        puede recuperarlos.
+        Destroy tokens from your own balance. Reduces total circulating supply permanently.
       </p>
       {info.data ? (
         <p className="mt-2 text-xs text-slate-500">
-          Supply actual: {formatAmount(info.data.totalSupply, token.decimals)}{' '}
+          Current Supply: {formatAmount(info.data.totalSupply, token.decimals)}{' '}
           {token.symbol ?? 'token'}
         </p>
       ) : null}
 
       <form onSubmit={onSubmit} aria-busy={busy} className="mt-4 grid gap-3">
         <label className="block text-sm">
-          <span className="text-slate-400">Monto a quemar</span>
+          <span className="text-slate-400">Amount to burn</span>
           <input
             className={inputClass}
             value={amount}
@@ -120,19 +122,33 @@ export function BurnCard({ token }: { token: LaunchpadToken }) {
         </label>
 
         {publicKey && balance.data !== undefined ? (
-          <p className="text-xs text-slate-500">
-            Balance: {formatAmount(balance.data, token.decimals)}{' '}
-            {token.symbol ?? 'token'}
-            <button
-              type="button"
-              onClick={() =>
-                setAmount(formatAmount(balance.data, token.decimals))
-              }
-              className="ml-2 min-h-[44px] rounded-md border border-slate-700 px-3 py-1.5 text-xs font-medium text-emerald-300 hover:border-emerald-500"
-            >
-              MAX
-            </button>
-          </p>
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
+            <span>
+              Balance:{' '}
+              <span className="font-mono text-slate-300">
+                {formatAmount(balance.data, token.decimals)}
+              </span>{' '}
+              {token.symbol ?? 'token'}
+            </span>
+            <div className="flex flex-wrap gap-1">
+              {AMOUNT_PERCENTS.map((pct) => {
+                const slice = ((balance.data ?? 0n) * BigInt(pct)) / 100n
+                return (
+                  <button
+                    key={pct}
+                    type="button"
+                    disabled={busy || slice <= 0n}
+                    onClick={() =>
+                      setAmount(formatAmount(slice, token.decimals))
+                    }
+                    className="inline-flex min-h-[32px] items-center rounded-md border border-slate-800 bg-slate-950/60 px-2 py-1 text-xs font-medium text-emerald-300 hover:border-emerald-500 disabled:opacity-50"
+                  >
+                    {pct === 100 ? 'MAX' : `${pct}%`}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
         ) : null}
 
         <button
@@ -140,7 +156,7 @@ export function BurnCard({ token }: { token: LaunchpadToken }) {
           disabled={busy || !publicKey}
           className="min-h-[44px] w-full rounded-lg border border-rose-800 bg-rose-950/40 px-6 py-3 text-base font-medium text-rose-200 hover:border-rose-600 disabled:opacity-60 sm:w-auto"
         >
-          {busy ? 'Quemando…' : 'Quemar tokens'}
+          {busy ? 'Burning…' : 'Burn Tokens'}
         </button>
       </form>
 
@@ -148,7 +164,7 @@ export function BurnCard({ token }: { token: LaunchpadToken }) {
         <div className="mt-4">
           <TxProgress
             steps={[
-              { label: 'Firmando y quemando los tokens', status: 'active' },
+              { label: 'Signing and burning tokens', status: 'active' },
             ]}
           />
         </div>
@@ -169,17 +185,17 @@ export function BurnCard({ token }: { token: LaunchpadToken }) {
           className="mt-4 rounded-lg border border-emerald-900 bg-emerald-950/40 px-3 py-2 text-sm text-emerald-300"
         >
           <p>
-            Quemados {formatAmount(burned.amount, token.decimals)}{' '}
+            Burned {formatAmount(burned.amount, token.decimals)}{' '}
             {token.symbol ?? 'token'} ✓
           </p>
           {burned.hash ? (
             <a
-              href={`https://stellar.expert/explorer/testnet/tx/${burned.hash}`}
+              href={explorerTxUrl(burned.hash)}
               target="_blank"
               rel="noreferrer"
               className="mt-1 inline-block text-xs underline underline-offset-2"
             >
-              Ver transacción ↗
+              View Transaction ↗
             </a>
           ) : null}
         </div>

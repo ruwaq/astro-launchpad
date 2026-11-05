@@ -52,8 +52,11 @@ describe('impacto de precio', () => {
 })
 
 describe('withSlippage', () => {
-  it('aplica el porcentaje de slippage por defecto', () => {
+  it('aplica el porcentaje de slippage por defecto y soporta decimales (bps)', () => {
     expect(withSlippage(1_000n)).toBe(980n)
+    expect(withSlippage(1_000n, 0.5)).toBe(995n)
+    expect(withSlippage(1_000n, 1)).toBe(990n)
+    expect(withSlippage(1_000n, 5)).toBe(950n)
     expect(withSlippage(1_000n, 0)).toBe(1_000n)
     expect(withSlippage(1_000n, 100)).toBe(0n)
   })

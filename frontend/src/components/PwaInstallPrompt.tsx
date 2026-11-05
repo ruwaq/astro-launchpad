@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
+import { BRAND } from '../lib/brand'
 
 type InstallPromptEvent = Event & {
   prompt: () => Promise<void>
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>
 }
 
-const DISMISS_KEY = 'floodgate.pwa.install.dismissed.v1'
+const DISMISS_KEY = 'astrogate.pwa.install.dismissed.v1'
 
 function wasDismissed(): boolean {
   try {
@@ -16,11 +17,7 @@ function wasDismissed(): boolean {
 }
 
 /**
- * Instalación de la PWA con el prompt nativo de Chromium.
- *
- * No se muestra en SSR ni si la app ya corre en modo standalone. El aviso es
- * descartable y no bloquea ninguna operación; el service worker sigue siendo
- * el que habilita el shell offline.
+ * PWA installation prompt using Chromium's native prompt.
  */
 export function PwaInstallPrompt() {
   const [promptEvent, setPromptEvent] = useState<InstallPromptEvent | null>(
@@ -59,7 +56,7 @@ export function PwaInstallPrompt() {
     try {
       localStorage.setItem(DISMISS_KEY, '1')
     } catch {
-      // Sin storage el aviso simplemente vuelve a aparecer en otra visita.
+      // Storage quota or disabled
     }
   }
 
@@ -87,20 +84,20 @@ export function PwaInstallPrompt() {
   return (
     <aside
       role="region"
-      aria-label="Instalar Floodgate"
+      aria-label={`Install ${BRAND.name}`}
       className="fixed inset-x-4 bottom-4 z-[90] mx-auto max-w-md rounded-xl border border-slate-700 bg-slate-900 p-4 shadow-2xl shadow-slate-950/60 sm:left-auto sm:right-4 sm:mx-0"
     >
       <div className="flex items-start gap-3">
         <span aria-hidden="true" className="text-2xl">
-          🌊
+          {BRAND.emoji}
         </span>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium text-slate-100">
-            Instala Floodgate
+            Install {BRAND.name}
           </p>
           <p className="mt-1 text-xs text-slate-400">
-            Acceso rápido desde tu pantalla de inicio. El shell funciona
-            offline; firmar transacciones necesita red.
+            Fast access directly from your home screen. Offline shell supported;
+            signing transactions requires network connection.
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             <button
@@ -109,21 +106,21 @@ export function PwaInstallPrompt() {
               disabled={busy}
               className="min-h-[44px] rounded-lg bg-emerald-500 px-4 text-sm font-medium text-slate-950 hover:bg-emerald-400 disabled:opacity-60"
             >
-              {busy ? 'Instalando…' : 'Instalar'}
+              {busy ? 'Installing…' : 'Install'}
             </button>
             <button
               type="button"
               onClick={dismiss}
               className="min-h-[44px] rounded-lg border border-slate-700 px-4 text-sm text-slate-300 hover:border-slate-500"
             >
-              Ahora no
+              Not now
             </button>
           </div>
         </div>
         <button
           type="button"
           onClick={dismiss}
-          aria-label="Cerrar aviso de instalación"
+          aria-label="Close install prompt"
           className="-mr-1 -mt-1 inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg text-lg text-slate-500 hover:text-slate-200"
         >
           ×

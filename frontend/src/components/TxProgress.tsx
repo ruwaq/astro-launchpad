@@ -21,12 +21,11 @@ const stepColor: Record<TxStepStatus, string> = {
 }
 
 /**
- * Progreso de una operación on-chain. Cada formulario decide sus pasos; aquí
- * solo se pinta el estado de forma consistente y accesible.
+ * On-chain transaction progress display.
  */
 export function TxProgress({
   steps,
-  title = 'Progreso de la transacción',
+  title = 'Transaction Progress',
 }: {
   steps: TxStep[]
   title?: string
@@ -35,7 +34,7 @@ export function TxProgress({
 
   const hasError = steps.some((step) => step.status === 'error')
   const allDone = steps.every((step) => step.status === 'done')
-  const summary = hasError ? 'Error' : allDone ? 'Completado' : 'En curso'
+  const summary = hasError ? 'Error' : allDone ? 'Completed' : 'In Progress'
 
   return (
     <div

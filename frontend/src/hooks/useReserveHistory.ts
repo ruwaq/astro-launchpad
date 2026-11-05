@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react'
 import {
   getSnapshots,
   recordSnapshot,
@@ -6,18 +6,23 @@ import {
   SNAPSHOT_BUCKET_MS,
   type ReserveSnapshot,
 } from '../lib/snapshots'
+import { reconstructSnapshotsFromEvents } from '../lib/token-events'
+import { useTokenEvents } from './useTokenEvents'
 import type { PoolState } from '../lib/soroswap'
 
 const EMPTY_SNAPSHOTS: ReserveSnapshot[] = []
 
 /**
- * Historial local del par. No es un indexer: solo registra las lecturas que
- * esta pestaña ha hecho del pool. El gráfico lo dice explícitamente.
+ * Historial del par combinando:
+ * 1. Reconstrucción on-chain de compras y ventas contra el contrato del par
+ *    usando los eventos SEP-41 `transfer` + invariante x * y = k.
+ * 2. Snapshots locales guardados en este navegador (`localStorage`).
  */
 export function useReserveHistory(
   tokenId: string,
   pool: PoolState | undefined,
 ): ReserveSnapshot[] {
+  const events = useTokenEvents(tokenId)
   const subscribe = useCallback(
     (onChange: () => void) => subscribeSnapshots(tokenId, onChange),
     [tokenId],
@@ -55,5 +60,11 @@ export function useReserveHistory(
     return () => window.clearInterval(timer)
   }, [tokenId, exists, reserveXlm, reserveToken])
 
-  return snapshots
+  return useMemo(() => {
+    const onChain = reconstructSnapshotsFromEvents(events.data ?? [], pool)
+    if (onChain.length >= 2 && onChain.length >= snapshots.length) {
+      return onChain
+    }
+    return snapshots.length > 0 ? snapshots : onChain
+  }, [events.data, pool, snapshots])
 }

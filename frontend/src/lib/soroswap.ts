@@ -9,9 +9,13 @@ import {
   SOROSWAP_ROUTER,
   XLM_SAC,
 } from './network'
+import { STELLAR_BURN_ADDRESS } from './tokenomics'
 
 /** Slippage por defecto (%). Es el mínimo de salida que exigimos al router. */
 export const SLIPPAGE_PERCENT = 2
+
+/** Opciones rápidas de slippage (%) para el selector de la UI. */
+export const SLIPPAGE_OPTIONS = [0.5, 1, 2, 5] as const
 
 /** Deadline para las operaciones del router: unix timestamp + 5 minutos. */
 const DEADLINE_SECONDS = 300
@@ -65,12 +69,15 @@ export type PoolState = {
   reserveXlm: bigint
 }
 
-/** Mínimo de salida tras aplicar el slippage. */
+/** Mínimo de salida tras aplicar el slippage (soporta decimales como 0.5% con basis points). */
 export function withSlippage(
   amount: bigint,
   percent: number = SLIPPAGE_PERCENT,
 ): bigint {
-  return (amount * BigInt(100 - percent)) / 100n
+  const safe = Math.max(0, Math.min(100, percent))
+  // Basis points (1% = 100 bps) para evitar operaciones flotantes con BigInt
+  const bps = BigInt(Math.round(safe * 100))
+  return (amount * (10_000n - bps)) / 10_000n
 }
 
 /** Posición de liquidez del usuario en un par token/XLM. */
@@ -151,24 +158,37 @@ export function soroswapClients(signer?: Signer) {
 }
 
 /**
+ * Caché en memoria de datos inmutables de la factory y de cada par:
+ * - Un par creado en la factory para `(tokenId, XLM_SAC)` nunca cambia de `pairId`.
+ * - `token_0` y `token_1` de un contrato par nunca cambian tras su despliegue.
+ * Esto ahorra hasta 4 simulaciones RPC secuenciales en cada lectura de reservas.
+ */
+const pairIdCache = new Map<string, string>()
+const pairTokensCache = new Map<string, { token0: string; token1: string }>()
+
+/**
  * Estado del par token/XLM: si existe, su id y las reservas.
  *
  * Tras confirmar la existencia en la factory, el orden y las reservas se
- * leyen del contrato del par (`token_0`/`token_1`), que es la única verdad.
+ * leen del contrato del par (`token_0`/`token_1`), que es la única verdad.
  */
 export async function fetchPoolState(tokenId: string): Promise<PoolState> {
-  const { factory } = soroswapClients()
+  let pairId = pairIdCache.get(tokenId) ?? null
 
-  const existsTx = await factory.pair_exists({
-    token_a: tokenId,
-    token_b: XLM_SAC,
-  })
-  if (!unwrapResult<boolean>(existsTx.result, 'pair_exists')) {
-    return { exists: false, pairId: null, reserveToken: 0n, reserveXlm: 0n }
+  if (!pairId) {
+    const { factory } = soroswapClients()
+    const existsTx = await factory.pair_exists({
+      token_a: tokenId,
+      token_b: XLM_SAC,
+    })
+    if (!unwrapResult<boolean>(existsTx.result, 'pair_exists')) {
+      return { exists: false, pairId: null, reserveToken: 0n, reserveXlm: 0n }
+    }
+
+    const pairTx = await factory.get_pair({ token_a: tokenId, token_b: XLM_SAC })
+    pairId = unwrapResult<string>(pairTx.result, 'get_pair')
+    pairIdCache.set(tokenId, pairId)
   }
-
-  const pairTx = await factory.get_pair({ token_a: tokenId, token_b: XLM_SAC })
-  const pairId = unwrapResult<string>(pairTx.result, 'get_pair')
 
   // La única verdad sobre el orden y las reservas es el contrato del par:
   // `sort_tokens` del router puede no coincidir con `token_0`/`token_1`.
@@ -226,9 +246,29 @@ async function pairLayout(
   signer?: Signer,
 ): Promise<{ token0: string; token1: string; reserves: [bigint, bigint] }> {
   const pair = pairClientFor(pairId, signer)
-  const token0 = unwrapResult<string>((await pair.token_0()).result, 'token_0')
-  const token1 = unwrapResult<string>((await pair.token_1()).result, 'token_1')
-  const reserves = unwrapResult<[bigint, bigint]>((await pair.get_reserves()).result, 'get_reserves')
+  const cachedTokens = pairTokensCache.get(pairId)
+
+  if (cachedTokens) {
+    const reservesTx = await pair.get_reserves()
+    const reserves = unwrapResult<[bigint, bigint]>(
+      reservesTx.result,
+      'get_reserves',
+    )
+    return { ...cachedTokens, reserves }
+  }
+
+  const [token0Tx, token1Tx, reservesTx] = await Promise.all([
+    pair.token_0(),
+    pair.token_1(),
+    pair.get_reserves(),
+  ])
+  const token0 = unwrapResult<string>(token0Tx.result, 'token_0')
+  const token1 = unwrapResult<string>(token1Tx.result, 'token_1')
+  const reserves = unwrapResult<[bigint, bigint]>(
+    reservesTx.result,
+    'get_reserves',
+  )
+  pairTokensCache.set(pairId, { token0, token1 })
   return { token0, token1, reserves }
 }
 
@@ -302,11 +342,13 @@ export async function ensurePair(
         token_a: tokenId,
         token_b: XLM_SAC,
       })
-      return unwrapResult<string>(pairTx.result, 'get_pair')
+      const pairId = unwrapResult<string>(pairTx.result, 'get_pair')
+      pairIdCache.set(tokenId, pairId)
+      return pairId
     }
     await new Promise((resolve) => setTimeout(resolve, 1500))
   }
-  throw new Error('El par no apareció en la factory de Soroswap a tiempo')
+  throw new Error('Pair did not appear in Soroswap factory in time')
 }
 
 /**
@@ -342,7 +384,7 @@ export async function addLiquidity(params: {
   const { token0, token1 } = await pairLayout(pair, signer)
   const tokenFirst = token0 === tokenId
   if (!tokenFirst && token1 !== tokenId) {
-    throw new Error('El par no contiene el token del launchpad')
+    throw new Error('Pair does not contain the launchpad token')
   }
 
   onStep?.('liquidity')
@@ -389,12 +431,12 @@ export async function withdrawLiquidity(params: {
 }): Promise<{ pair: string; tokenAmount: bigint; xlmAmount: bigint }> {
   const { tokenId, lpAmount, signer, onHash } = params
   if (lpAmount <= 0n) {
-    throw new Error('La cantidad de LP a retirar debe ser mayor que 0')
+    throw new Error('LP amount to withdraw must be greater than 0')
   }
 
   const pool = await fetchPoolState(tokenId)
   if (!pool.exists || !pool.pairId) {
-    throw new Error('El par token/XLM no existe')
+    throw new Error('Token/XLM pair does not exist')
   }
 
   // Orden real del par y suministro LP para fijar los mínimos de salida.
@@ -493,6 +535,56 @@ export async function swapTokenForXlm(params: {
   const hash = sent.sendTransactionResponse?.hash
   if (hash) onHash?.(hash)
   return unwrapResult<bigint[]>(sent.result, 'swap')
+}
+
+/**
+ * Lee on-chain cuántos LP tokens están quemados permanentemente en la dirección
+ * blackhole de Stellar (`STELLAR_BURN_ADDRESS`), impidiendo cualquier rug-pull.
+ */
+export async function fetchBurnedLpInfo(pairId: string): Promise<{
+  burnedLp: bigint
+  totalSupply: bigint
+  burnedPercent: number
+}> {
+  const pair = pairClientFor(pairId)
+  const [burnedTx, supplyTx] = await Promise.all([
+    pair.balance({ id: STELLAR_BURN_ADDRESS }),
+    pair.total_supply(),
+  ])
+  const burnedLp = unwrapResult<bigint>(burnedTx.result, 'balance')
+  const totalSupply = unwrapResult<bigint>(supplyTx.result, 'total_supply')
+  return {
+    burnedLp,
+    totalSupply,
+    burnedPercent: lpSharePercent(burnedLp, totalSupply),
+  }
+}
+
+/**
+ * Quema permanentemente los LP tokens enviándolos a `STELLAR_BURN_ADDRESS`
+ * (`GAAAA...WHF`). A diferencia de `pair.burn`, enviar a la dirección blackhole
+ * conserva intacto `total_supply` del par para que ningún otro LP pueda reclamar
+ * las reservas subyacentes: la liquidez queda bloqueada en el DEX para siempre.
+ */
+export async function burnLpTokens(params: {
+  pairId: string
+  lpAmount: bigint
+  signer: Signer
+  onHash?: (hash: string) => void
+}): Promise<void> {
+  const { pairId, lpAmount, signer, onHash } = params
+  if (lpAmount <= 0n) {
+    throw new Error('LP amount to burn must be greater than 0')
+  }
+  const pair = pairClientFor(pairId, signer)
+  const tx = await pair.transfer({
+    from: signer.address,
+    to: STELLAR_BURN_ADDRESS,
+    amount: lpAmount,
+  })
+  const sent = await tx.signAndSend()
+  const hash = sent.sendTransactionResponse?.hash
+  if (hash) onHash?.(hash)
 }
 
 /** Deadline del router: unix timestamp + 5 minutos. */

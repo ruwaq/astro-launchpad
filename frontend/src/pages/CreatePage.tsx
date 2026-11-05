@@ -8,16 +8,16 @@ import type { LaunchpadToken } from '../lib/token'
 
 const LAUNCH_STEPS = [
   {
-    title: 'Crea el token',
-    hint: 'Despliega un SEP-41 en testnet.',
+    title: 'Deploy Token',
+    hint: 'Deploys SEP-41 smart contract on testnet.',
   },
   {
-    title: 'Añade liquidez',
-    hint: 'Crea el par token/XLM en Soroswap.',
+    title: 'Seed Liquidity',
+    hint: 'Creates token/XLM pair on Soroswap & burns LP.',
   },
   {
-    title: 'Sale al mercado',
-    hint: 'El par aparece en Mercado y ya se puede swapear.',
+    title: 'Live on Market',
+    hint: 'Instantly tradeable across Stellar DEXs.',
   },
 ]
 
@@ -26,8 +26,6 @@ export function CreatePage() {
   const addCreatedToken = useCreatedTokens((state) => state.add)
   const [active, setActive] = useState<LaunchpadToken | null>(null)
 
-  // Tras un refresh no hay estado de sesión: el store local nos deja seguir
-  // con la liquidez de un token creado antes.
   const liquidityToken = active ?? createdTokens[0] ?? null
 
   function onCreated(token: LaunchpadToken) {
@@ -48,15 +46,15 @@ export function CreatePage() {
   return (
     <>
       <div>
-        <h1 className="text-2xl font-bold sm:text-3xl">Lanza tu token</h1>
+        <h1 className="text-2xl font-bold sm:text-3xl">Launch Your Token</h1>
         <p className="mt-1 max-w-2xl text-slate-400">
-          Despliega un SEP-41 en testnet y añade liquidez en Soroswap. La wallet
-          firma cada paso; no hay backend ni registro.
+          Deploy a SEP-41 token on Stellar testnet and seed liquidity on Soroswap.
+          Your wallet signs each step; 100% decentralized with zero backend.
         </p>
       </div>
 
       <ol
-        aria-label="Cómo sale un token al mercado"
+        aria-label="How a token launches into the market"
         className="grid gap-2 sm:grid-cols-3"
       >
         {LAUNCH_STEPS.map((step, index) => (
@@ -81,7 +79,7 @@ export function CreatePage() {
         <div id="add-liquidity" className="scroll-mt-20 flex flex-col gap-3">
           {createdTokens.length > 1 ? (
             <label className="block max-w-md text-sm">
-              <span className="text-slate-400">Token para añadir liquidez</span>
+              <span className="text-slate-400">Token to manage liquidity</span>
               <select
                 value={liquidityToken.id}
                 onChange={(event) => selectToken(event.target.value)}
@@ -102,7 +100,7 @@ export function CreatePage() {
             to={`/token/${liquidityToken.id}`}
             className="text-sm text-emerald-400 underline underline-offset-2 hover:text-emerald-300"
           >
-            Ver el detalle del token →
+            View Token Details →
           </Link>
         </div>
       ) : null}

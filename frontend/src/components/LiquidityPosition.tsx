@@ -16,14 +16,10 @@ import { TxProgress } from './TxProgress'
 const PERCENTS = [25, 50, 100] as const
 type Percent = (typeof PERCENTS)[number]
 
-/** Los tokens LP del par usan 7 decimales (los mismos que XLM). */
 const LP_DECIMALS = 7
 
 /**
- * Posición de liquidez del usuario en el par del token seleccionado.
- *
- * Solo aparece si la wallet conectada tiene LP tokens. Retirar quema esos LP
- * y devuelve ambos lados del par en proporción a las reservas.
+ * User's liquidity position in the selected token pair.
  */
 export function LiquidityPosition({ token }: { token: LaunchpadToken }) {
   const { publicKey, getSigner } = useWallet()
@@ -53,12 +49,12 @@ export function LiquidityPosition({ token }: { token: LaunchpadToken }) {
     setWithdrawn(null)
     if (!publicKey || !data) return
     if (lpAmount <= 0n) {
-      setError('No hay LP disponibles para retirar.')
+      setError('No LP tokens available to withdraw.')
       return
     }
     const signer = getSigner()
     if (!signer) {
-      setError('No se pudo preparar el firmante de la cuenta activa.')
+      setError('Unable to prepare signer for the active account.')
       return
     }
 
@@ -81,12 +77,12 @@ export function LiquidityPosition({ token }: { token: LaunchpadToken }) {
         amount: formatAmount(result.tokenAmount, token.decimals),
         secondaryAmount: formatAmount(result.xlmAmount, 7),
         secondarySymbol: 'XLM',
-        detail: `${formatAmount(lpAmount, LP_DECIMALS)} LP quemados`,
+        detail: `${formatAmount(lpAmount, LP_DECIMALS)} LP burned`,
         account: publicKey,
         hash,
       })
-      toast.success('Liquidez retirada', {
-        message: `${formatAmount(result.tokenAmount, token.decimals)} token + ${formatAmount(result.xlmAmount, 7)} XLM`,
+      toast.success('Liquidity withdrawn', {
+        message: `${formatAmount(result.tokenAmount, token.decimals)} ${token.symbol ?? 'TOKEN'} + ${formatAmount(result.xlmAmount, 7)} XLM`,
         hash,
       })
       await Promise.all([
@@ -102,12 +98,10 @@ export function LiquidityPosition({ token }: { token: LaunchpadToken }) {
         queryClient.invalidateQueries({
           queryKey: ['token-events', token.id],
         }),
-        // Las reservas cambiaron: el precio del mercado queda stale.
         queryClient.invalidateQueries({
           queryKey: ['token-list'],
           refetchType: 'none',
         }),
-        // El retiro devuelve XLM a la cuenta demo.
         queryClient.invalidateQueries({
           queryKey: ['demo-xlm-balances'],
         }),
@@ -127,7 +121,7 @@ export function LiquidityPosition({ token }: { token: LaunchpadToken }) {
         account: publicKey,
         error: message,
       })
-      toast.error('No se pudo retirar la liquidez', { message })
+      toast.error('Failed to withdraw liquidity', { message })
     } finally {
       setBusy(false)
     }
@@ -139,15 +133,15 @@ export function LiquidityPosition({ token }: { token: LaunchpadToken }) {
       className="rounded-xl border border-slate-800 bg-slate-900/40 p-4 sm:p-6"
     >
       <h2 className="text-lg font-semibold">
-        Tu liquidez · {shortAddress(token.id)}
+        Your Liquidity · {shortAddress(token.id)}
       </h2>
 
       {hasPosition && data ? (
         <>
           <p className="mt-1 text-sm text-slate-400">
-            Tienes {formatAmount(data.lpBalance, LP_DECIMALS)} LP (
-            {share.toFixed(2)} % del pool). Los LP se queman al retirar y
-            recibes ambos lados, con las fees acumuladas.
+            You hold {formatAmount(data.lpBalance, LP_DECIMALS)} LP (
+            {share.toFixed(2)}% of the pool). LP tokens are burned on withdrawal
+            to return both assets along with accrued fees.
           </p>
 
           <div className="mt-4 flex flex-wrap gap-2">
@@ -163,15 +157,15 @@ export function LiquidityPosition({ token }: { token: LaunchpadToken }) {
                     : 'border-slate-700 text-slate-300 hover:border-slate-500'
                 }`}
               >
-                {option === 100 ? 'Todo' : `${option} %`}
+                {option === 100 ? '100% (Max)' : `${option}%`}
               </button>
             ))}
           </div>
 
           <p className="mt-3 text-sm text-slate-300">
-            Recibes ≈{' '}
+            You receive ≈{' '}
             <span className="font-medium text-emerald-400">
-              {formatAmount(preview.tokenAmount, token.decimals)} token +{' '}
+              {formatAmount(preview.tokenAmount, token.decimals)} {token.symbol ?? 'TOKEN'} +{' '}
               {formatAmount(preview.xlmAmount, 7)} XLM
             </span>
           </p>
@@ -183,8 +177,8 @@ export function LiquidityPosition({ token }: { token: LaunchpadToken }) {
             className="mt-4 w-full rounded-lg bg-emerald-500 px-6 py-3 text-base font-medium text-slate-950 hover:bg-emerald-400 disabled:opacity-60 sm:w-auto"
           >
             {busy
-              ? 'Retirando…'
-              : `Retirar ${percent === 100 ? 'todo' : `${percent} %`} · ${formatAmount(lpAmount, LP_DECIMALS)} LP`}
+              ? 'Withdrawing…'
+              : `Withdraw ${percent === 100 ? '100%' : `${percent}%`} · ${formatAmount(lpAmount, LP_DECIMALS)} LP`}
           </button>
 
           {busy ? (
@@ -192,7 +186,7 @@ export function LiquidityPosition({ token }: { token: LaunchpadToken }) {
               <TxProgress
                 steps={[
                   {
-                    label: 'Quemando LP y devolviendo ambos lados del par',
+                    label: 'Burning LP tokens and returning underlying assets',
                     status: 'active',
                   },
                 ]}
@@ -216,13 +210,13 @@ export function LiquidityPosition({ token }: { token: LaunchpadToken }) {
           role="status"
           className="mt-4 space-y-1 rounded-lg border border-emerald-900 bg-emerald-950/40 px-3 py-2 text-sm text-emerald-300"
         >
-          <p className="font-medium">Liquidez retirada ✓</p>
+          <p className="font-medium">Liquidity Withdrawn ✓</p>
           <p>
-            Recibiste {formatAmount(withdrawn.tokenAmount, token.decimals)} token
-            + {formatAmount(withdrawn.xlmAmount, 7)} XLM · quemados{' '}
+            Received {formatAmount(withdrawn.tokenAmount, token.decimals)} {token.symbol ?? 'TOKEN'}
+            + {formatAmount(withdrawn.xlmAmount, 7)} XLM · burned{' '}
             {formatAmount(withdrawn.lpAmount, LP_DECIMALS)} LP
           </p>
-          {!hasPosition ? <p>Ya no te quedan LP en este par.</p> : null}
+          {!hasPosition ? <p>You have no remaining LP tokens in this pair.</p> : null}
         </div>
       ) : null}
     </section>

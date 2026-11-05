@@ -9,6 +9,7 @@ import {
 const WIDTH = 320
 const HEIGHT = 120
 const PADDING = 12
+const EMPTY_SNAPSHOTS: ReserveSnapshot[] = []
 
 type Metric = 'price' | 'liquidity'
 
@@ -16,11 +17,11 @@ function formatMetric(value: number): string {
   if (!Number.isFinite(value)) return '—'
   const abs = Math.abs(value)
   const digits = abs > 0 && abs < 0.01 ? 8 : 4
-  return value.toLocaleString('es-ES', { maximumFractionDigits: digits })
+  return value.toLocaleString('en-US', { maximumFractionDigits: digits })
 }
 
 function formatTime(t: number): string {
-  return new Date(t).toLocaleString('es-ES', {
+  return new Date(t).toLocaleString('en-US', {
     month: 'short',
     day: 'numeric',
     hour: '2-digit',
@@ -30,26 +31,29 @@ function formatTime(t: number): string {
 
 export function ReserveChart({
   snapshots,
+  history,
   decimals,
   symbol,
 }: {
-  snapshots: ReserveSnapshot[]
+  snapshots?: ReserveSnapshot[]
+  history?: ReserveSnapshot[]
   decimals: number
   symbol?: string
 }) {
+  const activeSnapshots = snapshots ?? history ?? EMPTY_SNAPSHOTS
   const [metric, setMetric] = useState<Metric>('price')
   const gradientId = useId().replace(/:/g, '')
 
   const values = useMemo(
     () =>
-      snapshots
+      activeSnapshots
         .map((snapshot) =>
           metric === 'price'
             ? snapshotPrice(snapshot, decimals)
             : snapshotLiquidity(snapshot),
         )
         .map((value) => (Number.isFinite(value) ? value : 0)),
-    [decimals, metric, snapshots],
+    [decimals, metric, activeSnapshots],
   )
 
   const series = useMemo(
@@ -69,24 +73,26 @@ export function ReserveChart({
   const latest = values[values.length - 1] ?? 0
   const delta = first > 0 ? ((latest - first) / first) * 100 : null
   const metricLabel =
-    metric === 'price' ? `Precio (XLM por ${symbol ?? 'token'})` : 'Liquidez (XLM)'
+    metric === 'price' ? `Price (XLM per ${symbol ?? 'token'})` : 'Liquidity (XLM)'
 
   return (
     <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-4 sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold">Historial del par</h2>
+          <h2 className="text-lg font-semibold">
+            Pair History & Trading Curve
+          </h2>
           <p className="mt-1 text-xs text-slate-500">
-            {snapshots.length === 1
-              ? '1 snapshot local'
-              : `${snapshots.length} snapshots locales`}{' '}
-            · cambios al instante y pulso cada ~5 min
+            {activeSnapshots.length === 1
+              ? '1 data point recorded'
+              : `${activeSnapshots.length} evolution points`}{' '}
+            · reconstructed on-chain from Soroswap AMM trades + live session
           </p>
         </div>
         <div
           className="flex rounded-lg border border-slate-700 p-1"
           role="group"
-          aria-label="Métrica del gráfico"
+          aria-label="Chart metric"
         >
           <button
             type="button"
@@ -98,7 +104,7 @@ export function ReserveChart({
                 : 'text-slate-300 hover:text-slate-100'
             }`}
           >
-            Precio
+            Price
           </button>
           <button
             type="button"
@@ -110,7 +116,7 @@ export function ReserveChart({
                 : 'text-slate-300 hover:text-slate-100'
             }`}
           >
-            Liquidez
+            Liquidity
           </button>
         </div>
       </div>
@@ -133,23 +139,23 @@ export function ReserveChart({
                 }`}
               >
                 {delta >= 0 ? '+' : ''}
-                {delta.toFixed(2)}% desde la primera lectura
+                {delta.toFixed(2)}% since initial point
               </p>
             )}
           </div>
 
           <div className="mt-2 flex items-center justify-between font-mono text-[10px] text-slate-500">
-            <span>máx. {formatMetric(series.max)}</span>
-            <span>mín. {formatMetric(series.min)}</span>
+            <span>max {formatMetric(series.max)}</span>
+            <span>min {formatMetric(series.min)}</span>
           </div>
 
           <svg
             viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
             preserveAspectRatio="none"
             role="img"
-            aria-label={`${metricLabel}: mínimo ${formatMetric(
+            aria-label={`${metricLabel}: min ${formatMetric(
               series.min,
-            )}, máximo ${formatMetric(series.max)}, último ${formatMetric(
+            )}, max ${formatMetric(series.max)}, latest ${formatMetric(
               latest,
             )}`}
             className="mt-1 h-36 w-full"
@@ -173,27 +179,23 @@ export function ReserveChart({
           </svg>
 
           <div className="flex items-center justify-between font-mono text-[10px] text-slate-500">
-            <span>{formatTime(snapshots[0]?.t ?? 0)}</span>
-            <span>{formatTime(snapshots[snapshots.length - 1]?.t ?? 0)}</span>
+            <span>{formatTime(activeSnapshots[0]?.t ?? 0)}</span>
+            <span>{formatTime(activeSnapshots[activeSnapshots.length - 1]?.t ?? 0)}</span>
           </div>
         </>
       ) : (
         <div className="mt-4 rounded-lg border border-dashed border-slate-700 bg-slate-950/30 p-4">
           <p className="text-sm text-slate-300">
-            Aún no hay suficientes lecturas para dibujar el gráfico.
+            Waiting for additional trading points to render the chart.
           </p>
           <p className="mt-1 text-xs text-slate-500">
-            La primera se guarda al abrir el token; la siguiente, unos 5 minutos
-            después. Mantén esta pestaña abierta para ver la evolución.
+            Initial point recorded on load. Curve points are automatically populated as buy/sell swaps occur against the AMM pair.
           </p>
         </div>
       )}
 
       <p className="mt-3 text-xs text-slate-500">
-        Historial local de este navegador: se llena mientras abres el detalle de
-        este token; no incluye lo que pasó antes ni lo que vean otras personas.
-        El histórico global necesita un indexer; mientras tanto, esto es una
-        lectura honesta de lo observado.
+        Deterministic curve reconstructed from real on-chain transfer events (`x · y = k`) in the Soroswap pair contract.
       </p>
     </section>
   )

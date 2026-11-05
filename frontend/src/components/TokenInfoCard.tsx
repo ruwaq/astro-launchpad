@@ -2,7 +2,9 @@ import { useTokenInfo } from '../hooks/useTokenInfo'
 import { useTokenBalance } from '../hooks/useTokenBalance'
 import { useWallet } from '../store/wallet'
 import { ASTRO_TOKEN_ID } from '../lib/network'
+import { explorerContractUrl } from '../lib/explorer'
 import { formatAmount } from '../lib/format'
+import type { LaunchpadToken } from '../lib/token'
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
@@ -15,20 +17,33 @@ function Stat({ label, value }: { label: string; value: string }) {
 
 export function TokenInfoCard({
   tokenId = ASTRO_TOKEN_ID,
+  token: tokenProp,
   example = true,
 }: {
   tokenId?: string
-  /** En el home mostramos el token de ejemplo; en su detalle no. */
+  token?: LaunchpadToken
   example?: boolean
 }) {
+  const activeTokenId = tokenProp?.id ?? tokenId
   const { publicKey } = useWallet()
-  const info = useTokenInfo(tokenId)
-  const balance = useTokenBalance(publicKey, tokenId)
+  const info = useTokenInfo(activeTokenId)
+  const balance = useTokenBalance(publicKey, activeTokenId)
 
   if (info.isPending) {
     return (
       <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-4 text-slate-400 sm:p-6">
-        Leyendo el token on-chain…
+        <p className="text-sm">Reading token on-chain…</p>
+        <div
+          aria-hidden="true"
+          className="mt-4 grid gap-3 sm:grid-cols-3"
+        >
+          {Array.from({ length: 3 }).map((_, idx) => (
+            <div
+              key={idx}
+              className="h-16 animate-pulse rounded-lg border border-slate-800 bg-slate-900/60"
+            />
+          ))}
+        </div>
       </div>
     )
   }
@@ -36,13 +51,13 @@ export function TokenInfoCard({
   if (info.isError) {
     return (
       <div className="rounded-xl border border-rose-900 bg-rose-950/40 p-4 text-rose-300 sm:p-6">
-        No se pudo leer el token: {info.error.message}
+        Unable to read token: {info.error.message}
         <button
           type="button"
           onClick={() => void info.refetch()}
           className="ml-3 rounded border border-rose-800 px-2 py-1 text-xs"
         >
-          Reintentar
+          Retry
         </button>
       </div>
     )
@@ -56,40 +71,39 @@ export function TokenInfoCard({
         <h2 className="text-lg font-semibold">
           {token.name}{' '}
           <span className="text-slate-500">
-            ({token.symbol}){example ? ' · token de ejemplo' : ''}
+            ({token.symbol}){example ? ' · Genesis Meme Token' : ''}
           </span>
         </h2>
         <a
-          href={`https://stellar.expert/explorer/testnet/contract/${tokenId}`}
+          href={explorerContractUrl(activeTokenId)}
           target="_blank"
           rel="noreferrer"
           className="font-mono text-xs text-emerald-400 hover:underline"
         >
-          {tokenId.slice(0, 8)}…{tokenId.slice(-4)} ↗
+          {activeTokenId.slice(0, 8)}…{activeTokenId.slice(-4)} ↗
         </a>
       </div>
 
       <div className="mt-4 grid gap-3 sm:grid-cols-3">
         <Stat
-          label="Supply total"
+          label="Total Supply"
           value={formatAmount(token.totalSupply, token.decimals)}
         />
-        <Stat label="Decimales" value={String(token.decimals)} />
+        <Stat label="Decimals" value={String(token.decimals)} />
         <Stat
-          label="Tu balance"
+          label="Your Balance"
           value={
             publicKey
               ? balance.isPending
                 ? '…'
                 : formatAmount(balance.data ?? 0n, token.decimals)
-              : 'conecta la wallet'
+              : 'Connect wallet'
           }
         />
       </div>
 
       <p className="mt-4 text-xs text-slate-500">
-        Datos leídos del contrato en testnet vía Soroban RPC. Sin backend: la red
-        es la fuente de verdad.
+        Live data queried from the contract on Stellar testnet via Soroban RPC. Zero backend: the blockchain is the single source of truth.
       </p>
     </section>
   )

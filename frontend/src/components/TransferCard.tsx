@@ -10,7 +10,8 @@ import {
   parseAmount,
   shortAddress,
 } from '../lib/format'
-import { isValidStellarAddress } from '../lib/address'
+import { explorerTxUrl } from '../lib/explorer'
+import { isValidContractAddress, isValidStellarAddress } from '../lib/address'
 import { invalidateTokenData } from '../lib/query'
 import { toast } from '../lib/toast'
 import { TxProgress } from './TxProgress'
@@ -18,8 +19,10 @@ import { TxProgress } from './TxProgress'
 const inputClass =
   'mt-1 w-full rounded-lg border border-slate-800 bg-slate-950 px-3.5 py-3 text-base text-slate-100 outline-none focus:border-emerald-500'
 
+const AMOUNT_PERCENTS = [25, 50, 75, 100] as const
+
 export function TransferCard({ token }: { token: LaunchpadToken }) {
-  const { publicKey, getSigner } = useWallet()
+  const { publicKey, demoAccounts, getSigner } = useWallet()
   const queryClient = useQueryClient()
   const balance = useTokenBalance(publicKey, token.id)
   const [to, setTo] = useState('')
@@ -38,32 +41,38 @@ export function TransferCard({ token }: { token: LaunchpadToken }) {
     setSent(null)
 
     if (!publicKey) {
-      setError('Conecta tu wallet o activa el modo prueba para transferir.')
+      setError('Connect your wallet or activate demo mode to transfer tokens.')
       return
     }
     const signer = getSigner()
     if (!signer) {
-      setError('No se pudo preparar el firmante de la cuenta activa.')
+      setError('Unable to prepare signer for the active account.')
       return
     }
 
     const destination = to.trim()
+    if (isValidContractAddress(destination)) {
+      setError(
+        'Contract address detected (starts with C). Please enter a Stellar user account (starts with G).',
+      )
+      return
+    }
     if (!isValidStellarAddress(destination)) {
-      setError('Introduce una cuenta Stellar válida (empieza por G).')
+      setError('Please enter a valid Stellar public key (starts with G).')
       return
     }
     if (destination === publicKey) {
-      setError('La cuenta destino es la misma que la de origen.')
+      setError('Destination account cannot be the same as source account.')
       return
     }
 
     const amountBase = parseAmount(amount, token.decimals)
     if (amountBase <= 0n) {
-      setError('Introduce un monto mayor que 0.')
+      setError('Please enter an amount greater than 0.')
       return
     }
     if (balance.data !== undefined && amountBase > balance.data) {
-      setError('No tienes suficiente balance de este token.')
+      setError('Insufficient token balance.')
       return
     }
 
@@ -89,7 +98,7 @@ export function TransferCard({ token }: { token: LaunchpadToken }) {
         account: publicKey,
         hash,
       })
-      toast.success('Transferencia enviada', {
+      toast.success('Transfer sent', {
         message: `${formatAmount(amountBase, token.decimals)} ${token.symbol ?? 'token'} → ${shortAddress(destination)}`,
         hash,
       })
@@ -107,7 +116,7 @@ export function TransferCard({ token }: { token: LaunchpadToken }) {
         account: publicKey,
         error: message,
       })
-      toast.error('No se pudo enviar la transferencia', { message })
+      toast.error('Transfer failed', { message })
     } finally {
       setBusy(false)
     }
@@ -115,15 +124,14 @@ export function TransferCard({ token }: { token: LaunchpadToken }) {
 
   return (
     <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-4 sm:p-6">
-      <h2 className="text-lg font-semibold">Transferir {token.symbol ?? 'token'}</h2>
+      <h2 className="text-lg font-semibold">Transfer {token.symbol ?? 'token'}</h2>
       <p className="mt-1 text-sm text-slate-400">
-        Envía tokens a otra cuenta Stellar. La red cobra una fee mínima de
-        testnet; no hay intermediarios.
+        Send tokens to another Stellar account. Direct peer-to-peer on-chain transfer.
       </p>
 
       <form onSubmit={onSubmit} aria-busy={busy} className="mt-4 grid gap-3">
         <label className="block text-sm">
-          <span className="text-slate-400">Cuenta destino</span>
+          <span className="text-slate-400">Destination Account</span>
           <input
             className={inputClass}
             value={to}
@@ -134,9 +142,27 @@ export function TransferCard({ token }: { token: LaunchpadToken }) {
           />
         </label>
 
+        {demoAccounts.filter((acc) => acc.publicKey !== publicKey).length > 0 ? (
+          <div className="flex flex-wrap items-center gap-1.5 text-xs text-slate-400">
+            <span>Demo accounts:</span>
+            {demoAccounts
+              .filter((acc) => acc.publicKey !== publicKey)
+              .map((acc) => (
+                <button
+                  key={acc.publicKey}
+                  type="button"
+                  onClick={() => setTo(acc.publicKey)}
+                  className="rounded-md border border-slate-700 bg-slate-950/60 px-2.5 py-1 text-xs text-emerald-300 hover:border-emerald-500"
+                >
+                  Account {acc.label} ({shortAddress(acc.publicKey)})
+                </button>
+              ))}
+          </div>
+        ) : null}
+
         <label className="block text-sm">
           <span className="text-slate-400">
-            Monto ({token.decimals} decimales)
+            Amount ({token.decimals} decimals)
           </span>
           <input
             className={inputClass}
@@ -148,19 +174,33 @@ export function TransferCard({ token }: { token: LaunchpadToken }) {
         </label>
 
         {publicKey && balance.data !== undefined ? (
-          <p className="text-xs text-slate-500">
-            Balance: {formatAmount(balance.data, token.decimals)}{' '}
-            {token.symbol ?? 'token'}
-            <button
-              type="button"
-              onClick={() =>
-                setAmount(formatAmount(balance.data, token.decimals))
-              }
-              className="ml-2 min-h-[44px] rounded-md border border-slate-700 px-3 py-1.5 text-xs font-medium text-emerald-300 hover:border-emerald-500"
-            >
-              MAX
-            </button>
-          </p>
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
+            <span>
+              Balance:{' '}
+              <span className="font-mono text-slate-300">
+                {formatAmount(balance.data, token.decimals)}
+              </span>{' '}
+              {token.symbol ?? 'token'}
+            </span>
+            <div className="flex flex-wrap gap-1">
+              {AMOUNT_PERCENTS.map((pct) => {
+                const slice = ((balance.data ?? 0n) * BigInt(pct)) / 100n
+                return (
+                  <button
+                    key={pct}
+                    type="button"
+                    disabled={busy || slice <= 0n}
+                    onClick={() =>
+                      setAmount(formatAmount(slice, token.decimals))
+                    }
+                    className="inline-flex min-h-[32px] items-center rounded-md border border-slate-800 bg-slate-950/60 px-2.5 py-1 text-xs font-medium text-emerald-300 hover:border-emerald-500 disabled:opacity-50"
+                  >
+                    {pct === 100 ? 'MAX' : `${pct}%`}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
         ) : null}
 
         <button
@@ -168,7 +208,7 @@ export function TransferCard({ token }: { token: LaunchpadToken }) {
           disabled={busy || !publicKey}
           className="min-h-[44px] w-full rounded-lg bg-emerald-500 px-6 py-3 text-base font-medium text-slate-950 hover:bg-emerald-400 disabled:opacity-60 sm:w-auto"
         >
-          {busy ? 'Enviando…' : 'Enviar tokens'}
+          {busy ? 'Sending…' : 'Send Tokens'}
         </button>
       </form>
 
@@ -177,7 +217,7 @@ export function TransferCard({ token }: { token: LaunchpadToken }) {
           <TxProgress
             steps={[
               {
-                label: 'Firmando y enviando la transferencia',
+                label: 'Signing and submitting transfer',
                 status: 'active',
               },
             ]}
@@ -200,17 +240,17 @@ export function TransferCard({ token }: { token: LaunchpadToken }) {
           className="mt-4 rounded-lg border border-emerald-900 bg-emerald-950/40 px-3 py-2 text-sm text-emerald-300"
         >
           <p>
-            Enviados {formatAmount(sent.amount, token.decimals)}{' '}
-            {token.symbol ?? 'token'} a {shortAddress(sent.to)} ✓
+            Sent {formatAmount(sent.amount, token.decimals)}{' '}
+            {token.symbol ?? 'token'} to {shortAddress(sent.to)} ✓
           </p>
           {sent.hash ? (
             <a
-              href={`https://stellar.expert/explorer/testnet/tx/${sent.hash}`}
+              href={explorerTxUrl(sent.hash)}
               target="_blank"
               rel="noreferrer"
               className="mt-1 inline-block text-xs underline underline-offset-2"
             >
-              Ver transacción ↗
+              View Transaction ↗
             </a>
           ) : null}
         </div>

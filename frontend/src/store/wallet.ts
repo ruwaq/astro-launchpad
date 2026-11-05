@@ -9,8 +9,10 @@ import type { Signer } from '@stellar/stellar-sdk/contract'
 import { BRAND } from '../lib/brand'
 import { walletSigner } from '../lib/signer'
 import {
-  DEMO_LABELS,
+  MAX_DEMO_ACCOUNTS,
   createDemoAccounts,
+  createSingleDemoAccount,
+  demoLabelForIndex,
   demoSigner,
   loadActiveDemo,
   loadDemoAccounts,
@@ -71,6 +73,8 @@ type WalletState = {
   connect: () => Promise<void>
   disconnect: () => Promise<void>
   startDemo: () => Promise<void>
+  addDemoAccount: () => Promise<void>
+  resetDemoAccounts: () => Promise<void>
   selectDemo: (index: number) => void
   /** Firmante de la cuenta activa (wallet real o cuenta demo). */
   getSigner: () => Signer | null
@@ -138,16 +142,87 @@ export const useWallet = create<WalletState>((set, get) => ({
 
     set({
       demoPending: true,
-      demoStage: 'Generando cuentas de testnet…',
+      demoStage: 'Generating testnet accounts…',
       demoError: null,
     })
     try {
       const accounts = await createDemoAccounts(({ index, status }) => {
+        const label = demoLabelForIndex(index)
         set({
           demoStage:
             status === 'funding'
-              ? `Fondeando cuenta ${DEMO_LABELS[index]} con 10 000 XLM…`
-              : `Cuenta ${DEMO_LABELS[index]} lista ✓`,
+              ? `Funding account ${label} with 10,000 XLM…`
+              : `Account ${label} ready ✓`,
+        })
+      })
+      saveDemoAccounts(accounts)
+      saveActiveDemo(0)
+      saveDemoMode(true)
+      set({
+        demoAccounts: accounts,
+        demoActive: 0,
+        mode: 'demo',
+        publicKey: accounts[0].publicKey,
+        demoStage: null,
+      })
+    } catch (error) {
+      set({ demoError: messageOf(error) })
+    } finally {
+      set({ demoPending: false, demoStage: null })
+    }
+  },
+
+  addDemoAccount: async () => {
+    const { demoAccounts, demoPending } = get()
+    if (demoPending) return
+    if (demoAccounts.length >= MAX_DEMO_ACCOUNTS) {
+      set({
+        demoError: `You have reached the maximum of ${MAX_DEMO_ACCOUNTS} test accounts in this browser.`,
+      })
+      return
+    }
+    const nextIndex = demoAccounts.length
+    const label = demoLabelForIndex(nextIndex)
+    set({
+      demoPending: true,
+      demoStage: `Creating and funding account ${label} with 10,000 XLM…`,
+      demoError: null,
+    })
+    try {
+      const newAccount = await createSingleDemoAccount(label)
+      const updated = [...demoAccounts, newAccount]
+      saveDemoAccounts(updated)
+      saveActiveDemo(nextIndex)
+      saveDemoMode(true)
+      set({
+        demoAccounts: updated,
+        demoActive: nextIndex,
+        mode: 'demo',
+        publicKey: newAccount.publicKey,
+        demoStage: null,
+      })
+    } catch (error) {
+      set({ demoError: messageOf(error) })
+    } finally {
+      set({ demoPending: false, demoStage: null })
+    }
+  },
+
+  resetDemoAccounts: async () => {
+    if (get().demoPending) return
+    set({
+      demoPending: true,
+      demoStage: 'Regenerating new testnet accounts…',
+      demoError: null,
+    })
+    try {
+      const accounts = await createDemoAccounts(({ index, status }) => {
+        const label = demoLabelForIndex(index)
+        set({
+          demoStage:
+            status === 'funding'
+              ? `Funding new account ${label} with 10,000 XLM…`
+              : `Account ${label} ready ✓`,
         })
       })
       saveDemoAccounts(accounts)

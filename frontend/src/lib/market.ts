@@ -7,10 +7,10 @@ export const MARKET_SORT_OPTIONS: Array<{
   value: MarketSortKey
   label: string
 }> = [
-  { value: 'recent', label: 'Más recientes' },
-  { value: 'liquidity', label: 'Más liquidez' },
-  { value: 'price', label: 'Mayor precio' },
-  { value: 'symbol', label: 'Símbolo A–Z' },
+  { value: 'recent', label: 'Most Recent' },
+  { value: 'liquidity', label: 'Highest Liquidity' },
+  { value: 'price', label: 'Highest Price' },
+  { value: 'symbol', label: 'Symbol A–Z' },
 ]
 
 function compareBigInt(a: bigint, b: bigint): number {
@@ -19,8 +19,7 @@ function compareBigInt(a: bigint, b: bigint): number {
 }
 
 /**
- * Filtra por nombre/símbolo/contrato y ordena en memoria. Es lógica pura:
- * se testea sin DOM y el componente solo pinta el resultado.
+ * Pure filter & sort logic in memory.
  */
 export function filterAndSortTokens(
   tokens: TokenListing[],

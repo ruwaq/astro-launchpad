@@ -7,6 +7,7 @@ import { useCreatedTokens } from '../store/creations'
 import { fetchTokenBalance } from '../lib/token'
 import { formatAmount, shortAddress } from '../lib/format'
 import { tokenPriceInXlm, type PoolState } from '../lib/soroswap'
+import { useXlmUsdPrice } from '../hooks/useXlmUsdPrice'
 import { TokenArt } from '../components/TokenArt'
 import { ActivityFeed } from '../components/ActivityFeed'
 
@@ -24,6 +25,7 @@ export function PortfolioPage() {
   const { publicKey } = useWallet()
   const createdTokens = useCreatedTokens((state) => state.tokens)
   const tokenList = useTokenList()
+  const { data: xlmUsd = 0.1555 } = useXlmUsdPrice()
 
   const tokens = useMemo<PortfolioToken[]>(() => {
     const map = new Map<string, PortfolioToken>()
@@ -32,7 +34,7 @@ export function PortfolioPage() {
       map.set(token.id, {
         id: token.id,
         symbol: token.symbol ?? shortAddress(token.id),
-        name: 'Token creado por ti',
+        name: 'Token created by you',
         decimals: token.decimals,
         created: true,
         pool: null,
@@ -86,31 +88,33 @@ export function PortfolioPage() {
     return sum + (balance.data * token.pool.reserveXlm) / token.pool.reserveToken
   }, 0n)
 
+  const totalUsd = (Number(totalXlm) / 1e7) * xlmUsd
+
   return (
     <>
       <div>
-        <h1 className="text-2xl font-bold sm:text-3xl">Tu portfolio</h1>
+        <h1 className="text-2xl font-bold sm:text-3xl">Your Portfolio</h1>
         <p className="mt-1 max-w-2xl text-slate-400">
-          Tokens que creaste en este navegador y holdings de los pares
-          recientes. Todo se lee on-chain; no hay cuenta ni backend.
+          Tokens you created in this browser and holdings from discovered pools.
+          Everything is queried on-chain; no centralized account or backend.
         </p>
       </div>
 
       {!publicKey ? (
         <section className="rounded-xl border border-amber-900 bg-amber-950/20 p-4 text-sm text-amber-200 sm:p-6">
-          Conecta tu wallet o entra en el modo prueba para ver tus balances.
+          Connect your wallet or enter demo mode to inspect your portfolio balances.
           <div className="mt-3 flex flex-wrap gap-2">
             <Link
               to="/"
               className="inline-flex min-h-[44px] items-center rounded-lg bg-amber-400 px-4 py-2 text-sm font-medium text-slate-950 hover:bg-amber-300"
             >
-              Ir al modo prueba
+              Go to Demo Mode
             </Link>
             <Link
               to="/market"
               className="inline-flex min-h-[44px] items-center rounded-lg border border-amber-800 px-4 py-2 text-sm hover:border-amber-600"
             >
-              Explorar el mercado
+              Explore Market
             </Link>
           </div>
         </section>
@@ -118,18 +122,20 @@ export function PortfolioPage() {
         <section className="grid gap-3 sm:grid-cols-2">
           <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-4">
             <p className="text-xs uppercase tracking-wide text-slate-500">
-              Valor estimado en pools
+              Estimated Pool Value
             </p>
             <p className="mt-1 font-mono text-2xl font-semibold text-emerald-300">
-              {balancesPending ? '…' : `${formatAmount(totalXlm, 7)} XLM`}
+              {balancesPending
+                ? '…'
+                : `${formatAmount(totalXlm, 7)} XLM ($${totalUsd.toLocaleString('en-US', { maximumFractionDigits: 2 })} USD)`}
             </p>
             <p className="mt-1 text-xs text-slate-500">
-              Precio spot de los pares; no incluye fees ni slippage.
+              Spot pricing from liquidity pairs; excludes slippage and gas.
             </p>
           </div>
           <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-4">
             <p className="text-xs uppercase tracking-wide text-slate-500">
-              Tokens creados
+              Created Tokens
             </p>
             <p className="mt-1 font-mono text-2xl font-semibold text-slate-100">
               {createdTokens.length}
@@ -138,22 +144,22 @@ export function PortfolioPage() {
               to="/create"
               className="mt-1 inline-block text-xs text-emerald-400 underline underline-offset-2 hover:text-emerald-300"
             >
-              Crear otro token →
+              Launch another token →
             </Link>
           </div>
         </section>
       )}
 
       <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-4 sm:p-6">
-        <h2 className="text-lg font-semibold">Tus lanzamientos</h2>
+        <h2 className="text-lg font-semibold">Your Launches</h2>
         {createdRows.length === 0 ? (
           <p className="mt-2 text-sm text-slate-400">
-            Aún no has creado tokens desde este navegador.{' '}
+            You have not launched any tokens in this browser yet.{' '}
             <Link
               to="/create"
               className="text-emerald-400 underline underline-offset-2"
             >
-              Lanza el primero
+              Launch your first token
             </Link>
             .
           </p>
@@ -173,21 +179,20 @@ export function PortfolioPage() {
       </section>
 
       <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-4 sm:p-6">
-        <h2 className="text-lg font-semibold">Holdings del mercado</h2>
+        <h2 className="text-lg font-semibold">Market Holdings</h2>
         {tokenList.isPending || balancesPending ? (
           <p className="mt-2 text-sm text-slate-400">
             {tokenList.isPending
-              ? 'Descubriendo tokens en la red…'
-              : 'Leyendo tus balances on-chain…'}
+              ? 'Discovering tokens on testnet…'
+              : 'Reading on-chain balances…'}
           </p>
         ) : tokenList.isError ? (
           <p className="mt-2 text-sm text-rose-300">
-            No se pudo leer el mercado: {tokenList.error.message}
+            Unable to read market: {tokenList.error.message}
           </p>
         ) : holdingRows.length === 0 ? (
           <p className="mt-2 text-sm text-slate-400">
-            No tienes tokens de los pares recientes. Recibe una transferencia o
-            compra en el mercado.
+            You don't hold any tokens from discovered pairs yet. Receive a transfer or trade on market.
           </p>
         ) : (
           <ul className="mt-3 divide-y divide-slate-800">
@@ -244,7 +249,7 @@ function HoldingRow({
             {token.symbol}
             {token.created ? (
               <span className="ml-2 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-emerald-300">
-                creado
+                created
               </span>
             ) : null}
           </p>
@@ -262,7 +267,7 @@ function HoldingRow({
           </p>
           {price > 0n ? (
             <p className="text-xs text-slate-500">
-              {value > 0n ? `${formatAmount(value, 7)} XLM` : 'sin liquidez'}
+              {value > 0n ? `${formatAmount(value, 7)} XLM` : 'no liquidity'}
             </p>
           ) : null}
         </div>

@@ -1,19 +1,15 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { useWallet } from '../store/wallet'
+import { BRAND } from '../lib/brand'
 
-const KEY = 'floodgate.onboarding'
+const KEY = 'astrogate.onboarding.v1'
 
 type Props = {
-  /** Paso 2: token ya creado en esta sesión. */
   created: boolean
-  /** Paso 3: liquidez añadida en esta sesión. */
   liquidity: boolean
-  /** Paso 4: swap hecho en esta sesión. */
   swapped: boolean
-  /** Para el smoke: localStorage y effects no existen en SSR. */
   preview?: 'open' | 'collapsed'
-  /** Rutas internas; se pueden sobrescribir si la guía vive en otra página. */
   createHref?: string
   marketHref?: string
 }
@@ -27,11 +23,6 @@ type Step = {
   onClick?: () => void
 }
 
-/**
- * Bienvenida + guía paso a paso del ciclo completo: conectar → crear →
- * liquidez → swap. Primera visita: tarjeta expandida con los pasos;
- * después: tira compacta de progreso hasta completar los 4.
- */
 export function Onboarding({
   created,
   liquidity,
@@ -55,29 +46,29 @@ export function Onboarding({
   const steps: Step[] = [
     {
       key: 'wallet',
-      title: 'Conecta tu wallet',
-      hint: 'Freighter, xBull… o el modo prueba de abajo',
+      title: 'Connect Wallet',
+      hint: 'Freighter, xBull… or activate demo mode below',
       done: connected,
       onClick: connected ? undefined : () => void connect(),
     },
     {
-      key: 'crear',
-      title: 'Crea tu token',
-      hint: 'Nombre y símbolo — el resto va solo',
+      key: 'create',
+      title: 'Launch Your Token',
+      hint: 'Fair Launch: 99% pool + 100% LP burned',
       done: created,
       href: createHref,
     },
     {
-      key: 'liquidez',
-      title: 'Añade liquidez',
-      hint: 'Hace negociable tu token y acumula fees',
+      key: 'liquidity',
+      title: 'Seed Liquidity',
+      hint: 'Token is instantly tradeable across AMM',
       done: liquidity,
       href: liquidity ? undefined : createHref,
     },
     {
       key: 'swap',
-      title: 'Swapea',
-      hint: 'Elige un token del mercado y véndelo a XLM',
+      title: 'Swap & Trade',
+      hint: 'Pick any token from market and trade live with XLM',
       done: swapped,
       href: marketHref,
     },
@@ -104,7 +95,7 @@ export function Onboarding({
             />
           ))}
         </span>
-        {doneCount}/4 · siguiente: {nextStep?.title ?? '¡todo listo ✓'} — ver guía
+        {doneCount}/4 · Next: {nextStep?.title ?? 'all done ✓'} — view guide
       </button>
     )
   }
@@ -114,7 +105,7 @@ export function Onboarding({
     try {
       window.localStorage.setItem(KEY, '1')
     } catch {
-      // almacenamiento no disponible (modo privado): solo cierrar la card
+      // Storage unavailable
     }
   }
 
@@ -123,17 +114,16 @@ export function Onboarding({
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 className="text-base font-semibold text-emerald-200">
-            🌊 Bienvenido a Floodgate
+            {BRAND.emoji} Welcome to {BRAND.name}
           </h2>
           <p className="mt-1 text-sm text-slate-400">
-            Lanzamiento de memes en Stellar en 4 pasos — todo gratis en
-            testnet.
+            Launch fair memecoins on Stellar in 4 simple steps — free on testnet.
           </p>
         </div>
         <button
           type="button"
           onClick={close}
-          aria-label="Cerrar la guía"
+          aria-label="Close guide"
           className="min-h-[44px] min-w-[44px] rounded-lg text-slate-500 hover:text-slate-300"
         >
           ✕
@@ -160,7 +150,7 @@ export function Onboarding({
                   {step.title}
                   {!step.done && step === nextStep ? (
                     <span className="ml-2 text-xs text-emerald-400">
-                      ← estás aquí
+                      ← you are here
                     </span>
                   ) : null}
                 </span>
@@ -203,7 +193,7 @@ export function Onboarding({
         onClick={close}
         className="mt-3 min-h-[44px] w-full rounded-lg border border-slate-800 px-4 text-sm text-slate-300 hover:border-slate-600"
       >
-        Entendido, ocultar la guía
+        Got it, hide guide
       </button>
     </section>
   )

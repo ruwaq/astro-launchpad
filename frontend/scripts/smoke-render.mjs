@@ -61,11 +61,11 @@ try {
 
   const html = renderApp('/')
   const checks = [
-    'Floodgate',
-    'Mercado',
-    'Swap con XLM',
-    'Comprar con XLM',
-    'Crear mi token',
+    'AstroGate',
+    'Market',
+    'Swap with XLM',
+    'Buy with XLM',
+    'Launch Token',
   ]
   for (const text of checks) {
     if (!html.includes(text)) {
@@ -74,29 +74,29 @@ try {
   }
 
   const createHtml = renderApp('/create')
-  if (!createHtml.includes('Crea tu token')) {
+  if (!createHtml.includes('Launch Your Token')) {
     throw new Error('la ruta /create no muestra el formulario de creación')
   }
 
   const marketHtml = renderApp('/market')
   if (
-    !marketHtml.includes('Buscar por nombre') ||
-    !marketHtml.includes('Ordenar')
+    !marketHtml.includes('Search by name') ||
+    !marketHtml.includes('Sort by')
   ) {
     throw new Error('la ruta /market no muestra búsqueda y orden')
   }
 
   const portfolioHtml = renderApp('/portfolio')
   if (
-    !portfolioHtml.includes('Tu portfolio') ||
-    !portfolioHtml.includes('Actividad reciente') ||
-    !portfolioHtml.includes('Aún no hay actividad')
+    !portfolioHtml.includes('Your Portfolio') ||
+    !portfolioHtml.includes('Recent Activity') ||
+    !portfolioHtml.includes('No activity recorded yet')
   ) {
     throw new Error('la ruta /portfolio no renderiza su actividad vacía')
   }
 
   const tokenHtml = renderApp('/token/CTOKEN')
-  if (!tokenHtml.includes('Leyendo el token')) {
+  if (!tokenHtml.includes('Reading token')) {
     throw new Error('la ruta /token/:id no renderiza su estado de carga')
   }
 
@@ -113,8 +113,8 @@ try {
       }),
     ),
   )
-  if (!liquidityHtml.includes('Añade liquidez')) {
-    throw new Error('el render de LiquidityForm no contiene "Añade liquidez"')
+  if (!liquidityHtml.includes('Add Liquidity')) {
+    throw new Error('el render de LiquidityForm no contiene "Add Liquidity"')
   }
 
   // Detección de wallet: ambas ramas (detectada / por instalar), con datos
@@ -125,13 +125,13 @@ try {
   const walletFound = renderToString(
     createElement(WalletInstallHint, { preview: 'found' }),
   )
-  if (!walletFound.includes('Wallet detectada')) {
+  if (!walletFound.includes('Wallet detected')) {
     throw new Error('el hint de wallet no muestra la detección')
   }
   const walletMissing = renderToString(
     createElement(WalletInstallHint, { preview: 'missing' }),
   )
-  if (!walletMissing.includes('Descargar') || !walletMissing.includes('Freighter')) {
+  if (!walletMissing.includes('Download') || !walletMissing.includes('Freighter')) {
     throw new Error('el hint de wallet no muestra las tarjetas de descarga')
   }
 
@@ -146,7 +146,11 @@ try {
       createElement(Onboarding, { ...stepsProps, preview: 'open' }),
     ),
   )
-  if (!guideOpen.includes('Bienvenido a Floodgate') || !guideOpen.includes('Conecta tu wallet')) {
+  if (
+    !guideOpen.includes('Welcome to') ||
+    !guideOpen.includes('AstroGate') ||
+    !guideOpen.includes('Connect Wallet')
+  ) {
     throw new Error('la guía no muestra la bienvenida con los pasos')
   }
   const guideMini = renderToString(
@@ -156,7 +160,7 @@ try {
       createElement(Onboarding, { ...stepsProps, preview: 'collapsed' }),
     ),
   )
-  if (!guideMini.includes('siguiente:')) {
+  if (!guideMini.includes('Next:')) {
     throw new Error('la guía no muestra la tira de progreso')
   }
 
@@ -232,7 +236,7 @@ try {
     }),
   )
   if (
-    !chartHtml.includes('Historial del par') ||
+    !chartHtml.includes('Pair History') ||
     !chartHtml.includes('<svg') ||
     !chartHtml.includes('MOON')
   ) {
@@ -252,7 +256,7 @@ try {
       }),
     ),
   )
-  if (!tokenActivityHtml.includes('Actividad on-chain reciente')) {
+  if (!tokenActivityHtml.includes('Recent On-Chain Activity')) {
     throw new Error('la actividad on-chain no renderiza su sección')
   }
 
@@ -266,8 +270,8 @@ try {
     ),
   )
   if (
-    !demoHtml.includes('Modo prueba') ||
-    !demoHtml.includes('Crear 3 cuentas de prueba')
+    !demoHtml.includes('Demo Mode') ||
+    !demoHtml.includes('Create 3 Test Accounts')
   ) {
     throw new Error('el modo prueba no muestra el estado inicial')
   }

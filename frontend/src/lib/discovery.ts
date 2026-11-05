@@ -136,21 +136,79 @@ export async function discoverPairs(options?: {
 }
 
 /** Metadata SEP-41 con fallback legible si el contrato no la implementa. */
-const METADATA_TTL_MS = 10 * 60 * 1000
-const metadataCache = new Map<
-  string,
-  { at: number; meta: { name: string; symbol: string; decimals: number } }
->()
+const METADATA_TTL_MS = 24 * 60 * 60 * 1000
+const METADATA_STORAGE_KEY = 'floodgate.token-meta.v1'
 
-async function fetchTokenMetadata(tokenId: string): Promise<{
+export type ImmutableTokenMetadata = {
   name: string
   symbol: string
   decimals: number
-}> {
-  // Indexado ligero: la metadata SEP-41 no cambia; 10 min de caché evitan
-  // 3 simulaciones por token en cada refresh del feed.
+}
+
+const metadataCache = new Map<
+  string,
+  { at: number; meta: ImmutableTokenMetadata }
+>()
+
+function loadStoredMetadata(): void {
+  if (typeof window === 'undefined' || metadataCache.size > 0) return
+  try {
+    const raw = window.localStorage.getItem(METADATA_STORAGE_KEY)
+    if (!raw) return
+    const parsed = JSON.parse(raw) as Record<
+      string,
+      { at: number; meta: ImmutableTokenMetadata }
+    >
+    const now = Date.now()
+    for (const [id, entry] of Object.entries(parsed)) {
+      if (
+        entry &&
+        typeof entry.at === 'number' &&
+        now - entry.at < METADATA_TTL_MS &&
+        entry.meta &&
+        typeof entry.meta.name === 'string' &&
+        typeof entry.meta.symbol === 'string' &&
+        typeof entry.meta.decimals === 'number'
+      ) {
+        metadataCache.set(id, entry)
+      }
+    }
+  } catch {
+    // Modo privado o JSON corrupto: seguimos con la caché en memoria.
+  }
+}
+
+export function getCachedTokenMetadata(
+  tokenId: string,
+): ImmutableTokenMetadata | null {
+  loadStoredMetadata()
   const cached = metadataCache.get(tokenId)
   if (cached && Date.now() - cached.at < METADATA_TTL_MS) return cached.meta
+  return null
+}
+
+export function setCachedTokenMetadata(
+  tokenId: string,
+  meta: ImmutableTokenMetadata,
+): void {
+  loadStoredMetadata()
+  metadataCache.set(tokenId, { at: Date.now(), meta })
+  if (typeof window === 'undefined') return
+  try {
+    const serialized = Object.fromEntries(metadataCache.entries())
+    window.localStorage.setItem(METADATA_STORAGE_KEY, JSON.stringify(serialized))
+  } catch {
+    // Cuota llena o modo privado.
+  }
+}
+
+async function fetchTokenMetadata(
+  tokenId: string,
+): Promise<ImmutableTokenMetadata> {
+  // Indexado ligero: la metadata SEP-41 no cambia; la caché evita
+  // 3 simulaciones RPC por token en cada visita o refresh del feed.
+  const cached = getCachedTokenMetadata(tokenId)
+  if (cached) return cached
 
   const client = tokenClient(tokenId)
   const fallback = {
@@ -170,7 +228,7 @@ async function fetchTokenMetadata(tokenId: string): Promise<{
       symbol: symbolTx.result || fallback.symbol,
       decimals: decimalsTx.result,
     }
-    metadataCache.set(tokenId, { at: Date.now(), meta })
+    setCachedTokenMetadata(tokenId, meta)
     return meta
   } catch {
     // Sin cachear el fallback: puede ser un fallo transitorio del RPC.

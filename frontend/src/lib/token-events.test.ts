@@ -1,7 +1,9 @@
 import { nativeToScVal, rpc } from '@stellar/stellar-sdk'
 import { describe, expect, it } from 'vitest'
 import {
+  classifyTokenEvent,
   parseTokenEvent,
+  reconstructSnapshotsFromEvents,
   tokenEventSummary,
   type TokenEvent,
 } from './token-events'
@@ -71,12 +73,67 @@ describe('parseTokenEvent', () => {
   })
 })
 
-describe('tokenEventSummary', () => {
+describe('tokenEventSummary y clasificación de trades (buy/sell)', () => {
   it('resume transferencia, emisión y quema', () => {
     expect(summary({ kind: 'transfer', from: FROM, to: TO })).toBe(
       'GABCDE…4567 → GZZZZZ…ZZZZ',
     )
-    expect(summary({ kind: 'mint', to: TO })).toBe('Emisión a GZZZZZ…ZZZZ')
-    expect(summary({ kind: 'burn', from: FROM })).toBe('Quema de GABCDE…4567')
+    expect(summary({ kind: 'mint', to: TO })).toBe('Minted to GZZZZZ…ZZZZ')
+    expect(summary({ kind: 'burn', from: FROM })).toBe('Burned from GABCDE…4567')
+  })
+
+  it('identifica compras (from === pairId) y ventas (to === pairId)', () => {
+    const buyEvent: TokenEvent = {
+      id: '1',
+      kind: 'transfer',
+      from: 'CPAIR123456',
+      to: TO,
+      amount: 500n,
+      ledger: 10,
+      at: '2026-11-01T10:00:00Z',
+    }
+    const sellEvent: TokenEvent = {
+      id: '2',
+      kind: 'transfer',
+      from: FROM,
+      to: 'CPAIR123456',
+      amount: 200n,
+      ledger: 11,
+      at: '2026-11-01T10:05:00Z',
+    }
+    expect(classifyTokenEvent(buyEvent, 'CPAIR123456')).toBe('buy')
+    expect(classifyTokenEvent(sellEvent, 'CPAIR123456')).toBe('sell')
+    expect(tokenEventSummary(buyEvent, 'CPAIR123456')).toContain('Buyer')
+    expect(tokenEventSummary(sellEvent, 'CPAIR123456')).toContain('Seller')
+  })
+
+  it('reconstruye la curva histórica de reservas y precios a partir de trades on-chain', () => {
+    const pool = {
+      exists: true,
+      pairId: 'CPAIR123456',
+      reserveToken: 900_000n,
+      reserveXlm: 100_000n,
+    }
+    const events: TokenEvent[] = [
+      {
+        id: 'buy-1',
+        kind: 'transfer',
+        from: 'CPAIR123456',
+        to: TO,
+        amount: 100_000n,
+        ledger: 100,
+        at: '2026-11-01T10:00:00Z',
+      },
+    ]
+    const snapshots = reconstructSnapshotsFromEvents(
+      events,
+      pool,
+      Date.parse('2026-11-01T10:10:00Z'),
+    )
+    expect(snapshots.length).toBeGreaterThanOrEqual(2)
+    expect(snapshots[0]?.token).toBe('1000000')
+    expect(snapshots[0]?.xlm).toBe('90000')
+    expect(snapshots[snapshots.length - 1]?.token).toBe('900000')
+    expect(snapshots[snapshots.length - 1]?.xlm).toBe('100000')
   })
 })

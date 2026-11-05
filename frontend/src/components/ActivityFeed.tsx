@@ -18,7 +18,7 @@ const KIND_CLASSES: Record<ActivityKind, string> = {
 }
 
 function formatWhen(at: number): string {
-  return new Date(at).toLocaleString('es-ES', {
+  return new Date(at).toLocaleString('en-US', {
     month: 'short',
     day: 'numeric',
     hour: '2-digit',
@@ -41,7 +41,7 @@ function ActivityRow({ entry }: { entry: ActivityEntry }) {
               entry.status === 'failed' ? 'text-rose-300' : 'text-emerald-400'
             }`}
           >
-            {entry.status === 'failed' ? 'falló' : 'ok'}
+            {entry.status === 'failed' ? 'failed' : 'ok'}
           </span>
           <span className="font-mono text-[11px] text-slate-500">
             {formatWhen(entry.at)}
@@ -52,8 +52,8 @@ function ActivityRow({ entry }: { entry: ActivityEntry }) {
           {activitySummary(entry)}
         </p>
         <p className="mt-0.5 text-xs text-slate-500">
-          {entry.account ? `cuenta ${shortAddress(entry.account)}` : 'local'} ·
-          guardado en este navegador
+          {entry.account ? `account ${shortAddress(entry.account)}` : 'local'} ·
+          saved in this browser
         </p>
         {entry.error ? (
           <p className="mt-1 break-words text-xs text-rose-300">{entry.error}</p>
@@ -75,8 +75,8 @@ function ActivityRow({ entry }: { entry: ActivityEntry }) {
 }
 
 /**
- * Historial local de operaciones firmadas desde este navegador. No sustituye
- * a un indexer global: no incluye otras sesiones, dispositivos ni usuarios.
+ * Local transaction history signed from this browser. Not a replacement
+ * for a global indexer: does not include other sessions, devices, or users.
  */
 export function ActivityFeed({ limit = 20 }: { limit?: number }) {
   const entries = useActivity((state) => state.entries)
@@ -84,7 +84,7 @@ export function ActivityFeed({ limit = 20 }: { limit?: number }) {
   const visible = entries.slice(0, limit)
 
   function onClear() {
-    if (window.confirm('¿Borrar la actividad local de este navegador?')) {
+    if (window.confirm('Clear local activity for this browser?')) {
       clear()
     }
   }
@@ -93,9 +93,9 @@ export function ActivityFeed({ limit = 20 }: { limit?: number }) {
     <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-4 sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold">Actividad reciente</h2>
+          <h2 className="text-lg font-semibold">Recent Activity</h2>
           <p className="mt-1 text-xs text-slate-500">
-            Operaciones firmadas desde este navegador. Se guardan aquí, no en un
+            Transactions signed from this browser. Stored locally, zero
             backend.
           </p>
         </div>
@@ -105,15 +105,15 @@ export function ActivityFeed({ limit = 20 }: { limit?: number }) {
             onClick={onClear}
             className="min-h-[44px] rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-400 hover:border-slate-500 hover:text-slate-200"
           >
-            Borrar historial
+            Clear history
           </button>
         ) : null}
       </div>
 
       {visible.length === 0 ? (
         <p className="mt-4 rounded-lg border border-dashed border-slate-700 bg-slate-950/30 p-4 text-sm text-slate-400">
-          Aún no hay actividad. Crea un token, añade liquidez, haz un swap o
-          transfiere tokens y aparecerá aquí.
+          No activity recorded yet. Launch a token, add liquidity, execute a swap, or
+          transfer tokens to see it here.
         </p>
       ) : (
         <ul className="mt-2 divide-y divide-slate-800">
@@ -125,8 +125,8 @@ export function ActivityFeed({ limit = 20 }: { limit?: number }) {
 
       {entries.length > visible.length ? (
         <p className="mt-3 text-xs text-slate-500">
-          Mostrando las últimas {visible.length} de {entries.length}. Se
-          conservan hasta 200 operaciones.
+          Showing latest {visible.length} of {entries.length}. Up to 200
+          transactions kept locally.
         </p>
       ) : null}
     </section>

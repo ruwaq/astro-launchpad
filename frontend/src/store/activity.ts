@@ -20,15 +20,15 @@ export type ActivityEntry = {
   status: ActivityStatus
   tokenId: string
   tokenSymbol?: string
-  /** Monto principal ya formateado para mostrar (p. ej. "5"). */
+  /** Formatted main amount (e.g. "5"). */
   amount?: string
-  /** Segundo monto, típicamente XLM en liquidez/swaps. */
+  /** Secondary amount (e.g. XLM in swaps/liquidity). */
   secondaryAmount?: string
   secondarySymbol?: string
-  /** En swaps: `buy` = XLM → token; `sell` = token → XLM. */
+  /** In swaps: `buy` = XLM → token; `sell` = token → XLM. */
   swapDirection?: 'buy' | 'sell'
   counterparty?: string
-  /** Detalle extra, p. ej. "3.16 LP". */
+  /** Extra detail (e.g. "3.16 LP"). */
   detail?: string
   account?: string
   hash?: string
@@ -41,17 +41,17 @@ export type ActivityInput = Omit<ActivityEntry, 'id' | 'at' | 'status'> & {
   at?: number
 }
 
-const STORAGE_KEY = 'floodgate.activity.v1'
+const STORAGE_KEY = 'astrogate.activity.v1'
 export const MAX_ACTIVITY = 200
 
 const LABELS: Record<ActivityKind, string> = {
-  create: 'Token creado',
-  'add-liquidity': 'Liquidez añadida',
-  'remove-liquidity': 'Liquidez retirada',
+  create: 'Token Created',
+  'add-liquidity': 'Liquidity Added',
+  'remove-liquidity': 'Liquidity Removed',
   swap: 'Swap',
-  transfer: 'Transferencia',
-  mint: 'Emisión',
-  burn: 'Quema',
+  transfer: 'Transfer',
+  mint: 'Mint',
+  burn: 'Burn',
 }
 
 export function activityLabel(kind: ActivityKind): string {
@@ -67,14 +67,14 @@ export function activitySummary(entry: ActivityEntry): string {
       : null
   const counterparty = entry.counterparty
     ? shortAddress(entry.counterparty)
-    : 'otra cuenta'
+    : 'other account'
   const suffix = entry.detail ? ` · ${entry.detail}` : ''
 
   switch (entry.kind) {
     case 'create':
       return entry.amount
-        ? `Supply inicial: ${amount}${suffix}`
-        : `${ticker} creado${suffix}`
+        ? `Initial supply: ${amount}${suffix}`
+        : `${ticker} created${suffix}`
     case 'add-liquidity':
     case 'remove-liquidity':
       return second ? `${amount} + ${second}${suffix}` : `${amount}${suffix}`
@@ -87,11 +87,11 @@ export function activitySummary(entry: ActivityEntry): string {
     case 'mint':
       return `${amount} → ${counterparty}${suffix}`
     case 'burn':
-      return `${amount} quemados${suffix}`
+      return `${amount} burned${suffix}`
   }
 }
 
-/** Las entradas se guardan de más reciente a más antigua. */
+/** Prepends newest entry and limits max retained records. */
 export function appendActivity(
   entries: ActivityEntry[],
   entry: ActivityEntry,
@@ -118,11 +118,9 @@ function isActivity(value: unknown): value is ActivityEntry {
   return (
     isString(entry.id) &&
     typeof entry.at === 'number' &&
-    Number.isFinite(entry.at) &&
-    ACTIVITY_KINDS.includes(entry.kind as ActivityKind) &&
     (entry.status === 'success' || entry.status === 'failed') &&
+    ACTIVITY_KINDS.includes(entry.kind as ActivityKind) &&
     isString(entry.tokenId) &&
-    entry.tokenId.startsWith('C') &&
     isOptionalString(entry.tokenSymbol) &&
     isOptionalString(entry.amount) &&
     isOptionalString(entry.secondaryAmount) &&
@@ -138,12 +136,12 @@ function isActivity(value: unknown): value is ActivityEntry {
   )
 }
 
-function loadActivity(): ActivityEntry[] {
+export function loadActivity(): ActivityEntry[] {
   if (typeof window === 'undefined') return []
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY)
     if (!raw) return []
-    const parsed: unknown = JSON.parse(raw)
+    const parsed = JSON.parse(raw) as unknown
     if (!Array.isArray(parsed)) return []
     return parsed.filter(isActivity).slice(0, MAX_ACTIVITY)
   } catch {
@@ -151,50 +149,47 @@ function loadActivity(): ActivityEntry[] {
   }
 }
 
-function persistActivity(entries: ActivityEntry[]) {
+export function saveActivity(entries: ActivityEntry[]): void {
   if (typeof window === 'undefined') return
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(entries))
   } catch {
-    // Modo privado o cuota llena: el historial sigue en memoria.
+    // Ignore quota errors
   }
 }
 
-function makeId(now: number): string {
-  const random = globalThis.crypto?.randomUUID?.()
-  return random ?? `${now}-${Math.random().toString(36).slice(2, 10)}`
-}
-
-type ActivityState = {
+type ActivityStore = {
   entries: ActivityEntry[]
-  add: (input: ActivityInput) => ActivityEntry
+  record: (input: ActivityInput) => ActivityEntry
   clear: () => void
 }
 
-export const useActivity = create<ActivityState>((set, get) => ({
-  entries: loadActivity(),
+let seedCounter = 0
+function makeId(): string {
+  seedCounter++
+  return `${Date.now()}-${seedCounter}-${Math.random().toString(36).slice(2, 8)}`
+}
 
-  add: (input) => {
-    const now = input.at ?? Date.now()
+export const useActivity = create<ActivityStore>((set, get) => ({
+  entries: loadActivity(),
+  record: (input) => {
     const entry: ActivityEntry = {
+      id: makeId(),
+      at: Date.now(),
+      status: 'success',
       ...input,
-      id: input.hash ?? makeId(now),
-      at: now,
-      status: input.status ?? 'success',
     }
     const next = appendActivity(get().entries, entry)
-    persistActivity(next)
     set({ entries: next })
+    saveActivity(next)
     return entry
   },
-
   clear: () => {
-    persistActivity([])
     set({ entries: [] })
+    saveActivity([])
   },
 }))
 
-/** Helper para usar desde event handlers sin suscribirse al store. */
 export function recordActivity(input: ActivityInput): ActivityEntry {
-  return useActivity.getState().add(input)
+  return useActivity.getState().record(input)
 }

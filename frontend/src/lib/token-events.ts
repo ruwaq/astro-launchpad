@@ -1,23 +1,24 @@
 /**
- * Actividad reciente de un token SEP-41 leída directamente del RPC.
+ * Recent SEP-41 token activity read directly from RPC.
  *
- * OpenZeppelin emite:
+ * OpenZeppelin emits:
  *   transfer: topics ["transfer", from, to], value amount
  *   mint:     topics ["mint", to],            value amount
  *   burn:     topics ["burn", from],          value amount
  *
- * Es una ventana reciente del RPC, no un indexer: los eventos caducan. El par
- * de Soroswap no emite `swap`, así que esto muestra movimientos del token, no
- * el histórico completo del mercado.
+ * Recent window from RPC without external indexing. Soroswap AMM does not
+ * emit swap events directly; trades are detected by tracking pair transfers.
  */
 import { rpc, scValToNative } from '@stellar/stellar-sdk'
 import { RPC_URL } from './network'
 import { shortAddress } from './format'
+import type { PoolState } from './soroswap'
+import type { ReserveSnapshot } from './snapshots'
 
-/** Ventana por defecto: ~14 h de testnet (ledgers de ~5 s). */
+/** Default window: ~14 h of testnet (~5 s ledgers). */
 export const TOKEN_EVENT_WINDOW_LEDGERS = 10_000
 
-/** Eventos que devuelve la UI (los más recientes). */
+/** Max events returned to UI. */
 export const TOKEN_EVENT_LIMIT = 50
 
 const PAGE_LIMIT = 200
@@ -32,7 +33,7 @@ export type TokenEvent = {
   to?: string
   amount: bigint
   ledger: number
-  /** ISO 8601, tal como lo devuelve el RPC. */
+  /** ISO 8601 string. */
   at: string
   txHash?: string
 }
@@ -56,7 +57,7 @@ function nativeTopic(topic: unknown): unknown {
   }
 }
 
-/** Convierte un evento crudo en movimiento del token; `null` si no aplica. */
+/** Converts raw event into token movement. */
 export function parseTokenEvent(event: EventResponse): TokenEvent | null {
   const topics = event.topic.map(nativeTopic)
   const kind = topics[0]
@@ -96,20 +97,120 @@ export function parseTokenEvent(event: EventResponse): TokenEvent | null {
   return { ...base, kind, from }
 }
 
-/** Texto corto para una fila: quién manda a quién, o emisión/quema. */
-export function tokenEventSummary(event: TokenEvent): string {
+/** Short descriptive text for event row. */
+export function tokenEventSummary(
+  event: TokenEvent,
+  pairId?: string | null,
+): string {
   if (event.kind === 'transfer') {
+    if (pairId && event.from === pairId) {
+      return `Buyer ${shortAddress(event.to ?? '')} ← Soroswap Pool`
+    }
+    if (pairId && event.to === pairId) {
+      return `Seller / LP ${shortAddress(event.from ?? '')} → Soroswap Pool`
+    }
     return `${shortAddress(event.from ?? '')} → ${shortAddress(event.to ?? '')}`
   }
   if (event.kind === 'mint') {
-    return `Emisión a ${shortAddress(event.to ?? '')}`
+    return `Minted to ${shortAddress(event.to ?? '')}`
   }
-  return `Quema de ${shortAddress(event.from ?? '')}`
+  return `Burned from ${shortAddress(event.from ?? '')}`
+}
+
+export type TokenTradeRole = 'buy' | 'sell' | 'transfer' | 'mint' | 'burn'
+
+/**
+ * Classifies SEP-41 event relative to pairId:
+ * - If tokens move out of pair (`from === pairId`), it's a BUY (`buy`).
+ * - If tokens move into pair (`to === pairId`), it's a SELL / LP deposit (`sell`).
+ */
+export function classifyTokenEvent(
+  event: TokenEvent,
+  pairId?: string | null,
+): TokenTradeRole {
+  if (event.kind === 'transfer' && pairId) {
+    if (event.from === pairId) return 'buy'
+    if (event.to === pairId) return 'sell'
+  }
+  return event.kind
 }
 
 /**
- * Lee la ventana reciente y se queda con los últimos `maxEvents` movimientos.
- * Pagina con cursor; el RPC devuelve los eventos de viejo a nuevo.
+ * Reconstructs reserve and price history from on-chain pair transfers using x * y = k invariant.
+ */
+export function reconstructSnapshotsFromEvents(
+  events: TokenEvent[],
+  pool: PoolState | undefined,
+  now = Date.now(),
+): ReserveSnapshot[] {
+  if (
+    !pool ||
+    !pool.exists ||
+    !pool.pairId ||
+    pool.reserveToken <= 0n ||
+    pool.reserveXlm <= 0n
+  ) {
+    return []
+  }
+
+  const pairId = pool.pairId
+  const k = pool.reserveToken * pool.reserveXlm
+
+  const poolEvents = events.filter(
+    (e) =>
+      e.kind === 'transfer' &&
+      e.amount > 0n &&
+      (e.from === pairId || e.to === pairId),
+  )
+
+  let curToken = pool.reserveToken
+  let curXlm = pool.reserveXlm
+  const reversedPoints: ReserveSnapshot[] = []
+
+  for (const ev of poolEvents) {
+    const parsedTime = Date.parse(ev.at)
+    const t = Number.isFinite(parsedTime) && parsedTime > 0 ? parsedTime : now
+    reversedPoints.push({
+      t,
+      xlm: curXlm.toString(),
+      token: curToken.toString(),
+    })
+
+    if (ev.from === pairId) {
+      curToken = curToken + ev.amount
+      curXlm = k / curToken
+    } else if (ev.to === pairId && curToken > ev.amount) {
+      curToken = curToken - ev.amount
+      curXlm = k / curToken
+    }
+  }
+
+  if (poolEvents.length > 0 && curXlm > 0n) {
+    const oldestEvent = poolEvents[poolEvents.length - 1]
+    const oldestTime = Date.parse(oldestEvent?.at ?? '')
+    const startT =
+      Number.isFinite(oldestTime) && oldestTime > 5_000
+        ? oldestTime - 5_000
+        : now - 60_000
+    reversedPoints.push({
+      t: startT,
+      xlm: curXlm.toString(),
+      token: curToken.toString(),
+    })
+  }
+
+  const chronological = reversedPoints.reverse()
+  chronological.push({
+    t: now,
+    xlm: pool.reserveXlm.toString(),
+    token: pool.reserveToken.toString(),
+  })
+
+  return chronological
+}
+
+/**
+ * Reads recent window and returns up to `maxEvents`.
  */
 export async function fetchTokenEvents(
   tokenId: string,
@@ -147,8 +248,6 @@ export async function fetchTokenEvents(
     if (page.events.length < PAGE_LIMIT) break
     cursor = page.cursor
 
-    // Nunca guardamos toda la ventana si hay muchísimo tráfico: los eventos
-    // nuevos quedan al final, así que podemos descartar los más viejos.
     if (collected.length > maxEvents * 4) {
       collected = collected.slice(-maxEvents * 4)
     }

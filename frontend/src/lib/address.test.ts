@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { isValidStellarAddress } from './address'
+import { isValidContractAddress, isValidStellarAddress } from './address'
 
 const ZERO_ACCOUNT = 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF'
+const VALID_CONTRACT = 'CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4'
 
 describe('isValidStellarAddress', () => {
   it('acepta una cuenta G válida', () => {
@@ -20,13 +21,24 @@ describe('isValidStellarAddress', () => {
   })
 
   it('rechaza contratos y secretos', () => {
-    expect(isValidStellarAddress('CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4')).toBe(
-      false,
-    )
+    expect(isValidStellarAddress(VALID_CONTRACT)).toBe(false)
     expect(
       isValidStellarAddress(
         'SAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
       ),
     ).toBe(false)
+  })
+})
+
+describe('isValidContractAddress', () => {
+  it('acepta una dirección de contrato válida', () => {
+    expect(isValidContractAddress(VALID_CONTRACT)).toBe(true)
+    expect(isValidContractAddress(`  ${VALID_CONTRACT}  `)).toBe(true)
+  })
+
+  it('rechaza cuentas G, secretos y strings inválidos', () => {
+    expect(isValidContractAddress('')).toBe(false)
+    expect(isValidContractAddress(ZERO_ACCOUNT)).toBe(false)
+    expect(isValidContractAddress('C123')).toBe(false)
   })
 })

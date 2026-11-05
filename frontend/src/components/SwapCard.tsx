@@ -13,12 +13,14 @@ import {
   priceImpactPercent,
   quoteTokenForXlm,
   quoteXlmForToken,
+  SLIPPAGE_OPTIONS,
   SLIPPAGE_PERCENT,
   swapTokenForXlm,
   swapXlmForToken,
   withSlippage,
   type PoolState,
 } from '../lib/soroswap'
+import { explorerTxUrl } from '../lib/explorer'
 import { XLM_DECIMALS, XLM_FEE_BUFFER, xlmToStroops } from '../lib/xlm'
 import type { LaunchpadToken } from '../lib/token'
 import { useWallet } from '../store/wallet'
@@ -37,7 +39,10 @@ type SwapDone = {
   direction: Direction
   in: bigint
   out: bigint
+  hash?: string
 }
+
+const AMOUNT_PERCENTS = [25, 50, 75, 100] as const
 
 function impactClass(impact: number): string {
   if (impact >= 5) return 'text-rose-300'
@@ -46,11 +51,7 @@ function impactClass(impact: number): string {
 }
 
 /**
- * Compra o venta de un token contra XLM en el par de Soroswap.
- *
- * Las dos direcciones usan `router_get_amount_out` con las reservas reales y
- * firman un mínimo de salida con slippage. El impacto se calcula contra la
- * salida spot para que el usuario vea el coste real de su tamaño.
+ * Buy or Sell a token against XLM using the Soroswap pair.
  */
 export function SwapCard({
   token,
@@ -64,12 +65,13 @@ export function SwapCard({
   const markProgress = useProgress((state) => state.mark)
   const [direction, setDirection] = useState<Direction>('sell')
   const [amount, setAmount] = useState('')
+  const [slippage, setSlippage] = useState<number>(SLIPPAGE_PERCENT)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [swapped, setSwapped] = useState<SwapDone | null>(null)
 
   const isBuy = direction === 'buy'
-  const tokenSymbol = token.symbol ?? 'token'
+  const tokenSymbol = token.symbol ?? 'TOKEN'
   const inputDecimals = isBuy ? XLM_DECIMALS : token.decimals
   const outputDecimals = isBuy ? token.decimals : XLM_DECIMALS
   const inputSymbol = isBuy ? 'XLM' : tokenSymbol
@@ -92,6 +94,7 @@ export function SwapCard({
       : inputBalanceBase
 
   const amountIn = parseAmount(amount, inputDecimals)
+
   const quote = useQuery({
     queryKey: ['soroswap-quote', token.id, direction, amountIn.toString()],
     queryFn: () =>
@@ -103,7 +106,7 @@ export function SwapCard({
   })
 
   const quoted = quote.data
-  const minimum = quoted !== undefined ? withSlippage(quoted) : null
+  const minimum = quoted !== undefined ? withSlippage(quoted, slippage) : null
   const impact =
     pool.data?.exists && quoted !== undefined && amountIn > 0n
       ? priceImpactPercent(
@@ -128,23 +131,23 @@ export function SwapCard({
     setSwapped(null)
 
     if (!publicKey) {
-      setError('Conecta tu wallet o activa el modo prueba para hacer el swap.')
+      setError('Connect your wallet or activate demo mode to execute a swap.')
       return
     }
     const signer = getSigner()
     if (!signer) {
-      setError('No se pudo preparar el firmante de la cuenta activa.')
+      setError('Unable to prepare signer for the active account.')
       return
     }
     if (amountIn <= 0n) {
-      setError('Introduce un monto mayor que 0.')
+      setError('Please enter an amount greater than 0.')
       return
     }
     if (inputBalanceBase !== undefined && amountIn > inputBalanceBase) {
       setError(
         isBuy
-          ? 'No tienes suficiente XLM para esta compra.'
-          : 'No tienes suficiente token para esta venta.',
+          ? 'Insufficient XLM balance for this purchase.'
+          : `Insufficient ${tokenSymbol} balance for this sale.`,
       )
       return
     }
@@ -153,14 +156,14 @@ export function SwapCard({
       inputBalanceBase !== undefined &&
       amountIn + XLM_FEE_BUFFER > inputBalanceBase
     ) {
-      setError('Deja al menos 1 XLM para fees y reserva mínima.')
+      setError('Leave at least 1 XLM for transaction fees and minimum balance.')
       return
     }
 
     const quotedAmount = quote.data ?? 0n
     if (quotedAmount <= 0n) {
       setError(
-        'No hay cotización para ese monto (el par puede no tener liquidez).',
+        'No quote available for that amount (pool may lack sufficient liquidity).',
       )
       return
     }
@@ -172,7 +175,7 @@ export function SwapCard({
         ? await swapXlmForToken({
             tokenId: token.id,
             amountIn,
-            amountOutMin: withSlippage(quotedAmount),
+            amountOutMin: withSlippage(quotedAmount, slippage),
             signer,
             onHash: (value) => {
               hash = value
@@ -181,7 +184,7 @@ export function SwapCard({
         : await swapTokenForXlm({
             tokenId: token.id,
             amountIn,
-            amountOutMin: withSlippage(quotedAmount),
+            amountOutMin: withSlippage(quotedAmount, slippage),
             signer,
             onHash: (value) => {
               hash = value
@@ -191,24 +194,22 @@ export function SwapCard({
       const received = amounts[1] ?? quotedAmount
       const inFormatted = formatAmount(amountIn, inputDecimals)
       const outFormatted = formatAmount(received, outputDecimals)
-      setSwapped({ direction, in: amountIn, out: received })
+      setSwapped({ direction, in: amountIn, out: received, hash })
       setAmount('')
       markProgress('swapped')
       recordActivity({
         kind: 'swap',
         tokenId: token.id,
         tokenSymbol,
-        // En compra el monto principal es el token recibido; el XLM va como
-        // secundario. En venta, al revés. `swapDirection` ordena la UI.
         amount: isBuy ? outFormatted : inFormatted,
         secondaryAmount: isBuy ? inFormatted : outFormatted,
         secondarySymbol: 'XLM',
         swapDirection: direction,
-        detail: isBuy ? 'compra' : 'venta',
+        detail: isBuy ? 'buy' : 'sell',
         account: publicKey,
         hash,
       })
-      toast.success('Swap completado', {
+      toast.success('Swap completed', {
         message: `${inFormatted} ${inputSymbol} → ${outFormatted} ${outputSymbol}`,
         hash,
       })
@@ -226,7 +227,6 @@ export function SwapCard({
         queryClient.invalidateQueries({
           queryKey: ['xlm-balance', publicKey],
         }),
-        // El precio del mercado y el XLM demo cambiaron; se marcan stale.
         queryClient.invalidateQueries({
           queryKey: ['token-list'],
           refetchType: 'none',
@@ -243,11 +243,11 @@ export function SwapCard({
         tokenSymbol: isBuy ? 'XLM' : tokenSymbol,
         amount: formatAmount(amountIn, inputDecimals),
         swapDirection: direction,
-        detail: isBuy ? 'compra fallida' : 'venta fallida',
+        detail: isBuy ? 'failed buy' : 'failed sell',
         account: publicKey,
         error: message,
       })
-      toast.error('No se pudo completar el swap', { message })
+      toast.error('Swap failed', { message })
     } finally {
       setBusy(false)
     }
@@ -262,16 +262,16 @@ export function SwapCard({
           className="h-9 w-9 shrink-0 rounded-lg"
         />
         <span className="min-w-0 truncate">
-          Swap con XLM · {shortAddress(token.id)}
+          Swap with XLM · {shortAddress(token.id)}
         </span>
       </h2>
       <p className="mt-1 text-sm text-slate-400">
-        Compra o vende {tokenSymbol} contra XLM en el par de Soroswap.
+        Trade {tokenSymbol} against native XLM on Soroswap AMM.
       </p>
 
       <div
         role="group"
-        aria-label="Dirección del swap"
+        aria-label="Swap direction"
         className="mt-3 grid grid-cols-2 gap-1 rounded-lg border border-slate-800 bg-slate-950/40 p-1"
       >
         <button
@@ -285,7 +285,7 @@ export function SwapCard({
               : 'text-slate-400 hover:text-slate-200'
           }`}
         >
-          Vender token
+          Sell Token
         </button>
         <button
           type="button"
@@ -298,25 +298,25 @@ export function SwapCard({
               : 'text-slate-400 hover:text-slate-200'
           }`}
         >
-          Comprar con XLM
+          Buy with XLM
         </button>
       </div>
 
       {pool.data?.exists ? (
         <p className="mt-3 text-xs text-slate-500">
-          Reservas: {formatAmount(pool.data.reserveToken, token.decimals)} token ·{' '}
+          Reserves: {formatAmount(pool.data.reserveToken, token.decimals)} {tokenSymbol} ·{' '}
           {formatAmount(pool.data.reserveXlm, 7)} XLM
         </p>
       ) : (
         <p className="mt-3 text-xs text-amber-400">
-          Este token todavía no tiene par con XLM: añade liquidez primero.
+          This token has no pair with XLM yet: seed liquidity first.
         </p>
       )}
 
       <form onSubmit={onSwap} aria-busy={busy} className="mt-4 grid gap-3">
         <label className="block text-sm">
           <span className="text-slate-400">
-            {isBuy ? 'Monto en XLM' : `Monto del token (${token.decimals} dec)`}
+            {isBuy ? 'Amount in XLM' : `Amount in ${tokenSymbol} (${token.decimals} decimals)`}
           </span>
           <input
             className={`${inputClass} mt-1`}
@@ -328,32 +328,71 @@ export function SwapCard({
         </label>
 
         {publicKey && inputBalanceBase !== undefined ? (
-          <p className="text-xs text-slate-500">
-            {isBuy ? 'Tu XLM' : 'Tu balance'}:{' '}
-            {formatAmount(inputBalanceBase, inputDecimals)}
-            <button
-              type="button"
-              disabled={maxInput === undefined || maxInput <= 0n}
-              onClick={() => {
-                if (maxInput !== undefined && maxInput > 0n) {
-                  setAmount(formatAmount(maxInput, inputDecimals))
-                }
-              }}
-              className="ml-2 -mt-1 inline-flex min-h-[44px] items-center rounded-md border border-slate-700 px-3 py-1.5 text-xs font-medium text-emerald-300 hover:border-emerald-500 disabled:opacity-50"
-            >
-              MAX
-            </button>
-          </p>
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
+            <span>
+              {isBuy ? 'Your XLM' : 'Your Balance'}:{' '}
+              <span className="font-mono text-slate-300">
+                {formatAmount(inputBalanceBase, inputDecimals)}
+              </span>
+            </span>
+            <div className="flex flex-wrap gap-1">
+              {AMOUNT_PERCENTS.map((pct) => {
+                const slice =
+                  maxInput !== undefined ? (maxInput * BigInt(pct)) / 100n : 0n
+                return (
+                  <button
+                    key={pct}
+                    type="button"
+                    disabled={maxInput === undefined || maxInput <= 0n || busy}
+                    onClick={() => {
+                      if (slice > 0n) {
+                        setAmount(formatAmount(slice, inputDecimals))
+                      }
+                    }}
+                    className="inline-flex min-h-[32px] items-center rounded-md border border-slate-800 bg-slate-950/60 px-2.5 py-1 text-xs font-medium text-emerald-300 hover:border-emerald-500 disabled:opacity-50"
+                  >
+                    {pct === 100 ? 'MAX' : `${pct}%`}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
         ) : null}
+
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
+          <span>Slippage Tolerance</span>
+          <div
+            role="group"
+            aria-label="Slippage tolerance"
+            className="flex gap-1"
+          >
+            {SLIPPAGE_OPTIONS.map((option) => (
+              <button
+                key={option}
+                type="button"
+                aria-pressed={slippage === option}
+                disabled={busy}
+                onClick={() => setSlippage(option)}
+                className={`min-h-[32px] rounded-md border px-2.5 py-1 font-mono text-xs transition-colors ${
+                  slippage === option
+                    ? 'border-emerald-500 bg-emerald-500/15 font-medium text-emerald-300'
+                    : 'border-slate-800 bg-slate-950/40 text-slate-400 hover:border-slate-700 hover:text-slate-200'
+                }`}
+              >
+                {option}%
+              </button>
+            ))}
+          </div>
+        </div>
 
         {amountIn > 0n && pool.data?.exists ? (
           <div className="grid gap-1 text-sm text-slate-300">
             <p>
-              Recibes ≈{' '}
+              You receive ≈{' '}
               <span className="font-medium text-emerald-400">
                 {quoted !== undefined
                   ? `${formatAmount(quoted, outputDecimals)} ${outputSymbol}`
-                  : 'cotizando…'}
+                  : 'quoting…'}
               </span>
             </p>
 
@@ -361,7 +400,7 @@ export function SwapCard({
               <div className="grid gap-1 rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-xs">
                 <div className="flex flex-wrap justify-between gap-2">
                   <span className="text-slate-500">
-                    Mínimo tras slippage {SLIPPAGE_PERCENT}%
+                    Minimum after slippage ({slippage}%)
                   </span>
                   <span className="font-mono text-slate-300">
                     {formatAmount(minimum ?? 0n, outputDecimals)} {outputSymbol}
@@ -369,7 +408,7 @@ export function SwapCard({
                 </div>
                 <div className="flex flex-wrap justify-between gap-2">
                   <span className="text-slate-500">
-                    Impacto de precio (incluye fee)
+                    Price impact (includes fee)
                   </span>
                   <span className={`font-mono ${impactClass(impact)}`}>
                     {impact.toFixed(2)}%
@@ -377,7 +416,7 @@ export function SwapCard({
                 </div>
                 {impact >= 5 ? (
                   <p className="text-rose-300">
-                    Impacto alto: considera un monto menor o más liquidez.
+                    High price impact: consider a smaller amount or deepening pool liquidity.
                   </p>
                 ) : null}
               </div>
@@ -387,7 +426,7 @@ export function SwapCard({
 
         {quote.isError ? (
           <p role="alert" className="text-xs text-rose-300">
-            No se pudo cotizar: {quote.error.message}
+            Failed to quote: {errorMessage(quote.error)}
           </p>
         ) : null}
 
@@ -398,14 +437,13 @@ export function SwapCard({
             className="w-full rounded-lg bg-emerald-500 px-6 py-3 text-base font-medium text-slate-950 hover:bg-emerald-400 disabled:opacity-60"
           >
             {busy
-              ? 'Cambiando…'
+              ? 'Executing swap…'
               : isBuy
-                ? 'Comprar token'
-                : 'Vender token'}
+                ? `Buy ${tokenSymbol}`
+                : `Sell ${tokenSymbol}`}
           </button>
           <p className="mt-2 text-xs text-slate-500">
-            Slippage {SLIPPAGE_PERCENT}% · mínimo de salida aplicado por el
-            router.
+            Slippage {slippage}% · minimum return enforced on-chain by Soroswap Router.
           </p>
         </div>
 
@@ -414,8 +452,8 @@ export function SwapCard({
             steps={[
               {
                 label: isBuy
-                  ? 'Firmando y enviando la compra al router'
-                  : 'Firmando y enviando la venta al router',
+                  ? 'Signing and submitting buy order to router'
+                  : 'Signing and submitting sell order to router',
                 status: 'active',
               },
             ]}
@@ -433,19 +471,31 @@ export function SwapCard({
       ) : null}
 
       {swapped ? (
-        <p className="mt-4 rounded-lg border border-emerald-900 bg-emerald-950/40 px-3 py-2 text-sm text-emerald-300">
-          Swap hecho ✓{' '}
-          {formatAmount(
-            swapped.in,
-            swapped.direction === 'buy' ? XLM_DECIMALS : token.decimals,
-          )}{' '}
-          {swapped.direction === 'buy' ? 'XLM' : tokenSymbol} →{' '}
-          {formatAmount(
-            swapped.out,
-            swapped.direction === 'buy' ? token.decimals : XLM_DECIMALS,
-          )}{' '}
-          {swapped.direction === 'buy' ? tokenSymbol : 'XLM'}
-        </p>
+        <div className="mt-4 rounded-lg border border-emerald-900 bg-emerald-950/40 px-3 py-2 text-sm text-emerald-300">
+          <p>
+            Swap executed ✓{' '}
+            {formatAmount(
+              swapped.in,
+              swapped.direction === 'buy' ? XLM_DECIMALS : token.decimals,
+            )}{' '}
+            {swapped.direction === 'buy' ? 'XLM' : tokenSymbol} →{' '}
+            {formatAmount(
+              swapped.out,
+              swapped.direction === 'buy' ? token.decimals : XLM_DECIMALS,
+            )}{' '}
+            {swapped.direction === 'buy' ? tokenSymbol : 'XLM'}
+          </p>
+          {swapped.hash ? (
+            <a
+              href={explorerTxUrl(swapped.hash)}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-1 inline-block text-xs underline underline-offset-2"
+            >
+              View on Stellar Explorer ↗
+            </a>
+          ) : null}
+        </div>
       ) : null}
     </section>
   )

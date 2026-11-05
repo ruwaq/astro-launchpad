@@ -11,11 +11,21 @@ import { KeypairSigner } from '@stellar/stellar-sdk/contract'
 import type { Signer } from '@stellar/stellar-sdk/contract'
 import { NETWORK_PASSPHRASE } from './network'
 
-/** Cuántas cuentas crea el modo prueba (usuarios A, B y C). */
+/** Cuántas cuentas crea inicialmente el modo prueba (usuarios A, B y C). */
 export const DEMO_ACCOUNT_COUNT = 3
 
-/** Etiquetas para distinguir las cuentas en la UI. */
+/** Máximo de cuentas demo que el usuario puede añadir en el navegador (A..H). */
+export const MAX_DEMO_ACCOUNTS = 8
+
+/** Etiquetas iniciales (compatibilidad con scripts de verificación). */
 export const DEMO_LABELS = ['A', 'B', 'C'] as const
+
+/** Todas las etiquetas posibles para cuentas demo (A..H). */
+export const DEMO_ALL_LABELS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'] as const
+
+export function demoLabelForIndex(index: number): string {
+  return DEMO_ALL_LABELS[index] ?? `#${index + 1}`
+}
 
 const ACCOUNTS_KEY = 'floodgate.demo.accounts.v1'
 const ACTIVE_KEY = 'floodgate.demo.active.v1'
@@ -62,7 +72,7 @@ export function loadDemoAccounts(): DemoAccount[] {
   try {
     const parsed: unknown = JSON.parse(raw)
     if (!Array.isArray(parsed)) return []
-    return parsed.filter(isDemoAccount).slice(0, DEMO_ACCOUNT_COUNT)
+    return parsed.filter(isDemoAccount).slice(0, MAX_DEMO_ACCOUNTS)
   } catch {
     return []
   }
@@ -106,33 +116,44 @@ export function saveDemoMode(active: boolean): void {
 }
 
 /**
- * Crea `DEMO_ACCOUNT_COUNT` cuentas nuevas y las fondea con Friendbot
- * (10 000 XLM de testnet cada una). Secuencial a propósito: el faucet público
- * limita peticiones concurrentes.
+ * Crea y fondea una única cuenta de prueba con 10 000 XLM vía Friendbot.
+ */
+export async function createSingleDemoAccount(
+  label: string,
+): Promise<DemoAccount> {
+  const keypair = Keypair.random()
+  const response = await fetch(
+    `${FRIEND_BOT_URL}/?addr=${encodeURIComponent(keypair.publicKey())}`,
+  )
+  if (!response.ok) {
+    throw new Error(
+      `Friendbot could not fund account ${label} (HTTP ${response.status})`,
+    )
+  }
+  return {
+    label,
+    publicKey: keypair.publicKey(),
+    secret: keypair.secret(),
+  }
+}
+
+/**
+ * Crea `count` cuentas nuevas (por defecto `DEMO_ACCOUNT_COUNT = 3`) y las
+ * fondea con Friendbot (10 000 XLM de testnet cada una). Secuencial a propósito:
+ * el faucet público limita peticiones concurrentes.
  */
 export async function createDemoAccounts(
   onProgress?: DemoProgress,
+  count: number = DEMO_ACCOUNT_COUNT,
 ): Promise<DemoAccount[]> {
+  const total = Math.max(1, Math.min(MAX_DEMO_ACCOUNTS, count))
   const accounts: DemoAccount[] = []
 
-  for (let index = 0; index < DEMO_ACCOUNT_COUNT; index++) {
-    const keypair = Keypair.random()
+  for (let index = 0; index < total; index++) {
+    const label = demoLabelForIndex(index)
     onProgress?.({ index, status: 'funding' })
-
-    const response = await fetch(
-      `${FRIEND_BOT_URL}/?addr=${encodeURIComponent(keypair.publicKey())}`,
-    )
-    if (!response.ok) {
-      throw new Error(
-        `Friendbot no pudo fondear la cuenta ${DEMO_LABELS[index]} (HTTP ${response.status})`,
-      )
-    }
-
-    accounts.push({
-      label: DEMO_LABELS[index],
-      publicKey: keypair.publicKey(),
-      secret: keypair.secret(),
-    })
+    const account = await createSingleDemoAccount(label)
+    accounts.push(account)
     onProgress?.({ index, status: 'funded' })
   }
 

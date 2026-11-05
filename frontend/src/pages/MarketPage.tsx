@@ -12,10 +12,10 @@ export function MarketPage() {
   return (
     <>
       <div>
-        <h1 className="text-2xl font-bold sm:text-3xl">Mercado</h1>
+        <h1 className="text-2xl font-bold sm:text-3xl">Live Market</h1>
         <p className="mt-1 max-w-2xl text-slate-400">
-          Pares token/XLM descubiertos on-chain. Busca, ordena y abre un token
-          para swapear, aportar liquidez o transferirlo.
+          Token/XLM pairs discovered on-chain directly from Soroswap. Search, sort,
+          and select any token to trade, provide liquidity, or transfer.
         </p>
       </div>
       <MarketList selectedId={null} onSelect={openToken} />

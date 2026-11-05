@@ -21,8 +21,7 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
-    // Punto único para conectar telemetría más adelante (Sentry u otro).
-    console.error('[Floodgate] Error de render:', error, info.componentStack)
+    console.error('[AstroGate] Render error:', error, info.componentStack)
   }
 
   render() {
@@ -35,11 +34,11 @@ export class ErrorBoundary extends Component<Props, State> {
               className="w-full max-w-md rounded-xl border border-rose-900 bg-rose-950/30 p-5"
             >
               <h1 className="text-lg font-semibold text-rose-200">
-                Algo se rompió en la interfaz
+                Something went wrong
               </h1>
               <p className="mt-2 text-sm text-slate-400">
-                Tus fondos siguen en la red. Puedes intentar recuperar la vista
-                o recargar la página.
+                Your funds remain safe on-chain. You can retry rendering this
+                view or reload the page.
               </p>
               <p className="mt-2 break-words font-mono text-xs text-slate-500">
                 {this.state.error.message}
@@ -50,14 +49,14 @@ export class ErrorBoundary extends Component<Props, State> {
                   onClick={() => this.setState({ error: null })}
                   className="min-h-[44px] rounded-lg bg-emerald-500 px-4 py-2 text-sm font-medium text-slate-950 hover:bg-emerald-400"
                 >
-                  Reintentar
+                  Retry
                 </button>
                 <button
                   type="button"
                   onClick={() => window.location.reload()}
                   className="min-h-[44px] rounded-lg border border-slate-700 px-4 py-2 text-sm hover:bg-slate-800"
                 >
-                  Recargar página
+                  Reload page
                 </button>
               </div>
             </div>

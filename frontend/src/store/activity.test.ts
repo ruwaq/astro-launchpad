@@ -20,13 +20,13 @@ function entry(overrides: Partial<ActivityEntry> = {}): ActivityEntry {
 
 describe('activityLabel', () => {
   it('etiqueta cada tipo de operación', () => {
-    expect(activityLabel('create')).toBe('Token creado')
-    expect(activityLabel('add-liquidity')).toBe('Liquidez añadida')
-    expect(activityLabel('remove-liquidity')).toBe('Liquidez retirada')
+    expect(activityLabel('create')).toBe('Token Created')
+    expect(activityLabel('add-liquidity')).toBe('Liquidity Added')
+    expect(activityLabel('remove-liquidity')).toBe('Liquidity Removed')
     expect(activityLabel('swap')).toBe('Swap')
-    expect(activityLabel('transfer')).toBe('Transferencia')
-    expect(activityLabel('mint')).toBe('Emisión')
-    expect(activityLabel('burn')).toBe('Quema')
+    expect(activityLabel('transfer')).toBe('Transfer')
+    expect(activityLabel('mint')).toBe('Mint')
+    expect(activityLabel('burn')).toBe('Burn')
   })
 })
 
@@ -47,10 +47,10 @@ describe('activitySummary', () => {
           secondaryAmount: '1',
           secondarySymbol: 'XLM',
           swapDirection: 'buy',
-          detail: 'compra',
+          detail: 'buy',
         }),
       ),
-    ).toBe('1 XLM → 10 MOON · compra')
+    ).toBe('1 XLM → 10 MOON · buy')
   })
 
   it('resume liquidez con detalle de LP', () => {
@@ -82,10 +82,10 @@ describe('activitySummary', () => {
   it('resume creación y quema', () => {
     expect(
       activitySummary(entry({ kind: 'create', amount: '1000' })),
-    ).toBe('Supply inicial: 1000 MOON')
+    ).toBe('Initial supply: 1000 MOON')
     expect(
       activitySummary(entry({ kind: 'burn', amount: '1' })),
-    ).toBe('1 MOON quemados')
+    ).toBe('1 MOON burned')
   })
 
   it('cae al símbolo cuando no hay monto', () => {

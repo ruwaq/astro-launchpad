@@ -22,7 +22,9 @@ describe('formatAmount', () => {
 describe('parseAmount', () => {
   it('convierte decimales a base units', () => {
     expect(parseAmount('1.5', 7)).toBe(15_000_000n)
+    expect(parseAmount('1,5', 7)).toBe(15_000_000n)
     expect(parseAmount('0.0000001', 7)).toBe(1n)
+    expect(parseAmount('0,0000001', 7)).toBe(1n)
     expect(parseAmount('100', 7)).toBe(1_000_000_000n)
   })
 
@@ -50,6 +52,39 @@ describe('errorMessage', () => {
   it('extrae mensajes de Error, string y desconocidos', () => {
     expect(errorMessage(new Error('boom'))).toBe('boom')
     expect(errorMessage('texto')).toBe('texto')
-    expect(errorMessage({ raro: true })).toBe('Error desconocido')
+    expect(errorMessage({ raro: true })).toBe('Unknown error')
+  })
+
+  it('traduce errores crudos de Soroban, RPC y wallet a mensajes claros', () => {
+    expect(errorMessage(new Error('User declined access'))).toBe(
+      'Transaction cancelled in wallet.',
+    )
+    expect(
+      errorMessage(new Error('HostError: Error(Contract, #100)')),
+    ).toBe('Insufficient balance to complete transaction.')
+    expect(
+      errorMessage(new Error('HostError: Error(Auth, InvalidAction)')),
+    ).toBe(
+      'Authorization denied by contract (check active account or permissions).',
+    )
+    expect(
+      errorMessage(new Error('SoroswapRouter: insufficient output amount')),
+    ).toBe(
+      'Price moved beyond your allowed slippage. Increase slippage tolerance or reduce amount.',
+    )
+    expect(errorMessage(new Error('swap: insufficient liquidity'))).toBe(
+      'Insufficient liquidity in the pool for this transaction.',
+    )
+    expect(errorMessage(new Error('TypeError: Failed to fetch'))).toBe(
+      'Testnet RPC node is overloaded or unreachable. Please try again in a few seconds.',
+    )
+    expect(
+      errorMessage(new Error('HostError: Error(Contract, #302)')),
+    ).toBe(
+      'Token and XLM ratio does not match pool reserves. Enable "Maintain pool ratio" and try again.',
+    )
+    expect(errorMessage(new Error('Transaction failed: txBadSeq'))).toBe(
+      'Account sequence currently in use by another pending transaction. Wait 5 seconds and retry.',
+    )
   })
 })

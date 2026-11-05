@@ -1,25 +1,25 @@
 /**
- * Única fuente de verdad de la marca de la app.
- * Cambiar aquí rebrandea header, hero, `index.html` y el manifest.
+ * Single source of truth for app branding.
+ * Updating here rebrands the header, hero, index.html, and manifest.
  *
- * El nombre "Floodgate" viene del código interno de stellar-core:
- * `Floodgate` (src/overlay/Floodgate.cpp) es la compuerta que inunda la red
- * con las transacciones de los peers hasta que el ledger cierra. Los devs del
- * core y los operadores lo reconocen al instante y, como marca crypto, estaba
- * libre (verificado 2026-10: solo existe una firma de VC fuera del rubro).
+ * Name combination:
+ * Unites the technical name from stellar-core `Floodgate` (src/overlay/Floodgate.cpp)
+ * with the iconic Stellar meme token `Astro` -> **AstroGate** 🌊🚀.
  *
- * Importante: el token de ejemplo del launchpad (ASTRO) es otra cosa y no
- * cambia con la marca.
+ * Genesis/Flagship Meme Token: ASTRO ($ASTRO), deployed and verified on Soroswap testnet.
  */
 export const BRAND = {
-  name: 'Floodgate',
-  emoji: '🌊',
-  tagline: 'Abre la compuerta',
-  taglineEn: 'Open the floodgates',
-  hero: 'Launchpad + AMM en Stellar',
+  name: 'AstroGate',
+  shortName: 'AstroGate',
+  tokenName: 'ASTRO',
+  emoji: '🌊🚀',
+  tagline: 'Open the Floodgates',
+  taglineEn: 'Open the Floodgates',
+  hero: 'Fair Meme Launchpad + AMM on Stellar',
   description:
-    'Crea tu token en segundos, añade liquidez y swapea en Stellar testnet — todo on-chain, con la red como única fuente de datos. Te quedas con tus LP tokens: ganas fees de cada swap mientras sostengas tu liquidez.',
+    'Launch fair meme tokens in seconds, burn 100% LP permanently to the dead address, and trade live on Stellar testnet — 100% on-chain, zero rug-pulls.',
   manifestDescription:
-    'Floodgate — crea tu token en segundos y swapea en Stellar testnet.',
-  provenance: 'nombre de stellar-core: Floodgate (src/overlay/Floodgate.cpp)',
+    'AstroGate — Fair meme launchpad & instant AMM trading on Stellar testnet.',
+  provenance:
+    'Union of stellar-core Floodgate (src/overlay/Floodgate.cpp) and Astro meme',
 } as const

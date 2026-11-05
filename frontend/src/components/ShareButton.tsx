@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { BRAND } from '../lib/brand'
 
 type Props = {
   text: string
@@ -6,22 +7,17 @@ type Props = {
   label?: string
 }
 
-/**
- * Compartir nativo del móvil (Web Share API) con fallback a copiar link.
- * El equivalente honesto de "shillemea tu meme": mientras más creadores
- * compartan, más Fees actúmulan en su pool.
- */
-export function ShareButton({ text, url, label = 'Compartir 🎉' }: Props) {
+export function ShareButton({ text, url, label = 'Share 🎉' }: Props) {
   const [copied, setCopied] = useState(false)
 
   async function onShare() {
     const nav = typeof navigator !== 'undefined' ? navigator : undefined
     if (nav?.share) {
       try {
-        await nav.share({ title: 'Floodgate 🌊', text, url })
+        await nav.share({ title: `${BRAND.name} ${BRAND.emoji}`, text, url })
         return
       } catch {
-        return // el usuario canceló el sheet nativo
+        return
       }
     }
     if (nav?.clipboard) {
@@ -30,7 +26,7 @@ export function ShareButton({ text, url, label = 'Compartir 🎉' }: Props) {
         setCopied(true)
         window.setTimeout(() => setCopied(false), 2000)
       } catch {
-        // clipboard bloqueado: no hay nada más que hacer
+        // Clipboard access denied
       }
     }
   }
@@ -41,7 +37,7 @@ export function ShareButton({ text, url, label = 'Compartir 🎉' }: Props) {
       onClick={() => void onShare()}
       className="min-h-[44px] rounded-lg border border-emerald-800 bg-emerald-900/30 px-3 py-2 text-xs font-medium text-emerald-300 hover:border-emerald-600"
     >
-      {copied ? 'Link copiado ✓' : label}
+      {copied ? 'Link copied ✓' : label}
     </button>
   )
 }
