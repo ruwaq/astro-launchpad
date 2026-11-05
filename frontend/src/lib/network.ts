@@ -13,6 +13,20 @@ export const RPC_URL =
   (import.meta.env.VITE_SOROBAN_RPC_URL as string | undefined) ||
   'https://soroban-testnet.stellar.org'
 
+/**
+ * High-availability RPC failover pool.
+ * Orders primary endpoint first, followed by official and community fallback nodes.
+ */
+export const RPC_POOL: string[] = Array.from(
+  new Set(
+    [
+      import.meta.env.VITE_SOROBAN_RPC_URL,
+      'https://soroban-testnet.stellar.org',
+      'https://rpc-testnet.stellar.org',
+    ].filter(Boolean) as string[],
+  ),
+)
+
 export const HORIZON_URL =
   (import.meta.env.VITE_HORIZON_URL as string | undefined) ||
   'https://horizon-testnet.stellar.org'
@@ -69,4 +83,23 @@ export async function checkRpcHealth(url = RPC_URL): Promise<{
   } catch (err) {
     return { ok: false, error: (err as Error)?.message ?? 'Network unreachable' }
   }
+}
+
+/**
+ * Executes an asynchronous RPC action with automatic fallback across the RPC pool.
+ * If the primary RPC node times out or fails, automatically retries against the next healthy node.
+ */
+export async function executeWithRpcFailover<T>(
+  action: (rpcUrl: string) => Promise<T>,
+  pool: string[] = RPC_POOL,
+): Promise<T> {
+  let lastError: unknown
+  for (const url of pool) {
+    try {
+      return await action(url)
+    } catch (err) {
+      lastError = err
+    }
+  }
+  throw lastError
 }

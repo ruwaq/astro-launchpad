@@ -55,5 +55,8 @@ jobs:
       - name: Clippy
         run: cargo clippy -p astro-token --all-targets -- -D warnings
 
+      - name: Build
+        run: cargo build -p astro-token
+
       - name: Tests
         run: cargo test -p astro-token

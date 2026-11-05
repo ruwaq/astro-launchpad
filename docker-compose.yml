@@ -1,0 +1,18 @@
+services:
+  astrogate-frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: astrogate-frontend
+    ports:
+      - "8080:8080"
+    environment:
+      - VITE_STELLAR_NETWORK=testnet
+      - VITE_SOROBAN_RPC_URL=https://soroban-testnet.stellar.org
+      - VITE_HORIZON_URL=https://horizon-testnet.stellar.org
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
