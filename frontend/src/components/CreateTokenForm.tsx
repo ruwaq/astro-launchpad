@@ -459,7 +459,7 @@ export function CreateTokenForm({
         <div className="mt-4 space-y-3 rounded-lg border border-emerald-900 bg-emerald-950/40 p-4 text-sm text-emerald-200">
           <p className="font-semibold">
             {fairLaunched
-              ? `🚀 ¡Fair Launch completed successfully for ${symbol || 'Token'}!`
+              ? `🚀 Fair Launch completed successfully for ${symbol || 'Token'}!`
               : `Token deployed on testnet`}
           </p>
           <p className="break-all font-mono text-xs text-slate-300">
