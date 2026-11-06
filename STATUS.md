@@ -1,5 +1,47 @@
 # Estado actual (para continuar en la próxima sesión)
 
+## Handoff rápido (Nov 6 2026, sesiones 17–18 — AstroGate Rebrand, Live Pricing, $1.11 Fair Launch, Auditorías y DevOps)
+
+- **Rebrand definitivo a AstroGate 🌊🚀**: Unión del componente técnico de `stellar-core` (`Floodgate`, `src/overlay/Floodgate.cpp`) con el meme icónico de Stellar `Astro` (`$ASTRO` como token génesis/insignia). Fuente única: `src/lib/brand.ts`.
+- **Precios en tiempo real (Zero Mocks)**: Multi-oracle waterfall en tiempo real (Coinbase spot → Binance ticker → CoinGecko → CryptoCompare) con caché de 60 s en memoria y fallback dinámico en `src/lib/xlm.ts`. Cotizaciones on-chain calculadas directamente de las reservas de Soroswap (`reserveXlm / reserveToken`).
+- **Fair Launch ($1.11 USD · 1% Creator · 99% Pool)**:
+  - Tarifa de despliegue fijada en **$1.11 USD** (`PROTOCOL_DEPLOY_FEE_USD = 1.11`).
+  - Separación clara: el 1% es para el creador del token, no para la plataforma. El 99% va directamente al par AMM en Soroswap.
+  - **Quema obligatoria de LP (Anti-Rug)**: El 100% de los tokens LP generados se envían permanentemente a la cuenta dead de Stellar (`GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF`). El `total_supply` del par se mantiene intacto, haciendo matemáticamente imposible retirar la liquidez base.
+  - **Renuncia de propiedad**: Se ejecuta `renounce_ownership` para anular el owner on-chain y deshabilitar futuros minteos de por vida.
+- **Web 100% en inglés**: Traducción exhaustiva de todas las rutas (`/`, `/market`, `/create`, `/token/:id`, `/portfolio`, `/404`), componentes interactivos, modales, alertas y formateador de errores de Soroban/RPC en `src/lib/format.ts`.
+- **Auditoría completa full-stack**:
+  - Artefacto generado: `audit-report.md`.
+  - Verificaciones on-chain ejecutadas con éxito (`verify:discovery`, `verify:demo` con ciclo completo de 3 cuentas, pago A→B, creación, liquidez, swap, mint y burn).
+  - Identificación del límite de retención de eventos del RPC de Soroban (~24 h) y mitigaciones.
+- **Análisis de arquitectura institucional y DevOps**:
+  - Artefacto generado: `institutional-readiness-audit.md`.
+  - Especificación de brechas: contrato factory atómico (`contracts/launchpad`), pipeline de indexación persistente (Mercury / SubQuery), pool multi-RPC, containerización y SDK de trading bots.
+- **Implementaciones de producción entregadas**:
+  - **Pool Multi-RPC de alta disponibilidad**: `RPC_POOL` y `executeWithRpcFailover` en `src/lib/network.ts` con reintentos automáticos ante timeouts o rate-limits.
+  - **Headers CSP actualizados**: Orígenes de oráculos (`api.coinbase.com`, `api.binance.com`, etc.) autorizados en `vercel.json` y `public/_headers`.
+  - **Watchlist / Favoritos**: Store `useWatchlist` con persistencia en `localStorage`, botones estrella y filtro "Favorites Only" en `MarketList.tsx`.
+  - **Exportación de actividad**: Herramientas para descargar actividad local en CSV o JSON desde `ActivityFeed.tsx`.
+  - **Protección de Slippage**: Alerta de impacto extremo de precio (>15%) en `SwapCard.tsx`.
+  - **Docker & IaC**: `frontend/Dockerfile` multi-stage (Node 22 build + Alpine Nginx) y `docker-compose.yml` en la raíz.
+  - **CI Contracts**: Paso de compilación `cargo build -p astro-token` añadido a `.github/workflows/ci.yml`.
+- **Gates verdes**:
+  - `npm run check`: **81 tests unitarios en Vitest pasando (13 archivos)**, 0 errores de `tsc -b`, 0 warnings en 101 archivos con `oxlint`, SSR smoke test OK, 10/10 verificaciones de PWA OK.
+  - `cargo test -p astro-token`: 6/6 tests pasando.
+  - `cargo fmt --all -- --check`: 0 discrepancias.
+- **Git**:
+  - Rama: `ai/market-discovery`.
+  - Commits publicados en `origin`:
+    - `5fd75de`: Rebrand AstroGate, $1.11 fair launch, LP burn a `GAAAA...WHF`, live pricing y UI en inglés.
+    - `20f4e57`: Limpieza de signos de exclamación en toasts.
+    - `e237763`: CSP headers, RPC health check, favoritos, exportación CSV/JSON y README en inglés.
+    - `e43d292`: Pool multi-RPC failover, Dockerfile, docker-compose y CI contract build.
+  - Árbol de trabajo 100% limpio y sincronizado.
+- **Próximos pasos recomendados para la siguiente sesión**:
+  1. Contrato `launchpad` atómico en Soroban (`contracts/launchpad`) para empaquetar deploy + pool 99% + LP burn a dead address en 1 sola invocación on-chain.
+  2. Indexador ligero persistente (Mercury o Worker con base de datos) para velas OHLCV históricas que superen la ventana de 24 h del RPC.
+  3. Despliegue de staging en Cloudflare Pages / Vercel para pruebas con usuarios reales en testnet.
+
 ## Handoff rápido (Nov 2 2026, sesión 16 — onboarding y traslado al Mac)
 
 - **Objetivo de la sesión**: que el flujo *crear token → añadir liquidez →
