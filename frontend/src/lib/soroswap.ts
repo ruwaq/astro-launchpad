@@ -399,6 +399,7 @@ export async function addLiquidity(params: {
   amountToken: bigint
   amountXlm: bigint
   signer: Signer
+  to?: string
   /** Se invoca al entrar en cada fase, para pintar progreso real. */
   onStep?: (step: 'pair' | 'liquidity') => void
   /** Se invoca con el hash en cuanto la tx de liquidez se envía. */
@@ -409,7 +410,7 @@ export async function addLiquidity(params: {
   xlmAmount: bigint
   lpAmount: bigint
 }> {
-  const { tokenId, amountToken, amountXlm, signer, onStep, onHash } = params
+  const { tokenId, amountToken, amountXlm, signer, to: recipient, onStep, onHash } = params
   const { router } = soroswapClients(signer)
   const publicKey = signer.address
 
@@ -431,7 +432,7 @@ export async function addLiquidity(params: {
     amount_b_desired: tokenFirst ? amountXlm : amountToken,
     amount_a_min: tokenFirst ? withSlippage(amountToken) : withSlippage(amountXlm),
     amount_b_min: tokenFirst ? withSlippage(amountXlm) : withSlippage(amountToken),
-    to: publicKey,
+    to: recipient ?? publicKey,
     deadline: unixDeadline(),
   })
   const sent = await tx.signAndSend()

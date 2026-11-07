@@ -4,8 +4,12 @@ import { useQueryClient } from '@tanstack/react-query'
 import { deployToken, tokenClient } from '../lib/token'
 import {
   calculateDeployFeeInXlm,
+  POOL_ALLOCATION_BPS,
   PROTOCOL_DEPLOY_FEE_USD,
+  STELLAR_BURN_ADDRESS,
 } from '../lib/tokenomics'
+import { addLiquidity } from '../lib/soroswap'
+import { XLM_DECIMALS } from '../lib/xlm'
 import { useXlmUsdPrice } from '../hooks/useXlmUsdPrice'
 import { explorerContractUrl } from '../lib/explorer'
 import { ShareButton } from './ShareButton'
@@ -20,7 +24,7 @@ import { saveLocalTokenMetadata } from '../lib/token-metadata'
 const inputClass =
   'w-full rounded-lg border border-slate-800 bg-slate-950 px-3.5 py-3 text-base text-slate-100 outline-none focus:border-emerald-500'
 
-type LaunchStep = 'deploy' | 'renounce' | null
+type LaunchStep = 'deploy' | 'pool' | 'renounce' | null
 
 export function CreateTokenForm({
   onCreated,
@@ -83,10 +87,15 @@ export function CreateTokenForm({
 
     const targetDecimals = 7
     const initialSupply = parseAmount('1000000000', targetDecimals) // 1 Billion
+    // Fair Launch Pool: 99.5% of supply (995,000,000 tokens)
+    const poolTokens = (initialSupply * POOL_ALLOCATION_BPS) / 10_000n
+    // Initial XLM seed (5 XLM)
+    const seedXlm = parseAmount('5', XLM_DECIMALS)
 
     setBusy(true)
     setStep('deploy')
-    let hash: string | undefined
+    let deployHash: string | undefined
+    let poolHash: string | undefined
     try {
       // 1. Deploy token SEP-41 contract on Stellar testnet
       const newId = await deployToken({
@@ -96,7 +105,7 @@ export function CreateTokenForm({
         initialSupply,
         signer,
         onHash: (value) => {
-          hash = value
+          deployHash = value
         },
       })
       const ticker = cleanSymbol
@@ -111,7 +120,20 @@ export function CreateTokenForm({
         twitter: twitter.trim() || undefined,
       })
 
-      // 3. Renounce ownership on-chain (Immutable supply, zero inflation)
+      // 3. Auto-Seed Pool: Create Soroswap Pair, Deposit 99.5% Tokens + 5 XLM, and Burn LP!
+      setStep('pool')
+      await addLiquidity({
+        tokenId: newId,
+        amountToken: poolTokens,
+        amountXlm: seedXlm,
+        signer,
+        to: STELLAR_BURN_ADDRESS,
+        onHash: (value) => {
+          poolHash = value
+        },
+      })
+
+      // 4. Renounce ownership on-chain (Immutable supply, zero inflation)
       setStep('renounce')
       const renounceTx = await tokenClient(newId, signer).renounce_ownership()
       await renounceTx.signAndSend()
@@ -122,19 +144,22 @@ export function CreateTokenForm({
         tokenId: newId,
         tokenSymbol: ticker,
         amount: formatAmount(initialSupply, targetDecimals),
+        secondaryAmount: formatAmount(seedXlm, XLM_DECIMALS),
+        secondarySymbol: 'XLM',
         account: publicKey,
-        hash,
+        hash: poolHash || deployHash,
       })
 
       setCreatedId(newId)
-      toast.success('Token Successfully Launched!', {
-        message: `$${ticker} created with immutable supply. Next: add liquidity on the token page.`,
-        hash,
+      toast.success('¡Token y Pool Creados con Éxito!', {
+        message: `$${ticker} listo con pool automático en Soroswap, LP quemado y propiedad renunciada.`,
+        hash: poolHash || deployHash,
       })
 
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['token-list'] }),
         queryClient.invalidateQueries({ queryKey: ['demo-xlm-balances'] }),
+        queryClient.invalidateQueries({ queryKey: ['soroswap-pool', newId] }),
       ])
     } catch (err) {
       const message = errorMessage(err)
@@ -405,17 +430,28 @@ export function CreateTokenForm({
         {step ? (
           <div className="sm:col-span-2">
             <TxProgress
-              title="Deployment Progress"
+              title="Pipeline de Creación Automática"
               steps={[
                 {
-                  label: 'Deploy Token Contract (SEP-41)',
+                  label: '1. Desplegar Contrato SEP-41',
                   status: step === 'deploy' ? 'active' : 'done',
-                  detail: 'Publishing on Stellar testnet',
+                  detail: '1,000,000,000 supply fijo en Stellar testnet',
                 },
                 {
-                  label: 'Renounce Ownership (Immutable Supply)',
+                  label: '2. Crear Pool Soroswap & Quemar LP On-Chain',
+                  status:
+                    step === 'pool'
+                      ? 'active'
+                      : step === 'renounce'
+                        ? 'done'
+                        : 'pending',
+                  detail:
+                    '99.5% tokens + semilla XLM depositados con LP 100% quemado en dead address',
+                },
+                {
+                  label: '3. Renunciar a la Propiedad On-Chain',
                   status: step === 'renounce' ? 'active' : 'pending',
-                  detail: 'Zero inflation guarantee & LP burned upon graduation',
+                  detail: 'Cero inflación, suministro inmutable para siempre',
                 },
               ]}
             />
@@ -428,15 +464,17 @@ export function CreateTokenForm({
             <strong className="text-emerald-300 font-mono">
               ${PROTOCOL_DEPLOY_FEE_USD.toFixed(2)} USD
             </strong>{' '}
-            (≈ {dynamicMintFeeXlm.toFixed(2)} XLM in wallet)
+            (≈ {dynamicMintFeeXlm.toFixed(2)} XLM) · Pool Soroswap automático incluido
           </div>
 
           <button
             type="submit"
             disabled={busy || !publicKey}
-            className="min-h-[44px] rounded-lg bg-emerald-500 px-6 py-2.5 text-sm font-bold text-slate-950 transition hover:bg-emerald-400 disabled:opacity-50 shadow-md shadow-emerald-500/20"
+            className="min-h-[44px] rounded-lg bg-emerald-500 px-6 py-2.5 text-sm font-bold text-slate-950 transition hover:bg-emerald-400 disabled:opacity-50 shadow-md shadow-emerald-500/20 cursor-pointer"
           >
-            {busy ? 'Launching On-Chain…' : `Launch Token ($${PROTOCOL_DEPLOY_FEE_USD.toFixed(2)} USD)`}
+            {busy
+              ? 'Lanzando Token y Creando Pool…'
+              : `Launch Token & Auto-Seed Pool ($${PROTOCOL_DEPLOY_FEE_USD.toFixed(2)} USD)`}
           </button>
         </div>
       </form>
