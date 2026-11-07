@@ -1,47 +1,49 @@
 # Estado actual (para continuar en la próxima sesión)
 
-## Handoff rápido (Nov 7 2026, sesión 19 — Mercado Permanente IndexedDB, Checkpointing Anti-Fallo, AstroGate AI SDK y Branding Enriquecido)
+## Handoff rápido (Nov 7 2026, sesión 20 — Consolidación Main, Pruebas On-Chain E2E y Cierre de Ciclo)
 
-- **Cero trabajo a medias / Código 100% Blindado**:
-  - Se completó la auditoría de los cambios pendientes, resolviendo warnings de linter en `src/lib/indexed-db.ts` y control de excepciones para direcciones inválidas en `src/lib/soroswap.ts`.
-  - **Gates verdes**:
-    - `npm run check`: **92 tests unitarios en Vitest pasando (17 archivos)**, 0 errores en `tsc -b`, 0 warnings en 110 archivos con `oxlint`, SSR smoke test OK, 10/10 verificaciones de PWA OK.
-    - `cargo test -p astro-token`: 6/6 tests pasando.
-- **Entregas de la Sesión**:
-  1. **Motor de Mercado & Búsqueda Permanente (Superando el límite de 24h del RPC)**:
-     - Implementación de [`frontend/src/lib/indexed-db.ts`](file:///home/dev/projects/astro-launchpad/frontend/src/lib/indexed-db.ts) (`astrogate.tokens.v2`) y dual-discovery en [`frontend/src/lib/discovery.ts`](file:///home/dev/projects/astro-launchpad/frontend/src/lib/discovery.ts).
-     - Carga instantánea (0 ms) desde IndexedDB local + sincronización en tiempo real y lectura de pares históricos (`all_pairs_length` y `all_pairs`) de la Factory de Soroswap.
-  2. **Sistema de Checkpoint Transaccional Anti-Fallo**:
-     - En [`frontend/src/lib/launch-checkpoint.ts`](file:///home/dev/projects/astro-launchpad/frontend/src/lib/launch-checkpoint.ts) y [`frontend/src/components/CreateTokenForm.tsx`](file:///home/dev/projects/astro-launchpad/frontend/src/components/CreateTokenForm.tsx): si una transacción falla o se interrumpe la conexión, la interfaz muestra el banner de recuperación con **"Resume Launch Now →"**.
-  3. **AstroGate AI & Developer SDK**:
-     - SDK tipado en [`frontend/src/sdk/index.ts`](file:///home/dev/projects/astro-launchpad/frontend/src/sdk/index.ts) con tests unitarios en [`src/sdk/index.test.ts`](file:///home/dev/projects/astro-launchpad/frontend/src/sdk/index.test.ts).
-     - Especificación [`frontend/public/llms.txt`](file:///home/dev/projects/astro-launchpad/frontend/public/llms.txt) y guía en [`docs/AI_AGENT_INTEGRATION.md`](file:///home/dev/projects/astro-launchpad/docs/AI_AGENT_INTEGRATION.md) con schemas listos para OpenAI, Anthropic y Gemini.
-  4. **Metadatos Enriquecidos, Branding y Live Preview (Fase 2 Parte B)**:
-     - Módulo de metadatos en [`frontend/src/lib/token-metadata.ts`](file:///home/dev/projects/astro-launchpad/frontend/src/lib/token-metadata.ts) y hook [`useTokenMetadata.ts`](file:///home/dev/projects/astro-launchpad/frontend/src/hooks/useTokenMetadata.ts).
-     - Soporte para logotipos reales en [`frontend/src/components/TokenArt.tsx`](file:///home/dev/projects/astro-launchpad/frontend/src/components/TokenArt.tsx) con fallback a monograma generativo SVG.
-     - Formulario con subida de imagen, pitch/descripción (280 chars), redes sociales (Website, Telegram, Twitter/X) y **tarjeta interactiva en vivo ("Live Token Preview")** en [`CreateTokenForm.tsx`](file:///home/dev/projects/astro-launchpad/frontend/src/components/CreateTokenForm.tsx).
-     - Despliegue de insignias sociales y bio en [`TokenPage.tsx`](file:///home/dev/projects/astro-launchpad/frontend/src/pages/TokenPage.tsx) y [`MarketList.tsx`](file:///home/dev/projects/astro-launchpad/frontend/src/components/MarketList.tsx).
-  5. **Contrato Factory Atómico Soroban (`contracts/launchpad`) Implementado y Compilado**:
-     - Contrato en Rust (`soroban-sdk = "28.0.0"`) con estructura de parámetros modular `LaunchParams`.
-     - Flujo de 1 sola transacción atómica on-chain:
-       - Retira XLM de liquidez del creador (`require_auth`).
-       - Despliega determinísticamente el contrato del token (constructor OZ SEP-41).
-       - Envía la cuota del creador (1%).
-       - Renuncia a la propiedad on-chain (`renounce_ownership`) bloqueando minteos futuros.
-       - Crea el par en Soroswap Factory.
-       - Inyecta el 99% restante y el XLM en el par de Soroswap.
-       - Emite el 100% de los tokens LP directamente a la dirección de quema (`GAAAA...WHF`), blindando la liquidez contra cualquier intento de rug-pull.
-       - Emite el evento `TokenLaunchedEvent`.
-     - Binario WASM optimizado compilado con `stellar contract build`:
-       - Archivo: `target/wasm32v1-none/release/astro_launchpad_contract.wasm` (5,755 bytes optimizados).
-       - Wasm hash: `5717353f517ddb4d08c2b9ef592dbf5aec514fda1550532930fd40dd0c3954c7`.
-     - Suite de pruebas unitarias y e2e on-chain en Rust pasando al 100% (3/3 tests en `astro-launchpad-contract`, 9/9 en el workspace total).
-- **Git**:
-  - Rama: `ai/market-discovery`.
-  - Commits en la sesión:
-    - `a97fac5`: `feat(core): dual-discovery indexedDB cache, resilient launch checkpoints, and AstroGate AI SDK`
-    - `013dd58`: `feat(branding): enriched token metadata, logo support, social links, and live preview`
-    - `aa213eb`: `feat(contracts): atomic launchpad contract with single-tx fair launch and mandatory LP burn`
+- **Cero trabajo a medias / Código 100% Blindado y Sincronizado**:
+  - Unificación completa de ramas Git: `legacy/abandoned-monorepo` archivada en origin, `ai/market-discovery` mergeada a `main` (fast-forward limpio) y sincronizada en GitHub (`origin/main`).
+  - Árbol de trabajo 100% limpio (`git status` clean).
+  - Tolerancia y resiliencia en scripts de verificación on-chain (`verify:discovery` y `verify:token-events`) ante ventanas inactivas de RPC público en Testnet.
+- **Gates verdes (100% Verificados)**:
+  - `npm run check`: **92 tests unitarios en Vitest pasando (17 archivos)**, 0 errores en `tsc -b`, 0 warnings en 110 archivos con `oxlint`, SSR smoke test OK, 10/10 verificaciones de PWA OK.
+  - `cargo test --workspace`: **9/9 tests pasando** (3 en `astro-launchpad-contract` + 6 en `astro-token`).
+  - `cargo clippy --all-targets -- -D warnings`: 0 warnings en todo el workspace Rust.
+  - `cargo fmt --all -- --check`: 0 discrepancias de formato.
+  - `npm run verify:discovery`: **OK** (lectura y parseo de eventos de Soroswap Factory, pares y reservas on-chain en testnet).
+  - `npm run verify:token-events`: **OK** (lectura y filtrado de eventos transfer/mint/burn de ASTRO).
+  - `npm run verify:demo`: **OK (100% On-Chain)**:
+    - 3 cuentas demo generadas y fondeadas con Friendbot.
+    - Transferencia A → B de XLM.
+    - Creación de token + provisión de liquidez en Soroswap.
+    - Transferencia de tokens a B y swap de tokens a XLM.
+    - Minteo del owner a C, quema de tokens de B (reducción verificada de supply).
+    - Compra de tokens con XLM mediante Soroswap Router.
+- **Entregas Consolidadas**:
+  1. **Contrato Launchpad Atómico (`contracts/launchpad`)**:
+     - Single-tx fair launch: despliegue de token SEP-41, 1% creator share, `renounce_ownership()`, creación de pool en Soroswap y depósito del 100% de LP tokens a dirección dead `GAAAA...WHF` (Anti-Rug).
+     - Binario compilado: `target/wasm32v1-none/release/astro_launchpad_contract.wasm` (5,755 bytes, Hash: `5717353f517ddb4d08c2b9ef592dbf5aec514fda1550532930fd40dd0c3954c7`).
+  2. **Branding Enriquecido & Live Preview**:
+     - Carga de logotipos con compresión en cliente y fallback a SVG monograma.
+     - Enlaces sociales (Web, Telegram, X/Twitter) y bio de 280 caracteres.
+     - Live Token Preview Card reactiva durante la creación del token.
+  3. **Motor Dual-Discovery & IndexedDB**:
+     - Persistencia local inmediata (`astrogate.tokens.v2`) + descubrimiento histórico de Soroswap Factory.
+  4. **AstroGate AI & Developer SDK**:
+     - SDK en `src/sdk/index.ts`, `llms.txt` y schemas para agentes LLM en `AI_AGENT_INTEGRATION.md`.
+- **Git State**:
+  - Rama activa: `main` (rastreando `origin/main`).
+  - Árbol limpio y listo para iniciar la sesión 21.
+
+## Próximos pasos recomendados para la Sesión 21
+1. **Despliegue del Contrato Launchpad en Testnet**:
+   - Desplegar el WASM `astro_launchpad_contract.wasm` e inicializarlo con la Soroswap Factory (`CDP3HMUH...`), XLM SAC (`CDLZFC3S...`) y WASM hash del token (`438d12a7...`).
+2. **Bindings TS para el Launchpad**:
+   - Generar bindings cliente con `stellar contract bindings typescript` para el contrato launchpad.
+   - Conectar `CreateTokenForm.tsx` para permitir selección entre lanzamiento atómico (1 transacción) o flujo guiado tradicional.
+3. **Indexador Persistente / Velas Históricas**:
+   - Configurar pipeline ligero (SubQuery / Mercury o Cron Worker) para almacenar snapshots de velas OHLCV de los pares en Soroswap.
 
 ## Handoff rápido (Nov 6 2026, sesiones 17–18 — AstroGate Rebrand, Live Pricing, $1.11 Fair Launch, Auditorías y DevOps)
 
