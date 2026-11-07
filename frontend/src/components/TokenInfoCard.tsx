@@ -2,7 +2,9 @@ import { useTokenInfo } from '../hooks/useTokenInfo'
 import { useTokenBalance } from '../hooks/useTokenBalance'
 import { useWallet } from '../store/wallet'
 import { ASTRO_TOKEN_ID } from '../lib/network'
+import { explorerContractUrl } from '../lib/explorer'
 import { formatAmount } from '../lib/format'
+import type { LaunchpadToken } from '../lib/token'
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
@@ -13,29 +15,49 @@ function Stat({ label, value }: { label: string; value: string }) {
   )
 }
 
-export function TokenInfoCard() {
+export function TokenInfoCard({
+  tokenId = ASTRO_TOKEN_ID,
+  token: tokenProp,
+  example = true,
+}: {
+  tokenId?: string
+  token?: LaunchpadToken
+  example?: boolean
+}) {
+  const activeTokenId = tokenProp?.id ?? tokenId
   const { publicKey } = useWallet()
-  const info = useTokenInfo()
-  const balance = useTokenBalance(publicKey)
+  const info = useTokenInfo(activeTokenId)
+  const balance = useTokenBalance(publicKey, activeTokenId)
 
   if (info.isPending) {
     return (
-      <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-6 text-slate-400">
-        Leyendo el token on-chain…
+      <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-4 text-slate-400 sm:p-6">
+        <p className="text-sm">Reading token on-chain…</p>
+        <div
+          aria-hidden="true"
+          className="mt-4 grid gap-3 sm:grid-cols-3"
+        >
+          {Array.from({ length: 3 }).map((_, idx) => (
+            <div
+              key={idx}
+              className="h-16 animate-pulse rounded-lg border border-slate-800 bg-slate-900/60"
+            />
+          ))}
+        </div>
       </div>
     )
   }
 
   if (info.isError) {
     return (
-      <div className="rounded-xl border border-rose-900 bg-rose-950/40 p-6 text-rose-300">
-        No se pudo leer el token: {info.error.message}
+      <div className="rounded-xl border border-rose-900 bg-rose-950/40 p-4 text-rose-300 sm:p-6">
+        Unable to read token: {info.error.message}
         <button
           type="button"
           onClick={() => void info.refetch()}
           className="ml-3 rounded border border-rose-800 px-2 py-1 text-xs"
         >
-          Reintentar
+          Retry
         </button>
       </div>
     )
@@ -44,40 +66,44 @@ export function TokenInfoCard() {
   const token = info.data
 
   return (
-    <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-6">
+    <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-4 sm:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-lg font-semibold">
           {token.name}{' '}
-          <span className="text-slate-500">({token.symbol})</span>
+          <span className="text-slate-500">
+            ({token.symbol}){example ? ' · Genesis Meme Token' : ''}
+          </span>
         </h2>
         <a
-          href={`https://stellar.expert/explorer/testnet/contract/${ASTRO_TOKEN_ID}`}
+          href={explorerContractUrl(activeTokenId)}
           target="_blank"
           rel="noreferrer"
-          className="text-xs text-emerald-400 hover:underline"
+          className="font-mono text-xs text-emerald-400 hover:underline"
         >
-          {ASTRO_TOKEN_ID.slice(0, 8)}…{ASTRO_TOKEN_ID.slice(-4)} ↗
+          {activeTokenId.slice(0, 8)}…{activeTokenId.slice(-4)} ↗
         </a>
       </div>
 
       <div className="mt-4 grid gap-3 sm:grid-cols-3">
-        <Stat label="Supply total" value={formatAmount(token.totalSupply, token.decimals)} />
-        <Stat label="Decimales" value={String(token.decimals)} />
         <Stat
-          label="Tu balance"
+          label="Total Supply"
+          value={formatAmount(token.totalSupply, token.decimals)}
+        />
+        <Stat label="Decimals" value={String(token.decimals)} />
+        <Stat
+          label="Your Balance"
           value={
             publicKey
               ? balance.isPending
                 ? '…'
                 : formatAmount(balance.data ?? 0n, token.decimals)
-              : 'conecta la wallet'
+              : 'Connect wallet'
           }
         />
       </div>
 
       <p className="mt-4 text-xs text-slate-500">
-        Datos leídos del contrato en testnet vía Soroban RPC. Sin backend: la red
-        es la fuente de verdad.
+        Live data queried from the contract on Stellar testnet via Soroban RPC. Zero backend: the blockchain is the single source of truth.
       </p>
     </section>
   )

@@ -27,3 +27,4 @@ pnpm-workspace.yaml
 *.njsproj
 *.sln
 *.sw?
+.vercel

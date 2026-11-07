@@ -50,25 +50,75 @@ Empezar simple y crecer.
 - Horizon público: https://horizon-testnet.stellar.org
 
 ## Roadmap incremental
-1. Entorno listo: Stellar CLI, Scaffold.
-2. Scaffold proyecto base (contracts + frontend) y verificar build/dev.
-3. Contrato token (OpenZeppelin fungible) + tests.
-4. Deploy token en testnet + generar bindings.
-5. Frontend: conectar wallet (login), mint/transfer token, ver balances desde la red.
-6. Integrar Soroswap: crear par token/XLM y swap (todo on-chain).
-7. UI/UX: listado de tokens, trading, charts, toasts, responsive, deploy Vercel.
-8. Indexación ligera (eventos RPC o servicio existente) solo si se necesita.
+1. Entorno listo: Stellar CLI, Scaffold. — **hecho**
+2. Scaffold proyecto base (contracts + frontend) y verificar build/dev. — **hecho**
+3. Contrato token (OpenZeppelin fungible) + tests. — **hecho** (6/6)
+4. Deploy token en testnet + generar bindings. — **hecho**
+   (token `CAI637WCEILQF3ZYOV6BRUCX532XQIVOOJ4CRWFPWHQRJHOH5OKHSXRE`,
+   wasm hash `438d12a7…1286` ya subido: el launchpad crea instancias nuevas)
+5. Frontend: conectar wallet (login), ver balances desde la red. — **hecho**
+6. Integrar Soroswap: crear par token/XLM y swap (todo on-chain). — **hecho**
+   (par `CA32TMZ2AODXI7K7B6T2YPZR52HJKFCY5GT2DNHMOL326DLSNPX55BUP`;
+   UI de liquidez + swap)
+7. UI/UX: listado de tokens (**hecho**: eventos `new_pair` de la factory),
+   búsqueda/orden, rutas y detalle de token, portfolio, transferir/quemar/
+   mintear, actividad local y on-chain reciente, toasts y responsive. —
+   **hecho** (deploy online en Cloudflare Workers; `vercel.json` se conserva
+   como alternativa). Charts locales: **hecho** en Fase 2a; histórico global:
+   Fase 2b.
+8. Indexación ligera para histórico global (eventos RPC o servicio existente)
+   solo si se aprueba la infraestructura (Fase 2b).
 9. Escalar: monorepo, CI/CD, mainnet.
+
+## Dirección del roadmap tras la sesión 5
+- El flujo end-to-end ya funciona on-chain en testnet: crear token → crear par
+  → añadir liquidez → cotizar → swap, más un listado de mercado descubierto de
+  los eventos `new_pair` de la factory. Lo que falta es producto (gráficos,
+  feedback, responsive) y publicación (Vercel).
+- Decidido: el listado sale de `getEvents` del RPC, sin backend. Limitación
+  asumida: ventana de retención de eventos (~14 h) y 9 tokens por carga. Un
+  indexer solo hará falta si se quiere histórico completo.
+- CI añadida (GitHub Actions): `npm run check` (build + lint + tests +
+  smoke + `verify:pwa`), `cargo fmt --check`, `cargo clippy -D warnings` y
+  `cargo test -p astro-token`.
+
+
+## Estado Nov 2026 (Fase 0/1/2a + actividad)
+
+- **Fase 0**: CI + Dependabot, Vitest, toasts accesibles, `TxProgress`,
+  `ErrorBoundary`, a11y (skip link, foco, reduced-motion), CSP/security headers
+  en Cloudflare y Vercel.
+- **Fase 1**: rutas `/`, `/market`, `/token/:id`, `/portfolio`, `/create`;
+  búsqueda/orden del mercado; detalle con swap, liquidez, transferir, quemar y
+  mintear (solo owner); portfolio v1 con creaciones locales y holdings.
+- **Fase 2a**: snapshots de reservas en `localStorage` + gráfico SVG de
+  precio/liquidez en el detalle de token. Polling del pool cada 60 s; cambios
+  al instante y pulso cada ~5 min. La UI avisa de que es historial local, no
+  global.
+- **Actividad local**: historial Zustand + `localStorage` de crear, liquidez,
+  swap, transferir, mintear y quemar, con hash/estado/monto; feed en
+  `/portfolio`. Es local, no un feed global.
+- **Actividad on-chain reciente**: transfer/mint/burn del contrato leídos con
+  `getEvents` en una ventana de ~14 h, con enlace a la tx. Es global pero
+  acotada; no sustituye al indexer y no muestra swaps como tales.
+- **PWA shell offline**: manifest + service worker conservador; precache de
+  index/assets, navegación network-first, caché versionada por build y banner
+  de sin conexión. No cachea RPC ni permite operar offline. Verificado con
+  `verify:pwa`; falta prueba E2E en navegador.
+- **Compra/venta**: swap bidireccional contra XLM, mínimo de salida con
+  slippage, impacto de precio y validación de balance XLM. Verificado con una
+  compra real en `verify:demo`; la UI mantiene el modo demo como usuario B.
+- **Siguiente (Fase 2b)**: indexer ligero para histórico global. El par de
+  Soroswap no emite `swap`; el indexer es necesario para reconstruir precios
+  anteriores. Requiere recursos/credenciales Cloudflare y aprobación.
 
 ## Entorno local (Termux) — solo para desarrollo
 - Proyecto: ~/projects/astro-launchpad (symlink ~/workspace/astro-launchpad)
-- Stellar CLI: instalando vía cargo (~/.cargo/bin).
-- PATH configurado en ~/.zshrc.
+- Stellar CLI 28.1.0 oficial (glibc) en `~/.local/opt/stellar`, wrapper en
+  `~/.local/bin/stellar`; `rustup` con target `wasm32v1-none`.
 - Servicios locales (Postgres/Redis) opcionales, no requeridos para el MVP descentralizado.
 
 ## Notas
 - El monorepo anterior se preservó en la rama `legacy/abandoned-monorepo`.
 - Login = wallet. No hay backend de usuarios.
 - Datos = red. No hay DB obligatoria.
-EOF
-echo "PLAN updated"

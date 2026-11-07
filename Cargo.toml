@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["contracts/token"]
+members = ["contracts/token", "contracts/launchpad"]
 
 [workspace.package]
 edition = "2021"

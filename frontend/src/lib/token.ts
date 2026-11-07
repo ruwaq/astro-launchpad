@@ -13,6 +13,8 @@ export interface LaunchpadToken {
   id: string
   /** Decimales del token. */
   decimals: number
+  /** Símbolo si se conoce (para el arte generativo de la UI). */
+  symbol?: string
 }
 
 /**
@@ -37,6 +39,16 @@ export function astroTokenClient(signer?: Signer): AstroTokenClient {
   return tokenClient(ASTRO_TOKEN_ID, signer)
 }
 
+/** Balance SEP-41 de una cuenta, sin acoplar la UI al cliente generado. */
+export async function fetchTokenBalance(
+  contractId: string,
+  account: string,
+): Promise<bigint> {
+  const client = tokenClient(contractId)
+  const tx = await client.balance({ account })
+  return tx.result
+}
+
 /**
  * Despliega una instancia nueva del contrato del launchpad.
  *
@@ -50,8 +62,10 @@ export async function deployToken(params: {
   decimals: number
   initialSupply: bigint
   signer: Signer
+  /** Se invoca con el hash en cuanto la tx se envía a la red. */
+  onHash?: (hash: string) => void
 }): Promise<string> {
-  const { name, symbol, decimals, initialSupply, signer } = params
+  const { name, symbol, decimals, initialSupply, signer, onHash } = params
 
   const tx = await AstroTokenClient.deploy(
     {
@@ -71,6 +85,8 @@ export async function deployToken(params: {
       signAuthEntry: signer,
     },
   )
-  const { result } = await tx.signAndSend()
-  return result.options.contractId
+  const sent = await tx.signAndSend()
+  const hash = sent.sendTransactionResponse?.hash
+  if (hash) onHash?.(hash)
+  return sent.result.options.contractId
 }

@@ -2,7 +2,7 @@
  * Prueba de integración del camino real del frontend contra testnet.
  *
  * Carga `src/lib/soroswap.ts` con Vite (el mismo módulo que usa la UI) y
- * ejecuta: estado del par -> cotización -> swap -> añadir liquidez.
+ * ejecuta: estado del par -> cotización -> swap -> añadir liquidez -> retirar.
  * Cada paso se comprueba contra el estado on-chain.
  *
  * Uso: STELLAR_SECRET=S... npm run verify:frontend
@@ -36,6 +36,7 @@ let failed = false
 try {
   const soroswap = await vite.ssrLoadModule('/src/lib/soroswap.ts')
   const tokenLib = await vite.ssrLoadModule('/src/lib/token.ts')
+  const discovery = await vite.ssrLoadModule('/src/lib/discovery.ts')
 
   // 1. Estado del par (lectura).
   const pool = await soroswap.fetchPoolState(ASTRO)
@@ -112,6 +113,61 @@ try {
     poolAfterLp.reserveXlm.toString(),
   )
 
+  // 4b. Retirar parte de la liquidez (el mismo camino que usa la UI).
+  const position = await soroswap.fetchLpPosition(ASTRO, keypair.publicKey())
+  if (!position || position.lpBalance <= 0n) {
+    throw new Error('no hay posicion LP tras anadir liquidez')
+  }
+  console.log(
+    'posicion LP:',
+    position.lpBalance.toString(),
+    'de',
+    position.totalSupply.toString(),
+    `(${soroswap.lpSharePercent(position.lpBalance, position.totalSupply).toFixed(4)} %)`,
+  )
+
+  const withdrawLp = position.lpBalance / 10n
+  const preview = soroswap.withdrawPreview(position, withdrawLp)
+  if (preview.tokenAmount <= 0n || preview.xlmAmount <= 0n) {
+    throw new Error('la previsualizacion del retiro es 0')
+  }
+  const withdrawn = await soroswap.withdrawLiquidity({
+    tokenId: ASTRO,
+    lpAmount: withdrawLp,
+    signer,
+  })
+  console.log(
+    'retiro:',
+    withdrawn.tokenAmount.toString(),
+    'token /',
+    withdrawn.xlmAmount.toString(),
+    'XLM',
+  )
+  if (withdrawn.tokenAmount <= 0n || withdrawn.xlmAmount <= 0n) {
+    throw new Error('el retiro devolvio 0')
+  }
+
+  const positionAfterWithdraw = await soroswap.fetchLpPosition(
+    ASTRO,
+    keypair.publicKey(),
+  )
+  if (
+    !positionAfterWithdraw ||
+    positionAfterWithdraw.lpBalance !== position.lpBalance - withdrawLp
+  ) {
+    throw new Error('el balance LP no bajo exactamente lo retirado')
+  }
+  const poolAfterWithdraw = await soroswap.fetchPoolState(ASTRO)
+  if (poolAfterWithdraw.reserveToken >= poolAfterLp.reserveToken) {
+    throw new Error('las reservas no bajaron tras retirar liquidez')
+  }
+  console.log(
+    'reservas tras el retiro:',
+    poolAfterWithdraw.reserveToken.toString(),
+    '/',
+    poolAfterWithdraw.reserveXlm.toString(),
+  )
+
   // 5. Camino completo de un token nuevo: desplegar -> par -> liquidez -> swap.
   const token = await tokenLib.deployToken({
     name: `Flow ${Date.now()}`,
@@ -158,8 +214,32 @@ try {
   })
   console.log('swap del par nuevo -> out:', newSwap[1]?.toString())
 
-  console.log('\nOK: pool + cotizacion + swap + liquidez (mismo codigo que la UI)')
+  // 6. El token nuevo tiene que aparecer en el mercado (eventos de la factory).
+  // Los eventos se indexan en el ledger siguiente: reintentos acotados.
+  let listing = null
+  for (let attempt = 1; attempt <= 5 && !listing; attempt++) {
+    const tokens = await discovery.discoverTokens({ maxTokens: 12 })
+    listing = tokens.find((item) => item.id === token) ?? null
+    console.log(`mercado intento ${attempt}: ${listing ? 'encontrado' : 'aun no'}`)
+    if (!listing && attempt < 5) {
+      await new Promise((resolve) => setTimeout(resolve, 1500))
+    }
+  }
+  if (!listing) throw new Error('el token nuevo no aparece en el mercado')
+  console.log(
+    'mercado:',
+    listing.symbol,
+    '|',
+    listing.name,
+    '| reservas',
+    listing.pool.reserveToken.toString(),
+    '/',
+    listing.pool.reserveXlm.toString(),
+  )
+
+  console.log('\nOK: pool + cotizacion + swap + liquidez + retiro (mismo codigo que la UI)')
   console.log('OK: token nuevo -> par -> liquidez -> swap')
+  console.log('OK: el token nuevo aparece en el mercado (descubierto de eventos)')
 } catch (err) {
   failed = true
   console.error('\nFALLO:', err?.message ?? err)

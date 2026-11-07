@@ -1,4 +1,4 @@
-/** Formatea un amount on-chain (base units) a decimal legible. */
+/** Formats an on-chain amount (base units) to readable decimal. */
 export function formatAmount(amount: bigint, decimals: number): string {
   if (decimals <= 0) return amount.toString()
   const base = 10n ** BigInt(decimals)
@@ -10,24 +10,94 @@ export function formatAmount(amount: bigint, decimals: number): string {
   return fraction ? `${whole}.${fraction}` : `${whole}`
 }
 
-/** Convierte un valor decimal legible a base units (i128). */
+/** Converts a readable decimal string to base units (i128). Tolerates dots and commas. */
 export function parseAmount(value: string, decimals: number): bigint {
-  const trimmed = value.trim()
-  if (!trimmed) return 0n
+  const trimmed = value.trim().replace(',', '.')
+  if (!trimmed || !/^\d*(\.\d*)?$/.test(trimmed)) return 0n
+
+  const safeDecimals = Math.max(0, Math.trunc(decimals))
   const [whole = '0', fraction = ''] = trimmed.split('.')
-  const padded = fraction.padEnd(decimals, '0').slice(0, decimals)
-  const base = 10n ** BigInt(decimals)
-  return BigInt(whole || '0') * base + BigInt(padded || '0')
+  const padded = fraction.padEnd(safeDecimals, '0').slice(0, safeDecimals)
+  try {
+    const base = 10n ** BigInt(safeDecimals)
+    return BigInt(whole || '0') * base + BigInt(padded || '0')
+  } catch {
+    return 0n
+  }
 }
 
-/** Recorta una dirección para mostrarla: GABC…WXYZ */
+/** Shortens a public key or hash for display: GABC…WXYZ */
 export function shortAddress(address: string): string {
   return `${address.slice(0, 6)}…${address.slice(-4)}`
 }
 
-/** Mensaje legible de un error cualquiera (wallet, red, contrato). */
+/** Extracts a human-readable message from errors (wallet, RPC, contract). */
 export function errorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message
-  if (typeof error === 'string') return error
-  return 'Error desconocido'
+  const raw =
+    error instanceof Error
+      ? error.message
+      : typeof error === 'string'
+        ? error
+        : null
+  if (!raw) return 'Unknown error'
+
+  const lower = raw.toLowerCase()
+  if (
+    lower.includes('user declined') ||
+    lower.includes('user rejected') ||
+    lower.includes('rejected by user') ||
+    lower.includes('cancelled by user')
+  ) {
+    return 'Transaction cancelled in wallet.'
+  }
+  if (
+    raw.includes('Error(Contract, #100)') ||
+    lower.includes('insufficientbalance') ||
+    lower.includes('insufficient balance')
+  ) {
+    return 'Insufficient balance to complete transaction.'
+  }
+  if (
+    raw.includes('Error(Auth, InvalidAction)') ||
+    lower.includes('unauthorized')
+  ) {
+    return 'Authorization denied by contract (check active account or permissions).'
+  }
+  if (
+    lower.includes('insufficient output amount') ||
+    lower.includes('insufficientoutputamount')
+  ) {
+    return 'Price moved beyond your allowed slippage. Increase slippage tolerance or reduce amount.'
+  }
+  if (
+    lower.includes('insufficient liquidity') ||
+    lower.includes('insufficientliquidity')
+  ) {
+    return 'Insufficient liquidity in the pool for this transaction.'
+  }
+  if (
+    lower.includes('insufficient a amount') ||
+    lower.includes('insufficient b amount') ||
+    lower.includes('insufficientaamount') ||
+    lower.includes('insufficientbamount') ||
+    raw.includes('Error(Contract, #302)') ||
+    raw.includes('Error(Contract, #303)')
+  ) {
+    return 'Token and XLM ratio does not match pool reserves. Enable "Maintain pool ratio" and try again.'
+  }
+  if (lower.includes('expired') || lower.includes('deadline')) {
+    return 'Transaction timed out (deadline expired). Please try again.'
+  }
+  if (lower.includes('txbadseq') || lower.includes('tx_bad_seq')) {
+    return 'Account sequence currently in use by another pending transaction. Wait 5 seconds and retry.'
+  }
+  if (
+    lower.includes('failed to fetch') ||
+    lower.includes('networkerror') ||
+    lower.includes('429') ||
+    lower.includes('too many requests')
+  ) {
+    return 'Testnet RPC node is overloaded or unreachable. Please try again in a few seconds.'
+  }
+  return raw
 }
