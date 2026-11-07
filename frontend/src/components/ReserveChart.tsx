@@ -136,7 +136,7 @@ export function ReserveChart({
       : null
 
   return (
-    <section className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4 shadow-sm sm:p-6">
+    <section className="rounded-2xl border border-slate-800 bg-slate-900/40 p-3 sm:p-6 shadow-sm w-full max-w-full min-w-0 overflow-hidden">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
@@ -265,7 +265,7 @@ export function ReserveChart({
             <span>Floor: {formatMetric(series.min)}</span>
           </div>
 
-          <div className="relative mt-1 overflow-hidden rounded-xl border border-slate-800/80 bg-slate-950/80 p-2">
+          <div className="relative mt-1 overflow-hidden rounded-xl border border-slate-800/80 bg-slate-950/80 p-2 w-full max-w-full min-w-0">
             <svg
               viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
               preserveAspectRatio="none"
@@ -275,7 +275,7 @@ export function ReserveChart({
               )}, max ${formatMetric(series.max)}, latest ${formatMetric(
                 latest,
               )}`}
-              className="h-44 w-full"
+              className="h-44 w-full max-w-full block overflow-hidden"
             >
               <defs>
                 <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">

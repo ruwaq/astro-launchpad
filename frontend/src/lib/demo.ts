@@ -116,31 +116,57 @@ export function saveDemoMode(active: boolean): void {
 }
 
 /**
- * Crea y fondea una única cuenta de prueba con 10 000 XLM vía Friendbot.
+ * Crea y fondea una única cuenta de prueba con 10 000 XLM vía Friendbot con timeout y reintentos.
  */
 export async function createSingleDemoAccount(
   label: string,
+  maxRetries = 2,
 ): Promise<DemoAccount> {
   const keypair = Keypair.random()
-  const response = await fetch(
-    `${FRIEND_BOT_URL}/?addr=${encodeURIComponent(keypair.publicKey())}`,
-  )
-  if (!response.ok) {
-    throw new Error(
-      `Friendbot could not fund account ${label} (HTTP ${response.status})`,
+  let lastError: Error | null = null
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), 12_000)
+      const response = await fetch(
+        `${FRIEND_BOT_URL}/?addr=${encodeURIComponent(keypair.publicKey())}`,
+        { signal: controller.signal },
+      )
+      clearTimeout(timer)
+      if (response.ok) {
+        return {
+          label,
+          publicKey: keypair.publicKey(),
+          secret: keypair.secret(),
+        }
+      }
+      if (response.status === 429 && attempt < maxRetries) {
+        await new Promise((resolve) => setTimeout(resolve, 1500))
+        continue
+      }
+      lastError = new Error(
+        `Friendbot could not fund account ${label} (HTTP ${response.status})`,
+      )
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err))
+      if (attempt < maxRetries) {
+        await new Promise((resolve) => setTimeout(resolve, 1500))
+      }
+    }
+  }
+
+  throw (
+    lastError ??
+    new Error(
+      `Friendbot faucet timed out for account ${label}. Stellar testnet may be busy.`,
     )
-  }
-  return {
-    label,
-    publicKey: keypair.publicKey(),
-    secret: keypair.secret(),
-  }
+  )
 }
 
 /**
- * Crea `count` cuentas nuevas (por defecto `DEMO_ACCOUNT_COUNT = 3`) y las
- * fondea con Friendbot (10 000 XLM de testnet cada una). Secuencial a propósito:
- * el faucet público limita peticiones concurrentes.
+ * Crea cuentas demo nuevas (por defecto 3) y las fondea con Friendbot.
+ * Si alguna cuenta posterior falla por rate limit, preserva las cuentas ya fondeadas.
  */
 export async function createDemoAccounts(
   onProgress?: DemoProgress,
@@ -152,9 +178,17 @@ export async function createDemoAccounts(
   for (let index = 0; index < total; index++) {
     const label = demoLabelForIndex(index)
     onProgress?.({ index, status: 'funding' })
-    const account = await createSingleDemoAccount(label)
-    accounts.push(account)
-    onProgress?.({ index, status: 'funded' })
+    try {
+      const account = await createSingleDemoAccount(label)
+      accounts.push(account)
+      onProgress?.({ index, status: 'funded' })
+    } catch (error) {
+      // Si al menos una cuenta fue fondeada, no abortamos todo el proceso
+      if (accounts.length > 0) {
+        break
+      }
+      throw error
+    }
   }
 
   return accounts

@@ -26,7 +26,7 @@ export default function App() {
   const { publicKey } = useWallet()
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
+    <div className="min-h-screen bg-slate-950 text-slate-100 w-full max-w-full overflow-x-hidden">
       <a
         href="#main"
         className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[110] focus:rounded-lg focus:bg-emerald-500 focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-slate-950"
@@ -74,7 +74,7 @@ export default function App() {
       <main
         id="main"
         tabIndex={-1}
-        className="mx-auto flex max-w-5xl flex-col gap-4 px-4 py-6 sm:gap-6 sm:py-10"
+        className="mx-auto flex w-full max-w-5xl min-w-0 flex-col gap-4 px-3.5 sm:px-4 py-4 sm:py-8"
       >
         <ScrollToTop />
         <Routes>
@@ -87,7 +87,7 @@ export default function App() {
         </Routes>
       </main>
 
-      <footer className="mx-auto max-w-5xl border-t border-slate-900 px-4 pb-8 pt-4 text-xs text-slate-500">
+      <footer className="mx-auto w-full max-w-5xl border-t border-slate-900 px-3.5 sm:px-4 pb-8 pt-4 text-xs text-slate-500">
         <p>
           {BRAND.name}: {BRAND.provenance}.
         </p>

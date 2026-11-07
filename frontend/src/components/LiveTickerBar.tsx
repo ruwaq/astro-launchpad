@@ -119,9 +119,9 @@ export function LiveTickerBar() {
   return (
     <div
       aria-label="Live launchpad activity"
-      className="border-b border-slate-900 bg-slate-950/95 px-3 py-1.5 text-xs"
+      className="w-full max-w-full overflow-hidden border-b border-slate-900 bg-slate-950/95 px-3 py-1.5 text-xs"
     >
-      <div className="mx-auto flex max-w-5xl items-center gap-2 overflow-x-auto no-scrollbar">
+      <div className="mx-auto flex w-full max-w-5xl items-center gap-2 overflow-x-auto no-scrollbar scroll-smooth">
         <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-emerald-500/40 bg-emerald-950/60 px-2.5 py-0.5 font-semibold text-emerald-300">
           <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
           LIVE

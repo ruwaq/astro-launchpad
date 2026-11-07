@@ -25,7 +25,7 @@ function GraduatingItem({
   const remainingXlm = Math.max(0, grad.targetXlm - grad.currentXlm)
 
   return (
-    <div className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-slate-800 bg-gradient-to-b from-slate-900/80 to-slate-950 p-4 transition-all hover:border-amber-500/50 hover:shadow-lg hover:shadow-amber-500/5">
+    <div className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-slate-800 bg-gradient-to-b from-slate-900/80 to-slate-950 p-4 transition-all hover:border-amber-500/50 hover:shadow-lg hover:shadow-amber-500/5 min-w-0 max-w-full">
       <div>
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3">
@@ -162,7 +162,7 @@ export function GraduationRadar({
   if (graduatingTokens.length === 0) return null
 
   return (
-    <section className="space-y-3">
+    <section className="space-y-3 w-full max-w-full overflow-hidden">
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
           <div className="flex items-center gap-2">
@@ -189,7 +189,7 @@ export function GraduationRadar({
         </Link>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 min-w-0 max-w-full">
         {graduatingTokens.map((token) => (
           <GraduatingItem
             key={token.id}

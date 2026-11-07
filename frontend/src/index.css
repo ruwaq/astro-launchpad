@@ -1,8 +1,28 @@
 @import 'tailwindcss';
 
-/* Móvil primero (2026): taps limpios, sin auto-zoom de iOS, safe areas. */
-html {
+/* Móvil primero (2026): taps limpios, sin auto-zoom de iOS, safe areas, sin overflow horizontal. */
+html,
+body {
+  overflow-x: hidden;
+  max-width: 100vw;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
   -webkit-text-size-adjust: 100%;
+}
+
+#root {
+  overflow-x: hidden;
+  max-width: 100%;
+  width: 100%;
+  min-height: 100vh;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
 }
 
 body {

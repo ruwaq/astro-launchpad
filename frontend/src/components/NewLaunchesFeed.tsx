@@ -17,8 +17,8 @@ function LaunchItem({
   const priceStroops = tokenPriceInXlm(token.pool, token.decimals)
 
   return (
-    <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-800/80 bg-slate-900/50 p-3 transition hover:border-slate-700 hover:bg-slate-900/80">
-      <div className="flex items-center gap-3 min-w-0">
+    <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-800/80 bg-slate-900/50 p-3 transition hover:border-slate-700 hover:bg-slate-900/80 min-w-0 max-w-full overflow-hidden">
+      <div className="flex items-center gap-2.5 min-w-0">
         <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-xl border border-slate-800 bg-slate-800">
           <TokenArt
             id={token.id}
@@ -29,7 +29,7 @@ function LaunchItem({
           <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-slate-900 bg-emerald-400" />
         </div>
 
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
             <Link
               to={`/token/${token.id}`}
@@ -37,7 +37,7 @@ function LaunchItem({
             >
               ${token.symbol}
             </Link>
-            <span className="rounded bg-slate-800 px-1.5 py-0.2 text-[10px] text-slate-400">
+            <span className="shrink-0 rounded bg-slate-800 px-1.5 py-0.2 text-[10px] text-slate-400">
               New
             </span>
           </div>
@@ -45,7 +45,7 @@ function LaunchItem({
         </div>
       </div>
 
-      <div className="flex items-center gap-3 shrink-0">
+      <div className="flex items-center gap-2 shrink-0">
         <div className="text-right font-mono text-xs">
           <div className="text-slate-200">
             {priceStroops > 0n ? `${formatAmount(priceStroops, 7)} XLM` : 'Fair Launch'}
@@ -97,7 +97,7 @@ export function NewLaunchesFeed({
     .slice(0, 4)
 
   return (
-    <section className="space-y-3">
+    <section className="space-y-3 w-full max-w-full overflow-hidden">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-emerald-400/20 text-xs">
@@ -115,7 +115,7 @@ export function NewLaunchesFeed({
         </Link>
       </div>
 
-      <div className="grid gap-2.5 sm:grid-cols-2">
+      <div className="grid gap-2.5 sm:grid-cols-2 min-w-0 max-w-full">
         {newTokens.map((token) => (
           <LaunchItem key={token.id} token={token} onSelect={onSelect} />
         ))}

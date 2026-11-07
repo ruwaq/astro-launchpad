@@ -17,19 +17,19 @@ import type { PoolState } from './soroswap'
 /** Standard meme token supply in readable units (1B). */
 export const FAIR_LAUNCH_SUPPLY_UNITS = 1_000_000_000
 
-/** Creator allocation in basis points (100 bps = 1%). */
-export const CREATOR_ALLOCATION_BPS = 100n
+/** Creator allocation in basis points (50 bps = 0.5% developer allocation). */
+export const CREATOR_ALLOCATION_BPS = 50n
 
-/** Percentage sent directly to liquidity pool (9,900 bps = 99%). */
-export const POOL_ALLOCATION_BPS = 9_900n
+/** Percentage sent directly to liquidity pool (9,950 bps = 99.5%). */
+export const POOL_ALLOCATION_BPS = 9_950n
 
 /**
- * Internal breakdown of the 99% pool:
- * - ~79% (790M tokens) for initial bonding curve swaps.
+ * Internal breakdown of the 99.5% pool:
+ * - ~79.5% (795M tokens) for initial bonding curve swaps.
  * - ~20% (200M tokens) reserved deep DEX liquidity cushion.
- * - 1% (10M tokens) creator max allocation.
+ * - 0.5% (5M tokens) creator max allocation upon graduation.
  */
-export const BONDING_CURVE_ALLOCATION_BPS = 7_900n
+export const BONDING_CURVE_ALLOCATION_BPS = 7_950n
 export const DEX_RESERVE_ALLOCATION_BPS = 2_000n
 
 /**

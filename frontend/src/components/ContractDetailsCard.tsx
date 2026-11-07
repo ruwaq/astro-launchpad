@@ -79,12 +79,12 @@ export function ContractDetailsCard({
 
       <div className="mt-5 grid gap-4 sm:grid-cols-2">
         {/* Token Contract ID */}
-        <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3.5">
+        <div className="min-w-0 max-w-full overflow-hidden rounded-xl border border-slate-800 bg-slate-950/60 p-3.5">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium uppercase tracking-wider text-slate-500">
               Token Contract ID
             </span>
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 shrink-0">
               <button
                 type="button"
                 onClick={() => copy(tokenId, 'token')}
@@ -108,13 +108,13 @@ export function ContractDetailsCard({
         </div>
 
         {/* Soroswap Pair ID */}
-        <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3.5">
+        <div className="min-w-0 max-w-full overflow-hidden rounded-xl border border-slate-800 bg-slate-950/60 p-3.5">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium uppercase tracking-wider text-slate-500">
               Soroswap AMM Pair
             </span>
             {pairId ? (
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 shrink-0">
                 <button
                   type="button"
                   onClick={() => copy(pairId, 'pair')}
@@ -139,7 +139,7 @@ export function ContractDetailsCard({
         </div>
 
         {/* WASM Hash & Standard */}
-        <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3.5">
+        <div className="min-w-0 max-w-full overflow-hidden rounded-xl border border-slate-800 bg-slate-950/60 p-3.5">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium uppercase tracking-wider text-slate-500">
               Token Bytecode WASM Hash
@@ -147,7 +147,7 @@ export function ContractDetailsCard({
             <button
               type="button"
               onClick={() => copy(ASTRO_WASM_HASH, 'wasm')}
-              className="rounded bg-slate-800 px-2 py-0.5 text-[11px] font-mono text-slate-300 transition hover:bg-slate-700"
+              className="shrink-0 rounded bg-slate-800 px-2 py-0.5 text-[11px] font-mono text-slate-300 transition hover:bg-slate-700"
             >
               {copiedKey === 'wasm' ? 'Copied ✓' : 'Copy'}
             </button>
@@ -158,7 +158,7 @@ export function ContractDetailsCard({
         </div>
 
         {/* Issuer / Deployer */}
-        <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3.5">
+        <div className="min-w-0 max-w-full overflow-hidden rounded-xl border border-slate-800 bg-slate-950/60 p-3.5">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium uppercase tracking-wider text-slate-500">
               Token Creator / Deployer
@@ -168,7 +168,7 @@ export function ContractDetailsCard({
                 href={explorerAccountUrl(owner)}
                 target="_blank"
                 rel="noreferrer"
-                className="rounded bg-slate-800 px-2 py-0.5 text-[11px] font-mono text-slate-300 transition hover:bg-slate-700"
+                className="shrink-0 rounded bg-slate-800 px-2 py-0.5 text-[11px] font-mono text-slate-300 transition hover:bg-slate-700"
               >
                 Account ↗
               </a>

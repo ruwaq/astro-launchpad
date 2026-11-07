@@ -8,13 +8,13 @@ import {
 } from './tokenomics'
 
 describe('splitFairLaunchSupply', () => {
-  it('reparte 1% creador, 79% curva y 20% reserva DEX (99% pool)', () => {
+  it('reparte 0.5% creador, 79.5% curva y 20% reserva DEX (99.5% pool)', () => {
     const oneBillion = 1_000_000_000n * 10_000_000n // 1B con 7 decimales
     const { creatorAmount, poolAmount, curveSaleAmount, dexReserveAmount } =
       splitFairLaunchSupply(oneBillion)
-    expect(creatorAmount).toBe(10_000_000n * 10_000_000n) // 10M (1%)
-    expect(poolAmount).toBe(990_000_000n * 10_000_000n) // 990M (99%)
-    expect(curveSaleAmount).toBe(790_000_000n * 10_000_000n) // 790M (79%)
+    expect(creatorAmount).toBe(5_000_000n * 10_000_000n) // 5M (0.5%)
+    expect(poolAmount).toBe(995_000_000n * 10_000_000n) // 995M (99.5%)
+    expect(curveSaleAmount).toBe(795_000_000n * 10_000_000n) // 795M (79.5%)
     expect(dexReserveAmount).toBe(200_000_000n * 10_000_000n) // 200M (20%)
     expect(creatorAmount + poolAmount).toBe(oneBillion)
     expect(STELLAR_BURN_ADDRESS).toHaveLength(56)
