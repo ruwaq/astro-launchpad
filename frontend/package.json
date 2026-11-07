@@ -10,7 +10,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "check": "npm run build && npm run lint && npm run test && npm run smoke:render && npm run verify:pwa",
-    "deploy": "npm run build && npx -y wrangler@latest deploy",
+    "deploy": "npm run build && npx -y wrangler@3.114.0 deploy",
     "smoke:render": "node scripts/smoke-render.mjs",
     "verify:pwa": "node scripts/verify-pwa.mjs",
     "preview": "vite preview",
