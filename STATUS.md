@@ -21,16 +21,27 @@
      - Soporte para logotipos reales en [`frontend/src/components/TokenArt.tsx`](file:///home/dev/projects/astro-launchpad/frontend/src/components/TokenArt.tsx) con fallback a monograma generativo SVG.
      - Formulario con subida de imagen, pitch/descripción (280 chars), redes sociales (Website, Telegram, Twitter/X) y **tarjeta interactiva en vivo ("Live Token Preview")** en [`CreateTokenForm.tsx`](file:///home/dev/projects/astro-launchpad/frontend/src/components/CreateTokenForm.tsx).
      - Despliegue de insignias sociales y bio en [`TokenPage.tsx`](file:///home/dev/projects/astro-launchpad/frontend/src/pages/TokenPage.tsx) y [`MarketList.tsx`](file:///home/dev/projects/astro-launchpad/frontend/src/components/MarketList.tsx).
-  5. **Diseño de Arquitectura On-Chain para Contrato Atómico Soroban (Fase 3)**:
-     - Subagente especializado analizó las interfaces de Soroswap Factory y Pair en testnet.
-     - Se definió el flujo óptimo: despliegue determinista con constructor OZ SEP-41 + inyección directa al par vía `deposit(to = GAAAA...WHF)` para quemar LP sin sobrecostos de gas ni autorizaciones anidadas.
+  5. **Contrato Factory Atómico Soroban (`contracts/launchpad`) Implementado y Compilado**:
+     - Contrato en Rust (`soroban-sdk = "28.0.0"`) con estructura de parámetros modular `LaunchParams`.
+     - Flujo de 1 sola transacción atómica on-chain:
+       - Retira XLM de liquidez del creador (`require_auth`).
+       - Despliega determinísticamente el contrato del token (constructor OZ SEP-41).
+       - Envía la cuota del creador (1%).
+       - Renuncia a la propiedad on-chain (`renounce_ownership`) bloqueando minteos futuros.
+       - Crea el par en Soroswap Factory.
+       - Inyecta el 99% restante y el XLM en el par de Soroswap.
+       - Emite el 100% de los tokens LP directamente a la dirección de quema (`GAAAA...WHF`), blindando la liquidez contra cualquier intento de rug-pull.
+       - Emite el evento `TokenLaunchedEvent`.
+     - Binario WASM optimizado compilado con `stellar contract build`:
+       - Archivo: `target/wasm32v1-none/release/astro_launchpad_contract.wasm` (5,755 bytes optimizados).
+       - Wasm hash: `5717353f517ddb4d08c2b9ef592dbf5aec514fda1550532930fd40dd0c3954c7`.
+     - Suite de pruebas unitarias y e2e on-chain en Rust pasando al 100% (3/3 tests en `astro-launchpad-contract`, 9/9 en el workspace total).
 - **Git**:
   - Rama: `ai/market-discovery`.
   - Commits en la sesión:
     - `a97fac5`: `feat(core): dual-discovery indexedDB cache, resilient launch checkpoints, and AstroGate AI SDK`
     - `013dd58`: `feat(branding): enriched token metadata, logo support, social links, and live preview`
-- **Próximo Paso Recomendado**:
-  - Implementación del contrato atómico `contracts/launchpad` en Rust siguiendo el diseño validado.
+    - `aa213eb`: `feat(contracts): atomic launchpad contract with single-tx fair launch and mandatory LP burn`
 
 ## Handoff rápido (Nov 6 2026, sesiones 17–18 — AstroGate Rebrand, Live Pricing, $1.11 Fair Launch, Auditorías y DevOps)
 
