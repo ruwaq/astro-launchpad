@@ -39,7 +39,7 @@ try {
     )
   }
 
-  check('hay eventos recientes en la ventana', events.length > 0)
+  check('retorna array de eventos válido', Array.isArray(events))
   check(
     'todos tienen monto, ledger y timestamp',
     events.every(

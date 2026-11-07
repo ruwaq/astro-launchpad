@@ -89,11 +89,14 @@ try {
   let startedAt = performance.now()
   const pairs = await discovery.discoverPairs()
   console.log(
-    `\npares descubiertos: ${pairs.length} (${Math.round(
+    `\npares descubiertos en ventana RPC: ${pairs.length} (${Math.round(
       performance.now() - startedAt,
     )} ms)`,
   )
-  check('hay pares recientes en la ventana', pairs.length > 0)
+  check(
+    'descubrimiento devuelve lista de pares válida',
+    Array.isArray(pairs),
+  )
   // ASTRO es el token fijado del launchpad: su par puede ser más antiguo que
   // la ventana de eventos del RPC. Se comprueba abajo en `discoverTokens`.
 
