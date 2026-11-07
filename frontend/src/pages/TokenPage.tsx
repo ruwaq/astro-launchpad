@@ -415,6 +415,7 @@ export function TokenPage() {
             tokenId={id}
             symbol={token.symbol ?? 'TOKEN'}
             pairId={pool.data?.pairId}
+            decimals={token.decimals}
           />
         </div>
 

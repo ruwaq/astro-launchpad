@@ -1,15 +1,24 @@
 import { useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useWallet } from '../store/wallet'
-import { shortAddress } from '../lib/format'
-import { explorerContractUrl } from '../lib/explorer'
+import { useTokenBalance } from '../hooks/useTokenBalance'
+import { tokenClient } from '../lib/token'
+import { recordActivity } from '../store/activity'
+import { invalidateTokenData } from '../lib/query'
+import { toast } from '../lib/toast'
+import { shortAddress, formatAmount, parseAmount, errorMessage } from '../lib/format'
+import { explorerContractUrl, explorerTxUrl } from '../lib/explorer'
 
 type ReactionKey = 'rocket' | 'fire' | 'diamond' | 'whale'
 
-type HypeComment = {
+export type HypeComment = {
   id: string
   author: string
   text: string
   at: number
+  isBurn?: boolean
+  burnedAmount?: string
+  txHash?: string
 }
 
 type TokenHypeState = {
@@ -29,11 +38,13 @@ const REACTION_META: Array<{
 ]
 
 const QUICK_SHOUTS = [
-  '🚀 Heading to 1,000 XLM and Soroswap DEX graduation!',
-  '🔥 100% LP burned to GAAAA...WHF & renounced owner — safu',
-  '💎 Stacking more on the bonding curve before graduation',
-  '👑 This token is aiming straight for King of the Hill!',
+  '🚀 Heading straight to graduation on Soroswap!',
+  '🔥 100% LP burned to dead address & renounced owner — safu!',
+  '💎 Diamond hands holding strong!',
+  '👑 This memecoin is taking King of the Hill!',
 ] as const
+
+const BURN_PRESETS = ['10', '100', '1000', '5000']
 
 function storageKey(tokenId: string) {
   return `astrogate:hype:v1:${tokenId}`
@@ -57,6 +68,8 @@ function seedFromId(tokenId: string): TokenHypeState {
         author: 'GFAIR...LAUNCH',
         text: '🌊 SEP-41 pair verified on-chain on Soroswap Testnet.',
         at: Date.now() - 180_000,
+        isBurn: true,
+        burnedAmount: '100',
       },
     ],
   }
@@ -76,7 +89,7 @@ function loadHype(tokenId: string): TokenHypeState {
         ...(parsed.reactions ?? {}),
       },
       comments: Array.isArray(parsed.comments)
-        ? parsed.comments.slice(0, 30)
+        ? parsed.comments.slice(0, 40)
         : fallback.comments,
     }
   } catch {
@@ -84,13 +97,20 @@ function loadHype(tokenId: string): TokenHypeState {
   }
 }
 
-function createHypeComment(author: string, text: string): HypeComment {
+function createHypeComment(
+  author: string,
+  text: string,
+  burnMeta?: { burnedAmount: string; txHash?: string },
+): HypeComment {
   const now = Date.now()
   return {
     id: `${now}-${Math.random().toString(36).slice(2, 6)}`,
     author,
     text: text.slice(0, 160),
     at: now,
+    isBurn: Boolean(burnMeta),
+    burnedAmount: burnMeta?.burnedAmount,
+    txHash: burnMeta?.txHash,
   }
 }
 
@@ -98,15 +118,29 @@ export function TokenHypeBar({
   tokenId,
   symbol,
   pairId,
+  decimals = 7,
 }: {
   tokenId: string
   symbol: string
   pairId?: string | null
+  decimals?: number
 }) {
-  const { publicKey } = useWallet()
+  const { publicKey, getSigner, connect } = useWallet()
+  const queryClient = useQueryClient()
+  const balance = useTokenBalance(publicKey, tokenId)
+
   const [hype, setHype] = useState<TokenHypeState>(() => loadHype(tokenId))
-  const [commentText, setCommentText] = useState('')
   const [voted, setVoted] = useState<Record<string, boolean>>({})
+  const [chatMode, setChatMode] = useState<'free' | 'burn'>('free')
+
+  // Free shout state
+  const [commentText, setCommentText] = useState('')
+
+  // Burn shout state
+  const [burnAmount, setBurnAmount] = useState('10')
+  const [burnMessage, setBurnMessage] = useState('')
+  const [burnBusy, setBurnBusy] = useState(false)
+  const [burnError, setBurnError] = useState<string | null>(null)
 
   function persist(next: TokenHypeState) {
     setHype(next)
@@ -139,7 +173,7 @@ export function TokenHypeBar({
     const newComment = createHypeComment(author, clean)
     persist({
       ...hype,
-      comments: [newComment, ...hype.comments].slice(0, 30),
+      comments: [newComment, ...hype.comments].slice(0, 40),
     })
     setCommentText('')
   }
@@ -149,19 +183,93 @@ export function TokenHypeBar({
     const newComment = createHypeComment(author, shout)
     persist({
       ...hype,
-      comments: [newComment, ...hype.comments].slice(0, 30),
+      comments: [newComment, ...hype.comments].slice(0, 40),
     })
   }
 
+  async function handleBurnShout(event: React.FormEvent) {
+    event.preventDefault()
+    setBurnError(null)
+
+    if (!publicKey) {
+      void connect()
+      return
+    }
+
+    const signer = getSigner()
+    if (!signer) {
+      setBurnError('Unable to prepare wallet signer.')
+      return
+    }
+
+    const amountBase = parseAmount(burnAmount, decimals)
+    if (amountBase <= 0n) {
+      setBurnError('Please enter an amount of tokens to burn greater than 0.')
+      return
+    }
+
+    if (balance.data !== undefined && amountBase > balance.data) {
+      setBurnError(`Insufficient $${symbol} balance. You hold ${formatAmount(balance.data, decimals)} $${symbol}.`)
+      return
+    }
+
+    const cleanMsg = burnMessage.trim() || `🔥 Burned ${burnAmount} $${symbol} to pump community hype!`
+
+    setBurnBusy(true)
+    let hash: string | undefined
+    try {
+      const client = tokenClient(tokenId, signer)
+      const tx = await client.burn({
+        from: publicKey,
+        amount: amountBase,
+      })
+      const sentTx = await tx.signAndSend()
+      hash = sentTx.sendTransactionResponse?.hash
+
+      const newComment = createHypeComment(shortAddress(publicKey), cleanMsg, {
+        burnedAmount: burnAmount,
+        txHash: hash,
+      })
+
+      persist({
+        ...hype,
+        comments: [newComment, ...hype.comments].slice(0, 40),
+      })
+
+      recordActivity({
+        kind: 'burn',
+        tokenId,
+        tokenSymbol: symbol,
+        amount: burnAmount,
+        account: publicKey,
+        hash,
+      })
+
+      toast.success('Tokens burned & shouted on-chain!', {
+        message: `Burned ${burnAmount} $${symbol} permanently on Soroban testnet`,
+        hash,
+      })
+
+      setBurnMessage('')
+      await invalidateTokenData(queryClient, tokenId)
+    } catch (err) {
+      setBurnError(errorMessage(err))
+    } finally {
+      setBurnBusy(false)
+    }
+  }
+
+  const userBal = balance.data !== undefined ? formatAmount(balance.data, decimals) : '0'
+
   return (
-    <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-4 sm:p-6">
+    <section className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4 sm:p-6 shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800/80 pb-4">
         <div>
-          <h2 className="text-lg font-semibold text-slate-100">
-            🔥 Community Hype & Chat
+          <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
+            <span>🔥</span> Community Hype Wall & Chat
           </h2>
           <p className="mt-0.5 text-xs text-slate-400">
-            Real-time sentiment for ${symbol}. React and shoutout to the community.
+            Real-time sentiment for ${symbol}. Post a free shout or burn tokens on-chain for proof-of-hype!
           </p>
         </div>
 
@@ -170,9 +278,9 @@ export function TokenHypeBar({
             href={explorerContractUrl(pairId)}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-950/60 px-3 text-xs text-slate-300 hover:border-emerald-500 hover:text-emerald-300"
+            className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-950/60 px-3 text-xs text-slate-300 hover:border-emerald-500 hover:text-emerald-300 transition-colors"
           >
-            <span>Pair contract</span>
+            <span>Pair</span>
             <span className="font-mono text-[11px] text-slate-400">
               {shortAddress(pairId)}
             </span>
@@ -181,9 +289,10 @@ export function TokenHypeBar({
         ) : null}
       </div>
 
+      {/* Live Reaction Buttons */}
       <div className="mt-4">
         <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-          Live Reactions
+          Live Community Reactions
         </p>
         <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
           {REACTION_META.map((meta) => {
@@ -213,9 +322,10 @@ export function TokenHypeBar({
         </div>
       </div>
 
-      <div className="mt-5">
+      {/* Quick Shouts */}
+      <div className="mt-4">
         <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-          Quick Shouts
+          1-Tap Quick Shouts
         </p>
         <div className="mt-2 flex flex-wrap gap-1.5">
           {QUICK_SHOUTS.map((shout) => (
@@ -223,7 +333,7 @@ export function TokenHypeBar({
               key={shout}
               type="button"
               onClick={() => handleQuickShout(shout)}
-              className="rounded-full border border-slate-800 bg-slate-950/60 px-3 py-1 text-xs text-slate-300 hover:border-emerald-500/50 hover:bg-emerald-500/10 hover:text-emerald-200"
+              className="rounded-full border border-slate-800 bg-slate-950/60 px-3 py-1 text-xs text-slate-300 hover:border-emerald-500/50 hover:bg-emerald-500/10 hover:text-emerald-200 transition-colors"
             >
               {shout}
             </button>
@@ -231,44 +341,171 @@ export function TokenHypeBar({
         </div>
       </div>
 
-      <form onSubmit={handleCommentSubmit} className="mt-4 flex gap-2">
-        <input
-          type="text"
-          value={commentText}
-          onChange={(e) => setCommentText(e.target.value)}
-          placeholder={`Shout something about $${symbol}…`}
-          maxLength={160}
-          className="flex-1 rounded-lg border border-slate-800 bg-slate-950 px-3.5 py-2.5 text-sm text-slate-100 outline-none focus:border-emerald-500"
-        />
-        <button
-          type="submit"
-          disabled={!commentText.trim()}
-          className="min-h-[44px] rounded-lg bg-emerald-500 px-4 text-xs font-bold text-slate-950 hover:bg-emerald-400 disabled:opacity-50"
-        >
-          Send
-        </button>
-      </form>
+      {/* Mode Selector Tabs: Free Shout vs Burn-to-Chat */}
+      <div className="mt-5 rounded-xl border border-slate-800 bg-slate-950/80 p-1">
+        <div className="grid grid-cols-2 gap-1">
+          <button
+            type="button"
+            onClick={() => setChatMode('free')}
+            className={`min-h-[38px] rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+              chatMode === 'free'
+                ? 'bg-slate-800 text-slate-100 shadow-sm'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <span>💬</span> Free Shout
+          </button>
+          <button
+            type="button"
+            onClick={() => setChatMode('burn')}
+            className={`min-h-[38px] rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+              chatMode === 'burn'
+                ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 shadow-md shadow-amber-500/20'
+                : 'text-amber-400/80 hover:text-amber-300'
+            }`}
+          >
+            <span>🔥</span> Burn-to-Chat (On-Chain)
+          </button>
+        </div>
+      </div>
 
-      <div className="mt-4 max-h-56 space-y-2 overflow-y-auto no-scrollbar">
+      {/* Mode 1: Free Shout */}
+      {chatMode === 'free' ? (
+        <form onSubmit={handleCommentSubmit} className="mt-3 flex gap-2">
+          <input
+            type="text"
+            value={commentText}
+            onChange={(e) => setCommentText(e.target.value)}
+            placeholder={`Shout something about $${symbol}…`}
+            maxLength={160}
+            className="flex-1 rounded-xl border border-slate-800 bg-slate-950 px-3.5 py-2.5 text-sm text-slate-100 outline-none focus:border-emerald-500 placeholder:text-slate-600"
+          />
+          <button
+            type="submit"
+            disabled={!commentText.trim()}
+            className="min-h-[44px] rounded-xl bg-emerald-500 px-5 text-xs font-bold text-slate-950 hover:bg-emerald-400 disabled:opacity-50 transition-colors"
+          >
+            Send
+          </button>
+        </form>
+      ) : (
+        /* Mode 2: Burn-to-Chat (On-Chain) */
+        <form onSubmit={handleBurnShout} className="mt-3 space-y-3 rounded-xl border border-amber-500/30 bg-amber-950/10 p-3.5">
+          <div className="flex items-center justify-between text-xs">
+            <span className="font-semibold text-amber-300 flex items-center gap-1">
+              <span>🔥</span> Burn ${symbol} tokens to shout permanently on-chain
+            </span>
+            <span className="text-slate-400">
+              Your bag: <strong className="text-slate-200 font-mono">{userBal}</strong> ${symbol}
+            </span>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-xs text-slate-400">Amount to burn:</span>
+            {BURN_PRESETS.map((p) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => setBurnAmount(p)}
+                className={`rounded-lg border px-2.5 py-1 font-mono text-xs font-semibold transition-colors ${
+                  burnAmount === p
+                    ? 'border-amber-500 bg-amber-500/20 text-amber-300'
+                    : 'border-slate-800 bg-slate-950/60 text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                {p}
+              </button>
+            ))}
+            <input
+              type="number"
+              min="1"
+              value={burnAmount}
+              onChange={(e) => setBurnAmount(e.target.value)}
+              className="w-24 rounded-lg border border-slate-800 bg-slate-950 px-2 py-1 font-mono text-xs text-slate-100 outline-none focus:border-amber-500"
+              placeholder="Custom"
+            />
+          </div>
+
+          <input
+            type="text"
+            value={burnMessage}
+            onChange={(e) => setBurnMessage(e.target.value)}
+            placeholder={`Message stamped on-chain with ${burnAmount} $${symbol} burned…`}
+            maxLength={160}
+            className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3.5 py-2.5 text-sm text-slate-100 outline-none focus:border-amber-500 placeholder:text-slate-600"
+          />
+
+          {!publicKey ? (
+            <button
+              type="button"
+              onClick={() => void connect()}
+              className="min-h-[44px] w-full rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 px-4 py-2.5 text-xs font-black text-slate-950 hover:from-amber-400 hover:to-amber-500 transition-colors shadow-md shadow-amber-500/20"
+            >
+              🔌 Conectar Wallet para Quemar y Chatear
+            </button>
+          ) : (
+            <button
+              type="submit"
+              disabled={burnBusy || !burnAmount || Number(burnAmount) <= 0}
+              className="min-h-[44px] w-full rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 px-4 py-2.5 text-xs font-black text-slate-950 transition-all shadow-md shadow-amber-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {burnBusy
+                ? '⏳ Burning tokens on Soroban testnet…'
+                : `🔥 Burn ${burnAmount} $${symbol} & Broadcast On-Chain`}
+            </button>
+          )}
+
+          {burnError ? (
+            <p className="text-xs text-rose-300">{burnError}</p>
+          ) : null}
+        </form>
+      )}
+
+      {/* Comment Feed with Proof-of-Burn Badges */}
+      <div className="mt-4 max-h-72 space-y-2.5 overflow-y-auto pr-1">
         {hype.comments.length === 0 ? (
-          <p className="text-xs text-slate-500">
-            No shouts yet. Be the first to shout about ${symbol}!
+          <p className="text-xs text-slate-500 text-center py-4">
+            No shouts yet. Be the first to drop a hype message for ${symbol}!
           </p>
         ) : (
           hype.comments.map((comment) => (
             <div
               key={comment.id}
-              className="flex items-start justify-between gap-2 rounded-lg border border-slate-800/60 bg-slate-950/50 px-3 py-2 text-xs"
+              className={`rounded-xl px-3.5 py-2.5 text-xs transition-all ${
+                comment.isBurn
+                  ? 'border border-amber-500/40 bg-gradient-to-r from-amber-950/30 via-orange-950/20 to-slate-950/60 shadow-sm shadow-amber-500/5'
+                  : 'border border-slate-800/60 bg-slate-950/50'
+              }`}
             >
-              <div className="min-w-0 flex-1">
-                <span className="font-mono font-semibold text-emerald-400">
-                  {comment.author}:
-                </span>{' '}
-                <span className="text-slate-200">{comment.text}</span>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="font-mono font-bold text-slate-300">
+                    {comment.author}
+                  </span>
+                  {comment.isBurn ? (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-bold text-amber-300 border border-amber-500/30">
+                      <span>🔥</span>
+                      <span>BURNED {comment.burnedAmount ?? '1'} ${symbol}</span>
+                    </span>
+                  ) : null}
+                  {comment.txHash ? (
+                    <a
+                      href={explorerTxUrl(comment.txHash)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[10px] text-amber-400 underline underline-offset-2 hover:text-amber-300"
+                    >
+                      on-chain ↗
+                    </a>
+                  ) : null}
+                </div>
+                <span className="shrink-0 text-[10px] text-slate-500 font-mono">
+                  {timeAgo(comment.at)}
+                </span>
               </div>
-              <span className="shrink-0 text-[10px] text-slate-500">
-                {timeAgo(comment.at)}
-              </span>
+              <p className="mt-1 text-slate-200 break-words leading-relaxed">
+                {comment.text}
+              </p>
             </div>
           ))
         )}

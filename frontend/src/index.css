@@ -37,6 +37,15 @@ body {
   outline-offset: 2px;
 }
 
+/* Ocultar barra de desplazamiento sin perder scroll táctil */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

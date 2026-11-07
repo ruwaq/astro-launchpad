@@ -149,10 +149,10 @@ export function GraduationCard({
 
         <div className="rounded-lg border border-slate-800 bg-slate-950/50 p-3 text-xs text-slate-300">
           <p className="font-semibold text-slate-200 flex items-center gap-1">
-            <span>⚖️</span> Fair Tokenomics
+            <span>⚖️</span> Fair Tokenomics & Anti-Dump
           </p>
           <p className="mt-1 text-slate-400">
-            79.5% bonding curve + 20% DEX reserve (99.5% pool), 0.5% dev prize upon graduation.
+            99.5% al pool (LP 100% quemado), 0.5% recompensa al dev con vesting anti-dump (25% cada 24h).
           </p>
         </div>
 

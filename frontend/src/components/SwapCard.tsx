@@ -10,6 +10,7 @@ import {
   shortAddress,
 } from '../lib/format'
 import {
+  addLiquidity,
   priceImpactPercent,
   quoteTokenForXlm,
   quoteXlmForToken,
@@ -20,6 +21,7 @@ import {
   withSlippage,
   type PoolState,
 } from '../lib/soroswap'
+import { STELLAR_BURN_ADDRESS } from '../lib/tokenomics'
 import { explorerTxUrl } from '../lib/explorer'
 import { XLM_DECIMALS, XLM_FEE_BUFFER, xlmToStroops } from '../lib/xlm'
 import type { LaunchpadToken } from '../lib/token'
@@ -61,13 +63,14 @@ export function SwapCard({
   token: LaunchpadToken
   onSwapped?: () => void
 }) {
-  const { publicKey, getSigner } = useWallet()
+  const { publicKey, getSigner, connect } = useWallet()
   const queryClient = useQueryClient()
   const markProgress = useProgress((state) => state.mark)
-  const [direction, setDirection] = useState<Direction>('sell')
-  const [amount, setAmount] = useState('')
+  const [direction, setDirection] = useState<Direction>('buy')
+  const [amount, setAmount] = useState('10')
   const [slippage, setSlippage] = useState<number>(SLIPPAGE_PERCENT)
   const [busy, setBusy] = useState(false)
+  const [activatingPool, setActivatingPool] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [swapped, setSwapped] = useState<SwapDone | null>(null)
 
@@ -81,6 +84,55 @@ export function SwapCard({
   const pool = useSoroswapPool(token.id)
   const tokenBalance = useTokenBalance(publicKey, token.id)
   const xlmBalance = useXlmBalance(publicKey)
+
+  async function handleActivatePool() {
+    if (!publicKey) {
+      void connect()
+      return
+    }
+    const signer = getSigner()
+    if (!signer) {
+      setError('Unable to prepare signer for the active account.')
+      return
+    }
+    setActivatingPool(true)
+    setError(null)
+    try {
+      const currentTokenBal =
+        tokenBalance.data ?? 995_000_000n * 10n ** BigInt(token.decimals)
+      const tokenDesired =
+        currentTokenBal > 0n
+          ? currentTokenBal
+          : 995_000_000n * 10n ** BigInt(token.decimals)
+      const seedXlm = parseAmount('5', XLM_DECIMALS)
+
+      await addLiquidity({
+        tokenId: token.id,
+        amountToken: tokenDesired,
+        amountXlm: seedXlm,
+        signer,
+        to: STELLAR_BURN_ADDRESS,
+      })
+
+      toast.success('¡Pool Activado con Éxito!', {
+        message:
+          'La curva de trading está en vivo en Soroswap. ¡Ya puedes comprar y vender!',
+      })
+
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: ['soroswap-pool', token.id],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ['token-balance', token.id],
+        }),
+      ])
+    } catch (err) {
+      setError(errorMessage(err))
+    } finally {
+      setActivatingPool(false)
+    }
+  }
 
   const xlmBase =
     xlmBalance.data !== undefined
@@ -491,21 +543,47 @@ export function SwapCard({
         ) : null}
 
         <div>
-          <button
-            type="submit"
-            disabled={busy || !publicKey || !pool.data?.exists}
-            className={`min-h-[48px] w-full rounded-xl px-6 py-3.5 text-base font-black transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed ${
-              isBuy
-                ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-emerald-500/25 active:scale-[0.99]'
-                : 'bg-rose-500 hover:bg-rose-400 text-slate-950 shadow-rose-500/25 active:scale-[0.99]'
-            }`}
-          >
-            {busy
-              ? 'Executing on-chain…'
-              : isBuy
-                ? `🚀 Quick Buy ${tokenSymbol} Now`
-                : `💰 Quick Sell ${tokenSymbol} for XLM`}
-          </button>
+          {!publicKey ? (
+            <button
+              type="button"
+              onClick={() => void connect()}
+              className="min-h-[48px] w-full rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 px-6 py-3.5 text-base font-black text-slate-950 shadow-lg shadow-amber-500/25 transition-all active:scale-[0.99]"
+            >
+              🔌 Conectar Wallet para Operar
+            </button>
+          ) : !pool.data?.exists ? (
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={handleActivatePool}
+                disabled={activatingPool}
+                className="min-h-[48px] w-full rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 px-6 py-3.5 text-base font-black text-white shadow-lg shadow-cyan-500/25 transition-all active:scale-[0.99] disabled:opacity-50"
+              >
+                {activatingPool
+                  ? '⏳ Activando Pool en Soroswap…'
+                  : '⚡ Activar Pool en Soroswap (5 XLM)'}
+              </button>
+              <p className="text-center text-xs text-slate-400">
+                Este token no tiene pool inicial. Haz 1 clic para sembrar 5 XLM y quemar LP.
+              </p>
+            </div>
+          ) : (
+            <button
+              type="submit"
+              disabled={busy || amountIn <= 0n}
+              className={`min-h-[48px] w-full rounded-xl px-6 py-3.5 text-base font-black transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed ${
+                isBuy
+                  ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-emerald-500/25 active:scale-[0.99]'
+                  : 'bg-rose-500 hover:bg-rose-400 text-slate-950 shadow-rose-500/25 active:scale-[0.99]'
+              }`}
+            >
+              {busy
+                ? 'Executing on-chain…'
+                : isBuy
+                  ? `🚀 Quick Buy ${tokenSymbol} Now`
+                  : `💰 Quick Sell ${tokenSymbol} for XLM`}
+            </button>
+          )}
           <p className="mt-2 text-center text-xs text-slate-400">
             Slippage {slippage}% · Protected by Soroswap Router on Stellar testnet
           </p>

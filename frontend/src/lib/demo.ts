@@ -120,7 +120,7 @@ export function saveDemoMode(active: boolean): void {
  */
 export async function createSingleDemoAccount(
   label: string,
-  maxRetries = 2,
+  maxRetries = 3,
 ): Promise<DemoAccount> {
   const keypair = Keypair.random()
   let lastError: Error | null = null
@@ -128,7 +128,7 @@ export async function createSingleDemoAccount(
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       const controller = new AbortController()
-      const timer = setTimeout(() => controller.abort(), 12_000)
+      const timer = setTimeout(() => controller.abort(), 18_000)
       const response = await fetch(
         `${FRIEND_BOT_URL}/?addr=${encodeURIComponent(keypair.publicKey())}`,
         { signal: controller.signal },
@@ -142,7 +142,7 @@ export async function createSingleDemoAccount(
         }
       }
       if (response.status === 429 && attempt < maxRetries) {
-        await new Promise((resolve) => setTimeout(resolve, 1500))
+        await new Promise((resolve) => setTimeout(resolve, 1500 * attempt))
         continue
       }
       lastError = new Error(
@@ -151,7 +151,7 @@ export async function createSingleDemoAccount(
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err))
       if (attempt < maxRetries) {
-        await new Promise((resolve) => setTimeout(resolve, 1500))
+        await new Promise((resolve) => setTimeout(resolve, 1500 * attempt))
       }
     }
   }

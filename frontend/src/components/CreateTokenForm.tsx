@@ -31,10 +31,13 @@ export function CreateTokenForm({
 }: {
   onCreated?: (token: { id: string; decimals: number; symbol?: string }) => void
 }) {
-  const { publicKey, getSigner } = useWallet()
+  const { publicKey, getSigner, connect } = useWallet()
   const queryClient = useQueryClient()
   const { data: xlmUsd = 0.1555 } = useXlmUsdPrice()
   const dynamicMintFeeXlm = calculateDeployFeeInXlm(xlmUsd)
+  const seedXlmAmount = 5
+  const gasBuffer = 0.1
+  const totalRequiredXlm = dynamicMintFeeXlm + seedXlmAmount + gasBuffer
   const [name, setName] = useState('')
   const [symbol, setSymbol] = useState('')
   const [description, setDescription] = useState('')
@@ -458,24 +461,77 @@ export function CreateTokenForm({
           </div>
         ) : null}
 
-        <div className="mt-2 flex flex-wrap items-center justify-between gap-3 sm:col-span-2 pt-2 border-t border-slate-800/80">
-          <div className="text-xs text-slate-400">
-            Deploy fee:{' '}
-            <strong className="text-emerald-300 font-mono">
-              ${PROTOCOL_DEPLOY_FEE_USD.toFixed(2)} USD
-            </strong>{' '}
-            (≈ {dynamicMintFeeXlm.toFixed(2)} XLM) · Pool Soroswap automático incluido
+        {/* Transparent Cost & Anti-Dump Strategy Breakdown */}
+        <div className="sm:col-span-2 rounded-xl border border-slate-800 bg-slate-950/70 p-4 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/80 pb-2">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+              <span>🧾</span> Cuentas Claras: Desglose Exacto del Lanzamiento
+            </span>
+            <span className="font-mono text-xs font-black text-emerald-400">
+              Total Requerido: ~{totalRequiredXlm.toFixed(2)} XLM (~${(totalRequiredXlm * xlmUsd).toFixed(2)} USD)
+            </span>
           </div>
 
-          <button
-            type="submit"
-            disabled={busy || !publicKey}
-            className="min-h-[44px] rounded-lg bg-emerald-500 px-6 py-2.5 text-sm font-bold text-slate-950 transition hover:bg-emerald-400 disabled:opacity-50 shadow-md shadow-emerald-500/20 cursor-pointer"
-          >
-            {busy
-              ? 'Lanzando Token y Creando Pool…'
-              : `Launch Token & Auto-Seed Pool ($${PROTOCOL_DEPLOY_FEE_USD.toFixed(2)} USD)`}
-          </button>
+          <div className="grid gap-2 text-xs text-slate-300 sm:grid-cols-3">
+            <div className="rounded-lg bg-slate-900/60 p-2.5 border border-slate-800/60">
+              <div className="text-slate-400 font-medium">🏛️ Fee del Protocolo</div>
+              <div className="mt-1 font-mono font-bold text-slate-100">
+                ${PROTOCOL_DEPLOY_FEE_USD.toFixed(2)} USD (≈ {dynamicMintFeeXlm.toFixed(2)} XLM)
+              </div>
+              <div className="mt-0.5 text-[10px] text-slate-500">
+                Fondos para el tesoro y mantenimiento del launchpad
+              </div>
+            </div>
+
+            <div className="rounded-lg bg-slate-900/60 p-2.5 border border-slate-800/60">
+              <div className="text-slate-400 font-medium">💧 Semilla de Liquidez Pool</div>
+              <div className="mt-1 font-mono font-bold text-slate-100">
+                {seedXlmAmount}.00 XLM + 995M Tokens
+              </div>
+              <div className="mt-0.5 text-[10px] text-emerald-400">
+                100% depositado en Soroswap y LP quemado
+              </div>
+            </div>
+
+            <div className="rounded-lg bg-slate-900/60 p-2.5 border border-slate-800/60">
+              <div className="text-slate-400 font-medium">🛡️ Dev Cut Anti-Dump (0.5%)</div>
+              <div className="mt-1 font-mono font-bold text-amber-300">
+                5,000,000 $TOKEN
+              </div>
+              <div className="mt-0.5 text-[10px] text-slate-400">
+                Vesting 4 fases (25% cada 24h tras graduación)
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-3 sm:col-span-2 pt-2 border-t border-slate-800/80">
+          <div className="text-xs text-slate-400">
+            Fondos mínimos en wallet:{' '}
+            <strong className="text-emerald-300 font-mono">
+              ~{totalRequiredXlm.toFixed(2)} XLM
+            </strong>
+          </div>
+
+          {!publicKey ? (
+            <button
+              type="button"
+              onClick={() => void connect()}
+              className="min-h-[44px] rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 px-6 py-2.5 text-sm font-black text-slate-950 transition-all shadow-md shadow-amber-500/20 active:scale-[0.99] cursor-pointer"
+            >
+              🔌 Conectar Wallet para Lanzar Token
+            </button>
+          ) : (
+            <button
+              type="submit"
+              disabled={busy}
+              className="min-h-[44px] rounded-xl bg-emerald-500 px-6 py-2.5 text-sm font-black text-slate-950 transition hover:bg-emerald-400 disabled:opacity-50 shadow-md shadow-emerald-500/20 cursor-pointer active:scale-[0.99]"
+            >
+              {busy
+                ? 'Lanzando Token y Creando Pool…'
+                : `🚀 Lanzar Token & Pool (~${totalRequiredXlm.toFixed(2)} XLM)`}
+            </button>
+          )}
         </div>
       </form>
     </section>
