@@ -22,9 +22,7 @@ import {
   type PoolState,
 } from '../lib/soroswap'
 import {
-  ANTI_WHALE_MAX_BUY_PERCENT,
-  ANTI_WHALE_MAX_TOKENS,
-  GRADUATION_TARGET_XLM,
+  calculateSupplySharePercent,
   STELLAR_BURN_ADDRESS,
 } from '../lib/tokenomics'
 import { explorerTxUrl } from '../lib/explorer'
@@ -109,7 +107,7 @@ export function SwapCard({
         currentTokenBal > 0n
           ? currentTokenBal
           : 995_000_000n * 10n ** BigInt(token.decimals)
-      const seedXlm = parseAmount('5', XLM_DECIMALS)
+      const seedXlm = parseAmount('10', XLM_DECIMALS)
 
       await addLiquidity({
         tokenId: token.id,
@@ -175,17 +173,15 @@ export function SwapCard({
         )
       : null
 
-  const isGraduated = Boolean(
-    pool.data?.exists &&
-      pool.data.reserveXlm >= BigInt(GRADUATION_TARGET_XLM) * 10_000_000n,
-  )
-  const maxWhaleTokensBase = ANTI_WHALE_MAX_TOKENS * 10n ** BigInt(token.decimals)
-  const isAntiWhaleExceeded = Boolean(
-    isBuy &&
-      !isGraduated &&
-      quoted !== undefined &&
-      quoted > maxWhaleTokensBase,
-  )
+  const poolReserveTokens =
+    pool.data?.exists && pool.data.reserveToken > 0n
+      ? pool.data.reserveToken
+      : 995_000_000n * 10n ** BigInt(token.decimals)
+  const supplySharePercent =
+    quoted !== undefined && quoted > 0n
+      ? calculateSupplySharePercent(quoted, poolReserveTokens)
+      : 0
+  const isLargeOrder = isBuy && supplySharePercent >= 5
 
   function changeDirection(next: Direction) {
     if (busy || next === direction) return
@@ -234,13 +230,6 @@ export function SwapCard({
     if (quotedAmount <= 0n) {
       setError(
         'No quote available for that amount (pool may lack sufficient liquidity).',
-      )
-      return
-    }
-
-    if (isAntiWhaleExceeded) {
-      setError(
-        `🛡️ Límite Anti-Ballena: El máximo permitido por orden es ${ANTI_WHALE_MAX_TOKENS.toLocaleString()} ${tokenSymbol} (${ANTI_WHALE_MAX_BUY_PERCENT}% del supply). Reduce el monto de XLM.`,
       )
       return
     }
@@ -589,14 +578,27 @@ export function SwapCard({
           )
         ) : null}
 
-        {/* Anti-Whale Order Cap Alert */}
-        {isAntiWhaleExceeded ? (
-          <div className="rounded-xl border border-amber-500/50 bg-amber-950/30 p-3 text-xs text-amber-200 space-y-1">
-            <div className="flex items-center gap-1.5 font-bold text-amber-300">
-              <span>🛡️</span> Límite Anti-Ballena Activo ({ANTI_WHALE_MAX_BUY_PERCENT}% Máx por Orden)
+        {/* Informative Supply Share & Price Protection Badge */}
+        {isBuy && quoted !== undefined && quoted > 0n && supplySharePercent > 0 ? (
+          <div
+            className={`rounded-xl border p-3 text-xs space-y-1 ${
+              isLargeOrder
+                ? 'border-amber-500/40 bg-amber-950/25 text-amber-200'
+                : 'border-slate-800 bg-slate-950/40 text-slate-300'
+            }`}
+          >
+            <div className="flex items-center justify-between font-semibold">
+              <span className="flex items-center gap-1.5">
+                <span>{isLargeOrder ? '⚠️' : '📊'}</span> Participación de la Orden:
+              </span>
+              <span className="font-mono text-emerald-400">
+                {supplySharePercent.toFixed(2)}% del pool
+              </span>
             </div>
-            <p className="text-[11px] text-slate-300 leading-relaxed">
-              Para evitar que un jugador monopolice la moneda a bajo precio, el máximo permitido por orden antes de la graduación es de <strong>{ANTI_WHALE_MAX_TOKENS.toLocaleString()} {tokenSymbol}</strong>. Reduce la cantidad de XLM para continuar.
+            <p className="text-[11px] text-slate-400 leading-relaxed">
+              {isLargeOrder
+                ? `Esta orden adquiere una porción notable del pool. La curva AMM ajusta el precio exponencialmente protegiendo la liquidez comunitaria.`
+                : 'Compra libre en Soroswap AMM. El precio se regula de forma continua y transparente.'}
             </p>
           </div>
         ) : null}
@@ -620,31 +622,27 @@ export function SwapCard({
               >
                 {activatingPool
                   ? '⏳ Activando Pool en Soroswap…'
-                  : '⚡ Activar Pool en Soroswap (5 XLM)'}
+                  : '⚡ Activar Pool en Soroswap (10 XLM)'}
               </button>
               <p className="text-center text-xs text-slate-400">
-                Este token no tiene pool inicial. Haz 1 clic para sembrar 5 XLM y quemar LP.
+                Este token no tiene pool inicial. Haz 1 clic para sembrar 10 XLM y quemar LP para abrir el trading.
               </p>
             </div>
           ) : (
             <button
               type="submit"
-              disabled={busy || amountIn <= 0n || isAntiWhaleExceeded}
+              disabled={busy || amountIn <= 0n}
               className={`min-h-[48px] w-full rounded-xl px-6 py-3.5 text-base font-black transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed ${
-                isAntiWhaleExceeded
-                  ? 'bg-amber-600/80 text-slate-950 shadow-amber-500/20'
-                  : isBuy
-                    ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-emerald-500/25 active:scale-[0.99]'
-                    : 'bg-rose-500 hover:bg-rose-400 text-slate-950 shadow-rose-500/25 active:scale-[0.99]'
+                isBuy
+                  ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-emerald-500/25 active:scale-[0.99]'
+                  : 'bg-rose-500 hover:bg-rose-400 text-slate-950 shadow-rose-500/25 active:scale-[0.99]'
               }`}
             >
               {busy
                 ? 'Executing on-chain…'
-                : isAntiWhaleExceeded
-                  ? `🛡️ Excede Límite Anti-Ballena (Máx 15M Tokens)`
-                  : isBuy
-                    ? `🚀 Quick Buy ${tokenSymbol} Now`
-                    : `💰 Quick Sell ${tokenSymbol} for XLM`}
+                : isBuy
+                  ? `🚀 Quick Buy ${tokenSymbol} Now`
+                  : `💰 Quick Sell ${tokenSymbol} for XLM`}
             </button>
           )}
           <p className="mt-2 text-center text-xs text-slate-400">

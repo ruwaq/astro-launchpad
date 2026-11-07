@@ -9,6 +9,7 @@ import {
   STELLAR_BURN_ADDRESS,
   CREATOR_GRADUATION_LOCK_DAYS,
   DEFAULT_OPTIMIZED_SEED_XLM,
+  SEED_LIQUIDITY_PRESETS,
 } from '../lib/tokenomics'
 import { addLiquidity } from '../lib/soroswap'
 import { XLM_DECIMALS } from '../lib/xlm'
@@ -462,7 +463,7 @@ export function CreateTokenForm({
           </div>
         ) : null}
 
-        {/* Optimized Seed Liquidity Selector */}
+        {/* Optimized Fair Seed Liquidity Selector */}
         <div className="sm:col-span-2 rounded-xl border border-slate-800 bg-slate-900/60 p-3.5 space-y-2">
           <div className="flex flex-wrap items-center justify-between gap-1 text-xs">
             <span className="font-semibold text-slate-200 flex items-center gap-1.5">
@@ -472,23 +473,37 @@ export function CreateTokenForm({
               {seedXlmAmount} XLM (~${(seedXlmAmount * xlmUsd).toFixed(2)} USD)
             </span>
           </div>
-          <p className="text-[11px] text-slate-400">
-            ¡No tienes que pagar toda la liquidez! Elige el mínimo de <strong>0.5 XLM</strong> para activar el pool en Soroswap; los demás usuarios y compradores aportarán el resto del volumen y liquidez en la curva hasta la graduación.
+          <p className="text-[11px] text-slate-400 leading-relaxed">
+            Un depósito de <strong>10 a 20 XLM (~$1.50 - $3.10 USD)</strong> establece un precio justo y balanceado (0.000000010 - 0.000000020 XLM). Otorga profundidad natural al pool para que nadie acapare el suministro por centavos, permitiendo compras libres con un potencial de <strong>500x a 1,000x</strong> hacia la meta de 10,000 XLM.
           </p>
-          <div className="flex flex-wrap gap-2 pt-1">
-            {[0.5, 1, 2, 5].map((val) => (
+          <div className="grid gap-2 sm:grid-cols-2 pt-1">
+            {SEED_LIQUIDITY_PRESETS.map((preset) => (
               <button
-                key={val}
+                key={preset.xlm}
                 type="button"
                 disabled={busy}
-                onClick={() => setSeedXlmAmount(val)}
-                className={`min-h-[36px] rounded-lg border px-3 py-1 font-mono text-xs font-bold transition-all ${
-                  seedXlmAmount === val
-                    ? 'border-emerald-500 bg-emerald-500/20 text-emerald-300 shadow-sm'
-                    : 'border-slate-800 bg-slate-950/80 text-slate-400 hover:text-slate-200'
+                onClick={() => setSeedXlmAmount(preset.xlm)}
+                className={`min-h-[44px] rounded-xl border p-2.5 text-left transition-all ${
+                  seedXlmAmount === preset.xlm
+                    ? 'border-emerald-500 bg-emerald-500/15 text-emerald-200 shadow-md shadow-emerald-500/10'
+                    : 'border-slate-800 bg-slate-950/70 text-slate-400 hover:border-slate-700 hover:text-slate-200'
                 }`}
               >
-                {val} XLM {val === 0.5 ? '⚡ (Mínimo Ultra-Ligero)' : ''}
+                <div className="flex items-center justify-between font-mono text-xs font-bold">
+                  <span>{preset.label}</span>
+                  {preset.isRecommended ? (
+                    <span className="rounded bg-emerald-500/20 px-1.5 py-0.5 text-[10px] text-emerald-300">
+                      Recomendado
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-slate-500">
+                      ~${(preset.xlm * xlmUsd).toFixed(2)} USD
+                    </span>
+                  )}
+                </div>
+                <p className="mt-0.5 text-[10px] text-slate-400 leading-tight">
+                  {preset.desc}
+                </p>
               </button>
             ))}
           </div>

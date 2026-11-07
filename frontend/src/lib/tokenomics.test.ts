@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest'
 import {
   auditTokenSecurity,
   calculateProtocolRevenue,
+  calculateSupplySharePercent,
+  DEFAULT_OPTIMIZED_SEED_XLM,
   graduationProgress,
+  SEED_LIQUIDITY_PRESETS,
   splitFairLaunchSupply,
   STELLAR_BURN_ADDRESS,
 } from './tokenomics'
@@ -92,5 +95,25 @@ describe('auditTokenSecurity', () => {
     })
     expect(withOwner.ownershipRenounced).toBe(false)
     expect(withOwner.isFairLaunchSafe).toBe(false)
+  })
+})
+
+describe('fair seed & supply share math', () => {
+  it('define una semilla inicial balanceada de 10 XLM y presets', () => {
+    expect(DEFAULT_OPTIMIZED_SEED_XLM).toBe(10)
+    expect(SEED_LIQUIDITY_PRESETS.length).toBeGreaterThanOrEqual(4)
+    const recommended = SEED_LIQUIDITY_PRESETS.find((p) => p.isRecommended)
+    expect(recommended?.xlm).toBe(20)
+  })
+
+  it('calcula el porcentaje de tokens adquiridos sobre el pool sin bloquear libre comercio', () => {
+    const poolTokens = 995_000_000n * 10_000_000n // 995M tokens con 7 decimales
+    const order10M = 10_000_000n * 10_000_000n
+    const percent = calculateSupplySharePercent(order10M, poolTokens)
+    // 10M / 995M ≈ 1.005% -> 1.00%
+    expect(percent).toBeCloseTo(1.0, 1)
+
+    // Si orden es 0 o negativo
+    expect(calculateSupplySharePercent(0n, poolTokens)).toBe(0)
   })
 })

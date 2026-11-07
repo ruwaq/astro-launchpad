@@ -113,11 +113,43 @@ export const CREATOR_VESTING_SCHEDULE: VestingPhase[] = [
 ]
 
 /**
- * Default optimized micro-seed XLM to open pool on Soroswap without burdening the creator:
- * The creator only puts 0.5 XLM (~$0.07 USD) to initialize the pair on Soroswap.
- * The rest of the liquidity is crowdsourced by the community trading on the curve.
+ * Default balanced seed XLM to open pool on Soroswap:
+ * Seeding 10 to 20 XLM (~$1.50 - $3.10 USD) sets a fair initial price (~0.000000010 - 0.000000020 XLM)
+ * and deepens the pool so snipers cannot monopolize 90% of supply for pennies.
+ * Crowdsourced trading then drives the curve to the 10,000 XLM graduation milestone (500x - 1,000x upside).
  */
-export const DEFAULT_OPTIMIZED_SEED_XLM = 0.5
+export const DEFAULT_OPTIMIZED_SEED_XLM = 10
+
+export type SeedPreset = {
+  xlm: number
+  label: string
+  desc: string
+  isRecommended?: boolean
+}
+
+export const SEED_LIQUIDITY_PRESETS: SeedPreset[] = [
+  {
+    xlm: 5,
+    label: '5 XLM',
+    desc: 'Semilla Ligera — Alta volatilidad para micro-lanzamientos',
+  },
+  {
+    xlm: 10,
+    label: '10 XLM',
+    desc: 'Equilibrado — ~$1.55 USD, 1,000x potencial hacia graduación',
+  },
+  {
+    xlm: 20,
+    label: '20 XLM',
+    desc: 'Recomendado ⭐ — Precio justo & profundidad natural anti-snipers',
+    isRecommended: true,
+  },
+  {
+    xlm: 50,
+    label: '50 XLM',
+    desc: 'Profundo — Para proyectos con comunidad y liquidez inmediata',
+  },
+]
 
 /**
  * Computes how many XLM correspond to $1.11 USD at current live XLM price.
@@ -136,13 +168,21 @@ export function calculateDeployFeeInXlm(xlmUsdPrice: number = 0.1555): number {
 export const GRADUATION_TARGET_XLM = 10_000
 
 /**
- * Anti-Whale Max Buy Cap before graduation:
- * Max 1.5% of total supply (15,000,000 tokens) per order.
- * This prevents early snipers from monopolizing the pool for pennies,
- * guaranteeing fair distribution and protecting the community.
+ * Natural AMM Market Share & Anti-Sniper Indicator:
+ * Rather than artificially blocking trades, constant-product AMM slippage naturally
+ * penalizes oversized orders. This helper informs users of their order's supply share.
  */
 export const ANTI_WHALE_MAX_BUY_PERCENT = 1.5
 export const ANTI_WHALE_MAX_TOKENS = 15_000_000n
+
+export function calculateSupplySharePercent(
+  amountTokensBase: bigint,
+  totalBase: bigint = 995_000_000n * 10_000_000n,
+): number {
+  if (totalBase <= 0n || amountTokensBase <= 0n) return 0
+  const bps = (amountTokensBase * 10_000n) / totalBase
+  return Number(bps) / 100
+}
 
 export function isAntiWhaleExceeded(
   amountTokensBase: bigint,
