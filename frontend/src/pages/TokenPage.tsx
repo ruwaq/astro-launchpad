@@ -422,6 +422,24 @@ export function TokenPage() {
         {/* Right Column: Arcade Buy & Sell Console (Sticky on Desktop) */}
         <div className="min-w-0 space-y-4 lg:col-span-5 lg:sticky lg:top-20">
           <SwapCard token={token} />
+
+          {/* Community Liquidity Addition */}
+          <details className="group rounded-2xl border border-slate-800 bg-slate-900/40 p-4 transition-all">
+            <summary className="flex cursor-pointer select-none items-center justify-between text-xs font-bold text-slate-300 hover:text-emerald-400">
+              <span className="flex items-center gap-1.5">
+                <span>💧</span> ¿Añadir Liquidez Comunitaria al Pool?
+              </span>
+              <span className="text-slate-500 transition-transform group-open:rotate-180">
+                ▼
+              </span>
+            </summary>
+            <div className="mt-3 border-t border-slate-800/80 pt-3">
+              <p className="text-[11px] text-slate-400 mb-3">
+                Cualquier miembro de la comunidad puede aportar XLM y ${token.symbol} para profundizar la liquidez del par en Soroswap y ganar comisiones del 0.3%.
+              </p>
+              <LiquidityForm token={token} />
+            </div>
+          </details>
         </div>
       </div>
 

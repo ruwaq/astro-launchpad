@@ -56,6 +56,21 @@ export const PROTOCOL_GRADUATION_FEE_XLM = 15
 export const CREATOR_GRADUATION_REWARD_XLM = 5
 
 /**
+ * Creator allocation anti-dump protection lock:
+ * The creator receives their 0.5% allocation 15 days AFTER graduation
+ * to protect buyers from immediate selloffs and allow organic price discovery.
+ */
+export const CREATOR_GRADUATION_LOCK_DAYS = 15
+export const CREATOR_GRADUATION_LOCK_SECONDS = 15 * 24 * 60 * 60
+
+/**
+ * Default optimized micro-seed XLM to open pool on Soroswap without burdening the creator:
+ * The creator only puts 0.5 XLM (~$0.07 USD) to initialize the pair on Soroswap.
+ * The rest of the liquidity is crowdsourced by the community trading on the curve.
+ */
+export const DEFAULT_OPTIMIZED_SEED_XLM = 0.5
+
+/**
  * Computes how many XLM correspond to $1.11 USD at current live XLM price.
  */
 export function calculateDeployFeeInXlm(xlmUsdPrice: number = 0.1555): number {

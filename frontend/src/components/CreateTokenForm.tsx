@@ -7,6 +7,8 @@ import {
   POOL_ALLOCATION_BPS,
   PROTOCOL_DEPLOY_FEE_USD,
   STELLAR_BURN_ADDRESS,
+  CREATOR_GRADUATION_LOCK_DAYS,
+  DEFAULT_OPTIMIZED_SEED_XLM,
 } from '../lib/tokenomics'
 import { addLiquidity } from '../lib/soroswap'
 import { XLM_DECIMALS } from '../lib/xlm'
@@ -35,7 +37,7 @@ export function CreateTokenForm({
   const queryClient = useQueryClient()
   const { data: xlmUsd = 0.1555 } = useXlmUsdPrice()
   const dynamicMintFeeXlm = calculateDeployFeeInXlm(xlmUsd)
-  const seedXlmAmount = 5
+  const [seedXlmAmount, setSeedXlmAmount] = useState<number>(DEFAULT_OPTIMIZED_SEED_XLM)
   const gasBuffer = 0.1
   const totalRequiredXlm = dynamicMintFeeXlm + seedXlmAmount + gasBuffer
   const [name, setName] = useState('')
@@ -92,8 +94,8 @@ export function CreateTokenForm({
     const initialSupply = parseAmount('1000000000', targetDecimals) // 1 Billion
     // Fair Launch Pool: 99.5% of supply (995,000,000 tokens)
     const poolTokens = (initialSupply * POOL_ALLOCATION_BPS) / 10_000n
-    // Initial XLM seed (5 XLM)
-    const seedXlm = parseAmount('5', XLM_DECIMALS)
+    // Initial XLM seed (optimized, default 0.5 XLM)
+    const seedXlm = parseAmount(seedXlmAmount.toString(), XLM_DECIMALS)
 
     setBusy(true)
     setStep('deploy')
@@ -397,7 +399,7 @@ export function CreateTokenForm({
               <div className="mt-1.5 flex flex-wrap items-center gap-2 font-mono text-[11px] text-slate-500">
                 <span>Supply: 1,000,000,000</span>
                 <span>•</span>
-                <span>Dev Reward: 0.5% at Graduation</span>
+                <span>Dev Reward: 0.5% (Bloqueo {CREATOR_GRADUATION_LOCK_DAYS} Días tras Graduación)</span>
                 {telegram ? (
                   <>
                     <span>•</span>
@@ -448,8 +450,7 @@ export function CreateTokenForm({
                       : step === 'renounce'
                         ? 'done'
                         : 'pending',
-                  detail:
-                    '99.5% tokens + semilla XLM depositados con LP 100% quemado en dead address',
+                  detail: `99.5% tokens + ${seedXlmAmount} XLM depositados con LP 100% quemado en dead address`,
                 },
                 {
                   label: '3. Renunciar a la Propiedad On-Chain',
@@ -460,6 +461,38 @@ export function CreateTokenForm({
             />
           </div>
         ) : null}
+
+        {/* Optimized Seed Liquidity Selector */}
+        <div className="sm:col-span-2 rounded-xl border border-slate-800 bg-slate-900/60 p-3.5 space-y-2">
+          <div className="flex flex-wrap items-center justify-between gap-1 text-xs">
+            <span className="font-semibold text-slate-200 flex items-center gap-1.5">
+              <span>💧</span> Semilla de Liquidez Inicial (XLM para activar el pool)
+            </span>
+            <span className="text-emerald-400 font-mono font-bold">
+              {seedXlmAmount} XLM (~${(seedXlmAmount * xlmUsd).toFixed(2)} USD)
+            </span>
+          </div>
+          <p className="text-[11px] text-slate-400">
+            ¡No tienes que pagar toda la liquidez! Elige el mínimo de <strong>0.5 XLM</strong> para activar el pool en Soroswap; los demás usuarios y compradores aportarán el resto del volumen y liquidez en la curva hasta la graduación.
+          </p>
+          <div className="flex flex-wrap gap-2 pt-1">
+            {[0.5, 1, 2, 5].map((val) => (
+              <button
+                key={val}
+                type="button"
+                disabled={busy}
+                onClick={() => setSeedXlmAmount(val)}
+                className={`min-h-[36px] rounded-lg border px-3 py-1 font-mono text-xs font-bold transition-all ${
+                  seedXlmAmount === val
+                    ? 'border-emerald-500 bg-emerald-500/20 text-emerald-300 shadow-sm'
+                    : 'border-slate-800 bg-slate-950/80 text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                {val} XLM {val === 0.5 ? '⚡ (Mínimo Ultra-Ligero)' : ''}
+              </button>
+            ))}
+          </div>
+        </div>
 
         {/* Transparent Cost & Anti-Dump Strategy Breakdown */}
         <div className="sm:col-span-2 rounded-xl border border-slate-800 bg-slate-950/70 p-4 space-y-3">
@@ -486,7 +519,7 @@ export function CreateTokenForm({
             <div className="rounded-lg bg-slate-900/60 p-2.5 border border-slate-800/60">
               <div className="text-slate-400 font-medium">💧 Semilla de Liquidez Pool</div>
               <div className="mt-1 font-mono font-bold text-slate-100">
-                {seedXlmAmount}.00 XLM + 995M Tokens
+                {seedXlmAmount} XLM + 995M Tokens
               </div>
               <div className="mt-0.5 text-[10px] text-emerald-400">
                 100% depositado en Soroswap y LP quemado
@@ -499,7 +532,7 @@ export function CreateTokenForm({
                 5,000,000 $TOKEN
               </div>
               <div className="mt-0.5 text-[10px] text-slate-400">
-                Vesting 4 fases (25% cada 24h tras graduación)
+                🔒 Bloqueo estricto de {CREATOR_GRADUATION_LOCK_DAYS} días post-graduación
               </div>
             </div>
           </div>

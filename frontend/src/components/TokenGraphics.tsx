@@ -55,7 +55,7 @@ export function TokenGraphics({
       title: 'Incentivo del Desarrollador / Creador',
       color: 'bg-amber-400 text-amber-300 border-amber-500',
       percent: creatorPercent,
-      desc: '5,000,000 tokens (0.5%) entregados al creador únicamente cuando el token logra graduarse exitosamente a Soroswap DEX.',
+      desc: '5,000,000 tokens (0.5%) entregados al creador tras un periodo de bloqueo estricto de 15 días posteriores a la graduación para proteger a los inversores.',
       icon: '👑',
     },
   }

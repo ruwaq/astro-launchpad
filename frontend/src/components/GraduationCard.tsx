@@ -53,7 +53,7 @@ export function GraduationCard({
             </span>
           </div>
           <p className="mt-1 text-xs text-slate-400 max-w-xl">
-            When the bonding curve hits 100% ({grad.targetXlm.toLocaleString('en-US')} XLM), all liquidity is locked & burned into Soroswap DEX forever! Dev receives a 0.5% reward. 100% fair launch, rug-proof.
+            When the bonding curve hits 100% ({grad.targetXlm.toLocaleString('en-US')} XLM), all liquidity is locked & burned into Soroswap DEX forever! Dev receives 0.5% locked for 15 days to protect buyers. 100% fair launch, rug-proof.
           </p>
         </div>
 
@@ -149,10 +149,10 @@ export function GraduationCard({
 
         <div className="rounded-lg border border-slate-800 bg-slate-950/50 p-3 text-xs text-slate-300">
           <p className="font-semibold text-slate-200 flex items-center gap-1">
-            <span>⚖️</span> Fair Tokenomics & Anti-Dump
+            <span>⚖️</span> Fair Tokenomics & Anti-Dump (15 Días)
           </p>
           <p className="mt-1 text-slate-400">
-            99.5% al pool (LP 100% quemado), 0.5% recompensa al dev con vesting anti-dump (25% cada 24h).
+            99.5% al pool (LP 100% quemado), 0.5% recompensa al dev protegida con bloqueo anti-dump de 15 días tras la graduación.
           </p>
         </div>
 

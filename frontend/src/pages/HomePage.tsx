@@ -53,7 +53,7 @@ export function HomePage() {
           <p className="max-w-2xl text-sm sm:text-base text-slate-300 leading-relaxed">
             Launch your memecoin for just{' '}
             <strong className="text-emerald-300">${PROTOCOL_DEPLOY_FEE_USD.toFixed(2)} USD</strong>{' '}
-            in XLM. Standard <strong>Fair Launch</strong> with 0.5% developer cut upon graduation, 99.5% in pool,
+            in XLM. Standard <strong>Fair Launch</strong> with 0.5% developer cut (locked 15 days post-graduation), 99.5% in pool,
             renounced ownership, and 100% LP burned to the Stellar dead address.{' '}
             <span className="text-slate-400">
               Zero team dumps, zero rug-pulls, and instant AMM trading on Soroswap DEX.
