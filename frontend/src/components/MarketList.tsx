@@ -15,6 +15,7 @@ import {
 } from '../lib/market'
 import { TokenArt } from './TokenArt'
 import { KingOfTheHill } from './KingOfTheHill'
+import { useTokenMetadata } from '../hooks/useTokenMetadata'
 import type { LaunchpadToken } from '../lib/token'
 import type { TokenListing } from '../lib/discovery'
 
@@ -56,6 +57,7 @@ function MarketCard({
   const grad = graduationProgress(token.pool.reserveXlm)
   const isFav = useWatchlist((s) => s.isFavorite(token.id))
   const toggleFav = useWatchlist((s) => s.toggle)
+  const meta = useTokenMetadata(token.id)
 
   return (
     <li
@@ -69,6 +71,7 @@ function MarketCard({
         <TokenArt
           id={token.id}
           symbol={token.symbol}
+          logoUrl={meta.data?.logoUrl}
           className="aspect-square w-full"
         />
         <div className="absolute right-2 top-2 flex items-center gap-1">
@@ -136,6 +139,11 @@ function MarketCard({
             {token.symbol}
           </p>
           <p className="truncate text-xs text-slate-500">{token.name}</p>
+          {meta.data?.description ? (
+            <p className="mt-0.5 line-clamp-1 text-[11px] text-slate-400">
+              {meta.data.description}
+            </p>
+          ) : null}
         </button>
         <div className="mt-auto pt-2">
           <div className="flex items-baseline justify-between gap-2">

@@ -24,6 +24,8 @@ import { errorMessage, formatAmount, parseAmount } from '../lib/format'
 import { toast } from '../lib/toast'
 import { recordActivity } from '../store/activity'
 import { TxProgress } from './TxProgress'
+import { TokenArt } from './TokenArt'
+import { saveLocalTokenMetadata } from '../lib/token-metadata'
 import {
   clearCheckpoint,
   getCheckpoint,
@@ -69,6 +71,12 @@ export function CreateTokenForm({
   const [supply, setSupply] = useState('1000000000')
   const [seedXlm, setSeedXlm] = useState('10')
   const [creatorBuyXlm, setCreatorBuyXlm] = useState('')
+  const [description, setDescription] = useState('')
+  const [logoUrl, setLogoUrl] = useState('')
+  const [website, setWebsite] = useState('')
+  const [telegram, setTelegram] = useState('')
+  const [twitter, setTwitter] = useState('')
+  const [showSocials, setShowSocials] = useState(false)
   const [busy, setBusy] = useState(false)
   const [step, setStep] = useState<LaunchStep>(null)
   const [error, setError] = useState<string | null>(null)
@@ -77,6 +85,22 @@ export function CreateTokenForm({
   const [pendingCheckpoint, setPendingCheckpoint] = useState<LaunchCheckpoint | null>(() =>
     getCheckpoint(),
   )
+
+  function onFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 500_000) {
+      toast.error('Image too large', { message: 'Please select an image under 500KB.' })
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setLogoUrl(reader.result)
+      }
+    }
+    reader.readAsDataURL(file)
+  }
 
   async function onResumeCheckpoint(cp: LaunchCheckpoint) {
     if (!publicKey) {
@@ -212,6 +236,14 @@ export function CreateTokenForm({
         },
       })
       const ticker = cleanSymbol
+      saveLocalTokenMetadata({
+        tokenId: newId,
+        description: description.trim() || undefined,
+        logoUrl: logoUrl.trim() || undefined,
+        website: website.trim() || undefined,
+        telegram: telegram.trim() || undefined,
+        twitter: twitter.trim() || undefined,
+      })
       onCreated?.({ id: newId, decimals: targetDecimals, symbol: ticker })
       recordActivity({
         kind: 'create',
@@ -572,6 +604,142 @@ export function CreateTokenForm({
             </div>
           </>
         )}
+
+        {/* Meme Branding & Socials Section */}
+        <div className="sm:col-span-2">
+          <button
+            type="button"
+            onClick={() => setShowSocials(!showSocials)}
+            className="flex items-center gap-2 text-xs font-semibold text-emerald-400 hover:text-emerald-300"
+          >
+            <span>{showSocials ? '▼ Hide' : '▶ Add'} Branding, Logo & Social Links (Optional)</span>
+          </button>
+
+          {showSocials ? (
+            <div className="mt-3 grid gap-3 rounded-lg border border-slate-800 bg-slate-900/30 p-3 sm:grid-cols-2">
+              <label className="block text-sm sm:col-span-2">
+                <span className="text-slate-400">Project Pitch / Description (max 280 chars)</span>
+                <textarea
+                  rows={2}
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value.slice(0, 280))}
+                  placeholder="What makes your meme or token special? Tell the Stellar community..."
+                  className={`${inputClass} mt-1 resize-none text-sm`}
+                />
+                <span className="mt-1 block text-right text-[10px] text-slate-500">
+                  {description.length}/280
+                </span>
+              </label>
+
+              <label className="block text-sm">
+                <span className="text-slate-400">Logo Image URL or IPFS</span>
+                <input
+                  value={logoUrl}
+                  onChange={(e) => setLogoUrl(e.target.value)}
+                  placeholder="https://... or ipfs://..."
+                  className={`${inputClass} mt-1 text-sm`}
+                />
+              </label>
+
+              <label className="block text-sm">
+                <span className="text-slate-400">Or Upload Image File</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={onFileSelect}
+                  className="mt-1 block w-full text-xs text-slate-400 file:mr-2 file:rounded-lg file:border-0 file:bg-slate-800 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-slate-200 hover:file:bg-slate-700"
+                />
+              </label>
+
+              <label className="block text-sm">
+                <span className="text-slate-400">Website URL</span>
+                <input
+                  value={website}
+                  onChange={(e) => setWebsite(e.target.value)}
+                  placeholder="https://yourtoken.xyz"
+                  className={`${inputClass} mt-1 text-sm`}
+                />
+              </label>
+
+              <label className="block text-sm">
+                <span className="text-slate-400">Telegram Channel or Group</span>
+                <input
+                  value={telegram}
+                  onChange={(e) => setTelegram(e.target.value)}
+                  placeholder="https://t.me/... or @group"
+                  className={`${inputClass} mt-1 text-sm`}
+                />
+              </label>
+
+              <label className="block text-sm sm:col-span-2">
+                <span className="text-slate-400">X (Twitter) Profile</span>
+                <input
+                  value={twitter}
+                  onChange={(e) => setTwitter(e.target.value)}
+                  placeholder="https://x.com/... or @handle"
+                  className={`${inputClass} mt-1 text-sm`}
+                />
+              </label>
+            </div>
+          ) : null}
+        </div>
+
+        {/* Live Token Preview Card */}
+        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 sm:col-span-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+              👁️ Live Token Preview
+            </span>
+            <span className="text-xs text-slate-500">How your token will appear on AstroGate</span>
+          </div>
+          <div className="mt-3 flex flex-col gap-3 rounded-xl border border-slate-800 bg-slate-950 p-3 sm:flex-row sm:items-center">
+            <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-slate-800 bg-slate-900">
+              <TokenArt
+                id={name ? `preview-${name}` : 'preview-token'}
+                symbol={symbol || 'TKN'}
+                logoUrl={logoUrl || undefined}
+                className="h-full w-full"
+              />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <h4 className="truncate font-bold text-slate-100">
+                  {name.trim() || 'Untitled Token'}{' '}
+                  <span className="font-normal text-slate-500">(${symbol || 'TKN'})</span>
+                </h4>
+                <span className="rounded border border-emerald-500/20 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-400">
+                  100% Anti-Rug
+                </span>
+              </div>
+              <p className="mt-1 line-clamp-2 text-xs text-slate-400">
+                {description.trim() || 'No description provided yet.'}
+              </p>
+              <div className="mt-2 flex flex-wrap items-center gap-2 font-mono text-[11px] text-slate-500">
+                <span>Initial Pool: {seedXlm} XLM</span>
+                <span>•</span>
+                <span>Supply: 1,000,000,000</span>
+                {website ? (
+                  <>
+                    <span>•</span>
+                    <span className="text-cyan-400">🌐 Website</span>
+                  </>
+                ) : null}
+                {telegram ? (
+                  <>
+                    <span>•</span>
+                    <span className="text-sky-400">✈️ Telegram</span>
+                  </>
+                ) : null}
+                {twitter ? (
+                  <>
+                    <span>•</span>
+                    <span className="text-slate-300">𝕏 Twitter</span>
+                  </>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        </div>
 
         <div className="sm:col-span-2">
           <button

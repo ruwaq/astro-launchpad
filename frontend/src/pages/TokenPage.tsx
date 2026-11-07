@@ -21,6 +21,7 @@ import { GraduationCard } from '../components/GraduationCard'
 import { TokenHypeBar } from '../components/TokenHypeBar'
 import { TokenActivity } from '../components/TokenActivity'
 import { NotFoundPage } from './NotFoundPage'
+import { useTokenMetadata } from '../hooks/useTokenMetadata'
 import type { LaunchpadToken } from '../lib/token'
 
 function Stat({ label, value }: { label: string; value: string }) {
@@ -40,6 +41,7 @@ export function TokenPage() {
   const balance = useTokenBalance(publicKey, id)
   const history = useReserveHistory(id, pool.data)
   const { data: xlmUsd = 0.1555 } = useXlmUsdPrice()
+  const meta = useTokenMetadata(id)
 
   if (!id) return <NotFoundPage />
 
@@ -135,6 +137,7 @@ export function TokenPage() {
           <TokenArt
             id={id}
             symbol={token.symbol}
+            logoUrl={meta.data?.logoUrl}
             className="h-20 w-20 shrink-0 rounded-2xl"
           />
           <div className="min-w-0 flex-1">
@@ -145,6 +148,11 @@ export function TokenPage() {
             <p className="mt-1 break-all font-mono text-xs text-slate-500">
               {id}
             </p>
+            {meta.data?.description ? (
+              <p className="mt-2 text-sm text-slate-300">
+                {meta.data.description}
+              </p>
+            ) : null}
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <a
                 href={explorerContractUrl(id)}
@@ -154,6 +162,44 @@ export function TokenPage() {
               >
                 Explorer ↗
               </a>
+              {meta.data?.website ? (
+                <a
+                  href={meta.data.website}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-cyan-800/80 bg-cyan-950/30 px-3 py-2 text-xs text-cyan-300 hover:border-cyan-600"
+                >
+                  <span>🌐</span> Website ↗
+                </a>
+              ) : null}
+              {meta.data?.telegram ? (
+                <a
+                  href={
+                    meta.data.telegram.startsWith('http')
+                      ? meta.data.telegram
+                      : `https://t.me/${meta.data.telegram.replace('@', '')}`
+                  }
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-sky-800/80 bg-sky-950/30 px-3 py-2 text-xs text-sky-300 hover:border-sky-600"
+                >
+                  <span>✈️</span> Telegram ↗
+                </a>
+              ) : null}
+              {meta.data?.twitter ? (
+                <a
+                  href={
+                    meta.data.twitter.startsWith('http')
+                      ? meta.data.twitter
+                      : `https://x.com/${meta.data.twitter.replace('@', '')}`
+                  }
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2 text-xs text-slate-200 hover:border-slate-500"
+                >
+                  <span>𝕏</span> Twitter ↗
+                </a>
+              ) : null}
               <ShareButton
                 text={`🌊 Check out $${token.symbol} on AstroGate (Stellar testnet):`}
                 url={shareUrl}

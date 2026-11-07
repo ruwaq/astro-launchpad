@@ -1,17 +1,31 @@
+import { useState } from 'react'
 import { tokenArtSpec } from '../lib/art'
 
 type Props = {
   id: string
   symbol?: string
+  logoUrl?: string
   className?: string
 }
 
 /**
- * Identidad visual del token (estética de colección OpenSea): circulitos
- * y degradado derivados del hash del contrato. El monograma es el
- * símbolo del token — nada de inventar imágenes que no existen.
+ * Identidad visual del token: muestra el logo si existe, o un arte generativo
+ * con degradado derivado del hash del contrato y monograma con el símbolo.
  */
-export function TokenArt({ id, symbol, className }: Props) {
+export function TokenArt({ id, symbol, logoUrl, className }: Props) {
+  const [imageError, setImageError] = useState(false)
+
+  if (logoUrl && !imageError) {
+    return (
+      <img
+        src={logoUrl}
+        alt={symbol ?? id}
+        onError={() => setImageError(true)}
+        className={`${className ?? ''} object-cover`}
+      />
+    )
+  }
+
   const spec = tokenArtSpec(id)
   const gid = `fg-art-${spec.seed}`
   const mono = (symbol?.trim() || id.slice(1, 3)).slice(0, 4)
