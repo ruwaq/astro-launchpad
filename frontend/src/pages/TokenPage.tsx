@@ -125,56 +125,58 @@ export function TokenPage() {
     typeof window !== 'undefined' ? window.location.href : `/token/${id}`
 
   return (
-    <>
-      <div>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
         <Link
           to="/market"
-          className="text-sm text-slate-400 underline underline-offset-2 hover:text-slate-200"
+          className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-medium text-slate-400 hover:text-emerald-300 transition-colors"
         >
-          ← Back to Market
+          <span>←</span> Back to Market
         </Link>
+        <div className="flex items-center gap-2">
+          {owner === null ? (
+            <span className="rounded-full border border-emerald-800/80 bg-emerald-950/40 px-3 py-1 text-[11px] font-semibold text-emerald-300 flex items-center gap-1">
+              <span>🛡️</span> 100% Rug-Proof (Renounced)
+            </span>
+          ) : isOwner ? (
+            <span className="rounded-full border border-amber-800/80 bg-amber-950/40 px-3 py-1 text-[11px] font-semibold text-amber-300">
+              You are the Creator
+            </span>
+          ) : null}
+        </div>
       </div>
 
-      <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-4 sm:p-6">
+      {/* Hero Coin Card */}
+      <section className="rounded-2xl border border-slate-800 bg-slate-900/50 p-4 sm:p-6 shadow-xl backdrop-blur-sm">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
           <TokenArt
             id={id}
             symbol={token.symbol}
             logoUrl={meta.data?.logoUrl}
-            className="h-20 w-20 shrink-0 rounded-2xl"
+            className="h-20 w-20 shrink-0 rounded-2xl shadow-lg shadow-emerald-500/10 border border-slate-700/60"
           />
           <div className="min-w-0 flex-1">
-            <h1 className="truncate text-2xl font-bold">
-              {info.data.name}{' '}
-              <span className="text-slate-500">({token.symbol})</span>
-            </h1>
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="truncate text-2xl sm:text-3xl font-black text-slate-100">
+                {info.data.name}
+              </h1>
+              <span className="rounded-md border border-slate-700 bg-slate-800/80 px-2 py-0.5 font-mono text-sm font-bold text-emerald-300">
+                ${token.symbol}
+              </span>
+            </div>
+
             <p className="mt-1 break-all font-mono text-xs text-slate-500">
-              {id}
+              Contract: {shortAddress(id)}
             </p>
+
             {meta.data?.description ? (
-              <p className="mt-2 text-sm text-slate-300">
+              <p className="mt-2 text-sm text-slate-300 line-clamp-2">
                 {meta.data.description}
               </p>
             ) : null}
-            <div className="mt-3 flex flex-wrap items-center gap-2">
-              <a
-                href={explorerContractUrl(id)}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex min-h-[44px] items-center rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-300 hover:border-slate-500"
-              >
-                Explorer ↗
-              </a>
-              {meta.data?.website ? (
-                <a
-                  href={meta.data.website}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-cyan-800/80 bg-cyan-950/30 px-3 py-2 text-xs text-cyan-300 hover:border-cyan-600"
-                >
-                  <span>🌐</span> Website ↗
-                </a>
-              ) : null}
+
+            {/* Social Buttons */}
+            <div className="mt-3.5 flex flex-wrap items-center gap-2">
               {meta.data?.telegram ? (
                 <a
                   href={
@@ -184,11 +186,23 @@ export function TokenPage() {
                   }
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-sky-800/80 bg-sky-950/30 px-3 py-2 text-xs text-sky-300 hover:border-sky-600"
+                  className="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border border-sky-800/80 bg-sky-950/40 px-3 py-1.5 text-xs font-bold text-sky-300 hover:border-sky-500 transition-colors"
                 >
                   <span>✈️</span> Telegram ↗
                 </a>
               ) : null}
+
+              {meta.data?.website ? (
+                <a
+                  href={meta.data.website}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border border-cyan-800/80 bg-cyan-950/40 px-3 py-1.5 text-xs font-bold text-cyan-300 hover:border-cyan-500 transition-colors"
+                >
+                  <span>🌐</span> Website ↗
+                </a>
+              ) : null}
+
               {meta.data?.twitter ? (
                 <a
                   href={
@@ -198,51 +212,61 @@ export function TokenPage() {
                   }
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2 text-xs text-slate-200 hover:border-slate-500"
+                  className="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-1.5 text-xs font-bold text-slate-200 hover:border-slate-500 transition-colors"
                 >
                   <span>𝕏</span> Twitter ↗
                 </a>
               ) : null}
+
               <ShareButton
                 text={`🌊 Check out $${token.symbol} on AstroGate (Stellar testnet):`}
                 url={shareUrl}
               />
-              {isOwner ? (
-                <span className="rounded-full border border-emerald-800 bg-emerald-950/40 px-3 py-1 text-xs text-emerald-300">
-                  You are the owner
-                </span>
-              ) : null}
+
+              <a
+                href={explorerContractUrl(id)}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex min-h-[38px] items-center rounded-lg border border-slate-800 bg-slate-950/60 px-2.5 py-1.5 text-xs text-slate-400 hover:text-slate-200 hover:border-slate-700 transition-colors"
+              >
+                Explorer ↗
+              </a>
             </div>
           </div>
         </div>
 
-        <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {/* 4 Clean Game Stats */}
+        <div className="mt-5 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
           <Stat
-            label="Price"
+            label="Current Price"
             value={
               pool.isPending
                 ? '…'
                 : price > 0n
-                  ? `${formatAmount(price, 7)} XLM ($${priceUsd < 0.01 ? priceUsd.toFixed(6) : priceUsd.toFixed(4)})`
+                  ? `${formatAmount(price, 7)} XLM`
                   : '—'
             }
           />
           <Stat
-            label="Liquidity"
+            label="USD Price"
+            value={
+              priceUsd > 0
+                ? `$${priceUsd < 0.01 ? priceUsd.toFixed(6) : priceUsd.toFixed(4)}`
+                : '—'
+            }
+          />
+          <Stat
+            label="Pool Liquidity"
             value={
               pool.isPending
                 ? '…'
                 : pool.data?.exists
                   ? `${formatAmount(liquidity, 7)} XLM ($${liquidityUsd.toLocaleString('en-US', { maximumFractionDigits: 0 })})`
-                  : 'No pool'
+                  : 'No pool yet'
             }
           />
           <Stat
-            label="Total Supply"
-            value={formatAmount(info.data.totalSupply, token.decimals)}
-          />
-          <Stat
-            label="Your Balance"
+            label="Your Bag"
             value={
               publicKey
                 ? balance.isPending
@@ -254,6 +278,7 @@ export function TokenPage() {
         </div>
       </section>
 
+      {/* Gamified Graduation Rocket Card */}
       <GraduationCard
         symbol={token.symbol ?? 'TOKEN'}
         owner={owner}
@@ -261,64 +286,91 @@ export function TokenPage() {
         pool={pool.data}
       />
 
-      <TokenHypeBar
-        tokenId={id}
-        symbol={token.symbol ?? 'TOKEN'}
-        pairId={pool.data?.pairId}
-      />
+      {/* Main Trading Arena (2 Columns on Desktop) */}
+      <div className="grid gap-6 lg:grid-cols-12 items-start">
+        {/* Left Column: Visual Chart, Vibe & Live Trade Feed */}
+        <div className="min-w-0 space-y-6 lg:col-span-7">
+          <ReserveChart
+            history={history}
+            symbol={token.symbol}
+            decimals={token.decimals}
+            events={events.data}
+            pool={pool.data}
+          />
 
-      <ReserveChart
-        history={history}
-        symbol={token.symbol}
-        decimals={token.decimals}
-        events={events.data}
-        pool={pool.data}
-      />
+          <TokenHypeBar
+            tokenId={id}
+            symbol={token.symbol ?? 'TOKEN'}
+            pairId={pool.data?.pairId}
+          />
 
-      <ContractDetailsCard
-        tokenId={id}
-        pairId={pool.data?.pairId}
-        symbol={token.symbol ?? 'TOKEN'}
-        name={info.data.name}
-        decimals={token.decimals}
-        totalSupply={info.data.totalSupply}
-        owner={owner}
-        metadata={meta.data}
-      />
+          <TokenActivity tokenId={id} decimals={token.decimals} />
+        </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <SwapCard token={token} />
-        <LiquidityForm token={token} />
+        {/* Right Column: Arcade Buy & Sell Console (Sticky on Desktop) */}
+        <div className="min-w-0 space-y-4 lg:col-span-5 lg:sticky lg:top-20">
+          <SwapCard token={token} />
+        </div>
       </div>
 
-      <LiquidityPosition token={token} />
+      {/* Collapsible Power-User / Developer Tools Drawer */}
+      <details
+        id="advanced-tools"
+        className="group rounded-2xl border border-slate-800 bg-slate-900/30 p-4 transition-all"
+      >
+        <summary className="flex cursor-pointer select-none items-center justify-between text-sm font-bold text-slate-300 hover:text-white">
+          <span className="flex items-center gap-2">
+            <span>🛠️</span> Advanced Developer Tools & Contract Details
+          </span>
+          <span className="text-xs text-slate-500 transition-transform group-open:rotate-180">
+            ▼
+          </span>
+        </summary>
 
-      <TransferCard token={token} />
+        <div className="mt-5 space-y-6 border-t border-slate-800/80 pt-5">
+          <ContractDetailsCard
+            tokenId={id}
+            pairId={pool.data?.pairId}
+            symbol={token.symbol ?? 'TOKEN'}
+            name={info.data.name}
+            decimals={token.decimals}
+            totalSupply={info.data.totalSupply}
+            owner={owner}
+            metadata={meta.data}
+          />
 
-      <BurnCard token={token} />
+          <div className="grid gap-4 lg:grid-cols-2">
+            <LiquidityForm token={token} />
+            <LiquidityPosition token={token} />
+          </div>
 
-      {isOwner ? (
-        <MintCard token={token} />
-      ) : owner ? (
-        <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-4 text-xs text-slate-400">
-          Owner contract:{' '}
-          <a
-            href={explorerAccountUrl(owner)}
-            target="_blank"
-            rel="noreferrer"
-            className="font-mono underline hover:text-slate-200"
-          >
-            {shortAddress(owner)}
-          </a>
-          . Only the owner can execute administrative mints.
-        </section>
-      ) : (
-        <section className="rounded-xl border border-emerald-900/50 bg-emerald-950/20 p-4 text-xs text-emerald-300">
-          ✓ Ownership renounced on-chain. Minting is permanently locked; total supply is 100% immutable.
-        </section>
-      )}
+          <div className="grid gap-4 lg:grid-cols-2">
+            <TransferCard token={token} />
+            <BurnCard token={token} />
+          </div>
 
-      <TokenActivity tokenId={id} decimals={token.decimals} />
-    </>
+          {isOwner ? (
+            <MintCard token={token} />
+          ) : owner ? (
+            <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-4 text-xs text-slate-400">
+              Owner contract:{' '}
+              <a
+                href={explorerAccountUrl(owner)}
+                target="_blank"
+                rel="noreferrer"
+                className="font-mono underline hover:text-slate-200"
+              >
+                {shortAddress(owner)}
+              </a>
+              . Only the owner can execute administrative mints.
+            </section>
+          ) : (
+            <section className="rounded-xl border border-emerald-900/50 bg-emerald-950/20 p-4 text-xs text-emerald-300">
+              ✓ Ownership renounced on-chain. Minting is permanently locked; total supply is 100% immutable.
+            </section>
+          )}
+        </div>
+      </details>
+    </div>
   )
 }

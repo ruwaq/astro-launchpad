@@ -8,16 +8,19 @@ import type { LaunchpadToken } from '../lib/token'
 
 const LAUNCH_STEPS = [
   {
-    title: 'Deploy Token',
-    hint: 'Deploys SEP-41 smart contract on testnet.',
+    icon: '✨',
+    title: 'Create Your Coin',
+    hint: 'Pick a name, ticker, logo & Telegram. $1.11 USD deploy fee.',
   },
   {
-    title: 'Seed Liquidity',
-    hint: 'Creates token/XLM pair on Soroswap & burns LP.',
+    icon: '🚀',
+    title: 'Trade on the Curve',
+    hint: 'Fair launch for everyone. Price increases as players buy.',
   },
   {
-    title: 'Live on Market',
-    hint: 'Instantly tradeable across Stellar DEXs.',
+    icon: '🎓',
+    title: 'Graduate to Soroswap DEX',
+    hint: 'Hit 100% and liquidity is locked forever with LP burned!',
   },
 ]
 
@@ -44,31 +47,35 @@ export function CreatePage() {
   }
 
   return (
-    <>
+    <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold sm:text-3xl">Launch Your Token</h1>
-        <p className="mt-1 max-w-2xl text-slate-400">
-          Deploy a SEP-41 token on Stellar testnet and seed liquidity on Soroswap.
-          Your wallet signs each step; 100% decentralized with zero backend.
+        <h1 className="text-2xl font-black sm:text-3xl flex items-center gap-2">
+          <span>🎮</span> Launch Your Token
+        </h1>
+        <p className="mt-1 max-w-2xl text-sm text-slate-400">
+          Create and launch your coin on Stellar in seconds. Simple, fast, and 100% rug-proof with renounced ownership.
         </p>
       </div>
 
       <ol
         aria-label="How a token launches into the market"
-        className="grid gap-2 sm:grid-cols-3"
+        className="grid gap-3 sm:grid-cols-3"
       >
         {LAUNCH_STEPS.map((step, index) => (
           <li
             key={step.title}
-            className="rounded-lg border border-slate-800 bg-slate-900/40 p-3"
+            className="rounded-xl border border-slate-800 bg-slate-900/50 p-3.5 shadow-sm"
           >
-            <span className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-700 text-xs font-semibold text-slate-300">
-              {index + 1}
-            </span>
-            <p className="mt-2 text-sm font-medium text-slate-200">
-              {step.title}
-            </p>
-            <p className="mt-0.5 text-xs text-slate-500">{step.hint}</p>
+            <div className="flex items-center gap-2">
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-500/20 text-xs font-bold text-emerald-300">
+                {index + 1}
+              </span>
+              <span className="text-base">{step.icon}</span>
+              <p className="text-sm font-bold text-slate-200">
+                {step.title}
+              </p>
+            </div>
+            <p className="mt-2 text-xs text-slate-400 leading-relaxed">{step.hint}</p>
           </li>
         ))}
       </ol>
@@ -76,34 +83,47 @@ export function CreatePage() {
       <CreateTokenForm onCreated={onCreated} />
 
       {liquidityToken ? (
-        <div id="add-liquidity" className="scroll-mt-20 flex flex-col gap-3">
-          {createdTokens.length > 1 ? (
-            <label className="block max-w-md text-sm">
-              <span className="text-slate-400">Token to manage liquidity</span>
-              <select
-                value={liquidityToken.id}
-                onChange={(event) => selectToken(event.target.value)}
-                className="mt-1 w-full rounded-lg border border-slate-800 bg-slate-950 px-3.5 py-3 text-base text-slate-100 outline-none focus:border-emerald-500"
+        <details id="add-liquidity" className="group rounded-xl border border-slate-800 bg-slate-900/30 p-4 transition-all">
+          <summary className="flex cursor-pointer select-none items-center justify-between font-semibold text-sm text-slate-300 hover:text-white">
+            <span className="flex items-center gap-2">
+              <span>💧</span> Manage Initial Pool Liquidity for ${liquidityToken.symbol}
+            </span>
+            <span className="text-xs text-slate-500 transition-transform group-open:rotate-180">
+              ▼
+            </span>
+          </summary>
+
+          <div className="mt-4 space-y-3 pt-3 border-t border-slate-800">
+            {createdTokens.length > 1 ? (
+              <label className="block max-w-md text-sm">
+                <span className="text-slate-400">Select token:</span>
+                <select
+                  value={liquidityToken.id}
+                  onChange={(event) => selectToken(event.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-emerald-500"
+                >
+                  {createdTokens.map((token) => (
+                    <option key={token.id} value={token.id}>
+                      {token.symbol ?? 'Token'} · {shortAddress(token.id)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+
+            <LiquidityForm key={liquidityToken.id} token={liquidityToken} />
+
+            <div className="pt-2">
+              <Link
+                to={`/token/${liquidityToken.id}`}
+                className="inline-flex items-center gap-1.5 text-sm font-bold text-emerald-400 hover:text-emerald-300 transition-colors"
               >
-                {createdTokens.map((token) => (
-                  <option key={token.id} value={token.id}>
-                    {token.symbol ?? 'Token'} · {shortAddress(token.id)}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : null}
-
-          <LiquidityForm key={liquidityToken.id} token={liquidityToken} />
-
-          <Link
-            to={`/token/${liquidityToken.id}`}
-            className="text-sm text-emerald-400 underline underline-offset-2 hover:text-emerald-300"
-          >
-            View Token Details →
-          </Link>
-        </div>
+                Go to ${liquidityToken.symbol} Trading Page →
+              </Link>
+            </div>
+          </div>
+        </details>
       ) : null}
-    </>
+    </div>
   )
 }

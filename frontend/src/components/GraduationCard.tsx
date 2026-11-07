@@ -3,8 +3,6 @@ import {
   auditTokenSecurity,
   CREATOR_GRADUATION_REWARD_XLM,
   graduationProgress,
-  PROTOCOL_DEPLOY_FEE_XLM,
-  PROTOCOL_GRADUATION_FEE_XLM,
   SOROSWAP_SWAP_FEE_PERCENT,
 } from '../lib/tokenomics'
 import { explorerAccountUrl, explorerContractUrl } from '../lib/explorer'
@@ -37,58 +35,66 @@ export function GraduationCard({
   const lpIsLocked = burnedPercent >= 90
 
   return (
-    <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-4 sm:p-6">
+    <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-4 sm:p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-lg font-semibold">
-              Liquidity Curve & Graduation
+            <h2 className="text-base sm:text-lg font-bold flex items-center gap-2">
+              <span>🚀</span> Road to Soroswap DEX Graduation
             </h2>
             <span
-              className={`rounded-full border px-2.5 py-0.5 text-xs font-medium ${
+              className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold ${
                 grad.graduated
-                  ? 'border-emerald-500 bg-emerald-500/20 text-emerald-200'
+                  ? 'border-emerald-500 bg-emerald-500/20 text-emerald-300 animate-pulse'
                   : 'border-slate-700 bg-slate-950/60 text-slate-300'
               }`}
             >
               {grad.label}
             </span>
           </div>
-          <p className="mt-1 text-xs text-slate-400">
-            Fair Launch mechanics on Stellar: every buy injects XLM directly
-            into the Soroswap pool reserve, ascending the constant-product curve{' '}
-            <code className="text-slate-300">x · y = k</code> until graduating to deep DEX status.
+          <p className="mt-1 text-xs text-slate-400 max-w-xl">
+            When the bonding curve hits 100% ({grad.targetXlm.toLocaleString('en-US')} XLM), all liquidity is locked & burned into Soroswap DEX forever! Dev receives a 0.5% reward. 100% fair launch, rug-proof.
           </p>
         </div>
 
         <div className="text-right font-mono">
-          <span className="text-lg font-bold text-emerald-400">
+          <span className="text-xl sm:text-2xl font-black text-emerald-400">
             {grad.percent.toFixed(1)}%
           </span>
           <p className="text-xs text-slate-400">
             {grad.currentXlm.toLocaleString('en-US', {
-              maximumFractionDigits: 2,
+              maximumFractionDigits: 1,
             })}{' '}
             / {grad.targetXlm.toLocaleString('en-US')} XLM
           </p>
         </div>
       </div>
 
-      <div
-        role="progressbar"
-        aria-valuenow={Math.round(grad.percent)}
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-label="Progress towards graduation on Soroswap DEX"
-        className="mt-3 h-3 w-full overflow-hidden rounded-full border border-slate-800 bg-slate-950"
-      >
+      <div className="relative mt-4 pt-4">
+        {/* Animated Rocket Positioned Above the Bar */}
         <div
-          className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-300 transition-all duration-500"
-          style={{ width: `${Math.min(100, Math.max(2, grad.percent))}%` }}
-        />
+          className="absolute top-0 -translate-x-1/2 text-sm transition-all duration-500 pointer-events-none"
+          style={{ left: `${Math.min(98, Math.max(2, grad.percent))}%` }}
+        >
+          🚀
+        </div>
+
+        <div
+          role="progressbar"
+          aria-valuenow={Math.round(grad.percent)}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-label="Progress towards graduation on Soroswap DEX"
+          className="h-3 w-full overflow-hidden rounded-full border border-slate-800 bg-slate-950"
+        >
+          <div
+            className="h-full rounded-full bg-gradient-to-r from-emerald-500 via-teal-400 to-cyan-300 transition-all duration-500 shadow-sm shadow-emerald-500/50"
+            style={{ width: `${Math.min(100, Math.max(2, grad.percent))}%` }}
+          />
+        </div>
       </div>
 
-      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-4 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
         <div
           className={`rounded-lg border p-3 text-xs ${
             audit.ownershipRenounced
@@ -96,15 +102,16 @@ export function GraduationCard({
               : 'border-amber-900/70 bg-amber-950/20 text-amber-200'
           }`}
         >
-          <p className="font-semibold">
+          <p className="font-semibold flex items-center gap-1">
+            <span>{audit.ownershipRenounced ? '🛡️' : '⚠️'}</span>
             {audit.ownershipRenounced
-              ? '✓ Immutable Supply (No Owner)'
-              : '⚠️ Active Owner (Mint Enabled)'}
+              ? 'Immutable Supply'
+              : 'Active Owner'}
           </p>
           <p className="mt-1 opacity-80">
             {audit.ownershipRenounced
-              ? 'Creator renounced the contract: nobody can ever mint more tokens.'
-              : 'Creator has not renounced ownership and could inflate supply.'}
+              ? 'Ownership renounced on-chain. Nobody can mint more tokens.'
+              : 'Owner can still mint tokens.'}
           </p>
         </div>
 
@@ -115,15 +122,16 @@ export function GraduationCard({
               : 'border-slate-800 bg-slate-950/50 text-slate-300'
           }`}
         >
-          <p className="font-semibold">
+          <p className="font-semibold flex items-center gap-1">
+            <span>🔥</span>
             {lpIsLocked
-              ? `🔥 LP Burned On-Chain (${burnedPercent.toFixed(1)}%)`
-              : `🔒 Burned Liquidity: ${burnedPercent.toFixed(1)}%`}
+              ? `LP Burned (${burnedPercent.toFixed(1)}%)`
+              : `Burned LP: ${burnedPercent.toFixed(1)}%`}
           </p>
           <p className="mt-1 opacity-80">
             {lpIsLocked ? (
               <>
-                LP permanently transferred to Stellar dead address{' '}
+                LP locked in dead account{' '}
                 <a
                   href={explorerAccountUrl(STELLAR_BURN_ADDRESS)}
                   target="_blank"
@@ -132,34 +140,28 @@ export function GraduationCard({
                 >
                   GAAAA...WHF ↗
                 </a>
-                : zero rug-pull risk.
               </>
             ) : (
-              'Initial LP tokens are automatically burned to the dead account on Fair Launch.'
+              'LP is automatically burned to dead address on graduation.'
             )}
           </p>
         </div>
 
         <div className="rounded-lg border border-slate-800 bg-slate-950/50 p-3 text-xs text-slate-300">
-          <p className="font-semibold text-slate-200">
-            Curve / DEX Reserve:{' '}
-            <span className="font-mono text-emerald-400">
-              {audit.poolSupplyPercent.toFixed(1)}%
-            </span>
+          <p className="font-semibold text-slate-200 flex items-center gap-1">
+            <span>⚖️</span> Fair Tokenomics
           </p>
           <p className="mt-1 text-slate-400">
-            79% curve sale + 20% DEX cushion (99% pool) and 1% max creator allocation.
+            79.5% bonding curve + 20% DEX reserve (99.5% pool), 0.5% dev prize upon graduation.
           </p>
         </div>
 
         <div className="rounded-lg border border-slate-800 bg-slate-950/50 p-3 text-xs text-slate-300">
-          <p className="font-semibold text-emerald-300">
-            💎 Economics & Earning ({SOROSWAP_SWAP_FEE_PERCENT}% LP fee)
+          <p className="font-semibold text-emerald-300 flex items-center gap-1">
+            <span>💎</span> Fees & Rewards
           </p>
           <p className="mt-1 text-slate-400">
-            Swaps leave {SOROSWAP_SWAP_FEE_PERCENT}% fee in pool. Protocol:{' '}
-            {PROTOCOL_DEPLOY_FEE_XLM} XLM mint · {PROTOCOL_GRADUATION_FEE_XLM}{' '}
-            XLM graduation (+{CREATOR_GRADUATION_REWARD_XLM} XLM creator reward).
+            {SOROSWAP_SWAP_FEE_PERCENT}% LP fee remains in pool. Creator receives +{CREATOR_GRADUATION_REWARD_XLM} XLM bonus on graduation.
           </p>
         </div>
       </div>

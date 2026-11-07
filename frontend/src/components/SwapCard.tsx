@@ -43,6 +43,7 @@ type SwapDone = {
 }
 
 const AMOUNT_PERCENTS = [25, 50, 75, 100] as const
+const QUICK_XLM_AMOUNTS = ['5', '10', '25', '100'] as const
 
 function impactClass(impact: number): string {
   if (impact >= 5) return 'text-rose-300'
@@ -272,71 +273,124 @@ export function SwapCard({
       <div
         role="group"
         aria-label="Swap direction"
-        className="mt-3 grid grid-cols-2 gap-1 rounded-lg border border-slate-800 bg-slate-950/40 p-1"
+        className="mt-3 grid grid-cols-2 gap-1.5 rounded-xl border border-slate-800 bg-slate-950/70 p-1.5"
       >
-        <button
-          type="button"
-          aria-pressed={!isBuy}
-          disabled={busy}
-          onClick={() => changeDirection('sell')}
-          className={`min-h-[44px] rounded-md text-sm disabled:opacity-60 ${
-            !isBuy
-              ? 'bg-emerald-500/15 font-medium text-emerald-300'
-              : 'text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          Sell Token
-        </button>
         <button
           type="button"
           aria-pressed={isBuy}
           disabled={busy}
           onClick={() => changeDirection('buy')}
-          className={`min-h-[44px] rounded-md text-sm disabled:opacity-60 ${
+          className={`min-h-[44px] rounded-lg text-sm font-bold transition-all ${
             isBuy
-              ? 'bg-emerald-500/15 font-medium text-emerald-300'
-              : 'text-slate-400 hover:text-slate-200'
+              ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/25'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/50'
           }`}
         >
-          Buy with XLM
+          Buy with XLM 🟢
+        </button>
+        <button
+          type="button"
+          aria-pressed={!isBuy}
+          disabled={busy}
+          onClick={() => changeDirection('sell')}
+          className={`min-h-[44px] rounded-lg text-sm font-bold transition-all ${
+            !isBuy
+              ? 'bg-rose-500 text-slate-950 shadow-md shadow-rose-500/25'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/50'
+          }`}
+        >
+          Sell Token 🔴
         </button>
       </div>
 
       {pool.data?.exists ? (
-        <p className="mt-3 text-xs text-slate-500">
-          Reserves: {formatAmount(pool.data.reserveToken, token.decimals)} {tokenSymbol} ·{' '}
-          {formatAmount(pool.data.reserveXlm, 7)} XLM
+        <p className="mt-3 text-xs text-slate-400 flex items-center justify-between">
+          <span>Pool Reserves:</span>
+          <span className="font-mono text-slate-300">
+            {formatAmount(pool.data.reserveToken, token.decimals)} {tokenSymbol} ·{' '}
+            {formatAmount(pool.data.reserveXlm, 7)} XLM
+          </span>
         </p>
       ) : (
-        <p className="mt-3 text-xs text-amber-400">
-          This token has no pair with XLM yet: seed liquidity first.
-        </p>
+        <div className="mt-3 rounded-xl border border-amber-500/30 bg-amber-950/20 p-3 text-center">
+          <p className="text-xs font-semibold text-amber-200">
+            This token has no pair with XLM yet: seed liquidity first.
+          </p>
+          <p className="mt-1 text-[11px] text-slate-400">
+            Be the first player to start the trading game!
+          </p>
+          <a
+            href="#advanced-tools"
+            className="mt-2 inline-flex min-h-[36px] items-center gap-1.5 rounded-lg bg-amber-400 px-3.5 py-1 text-xs font-bold text-slate-950 hover:bg-amber-300"
+          >
+            ⚡ Open Seed Liquidity Tool
+          </a>
+        </div>
       )}
 
       <form onSubmit={onSwap} aria-busy={busy} className="mt-4 grid gap-3">
         <label className="block text-sm">
-          <span className="text-slate-400">
-            {isBuy ? 'Amount in XLM' : `Amount in ${tokenSymbol} (${token.decimals} decimals)`}
-          </span>
+          <div className="flex items-center justify-between">
+            <span className="text-slate-300 font-medium">
+              {isBuy ? 'Amount in XLM' : `Amount in ${tokenSymbol}`}
+            </span>
+            {amount ? (
+              <button
+                type="button"
+                onClick={() => setAmount('')}
+                className="text-[11px] text-slate-400 hover:text-slate-200 underline"
+              >
+                Clear
+              </button>
+            ) : null}
+          </div>
           <input
             className={`${inputClass} mt-1`}
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
-            placeholder={isBuy ? '5' : '1'}
+            placeholder={isBuy ? 'e.g. 10' : 'e.g. 500000'}
             inputMode="decimal"
           />
         </label>
 
-        {publicKey && inputBalanceBase !== undefined ? (
-          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
-            <span>
-              {isBuy ? 'Your XLM' : 'Your Balance'}:{' '}
-              <span className="font-mono text-slate-300">
-                {formatAmount(inputBalanceBase, inputDecimals)}
-              </span>
+        {/* Quick Amount Chips */}
+        <div className="flex flex-wrap items-center justify-between gap-1.5 text-xs text-slate-400">
+          <span>
+            {isBuy ? 'Balance' : 'Your Token'}:{' '}
+            <span className="font-mono text-slate-200 font-semibold">
+              {publicKey && inputBalanceBase !== undefined
+                ? formatAmount(inputBalanceBase, inputDecimals)
+                : '—'}
             </span>
-            <div className="flex flex-wrap gap-1">
-              {AMOUNT_PERCENTS.map((pct) => {
+          </span>
+
+          <div className="flex flex-wrap gap-1">
+            {isBuy ? (
+              <>
+                {QUICK_XLM_AMOUNTS.map((quickXlm) => (
+                  <button
+                    key={quickXlm}
+                    type="button"
+                    disabled={busy}
+                    onClick={() => setAmount(quickXlm)}
+                    className="inline-flex min-h-[32px] items-center rounded-md border border-slate-800 bg-slate-950/80 px-2 py-1 text-xs font-semibold text-emerald-300 hover:border-emerald-500 hover:bg-emerald-950/30 transition-colors"
+                  >
+                    {quickXlm} XLM
+                  </button>
+                ))}
+                {maxInput !== undefined && maxInput > 0n ? (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => setAmount(formatAmount(maxInput, inputDecimals))}
+                    className="inline-flex min-h-[32px] items-center rounded-md border border-emerald-800/80 bg-emerald-950/40 px-2 py-1 text-xs font-bold text-emerald-200 hover:border-emerald-500 transition-colors"
+                  >
+                    MAX
+                  </button>
+                ) : null}
+              </>
+            ) : (
+              AMOUNT_PERCENTS.map((pct) => {
                 const slice =
                   maxInput !== undefined ? (maxInput * BigInt(pct)) / 100n : 0n
                 return (
@@ -349,15 +403,15 @@ export function SwapCard({
                         setAmount(formatAmount(slice, inputDecimals))
                       }
                     }}
-                    className="inline-flex min-h-[32px] items-center rounded-md border border-slate-800 bg-slate-950/60 px-2.5 py-1 text-xs font-medium text-emerald-300 hover:border-emerald-500 disabled:opacity-50"
+                    className="inline-flex min-h-[32px] items-center rounded-md border border-slate-800 bg-slate-950/80 px-2 py-1 text-xs font-semibold text-rose-300 hover:border-rose-500 hover:bg-rose-950/30 transition-colors disabled:opacity-50"
                   >
                     {pct === 100 ? 'MAX' : `${pct}%`}
                   </button>
                 )
-              })}
-            </div>
+              })
+            )}
           </div>
-        ) : null}
+        </div>
 
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
           <span>Slippage Tolerance</span>
@@ -440,16 +494,20 @@ export function SwapCard({
           <button
             type="submit"
             disabled={busy || !publicKey || !pool.data?.exists}
-            className="w-full rounded-lg bg-emerald-500 px-6 py-3 text-base font-medium text-slate-950 hover:bg-emerald-400 disabled:opacity-60"
+            className={`min-h-[48px] w-full rounded-xl px-6 py-3.5 text-base font-black transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed ${
+              isBuy
+                ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-emerald-500/25 active:scale-[0.99]'
+                : 'bg-rose-500 hover:bg-rose-400 text-slate-950 shadow-rose-500/25 active:scale-[0.99]'
+            }`}
           >
             {busy
-              ? 'Executing swap…'
+              ? 'Executing on-chain…'
               : isBuy
-                ? `Buy ${tokenSymbol}`
-                : `Sell ${tokenSymbol}`}
+                ? `🚀 Quick Buy ${tokenSymbol} Now`
+                : `💰 Quick Sell ${tokenSymbol} for XLM`}
           </button>
-          <p className="mt-2 text-xs text-slate-500">
-            Slippage {slippage}% · minimum return enforced on-chain by Soroswap Router.
+          <p className="mt-2 text-center text-xs text-slate-400">
+            Slippage {slippage}% · Protected by Soroswap Router on Stellar testnet
           </p>
         </div>
 
