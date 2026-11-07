@@ -399,7 +399,7 @@ export function CreateTokenForm({
               <div className="mt-1.5 flex flex-wrap items-center gap-2 font-mono text-[11px] text-slate-500">
                 <span>Supply: 1,000,000,000</span>
                 <span>•</span>
-                <span>Dev Reward: 0.5% (Bloqueo {CREATOR_GRADUATION_LOCK_DAYS} Días tras Graduación)</span>
+                <span>Dev Reward: 0.5% (5 Fases en 15 Días post-graduación)</span>
                 {telegram ? (
                   <>
                     <span>•</span>
@@ -532,7 +532,7 @@ export function CreateTokenForm({
                 5,000,000 $TOKEN
               </div>
               <div className="mt-0.5 text-[10px] text-slate-400">
-                🔒 Bloqueo estricto de {CREATOR_GRADUATION_LOCK_DAYS} días post-graduación
+                🔒 5 Fases de 20% cada 3 días ({CREATOR_GRADUATION_LOCK_DAYS} días post-graduación)
               </div>
             </div>
           </div>

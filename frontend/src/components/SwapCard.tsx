@@ -542,6 +542,29 @@ export function SwapCard({
           </p>
         ) : null}
 
+        {/* Game Mechanics & Fair Trading Notice */}
+        {pool.data?.exists ? (
+          isBuy ? (
+            <div className="rounded-lg border border-emerald-900/40 bg-emerald-950/20 px-3 py-2 text-[11px] text-slate-300 space-y-1">
+              <p className="flex items-center gap-1.5 font-semibold text-emerald-300">
+                <span>💧</span> Mecánica de Juego Justa (Soroswap AMM On-Chain):
+              </p>
+              <p className="text-slate-400 leading-relaxed">
+                Tus XLM entran 100% a la reserva del pool. El precio del token sube automáticamente con cada compra y baja con cada venta. Puedes vender tus ${tokenSymbol} en cualquier momento para recuperar tus XLM.
+              </p>
+            </div>
+          ) : (
+            <div className="rounded-lg border border-rose-900/40 bg-rose-950/20 px-3 py-2 text-[11px] text-slate-300 space-y-1">
+              <p className="flex items-center gap-1.5 font-semibold text-rose-300">
+                <span>💰</span> Salida a XLM Nativo en Cualquier Momento:
+              </p>
+              <p className="text-slate-400 leading-relaxed">
+                Devuelves tus ${tokenSymbol} al pool y recibes XLM líquido directo en tu wallet. Cero riesgo de rug: el LP está 100% quemado en la dirección muerta de Stellar.
+              </p>
+            </div>
+          )
+        ) : null}
+
         <div>
           {!publicKey ? (
             <button

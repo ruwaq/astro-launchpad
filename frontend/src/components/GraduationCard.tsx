@@ -2,12 +2,13 @@ import { useQuery } from '@tanstack/react-query'
 import {
   auditTokenSecurity,
   CREATOR_GRADUATION_REWARD_XLM,
+  CREATOR_VESTING_SCHEDULE,
   graduationProgress,
   SOROSWAP_SWAP_FEE_PERCENT,
+  STELLAR_BURN_ADDRESS,
 } from '../lib/tokenomics'
 import { explorerAccountUrl, explorerContractUrl } from '../lib/explorer'
 import { fetchBurnedLpInfo, type PoolState } from '../lib/soroswap'
-import { STELLAR_BURN_ADDRESS } from '../lib/tokenomics'
 
 export function GraduationCard({
   symbol,
@@ -163,6 +164,39 @@ export function GraduationCard({
           <p className="mt-1 text-slate-400">
             {SOROSWAP_SWAP_FEE_PERCENT}% LP fee remains in pool. Creator receives +{CREATOR_GRADUATION_REWARD_XLM} XLM bonus on graduation.
           </p>
+        </div>
+      </div>
+
+      {/* 5-Phase Anti-Dump Vesting Schedule (15 Days) */}
+      <div className="mt-4 rounded-xl border border-amber-500/30 bg-amber-950/15 p-3.5 space-y-2.5">
+        <div className="flex flex-wrap items-center justify-between gap-1 text-xs">
+          <span className="font-bold text-amber-300 flex items-center gap-1.5">
+            <span>🛡️</span> Protección Anti-Dump: Desbloqueo en 5 Fases (15 Días)
+          </span>
+          <span className="font-mono text-[11px] text-slate-300">
+            Dev Cut: 5,000,000 $TOKEN (0.5% del supply)
+          </span>
+        </div>
+        <p className="text-[11px] text-slate-400">
+          Para que ningún inversor sufra ventas masivas inmediatas tras la graduación, los tokens del desarrollador se van liberando poco a poco cada 3 días (20% por fase):
+        </p>
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 pt-1">
+          {CREATOR_VESTING_SCHEDULE.map((phase) => (
+            <div
+              key={phase.phase}
+              className="rounded-lg border border-slate-800 bg-slate-950/70 p-2 text-center"
+            >
+              <span className="text-[10px] font-semibold text-amber-400 block">
+                Fase {phase.phase} (Día {phase.day})
+              </span>
+              <p className="font-mono text-xs font-black text-slate-100 mt-0.5">
+                {phase.percent}%
+              </p>
+              <span className="text-[10px] text-slate-500 font-mono block">
+                {phase.tokensAmount.toLocaleString()} tokens
+              </span>
+            </div>
+          ))}
         </div>
       </div>
 

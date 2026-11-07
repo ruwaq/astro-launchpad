@@ -57,11 +57,60 @@ export const CREATOR_GRADUATION_REWARD_XLM = 5
 
 /**
  * Creator allocation anti-dump protection lock:
- * The creator receives their 0.5% allocation 15 days AFTER graduation
- * to protect buyers from immediate selloffs and allow organic price discovery.
+ * The creator receives their 0.5% allocation across 5 phases over 15 days
+ * (20% every 3 days) after graduation to protect buyers from immediate selloffs.
  */
 export const CREATOR_GRADUATION_LOCK_DAYS = 15
 export const CREATOR_GRADUATION_LOCK_SECONDS = 15 * 24 * 60 * 60
+export const CREATOR_VESTING_PHASES_COUNT = 5
+export const CREATOR_VESTING_INTERVAL_DAYS = 3
+export const CREATOR_VESTING_PERCENT_PER_PHASE = 20
+
+export type VestingPhase = {
+  phase: number
+  day: number
+  percent: number
+  tokensAmount: number
+  label: string
+}
+
+export const CREATOR_VESTING_SCHEDULE: VestingPhase[] = [
+  {
+    phase: 1,
+    day: 3,
+    percent: 20,
+    tokensAmount: 1_000_000,
+    label: 'Fase 1 (Día 3): 20% (1M tokens) tras 72h de consolidación en DEX',
+  },
+  {
+    phase: 2,
+    day: 6,
+    percent: 20,
+    tokensAmount: 1_000_000,
+    label: 'Fase 2 (Día 6): 20% (1M tokens)',
+  },
+  {
+    phase: 3,
+    day: 9,
+    percent: 20,
+    tokensAmount: 1_000_000,
+    label: 'Fase 3 (Día 9): 20% (1M tokens)',
+  },
+  {
+    phase: 4,
+    day: 12,
+    percent: 20,
+    tokensAmount: 1_000_000,
+    label: 'Fase 4 (Día 12): 20% (1M tokens)',
+  },
+  {
+    phase: 5,
+    day: 15,
+    percent: 20,
+    tokensAmount: 1_000_000,
+    label: 'Fase 5 (Día 15): 20% (1M tokens) — Desbloqueo final del 100%',
+  },
+]
 
 /**
  * Default optimized micro-seed XLM to open pool on Soroswap without burdening the creator:
