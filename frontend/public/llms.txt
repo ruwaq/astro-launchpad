@@ -1,0 +1,95 @@
+# AstroGate Protocol (llms.txt)
+> The Decentralized Fair-Launch & AMM Platform on Stellar/Soroban.
+
+AstroGate is a Web3 token launchpad and automated market maker (AMM) operating directly on Stellar Soroban. It provides 100% on-chain, verifiable token fair-launches ($1.11 USD deploy fee, 1% creator, 99% Soroswap AMM pool, mandatory LP burn to dead address, and ownership renunciation).
+
+## Core Network & Contracts (Testnet)
+- Network: Stellar Testnet (`Test SDF Network ; September 2015`)
+- RPC Endpoint: https://soroban-testnet.stellar.org
+- Horizon API: https://horizon-testnet.stellar.org
+- Soroswap Factory: CDP3HMUH6SMS3S7NPGNDJLULCOXXEPSHY4JKUKMBNQMATHDHWXRRJTBY
+- Soroswap Router: CCJUD55AG6W5HAI5LRVNKAE5WDP5XGZBUDS5WNTIVDU7O264UZZE7BRD
+- Native XLM SAC: CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC
+- Genesis ASTRO Token: CAI637WCEILQF3ZYOV6BRUCX532XQIVOOJ4CRWFPWHQRJHOH5OKHSXRE
+- ASTRO/XLM AMM Pair: CA32TMZ2AODXI7K7B6T2YPZR52HJKFCY5GT2DNHMOL326DLSNPX55BUP
+- LP Burn Address: GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF
+- Token WASM Hash: 438d12a79855dd42c353d12bb42e6b57ed513eed47b7008094683ba33f971286
+
+## AI Agent Integration & SDK
+Developers and autonomous AI agents can interact with the protocol programmatically using the `@astrogate/sdk` modules located at `src/sdk/index.ts`:
+
+### 1. Query Active Market
+```typescript
+import { getMarketTokens } from './src/sdk'
+
+// Fetch top tokens with real-time pricing and liquidity
+const tokens = await getMarketTokens({ maxTokens: 20 })
+// Returns: Array<{ id, name, symbol, decimals, pairId, priceXlm, reserveToken, reserveXlm, graduationPercent, isGraduated }>
+```
+
+### 2. Quote AMM Swap
+```typescript
+import { quoteSwap } from './src/sdk'
+
+// Quote buying 10 XLM worth of a token
+const buyQuote = await quoteSwap({
+  tokenId: 'CAI637WCEILQF3ZYOV6BRUCX532XQIVOOJ4CRWFPWHQRJHOH5OKHSXRE',
+  amountIn: 100_000_000n, // 10 XLM (7 decimals)
+  direction: 'buy',
+  slippagePercent: 2,
+})
+```
+
+### 3. Verify Anti-Rug Status
+```typescript
+import { verifyAntiRug } from './src/sdk'
+
+const audit = await verifyAntiRug(tokenId)
+// audit.isAntiRugVerified === true if 100% LP burned to GAAAA...WHF and ownership renounced
+```
+
+## Function Calling / Tool Definitions for LLM Agents
+```json
+[
+  {
+    "name": "get_market_tokens",
+    "description": "Returns list of active tokens, liquidity reserves, and live XLM/USD prices on AstroGate",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "maxTokens": { "type": "number", "description": "Maximum number of tokens to return (default 20)" }
+      }
+    }
+  },
+  {
+    "name": "quote_swap",
+    "description": "Calculates exact AMM swap output between XLM and any launchpad token",
+    "parameters": {
+      "type": "object",
+      "required": ["tokenId", "amountIn", "direction"],
+      "properties": {
+        "tokenId": { "type": "string", "description": "Stellar contract address of token" },
+        "amountIn": { "type": "string", "description": "Amount in stroops / base units (7 decimals)" },
+        "direction": { "type": "string", "enum": ["buy", "sell"], "description": "buy = XLM->Token, sell = Token->XLM" },
+        "slippagePercent": { "type": "number", "description": "Max slippage percentage (default 2)" }
+      }
+    }
+  },
+  {
+    "name": "verify_anti_rug",
+    "description": "Audits whether a token has 100% LP permanently burned to GAAAA...WHF and ownership renounced",
+    "parameters": {
+      "type": "object",
+      "required": ["tokenId"],
+      "properties": {
+        "tokenId": { "type": "string", "description": "Stellar contract address of token" }
+      }
+    }
+  }
+]
+```
+
+## Security & Architectural Guarantees
+- No Backend Auth: Identity is verified exclusively via ED25519 cryptographic signatures from Stellar wallets.
+- Atomic Settling: Token balances and LP shares are stored in Soroban ledger state with TTL extension.
+- Multi-Oracle Fallback: Real-time USD pricing derived from Coinbase, Binance, CoinGecko, and CryptoCompare with in-memory caching.

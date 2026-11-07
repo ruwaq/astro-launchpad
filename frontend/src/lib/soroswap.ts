@@ -2,6 +2,7 @@ import type { Signer } from '@stellar/stellar-sdk/contract'
 import { Client as FactoryClient } from '../contracts/soroswap-factory'
 import { Client as PairClient } from '../contracts/soroswap-pair'
 import { Client as RouterClient } from '../contracts/soroswap-router'
+import { isValidContractAddress } from './address'
 import {
   NETWORK_PASSPHRASE,
   RPC_URL,
@@ -173,6 +174,9 @@ const pairTokensCache = new Map<string, { token0: string; token1: string }>()
  * leen del contrato del par (`token_0`/`token_1`), que es la única verdad.
  */
 export async function fetchPoolState(tokenId: string): Promise<PoolState> {
+  if (!isValidContractAddress(tokenId)) {
+    return { exists: false, pairId: null, reserveToken: 0n, reserveXlm: 0n }
+  }
   let pairId = pairIdCache.get(tokenId) ?? null
 
   if (!pairId) {
@@ -241,7 +245,7 @@ function pairClientFor(pairId: string, signer?: Signer): PairClient {
 }
 
 /** Orden interno `[token_0, token_1]` y reservas, tal como las guarda el par. */
-async function pairLayout(
+export async function pairLayout(
   pairId: string,
   signer?: Signer,
 ): Promise<{ token0: string; token1: string; reserves: [bigint, bigint] }> {
@@ -270,6 +274,38 @@ async function pairLayout(
   )
   pairTokensCache.set(pairId, { token0, token1 })
   return { token0, token1, reserves }
+}
+
+/** Estado y token de un par Soroswap a partir de su ID de contrato. */
+export async function fetchPoolStateByPair(pairId: string): Promise<{
+  exists: boolean
+  tokenId: string | null
+  reserveToken: bigint
+  reserveXlm: bigint
+} | null> {
+  try {
+    const layout = await pairLayout(pairId)
+    const { token0, token1, reserves } = layout
+    if (token0 === XLM_SAC) {
+      return {
+        exists: true,
+        tokenId: token1,
+        reserveToken: reserves[1],
+        reserveXlm: reserves[0],
+      }
+    }
+    if (token1 === XLM_SAC) {
+      return {
+        exists: true,
+        tokenId: token0,
+        reserveToken: reserves[0],
+        reserveXlm: reserves[1],
+      }
+    }
+    return null
+  } catch {
+    return null
+  }
 }
 
 /**

@@ -10,16 +10,28 @@
  * las reservas del par: todo son simulaciones de solo lectura.
  */
 import { rpc, scValToNative } from '@stellar/stellar-sdk'
-import { fetchPoolState, type PoolState } from './soroswap'
+import {
+  fetchPoolState,
+  fetchPoolStateByPair,
+  soroswapClients,
+  unwrapResult,
+  type PoolState,
+} from './soroswap'
 import { tokenClient } from './token'
 import { ASTRO_TOKEN_ID, RPC_URL, SOROSWAP_FACTORY, XLM_SAC } from './network'
 import { shortAddress } from './format'
+import {
+  getAllStoredTokens,
+  putStoredTokens,
+  putSyncMeta,
+  type StoredTokenRecord,
+} from './indexed-db'
 
 /** Ventana por defecto: ~14 h de testnet (ledgers de ~5 s). */
 export const DEFAULT_WINDOW_LEDGERS = 10_000
 
-/** Tokens que se listan como máximo (cada uno cuesta varias simulaciones). */
-export const DEFAULT_MAX_TOKENS = 9
+/** Tokens que se listan como máximo. */
+export const DEFAULT_MAX_TOKENS = 50
 
 /** Tokens que siempre se intentan listar, aunque no estén en la ventana. */
 export const DEFAULT_PINNED_TOKENS = [ASTRO_TOKEN_ID]
@@ -274,9 +286,108 @@ async function mapLimit<T, R>(
   return results
 }
 
+/** Convierte un StoredTokenRecord de IndexedDB a TokenListing */
+export function recordToListing(record: StoredTokenRecord): TokenListing {
+  return {
+    id: record.id,
+    name: record.name,
+    symbol: record.symbol,
+    decimals: record.decimals,
+    ledger: record.ledger,
+    pool: {
+      exists: true,
+      pairId: record.pairId,
+      reserveToken: BigInt(record.reserveToken || '0'),
+      reserveXlm: BigInt(record.reserveXlm || '0'),
+    },
+  }
+}
+
+/** Convierte un TokenListing a StoredTokenRecord para IndexedDB */
+export function listingToRecord(listing: TokenListing): StoredTokenRecord {
+  return {
+    id: listing.id,
+    name: listing.name,
+    symbol: listing.symbol,
+    decimals: listing.decimals,
+    pairId: listing.pool.pairId ?? '',
+    reserveToken: listing.pool.reserveToken.toString(),
+    reserveXlm: listing.pool.reserveXlm.toString(),
+    ledger: listing.ledger,
+    updatedAt: Date.now(),
+  }
+}
+
 /**
- * Listado de tokens recientes con par en XLM. Tolera fallos individuales:
- * un token roto no tumba el listado.
+ * Escanea pares de la Factory de Soroswap directamente on-chain.
+ * Garantiza que tokens creados hace más de 24 horas jamás se pierdan del mercado.
+ */
+export async function syncFactoryPairs(options?: {
+  maxScan?: number
+}): Promise<TokenListing[]> {
+  try {
+    const { factory } = soroswapClients()
+    const lengthTx = await factory.all_pairs_length()
+    const totalPairs = unwrapResult<number>(lengthTx.result, 'all_pairs_length')
+    if (typeof totalPairs !== 'number' || totalPairs <= 0) return []
+
+    const maxScan = options?.maxScan ?? 5
+    const startIndex = Math.max(0, totalPairs - maxScan)
+    const indices: number[] = []
+    for (let i = totalPairs - 1; i >= startIndex; i--) {
+      indices.push(i)
+    }
+
+    const discoveredListings = (
+      await mapLimit(indices, 3, async (i) => {
+        try {
+          const pairTx = await factory.all_pairs({ n: i })
+          const pairId = unwrapResult<string>(pairTx.result, 'all_pairs')
+          if (!pairId) return null
+
+          const pool = await fetchPoolStateByPair(pairId)
+          if (!pool || !pool.exists || !pool.tokenId) return null
+
+          const metadata = await fetchTokenMetadata(pool.tokenId)
+          return {
+            id: pool.tokenId,
+            name: metadata.name,
+            symbol: metadata.symbol,
+            decimals: metadata.decimals,
+            ledger: i * 100,
+            pool: {
+              exists: true,
+              pairId,
+              reserveToken: pool.reserveToken,
+              reserveXlm: pool.reserveXlm,
+            },
+          } as TokenListing
+        } catch {
+          return null
+        }
+      })
+    ).filter((item): item is TokenListing => item !== null)
+
+    if (discoveredListings.length > 0) {
+      await putStoredTokens(discoveredListings.map(listingToRecord))
+      await putSyncMeta({
+        key: 'factory_sync',
+        lastScannedIndex: totalPairs,
+        totalPairs,
+        lastSyncTimestamp: Date.now(),
+      })
+    }
+
+    return discoveredListings
+  } catch (err) {
+    console.warn('Factory sync notice:', err)
+    return []
+  }
+}
+
+/**
+ * Listado de tokens recientes y permanentes con par en XLM.
+ * Carga instantánea desde IndexedDB + sincronización en tiempo real.
  */
 export async function discoverTokens(options?: {
   windowLedgers?: number
@@ -285,22 +396,55 @@ export async function discoverTokens(options?: {
 }): Promise<TokenListing[]> {
   const maxTokens = options?.maxTokens ?? DEFAULT_MAX_TOKENS
   const pinned = options?.pinned ?? DEFAULT_PINNED_TOKENS
-  const pairs = await discoverPairs(options)
 
-  // Los tokens fijados van primero; si no están en la ventana se listan igual
-  // (su metadata y reservas se leen del contrato, no del evento).
-  const discovered = pairs.filter((pair) => !pinned.includes(pair.tokenId))
-  const pinnedPairs: DiscoveredPair[] = pinned.map(
-    (tokenId) =>
-      pairs.find((pair) => pair.tokenId === tokenId) ?? {
-        tokenId,
-        pairId: '',
-        ledger: 0,
-      },
-  )
-  const selected = [...pinnedPairs, ...discovered].slice(0, maxTokens)
+  // 1. Carga instantánea desde almacenamiento local persistente (0ms)
+  const storedRecords = await getAllStoredTokens()
+  const storedListings = storedRecords.map(recordToListing)
 
-  // Concurrency 3 medida: 5 dispara throttling del RPC público y sale peor.
-  const listings = await mapLimit(selected, 3, fetchTokenListing)
-  return listings.filter((listing): listing is TokenListing => listing !== null)
+  // 2. Traer pares de eventos en vivo
+  try {
+    const pairs = await discoverPairs(options)
+    const discovered = pairs.filter((pair) => !pinned.includes(pair.tokenId))
+    const pinnedPairs: DiscoveredPair[] = pinned.map(
+      (tokenId) =>
+        pairs.find((pair) => pair.tokenId === tokenId) ?? {
+          tokenId,
+          pairId: '',
+          ledger: 0,
+        },
+    )
+    const selected = [...pinnedPairs, ...discovered].slice(0, maxTokens)
+
+    // Concurrencia acotada a 3 para no saturar RPC
+    const freshEventListings = (await mapLimit(selected, 3, fetchTokenListing)).filter(
+      (listing): listing is TokenListing => listing !== null,
+    )
+
+    if (freshEventListings.length > 0) {
+      await putStoredTokens(freshEventListings.map(listingToRecord))
+    }
+
+    // Si no había registros almacenados, lanzamos sync de factory sin bloquear
+    if (storedListings.length === 0 && typeof window !== 'undefined') {
+      syncFactoryPairs({ maxScan: 10 }).catch(() => {})
+    }
+
+    // Fusión por id de token
+    const map = new Map<string, TokenListing>()
+    for (const item of storedListings) map.set(item.id, item)
+    for (const item of freshEventListings) map.set(item.id, item)
+
+    const merged = Array.from(map.values())
+    merged.sort((a, b) => {
+      const aPinned = pinned.includes(a.id)
+      const bPinned = pinned.includes(b.id)
+      if (aPinned && !bPinned) return -1
+      if (!aPinned && bPinned) return 1
+      return b.ledger - a.ledger
+    })
+
+    return merged.slice(0, maxTokens)
+  } catch {
+    return storedListings.slice(0, maxTokens)
+  }
 }

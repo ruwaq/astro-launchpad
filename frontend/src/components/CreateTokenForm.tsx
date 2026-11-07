@@ -24,6 +24,12 @@ import { errorMessage, formatAmount, parseAmount } from '../lib/format'
 import { toast } from '../lib/toast'
 import { recordActivity } from '../store/activity'
 import { TxProgress } from './TxProgress'
+import {
+  clearCheckpoint,
+  getCheckpoint,
+  saveCheckpoint,
+  type LaunchCheckpoint,
+} from '../lib/launch-checkpoint'
 
 const inputClass =
   'w-full rounded-lg border border-slate-800 bg-slate-950 px-3.5 py-3 text-base text-slate-100 outline-none focus:border-emerald-500'
@@ -33,6 +39,7 @@ const SEED_XLM_PRESETS = ['10', '25', '50', '100'] as const
 type LaunchStep =
   | 'deploy'
   | 'liquidity'
+  | 'burn'
   | 'renounce'
   | 'dev-buy'
   | null
@@ -67,6 +74,89 @@ export function CreateTokenForm({
   const [error, setError] = useState<string | null>(null)
   const [createdId, setCreatedId] = useState<string | null>(null)
   const [fairLaunched, setFairLaunched] = useState(false)
+  const [pendingCheckpoint, setPendingCheckpoint] = useState<LaunchCheckpoint | null>(() =>
+    getCheckpoint(),
+  )
+
+  async function onResumeCheckpoint(cp: LaunchCheckpoint) {
+    if (!publicKey) {
+      setError('Connect your wallet to resume token launch.')
+      return
+    }
+    const signer = getSigner()
+    if (!signer) {
+      setError('Signer unavailable for active account.')
+      return
+    }
+
+    setBusy(true)
+    setError(null)
+    try {
+      let currentStep = cp.step
+      let pairId = cp.pairId
+      let lpAmount = cp.lpAmount ? BigInt(cp.lpAmount) : 0n
+
+      if (currentStep === 'liquidity') {
+        setStep('liquidity')
+        const initialSupply = BigInt(cp.initialSupply)
+        const { poolAmount } = splitFairLaunchSupply(initialSupply)
+        const seedXlmBase = parseAmount(cp.seedXlm, 7)
+        const lpResult = await addLiquidity({
+          tokenId: cp.tokenId,
+          amountToken: poolAmount,
+          amountXlm: seedXlmBase,
+          signer,
+        })
+        pairId = lpResult.pair
+        lpAmount = lpResult.lpAmount
+        currentStep = 'burn'
+        saveCheckpoint({
+          ...cp,
+          step: 'burn',
+          pairId,
+          lpAmount: lpAmount.toString(),
+          updatedAt: Date.now(),
+        })
+      }
+
+      if (currentStep === 'burn' && pairId && lpAmount > 0n) {
+        setStep('burn')
+        await burnLpTokens({
+          pairId,
+          lpAmount,
+          signer,
+        })
+        currentStep = 'renounce'
+        saveCheckpoint({
+          ...cp,
+          step: 'renounce',
+          updatedAt: Date.now(),
+        })
+      }
+
+      if (currentStep === 'renounce') {
+        setStep('renounce')
+        const renounceTx = await tokenClient(cp.tokenId, signer).renounce_ownership()
+        await renounceTx.signAndSend()
+      }
+
+      clearCheckpoint()
+      setPendingCheckpoint(null)
+      setFairLaunched(true)
+      setCreatedId(cp.tokenId)
+      toast.success('Launch Successfully Resumed & Completed!', {
+        message: `${cp.symbol} liquidity is locked and ownership renounced.`,
+      })
+      await queryClient.invalidateQueries({ queryKey: ['token-list'] })
+    } catch (err) {
+      const message = errorMessage(err)
+      setError(message)
+      toast.error('Failed to resume launch', { message })
+    } finally {
+      setBusy(false)
+      setStep(null)
+    }
+  }
 
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault()
@@ -133,6 +223,21 @@ export function CreateTokenForm({
       })
 
       if (!expert) {
+        const sessionId = `launch-${Date.now()}`
+        saveCheckpoint({
+          sessionId,
+          tokenId: newId,
+          name: cleanName,
+          symbol: ticker,
+          decimals: targetDecimals,
+          initialSupply: initialSupply.toString(),
+          seedXlm,
+          creatorBuyXlm,
+          publicKey,
+          step: 'liquidity',
+          updatedAt: Date.now(),
+        })
+
         // 1. Inject 99% of supply into Soroswap pool (creator receives 1%)
         setStep('liquidity')
         const { poolAmount } = splitFairLaunchSupply(initialSupply)
@@ -154,6 +259,22 @@ export function CreateTokenForm({
           account: publicKey,
         })
 
+        saveCheckpoint({
+          sessionId,
+          tokenId: newId,
+          name: cleanName,
+          symbol: ticker,
+          decimals: targetDecimals,
+          initialSupply: initialSupply.toString(),
+          seedXlm,
+          creatorBuyXlm,
+          publicKey,
+          step: 'burn',
+          pairId: lpResult.pair,
+          lpAmount: lpResult.lpAmount.toString(),
+          updatedAt: Date.now(),
+        })
+
         // 2. Mandatory LP Burn to canonical blackhole GAAAA...WHF (100% Anti-Rug)
         if (lpResult.lpAmount > 0n) {
           await burnLpTokens({
@@ -170,6 +291,22 @@ export function CreateTokenForm({
             account: publicKey,
           })
         }
+
+        saveCheckpoint({
+          sessionId,
+          tokenId: newId,
+          name: cleanName,
+          symbol: ticker,
+          decimals: targetDecimals,
+          initialSupply: initialSupply.toString(),
+          seedXlm,
+          creatorBuyXlm,
+          publicKey,
+          step: 'renounce',
+          pairId: lpResult.pair,
+          lpAmount: lpResult.lpAmount.toString(),
+          updatedAt: Date.now(),
+        })
 
         // 3. Renounce ownership on-chain to disable minting forever
         setStep('renounce')
@@ -191,6 +328,8 @@ export function CreateTokenForm({
             markProgress('swapped')
           }
         }
+        clearCheckpoint()
+        setPendingCheckpoint(null)
         setFairLaunched(true)
         toast.success('Fair Launch Completed!', {
           message: `${ticker} is live on market · 99% in pool · LP burned to GAAAA...WHF · supply locked`,
@@ -245,6 +384,47 @@ export function CreateTokenForm({
           </>
         )}
       </p>
+
+      {pendingCheckpoint ? (
+        <div className="mt-4 flex flex-col gap-3 rounded-lg border border-amber-500/50 bg-amber-500/10 p-4 text-amber-200">
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <p className="font-semibold text-amber-300">
+                ⚠️ Interrupted Launch Detected: {pendingCheckpoint.symbol}
+              </p>
+              <p className="mt-1 break-all font-mono text-xs text-slate-300">
+                Contract: {pendingCheckpoint.tokenId} · Stopped at:{' '}
+                <span className="font-bold uppercase text-amber-400">
+                  {pendingCheckpoint.step}
+                </span>
+              </p>
+              <p className="mt-1 text-xs text-slate-400">
+                Your token contract was deployed on-chain, but the pool seeding or LP lock was interrupted. You can resume safely now without losing funds.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                clearCheckpoint()
+                setPendingCheckpoint(null)
+              }}
+              className="text-xs text-slate-400 hover:text-slate-200"
+            >
+              Dismiss
+            </button>
+          </div>
+          <div className="flex items-center gap-2 pt-1">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => onResumeCheckpoint(pendingCheckpoint)}
+              className="rounded-lg bg-amber-500 px-4 py-2 font-medium text-slate-950 hover:bg-amber-400 disabled:opacity-50"
+            >
+              Resume Launch Now →
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       <form
         onSubmit={onSubmit}
