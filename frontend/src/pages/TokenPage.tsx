@@ -1,3 +1,4 @@
+import { useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { useTokenInfo } from '../hooks/useTokenInfo'
 import { useTokenBalance } from '../hooks/useTokenBalance'
@@ -9,6 +10,7 @@ import { useWallet } from '../store/wallet'
 import { formatAmount, shortAddress } from '../lib/format'
 import { explorerAccountUrl, explorerContractUrl } from '../lib/explorer'
 import { tokenPriceInXlm } from '../lib/soroswap'
+import { classifyTokenEvent } from '../lib/token-events'
 import { TokenArt } from '../components/TokenArt'
 import { ShareButton } from '../components/ShareButton'
 import { SwapCard } from '../components/SwapCard'
@@ -21,6 +23,7 @@ import { ReserveChart } from '../components/ReserveChart'
 import { GraduationCard } from '../components/GraduationCard'
 import { TokenHypeBar } from '../components/TokenHypeBar'
 import { TokenActivity } from '../components/TokenActivity'
+import { TokenGraphics } from '../components/TokenGraphics'
 import { ContractDetailsCard } from '../components/ContractDetailsCard'
 import { NotFoundPage } from './NotFoundPage'
 import { useTokenMetadata } from '../hooks/useTokenMetadata'
@@ -45,6 +48,20 @@ export function TokenPage() {
   const events = useTokenEvents(id)
   const { data: xlmUsd = 0.1555 } = useXlmUsdPrice()
   const meta = useTokenMetadata(id)
+  const [leftTab, setLeftTab] = useState<'chart' | 'history' | 'graphics' | 'all'>('chart')
+
+  const pairId = pool.data?.pairId ?? null
+  const buyCount = useMemo(() => {
+    return (events.data ?? []).filter(
+      (e) => classifyTokenEvent(e, pairId) === 'buy',
+    ).length
+  }, [events.data, pairId])
+
+  const sellCount = useMemo(() => {
+    return (events.data ?? []).filter(
+      (e) => classifyTokenEvent(e, pairId) === 'sell',
+    ).length
+  }, [events.data, pairId])
 
   if (!id) return <NotFoundPage />
 
@@ -288,23 +305,117 @@ export function TokenPage() {
 
       {/* Main Trading Arena (2 Columns on Desktop) */}
       <div className="grid gap-6 lg:grid-cols-12 items-start">
-        {/* Left Column: Visual Chart, Vibe & Live Trade Feed */}
-        <div className="min-w-0 space-y-6 lg:col-span-7">
-          <ReserveChart
-            history={history}
-            symbol={token.symbol}
-            decimals={token.decimals}
-            events={events.data}
-            pool={pool.data}
-          />
+        {/* Left Column: Visual Chart, Interactive History in Cuadros, Tokenomics Graphics */}
+        <div className="min-w-0 space-y-4 lg:col-span-7">
+          {/* Minimalist Interactive Tab Switcher */}
+          <div
+            role="tablist"
+            className="flex items-center gap-1 rounded-xl border border-slate-800 bg-slate-950/80 p-1 backdrop-blur"
+          >
+            <button
+              type="button"
+              role="tab"
+              aria-selected={leftTab === 'chart'}
+              onClick={() => setLeftTab('chart')}
+              className={`flex-1 min-h-[38px] rounded-lg px-2.5 py-1.5 text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                leftTab === 'chart'
+                  ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
+              }`}
+            >
+              <span>📈</span> Curva
+            </button>
+
+            <button
+              type="button"
+              role="tab"
+              aria-selected={leftTab === 'history'}
+              onClick={() => setLeftTab('history')}
+              className={`flex-1 min-h-[38px] rounded-lg px-2.5 py-1.5 text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                leftTab === 'history'
+                  ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
+              }`}
+            >
+              <span>🧱</span> Cuadros
+              {(events.data ?? []).length > 0 ? (
+                <span
+                  className={`rounded-full px-1.5 py-0.2 font-mono text-[10px] ${
+                    leftTab === 'history'
+                      ? 'bg-slate-950 text-emerald-300'
+                      : 'bg-slate-800 text-slate-300'
+                  }`}
+                >
+                  {(events.data ?? []).length}
+                </span>
+              ) : null}
+            </button>
+
+            <button
+              type="button"
+              role="tab"
+              aria-selected={leftTab === 'graphics'}
+              onClick={() => setLeftTab('graphics')}
+              className={`flex-1 min-h-[38px] rounded-lg px-2.5 py-1.5 text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                leftTab === 'graphics'
+                  ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
+              }`}
+            >
+              <span>📊</span> Hitos
+            </button>
+
+            <button
+              type="button"
+              role="tab"
+              aria-selected={leftTab === 'all'}
+              onClick={() => setLeftTab('all')}
+              className={`min-h-[38px] rounded-lg px-2.5 py-1.5 text-xs font-bold transition flex items-center justify-center gap-1 ${
+                leftTab === 'all'
+                  ? 'bg-slate-800 text-slate-100 border border-slate-600'
+                  : 'text-slate-500 hover:text-slate-300'
+              }`}
+              title="Ver todos los gráficos y cuadros juntos"
+            >
+              <span>🌐</span> Todo
+            </button>
+          </div>
+
+          {/* Tab 1: Chart */}
+          {leftTab === 'chart' || leftTab === 'all' ? (
+            <ReserveChart
+              history={history}
+              symbol={token.symbol}
+              decimals={token.decimals}
+              events={events.data}
+              pool={pool.data}
+            />
+          ) : null}
+
+          {/* Tab 2: Interactive History in Cuadros */}
+          {leftTab === 'history' || leftTab === 'all' ? (
+            <TokenActivity
+              tokenId={id}
+              decimals={token.decimals}
+              token={token}
+            />
+          ) : null}
+
+          {/* Tab 3: Token Distribution Graphics & Milestone Cards */}
+          {leftTab === 'graphics' || leftTab === 'all' ? (
+            <TokenGraphics
+              symbol={token.symbol}
+              pool={pool.data}
+              buyCount={buyCount}
+              sellCount={sellCount}
+            />
+          ) : null}
 
           <TokenHypeBar
             tokenId={id}
             symbol={token.symbol ?? 'TOKEN'}
             pairId={pool.data?.pairId}
           />
-
-          <TokenActivity tokenId={id} decimals={token.decimals} />
         </div>
 
         {/* Right Column: Arcade Buy & Sell Console (Sticky on Desktop) */}
