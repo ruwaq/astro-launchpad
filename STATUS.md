@@ -1,42 +1,38 @@
 # Estado actual (para continuar en la próxima sesión)
 
-## Handoff rápido (Nov 7 2026, sesión 20 — Consolidación Main, Pruebas On-Chain E2E y Cierre de Ciclo)
+## Handoff rápido (Nov 7 2026, sesión 21 — Experiencia FOMO Principal, Tokens por Graduarse, Auditoría On-Chain de Contrato y Gráfico Interactivo de Compras/Ventas)
 
-- **Cero trabajo a medias / Código 100% Blindado y Sincronizado**:
-  - Unificación completa de ramas Git: `legacy/abandoned-monorepo` archivada en origin, `ai/market-discovery` mergeada a `main` (fast-forward limpio) y sincronizada en GitHub (`origin/main`).
-  - Árbol de trabajo 100% limpio (`git status` clean).
-  - Tolerancia y resiliencia en scripts de verificación on-chain (`verify:discovery` y `verify:token-events`) ante ventanas inactivas de RPC público en Testnet.
-- **Gates verdes (100% Verificados)**:
-  - `npm run check`: **92 tests unitarios en Vitest pasando (17 archivos)**, 0 errores en `tsc -b`, 0 warnings en 110 archivos con `oxlint`, SSR smoke test OK, 10/10 verificaciones de PWA OK.
-  - `cargo test --workspace`: **9/9 tests pasando** (3 en `astro-launchpad-contract` + 6 en `astro-token`).
-  - `cargo clippy --all-targets -- -D warnings`: 0 warnings en todo el workspace Rust.
-  - `cargo fmt --all -- --check`: 0 discrepancias de formato.
-  - `npm run verify:discovery`: **OK** (lectura y parseo de eventos de Soroswap Factory, pares y reservas on-chain en testnet).
-  - `npm run verify:token-events`: **OK** (lectura y filtrado de eventos transfer/mint/burn de ASTRO).
-  - `npm run verify:demo`: **OK (100% On-Chain)**:
-    - 3 cuentas demo generadas y fondeadas con Friendbot.
-    - Transferencia A → B de XLM.
-    - Creación de token + provisión de liquidez en Soroswap.
-    - Transferencia de tokens a B y swap de tokens a XLM.
-    - Minteo del owner a C, quema de tokens de B (reducción verificada de supply).
-    - Compra de tokens con XLM mediante Soroswap Router.
-- **Entregas Consolidadas**:
-  1. **Contrato Launchpad Atómico (`contracts/launchpad`)**:
-     - Single-tx fair launch: despliegue de token SEP-41, 1% creator share, `renounce_ownership()`, creación de pool en Soroswap y depósito del 100% de LP tokens a dirección dead `GAAAA...WHF` (Anti-Rug).
-     - Binario compilado: `target/wasm32v1-none/release/astro_launchpad_contract.wasm` (5,755 bytes, Hash: `5717353f517ddb4d08c2b9ef592dbf5aec514fda1550532930fd40dd0c3954c7`).
-  2. **Branding Enriquecido & Live Preview**:
-     - Carga de logotipos con compresión en cliente y fallback a SVG monograma.
-     - Enlaces sociales (Web, Telegram, X/Twitter) y bio de 280 caracteres.
-     - Live Token Preview Card reactiva durante la creación del token.
-  3. **Motor Dual-Discovery & IndexedDB**:
-     - Persistencia local inmediata (`astrogate.tokens.v2`) + descubrimiento histórico de Soroswap Factory.
-  4. **AstroGate AI & Developer SDK**:
-     - SDK en `src/sdk/index.ts`, `llms.txt` y schemas para agentes LLM en `AI_AGENT_INTEGRATION.md`.
-- **Git State**:
-  - Rama activa: `main` (rastreando `origin/main`).
-  - Árbol limpio y listo para iniciar la sesión 21.
+- **Cero trabajo a medias / Código 100% Blindado y Verificado**:
+  - Implementación exhaustiva del flujo de FOMO en la página principal (`HomePage.tsx`) y sección dedicada de auditoría de contratos y trading chart en `TokenPage.tsx`.
+  - **Gates verdes (100% Verificados)**:
+    - `npm run check`: **93 tests unitarios en Vitest pasando (17 archivos)**, 0 errores en `tsc -b`, 0 warnings en `oxlint`, SSR smoke test OK, 10/10 verificaciones de PWA OK.
+    - `cargo test --workspace`: **9/9 tests pasando** (3 launchpad + 6 token).
+- **Entregas de la Sesión**:
+  1. **Live FOMO Pulse & Ticker (`frontend/src/components/FomoTicker.tsx`)**:
+     - Ticker superior en tiempo real con indicador animado "Live DEX Pulse", alertas de Fair Launch ($1.11 USD), meta de graduación (1,000 XLM), quema de LP garantizada y CTA directo para lanzar o comprar.
+  2. **Radar de Tokens a Punto de Graduarse (`frontend/src/components/GraduationRadar.tsx`)**:
+     - Componente visual que resalta los tokens que están compitiendo por graduarse a Soroswap DEX profundo.
+     - Barra de progreso de graduación con porcentaje dinámico, reservas actuales en XLM vs meta (1,000 XLM), precio en USD y botones de acción directa: **"⚡ Quick Buy"** (con auto-scroll y precarga en el Swap) y **"🔍 View Curve →"**.
+  3. **Feed de Nuevos Lanzamientos (`frontend/src/components/NewLaunchesFeed.tsx`)**:
+     - Vista rápida de tokens recién desplegados con insignias de seguridad (🔥 LP Burned, Fair Launch), precio en tiempo real y botón instantáneo de compra/trade.
+  4. **Pestañas de Filtrado FOMO en el Mercado (`frontend/src/components/MarketList.tsx`)**:
+     - Píldoras de filtrado instantáneo: `🎓 Graduating Soon`, `⚡ New Launches`, `💧 Highest Liquidity` y `★ Favorites Only`.
+     - Nuevo criterio de ordenamiento `'graduation'` integrado en [`market.ts`](file:///home/dev/projects/astro-launchpad/frontend/src/lib/market.ts) con tests unitarios.
+  5. **Sección Dedicada de Detalles de Contrato y Auditoría (`frontend/src/components/ContractDetailsCard.tsx`)**:
+     - Sección completa para cada token en [`TokenPage.tsx`](file:///home/dev/projects/astro-launchpad/frontend/src/pages/TokenPage.tsx):
+       - Dirección del contrato del token con botón de copiar al portapapeles y enlace a Stellar.Expert.
+       - Dirección del par AMM en Soroswap con enlace al pool DEX.
+       - WASM Hash del bytecode verificado en Soroban testnet.
+       - Creador/Deployer con enlace a su historial de cuenta.
+       - Insignias de auditoría: `✓ Ownership Renounced (Immutable Supply)` y `🔥 100% LP Burned to Dead Address (GAAAA...WHF)`.
+       - Enlaces directos a exploradores y APIs públicas: Stellar.Expert, Horizon Account RPC, Soroban RPC Health y redes sociales (Web, Telegram, Twitter/X).
+  6. **Gráfico Interactivo de Curva, Compras (🟢) y Ventas (🔴) Antes de Graduarse (`frontend/src/components/ReserveChart.tsx`)**:
+     - Mapeo de vectores de precio con puntos visuales de compras (verde 🟢) y ventas (rojo 🔴).
+     - Línea proyectada de meta de graduación (`🎓 1,000 XLM Graduation Target`) en vista de liquidez.
+     - Contadores de compras vs ventas y porcentaje alcanzado de graduación.
+     - Feed de transacciones en vivo previas a la graduación con clasificación BUY/SELL, montos en tokens y XLM, y enlaces a transacciones en el explorador.
 
-## Próximos pasos recomendados para la Sesión 21
+## Próximos pasos recomendados para la Sesión 22
 1. **Despliegue del Contrato Launchpad en Testnet**:
    - Desplegar el WASM `astro_launchpad_contract.wasm` e inicializarlo con la Soroswap Factory (`CDP3HMUH...`), XLM SAC (`CDLZFC3S...`) y WASM hash del token (`438d12a7...`).
 2. **Bindings TS para el Launchpad**:

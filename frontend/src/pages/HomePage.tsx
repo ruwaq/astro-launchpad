@@ -7,6 +7,10 @@ import { MarketList } from '../components/MarketList'
 import { SwapCard } from '../components/SwapCard'
 import { LiquidityPosition } from '../components/LiquidityPosition'
 import { TokenInfoCard } from '../components/TokenInfoCard'
+import { FomoTicker } from '../components/FomoTicker'
+import { GraduationRadar } from '../components/GraduationRadar'
+import { NewLaunchesFeed } from '../components/NewLaunchesFeed'
+import { useTokenList } from '../hooks/useTokenList'
 import { useCreatedTokens } from '../store/creations'
 import { useProgress } from '../store/progress'
 import { useWallet } from '../store/wallet'
@@ -21,12 +25,15 @@ const DEMO_TOKEN: LaunchpadToken = { id: ASTRO_TOKEN_ID, decimals: 7 }
 export function HomePage() {
   const [selectedToken, setSelectedToken] = useState<LaunchpadToken>(DEMO_TOKEN)
   const { demoActive } = useWallet()
+  const list = useTokenList()
   const createdTokens = useCreatedTokens((state) => state.tokens)
   const liquidity = useProgress((state) => state.liquidity)
   const swapped = useProgress((state) => state.swapped)
 
   return (
     <>
+      <FomoTicker />
+
       <div className="flex flex-col gap-3">
         <p className="text-xs font-medium uppercase tracking-widest text-emerald-400">
           {BRAND.taglineEn} · {BRAND.name}
@@ -69,6 +76,18 @@ export function HomePage() {
         created={createdTokens.length > 0}
         liquidity={liquidity}
         swapped={swapped}
+      />
+
+      {/* FOMO Section 1: Tokens About to Graduate */}
+      <GraduationRadar
+        tokens={list.data ?? []}
+        onSelect={setSelectedToken}
+      />
+
+      {/* FOMO Section 2: Fresh New Launches */}
+      <NewLaunchesFeed
+        tokens={list.data ?? []}
+        onSelect={setSelectedToken}
       />
 
       <DemoMode

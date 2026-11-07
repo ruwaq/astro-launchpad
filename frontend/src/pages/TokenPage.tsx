@@ -3,6 +3,7 @@ import { useTokenInfo } from '../hooks/useTokenInfo'
 import { useTokenBalance } from '../hooks/useTokenBalance'
 import { useSoroswapPool } from '../hooks/useSoroswapPool'
 import { useReserveHistory } from '../hooks/useReserveHistory'
+import { useTokenEvents } from '../hooks/useTokenEvents'
 import { useXlmUsdPrice } from '../hooks/useXlmUsdPrice'
 import { useWallet } from '../store/wallet'
 import { formatAmount, shortAddress } from '../lib/format'
@@ -20,6 +21,7 @@ import { ReserveChart } from '../components/ReserveChart'
 import { GraduationCard } from '../components/GraduationCard'
 import { TokenHypeBar } from '../components/TokenHypeBar'
 import { TokenActivity } from '../components/TokenActivity'
+import { ContractDetailsCard } from '../components/ContractDetailsCard'
 import { NotFoundPage } from './NotFoundPage'
 import { useTokenMetadata } from '../hooks/useTokenMetadata'
 import type { LaunchpadToken } from '../lib/token'
@@ -40,6 +42,7 @@ export function TokenPage() {
   const pool = useSoroswapPool(id || null)
   const balance = useTokenBalance(publicKey, id)
   const history = useReserveHistory(id, pool.data)
+  const events = useTokenEvents(id)
   const { data: xlmUsd = 0.1555 } = useXlmUsdPrice()
   const meta = useTokenMetadata(id)
 
@@ -268,6 +271,19 @@ export function TokenPage() {
         history={history}
         symbol={token.symbol}
         decimals={token.decimals}
+        events={events.data}
+        pool={pool.data}
+      />
+
+      <ContractDetailsCard
+        tokenId={id}
+        pairId={pool.data?.pairId}
+        symbol={token.symbol ?? 'TOKEN'}
+        name={info.data.name}
+        decimals={token.decimals}
+        totalSupply={info.data.totalSupply}
+        owner={owner}
+        metadata={meta.data}
       />
 
       <div className="grid gap-4 lg:grid-cols-2">

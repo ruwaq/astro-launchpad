@@ -3,6 +3,7 @@ import {
   explorerAccountUrl,
   explorerContractUrl,
   explorerTxUrl,
+  horizonAccountUrl,
 } from './explorer'
 
 describe('explorer URLs', () => {
@@ -21,6 +22,12 @@ describe('explorer URLs', () => {
   it('genera URLs para cuentas en testnet', () => {
     expect(explorerAccountUrl('G123')).toBe(
       'https://stellar.expert/explorer/testnet/account/G123',
+    )
+  })
+
+  it('genera URLs para cuentas en Horizon testnet', () => {
+    expect(horizonAccountUrl('G123')).toBe(
+      'https://horizon-testnet.stellar.org/accounts/G123',
     )
   })
 })

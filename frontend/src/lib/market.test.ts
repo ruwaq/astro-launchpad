@@ -46,9 +46,12 @@ describe('filterAndSortTokens', () => {
     expect(filterAndSortTokens(TOKENS, '  moon  ', 'recent')).toHaveLength(1)
   })
 
-  it('ordena por liquidez, precio y símbolo', () => {
+  it('ordena por liquidez, graduación, precio y símbolo', () => {
     expect(
       filterAndSortTokens(TOKENS, '', 'liquidity').map((t) => t.symbol),
+    ).toEqual(['ZETA', 'ALPHA', 'MOON'])
+    expect(
+      filterAndSortTokens(TOKENS, '', 'graduation').map((t) => t.symbol),
     ).toEqual(['ZETA', 'ALPHA', 'MOON'])
     expect(filterAndSortTokens(TOKENS, '', 'price').map((t) => t.symbol)).toEqual([
       'ZETA',

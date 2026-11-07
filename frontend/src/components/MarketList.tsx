@@ -174,22 +174,26 @@ function MarketCard({
           <div className="mt-2.5 grid grid-cols-2 gap-1.5">
             <button
               type="button"
-              onClick={() =>
+              onClick={() => {
                 onSelect({
                   id: token.id,
                   decimals: token.decimals,
                   symbol: token.symbol,
                 })
-              }
-              className="rounded-lg bg-emerald-500/15 px-2 py-1.5 text-[11px] font-semibold text-emerald-300 hover:bg-emerald-500/25"
+                if (typeof document !== 'undefined') {
+                  const el = document.getElementById('sec-swap')
+                  if (el) el.scrollIntoView({ behavior: 'smooth' })
+                }
+              }}
+              className="rounded-lg bg-emerald-500/20 px-2 py-1.5 text-[11px] font-bold text-emerald-300 transition hover:bg-emerald-500/30"
             >
-              ⚡ Swap
+              ⚡ Quick Buy
             </button>
             <Link
               to={`/token/${token.id}`}
               className="rounded-lg border border-slate-800 bg-slate-950/60 px-2 py-1.5 text-center text-[11px] font-medium text-slate-300 hover:border-slate-600"
             >
-              📈 Curve
+              📈 Curve & Audit
             </Link>
           </div>
         </div>
@@ -303,6 +307,51 @@ export function MarketList({
                 ))}
               </select>
             </label>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-1.5 sm:col-span-2">
+            <button
+              type="button"
+              onClick={() => {
+                setSort('graduation')
+                setFavsOnly(false)
+              }}
+              className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
+                sort === 'graduation' && !favsOnly
+                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                  : 'bg-slate-900/60 text-slate-400 hover:text-slate-200 border border-slate-800'
+              }`}
+            >
+              🎓 Graduating Soon
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setSort('recent')
+                setFavsOnly(false)
+              }}
+              className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
+                sort === 'recent' && !favsOnly
+                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                  : 'bg-slate-900/60 text-slate-400 hover:text-slate-200 border border-slate-800'
+              }`}
+            >
+              ⚡ New Launches
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setSort('liquidity')
+                setFavsOnly(false)
+              }}
+              className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
+                sort === 'liquidity' && !favsOnly
+                  ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40'
+                  : 'bg-slate-900/60 text-slate-400 hover:text-slate-200 border border-slate-800'
+              }`}
+            >
+              💧 Highest Liquidity
+            </button>
           </div>
         </div>
       ) : null}

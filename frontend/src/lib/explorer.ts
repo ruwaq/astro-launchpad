@@ -14,3 +14,7 @@ export function explorerTxUrl(txHash: string): string {
 export function explorerAccountUrl(account: string): string {
   return `${EXPLORER_BASE}/account/${account}`
 }
+
+export function horizonAccountUrl(account: string): string {
+  return `https://horizon-testnet.stellar.org/accounts/${account}`
+}

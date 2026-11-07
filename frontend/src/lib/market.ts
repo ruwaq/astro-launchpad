@@ -1,13 +1,19 @@
 import { tokenPriceInXlm } from './soroswap'
 import type { TokenListing } from './discovery'
 
-export type MarketSortKey = 'recent' | 'liquidity' | 'price' | 'symbol'
+export type MarketSortKey =
+  | 'recent'
+  | 'graduation'
+  | 'liquidity'
+  | 'price'
+  | 'symbol'
 
 export const MARKET_SORT_OPTIONS: Array<{
   value: MarketSortKey
   label: string
 }> = [
-  { value: 'recent', label: 'Most Recent' },
+  { value: 'recent', label: '⚡ New Launches' },
+  { value: 'graduation', label: '🎓 Graduating Soon' },
   { value: 'liquidity', label: 'Highest Liquidity' },
   { value: 'price', label: 'Highest Price' },
   { value: 'symbol', label: 'Symbol A–Z' },
@@ -38,6 +44,7 @@ export function filterAndSortTokens(
 
   const sorted = [...filtered].sort((a, b) => {
     switch (sort) {
+      case 'graduation':
       case 'liquidity':
         return compareBigInt(a.pool.reserveXlm, b.pool.reserveXlm)
       case 'price':
