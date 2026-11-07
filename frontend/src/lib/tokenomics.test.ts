@@ -52,13 +52,13 @@ describe('calculateProtocolRevenue', () => {
 describe('graduationProgress', () => {
   const stroops = 10_000_000n
 
-  it('clasifica etapas desde sin liquidez hasta graduado en 10000 XLM', () => {
+  it('clasifica etapas desde sin liquidez hasta graduado en 2000 XLM', () => {
     expect(graduationProgress(0n).stage).toBe('no-pool')
-    expect(graduationProgress(200n * stroops).stage).toBe('seed')
-    expect(graduationProgress(2_500n * stroops).stage).toBe('rising')
-    expect(graduationProgress(2_500n * stroops).percent).toBe(25)
-    expect(graduationProgress(6_000n * stroops).stage).toBe('heating')
-    const grad = graduationProgress(12_000n * stroops)
+    expect(graduationProgress(100n * stroops).stage).toBe('seed')
+    expect(graduationProgress(500n * stroops).stage).toBe('rising')
+    expect(graduationProgress(500n * stroops).percent).toBe(25)
+    expect(graduationProgress(1_200n * stroops).stage).toBe('heating')
+    const grad = graduationProgress(2_500n * stroops)
     expect(grad.stage).toBe('graduated')
     expect(grad.graduated).toBe(true)
     expect(grad.percent).toBe(100)
@@ -103,7 +103,7 @@ describe('fair seed & supply share math', () => {
     expect(DEFAULT_OPTIMIZED_SEED_XLM).toBe(10)
     expect(SEED_LIQUIDITY_PRESETS.length).toBeGreaterThanOrEqual(4)
     const recommended = SEED_LIQUIDITY_PRESETS.find((p) => p.isRecommended)
-    expect(recommended?.xlm).toBe(20)
+    expect(recommended?.xlm).toBe(10)
   })
 
   it('calcula el porcentaje de tokens adquiridos sobre el pool sin bloquear libre comercio', () => {

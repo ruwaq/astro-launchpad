@@ -114,9 +114,9 @@ export const CREATOR_VESTING_SCHEDULE: VestingPhase[] = [
 
 /**
  * Default balanced seed XLM to open pool on Soroswap:
- * Seeding 10 to 20 XLM (~$1.50 - $3.10 USD) sets a fair initial price (~0.000000010 - 0.000000020 XLM)
- * and deepens the pool so snipers cannot monopolize 90% of supply for pennies.
- * Crowdsourced trading then drives the curve to the 10,000 XLM graduation milestone (500x - 1,000x upside).
+ * Seeding 5 to 10 XLM (~$0.75 - $1.55 USD) sets a fair initial price (~0.000000005 - 0.000000010 XLM)
+ * and deepens the pool so snipers cannot monopolize supply for pennies.
+ * Crowdsourced trading then drives the curve to the 2,000 XLM graduation milestone (~14x - 16x upside).
  */
 export const DEFAULT_OPTIMIZED_SEED_XLM = 10
 
@@ -131,23 +131,23 @@ export const SEED_LIQUIDITY_PRESETS: SeedPreset[] = [
   {
     xlm: 5,
     label: '5 XLM',
-    desc: 'Semilla Ligera — Alta volatilidad para micro-lanzamientos',
+    desc: 'Semilla Ligera — ~$0.78 USD, ultra-económica para micro-memes',
   },
   {
     xlm: 10,
     label: '10 XLM',
-    desc: 'Equilibrado — ~$1.55 USD, 1,000x potencial hacia graduación',
+    desc: 'Recomendado ⭐ — ~$1.55 USD, balance óptimo y anti-sniper natural',
+    isRecommended: true,
   },
   {
     xlm: 20,
     label: '20 XLM',
-    desc: 'Recomendado ⭐ — Precio justo & profundidad natural anti-snipers',
-    isRecommended: true,
+    desc: 'Profundo — ~$3.10 USD, mayor amortización para lanzamientos con comunidad',
   },
   {
     xlm: 50,
     label: '50 XLM',
-    desc: 'Profundo — Para proyectos con comunidad y liquidez inmediata',
+    desc: 'Ballena — Para DAOs o proyectos consolidados',
   },
 ]
 
@@ -162,10 +162,10 @@ export function calculateDeployFeeInXlm(xlmUsdPrice: number = 0.1555): number {
 
 /**
  * Liquidity target in XLM (readable units) for a token to graduate to Soroswap DEX.
- * Upgraded to 10,000 XLM (~$1,555 USD) to ensure serious liquidity, eliminate early sniper
- * domination, and provide a deep, mature trading floor on Soroswap DEX.
+ * Calibrated to 2,000 XLM (~$310 USD) tailored for Stellar's community size, allowing
+ * achievable graduations (50-80 trades), healthy ~14x-16x bonding curves, and deep DEX pools.
  */
-export const GRADUATION_TARGET_XLM = 10_000
+export const GRADUATION_TARGET_XLM = 2_000
 
 /**
  * Natural AMM Market Share & Anti-Sniper Indicator:

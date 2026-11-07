@@ -474,7 +474,7 @@ export function CreateTokenForm({
             </span>
           </div>
           <p className="text-[11px] text-slate-400 leading-relaxed">
-            Un depósito de <strong>10 a 20 XLM (~$1.50 - $3.10 USD)</strong> establece un precio justo y balanceado (0.000000010 - 0.000000020 XLM). Otorga profundidad natural al pool para que nadie acapare el suministro por centavos, permitiendo compras libres con un potencial de <strong>500x a 1,000x</strong> hacia la meta de 10,000 XLM.
+            Un depósito de <strong>5 a 10 XLM (~$0.75 - $1.55 USD)</strong> establece un precio justo y balanceado. Otorga profundidad natural al pool para que nadie acapare el suministro por centavos, permitiendo compras libres con un multiplicador sano de <strong>~14x a 16x</strong> hacia la meta comunitaria de 2,000 XLM en Soroswap DEX.
           </p>
           <div className="grid gap-2 sm:grid-cols-2 pt-1">
             {SEED_LIQUIDITY_PRESETS.map((preset) => (
