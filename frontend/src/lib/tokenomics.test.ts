@@ -49,13 +49,13 @@ describe('calculateProtocolRevenue', () => {
 describe('graduationProgress', () => {
   const stroops = 10_000_000n
 
-  it('clasifica etapas desde sin liquidez hasta graduado en 1000 XLM', () => {
+  it('clasifica etapas desde sin liquidez hasta graduado en 10000 XLM', () => {
     expect(graduationProgress(0n).stage).toBe('no-pool')
-    expect(graduationProgress(20n * stroops).stage).toBe('seed')
-    expect(graduationProgress(250n * stroops).stage).toBe('rising')
-    expect(graduationProgress(250n * stroops).percent).toBe(25)
-    expect(graduationProgress(600n * stroops).stage).toBe('heating')
-    const grad = graduationProgress(1_200n * stroops)
+    expect(graduationProgress(200n * stroops).stage).toBe('seed')
+    expect(graduationProgress(2_500n * stroops).stage).toBe('rising')
+    expect(graduationProgress(2_500n * stroops).percent).toBe(25)
+    expect(graduationProgress(6_000n * stroops).stage).toBe('heating')
+    const grad = graduationProgress(12_000n * stroops)
     expect(grad.stage).toBe('graduated')
     expect(grad.graduated).toBe(true)
     expect(grad.percent).toBe(100)

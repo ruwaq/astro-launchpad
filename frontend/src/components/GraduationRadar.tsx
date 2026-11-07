@@ -177,7 +177,7 @@ export function GraduationRadar({
             </span>
           </div>
           <p className="mt-1 text-xs text-slate-400">
-            Tokens with maximum curve momentum racing towards 1,000 XLM deep DEX graduation. Buy before liquidity ascends!
+            Tokens with maximum curve momentum racing towards 10,000 XLM deep DEX graduation. Buy before liquidity ascends!
           </p>
         </div>
 

@@ -304,7 +304,7 @@ export function ReserveChart({
                     fontFamily="monospace"
                     textAnchor="end"
                   >
-                    🎓 DEX Graduation (1,000 XLM)
+                    🎓 DEX Graduation ({GRADUATION_TARGET_XLM.toLocaleString()} XLM)
                   </text>
                 </g>
               ) : null}

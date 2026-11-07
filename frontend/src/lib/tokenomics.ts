@@ -130,8 +130,27 @@ export function calculateDeployFeeInXlm(xlmUsdPrice: number = 0.1555): number {
 
 /**
  * Liquidity target in XLM (readable units) for a token to graduate to Soroswap DEX.
+ * Upgraded to 10,000 XLM (~$1,555 USD) to ensure serious liquidity, eliminate early sniper
+ * domination, and provide a deep, mature trading floor on Soroswap DEX.
  */
-export const GRADUATION_TARGET_XLM = 1_000
+export const GRADUATION_TARGET_XLM = 10_000
+
+/**
+ * Anti-Whale Max Buy Cap before graduation:
+ * Max 1.5% of total supply (15,000,000 tokens) per order.
+ * This prevents early snipers from monopolizing the pool for pennies,
+ * guaranteeing fair distribution and protecting the community.
+ */
+export const ANTI_WHALE_MAX_BUY_PERCENT = 1.5
+export const ANTI_WHALE_MAX_TOKENS = 15_000_000n
+
+export function isAntiWhaleExceeded(
+  amountTokensBase: bigint,
+  decimals: number = 7,
+): boolean {
+  const maxBase = ANTI_WHALE_MAX_TOKENS * 10n ** BigInt(decimals)
+  return amountTokensBase > maxBase
+}
 
 /** Soroswap pair swap fee (30 bps = 0.30%). */
 export const SOROSWAP_SWAP_FEE_PERCENT = 0.3
