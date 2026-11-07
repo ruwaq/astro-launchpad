@@ -1,5 +1,37 @@
 # Estado actual (para continuar en la próxima sesión)
 
+## Handoff rápido (Nov 7 2026, sesión 19 — Mercado Permanente IndexedDB, Checkpointing Anti-Fallo, AstroGate AI SDK y Branding Enriquecido)
+
+- **Cero trabajo a medias / Código 100% Blindado**:
+  - Se completó la auditoría de los cambios pendientes, resolviendo warnings de linter en `src/lib/indexed-db.ts` y control de excepciones para direcciones inválidas en `src/lib/soroswap.ts`.
+  - **Gates verdes**:
+    - `npm run check`: **92 tests unitarios en Vitest pasando (17 archivos)**, 0 errores en `tsc -b`, 0 warnings en 110 archivos con `oxlint`, SSR smoke test OK, 10/10 verificaciones de PWA OK.
+    - `cargo test -p astro-token`: 6/6 tests pasando.
+- **Entregas de la Sesión**:
+  1. **Motor de Mercado & Búsqueda Permanente (Superando el límite de 24h del RPC)**:
+     - Implementación de [`frontend/src/lib/indexed-db.ts`](file:///home/dev/projects/astro-launchpad/frontend/src/lib/indexed-db.ts) (`astrogate.tokens.v2`) y dual-discovery en [`frontend/src/lib/discovery.ts`](file:///home/dev/projects/astro-launchpad/frontend/src/lib/discovery.ts).
+     - Carga instantánea (0 ms) desde IndexedDB local + sincronización en tiempo real y lectura de pares históricos (`all_pairs_length` y `all_pairs`) de la Factory de Soroswap.
+  2. **Sistema de Checkpoint Transaccional Anti-Fallo**:
+     - En [`frontend/src/lib/launch-checkpoint.ts`](file:///home/dev/projects/astro-launchpad/frontend/src/lib/launch-checkpoint.ts) y [`frontend/src/components/CreateTokenForm.tsx`](file:///home/dev/projects/astro-launchpad/frontend/src/components/CreateTokenForm.tsx): si una transacción falla o se interrumpe la conexión, la interfaz muestra el banner de recuperación con **"Resume Launch Now →"**.
+  3. **AstroGate AI & Developer SDK**:
+     - SDK tipado en [`frontend/src/sdk/index.ts`](file:///home/dev/projects/astro-launchpad/frontend/src/sdk/index.ts) con tests unitarios en [`src/sdk/index.test.ts`](file:///home/dev/projects/astro-launchpad/frontend/src/sdk/index.test.ts).
+     - Especificación [`frontend/public/llms.txt`](file:///home/dev/projects/astro-launchpad/frontend/public/llms.txt) y guía en [`docs/AI_AGENT_INTEGRATION.md`](file:///home/dev/projects/astro-launchpad/docs/AI_AGENT_INTEGRATION.md) con schemas listos para OpenAI, Anthropic y Gemini.
+  4. **Metadatos Enriquecidos, Branding y Live Preview (Fase 2 Parte B)**:
+     - Módulo de metadatos en [`frontend/src/lib/token-metadata.ts`](file:///home/dev/projects/astro-launchpad/frontend/src/lib/token-metadata.ts) y hook [`useTokenMetadata.ts`](file:///home/dev/projects/astro-launchpad/frontend/src/hooks/useTokenMetadata.ts).
+     - Soporte para logotipos reales en [`frontend/src/components/TokenArt.tsx`](file:///home/dev/projects/astro-launchpad/frontend/src/components/TokenArt.tsx) con fallback a monograma generativo SVG.
+     - Formulario con subida de imagen, pitch/descripción (280 chars), redes sociales (Website, Telegram, Twitter/X) y **tarjeta interactiva en vivo ("Live Token Preview")** en [`CreateTokenForm.tsx`](file:///home/dev/projects/astro-launchpad/frontend/src/components/CreateTokenForm.tsx).
+     - Despliegue de insignias sociales y bio en [`TokenPage.tsx`](file:///home/dev/projects/astro-launchpad/frontend/src/pages/TokenPage.tsx) y [`MarketList.tsx`](file:///home/dev/projects/astro-launchpad/frontend/src/components/MarketList.tsx).
+  5. **Diseño de Arquitectura On-Chain para Contrato Atómico Soroban (Fase 3)**:
+     - Subagente especializado analizó las interfaces de Soroswap Factory y Pair en testnet.
+     - Se definió el flujo óptimo: despliegue determinista con constructor OZ SEP-41 + inyección directa al par vía `deposit(to = GAAAA...WHF)` para quemar LP sin sobrecostos de gas ni autorizaciones anidadas.
+- **Git**:
+  - Rama: `ai/market-discovery`.
+  - Commits en la sesión:
+    - `a97fac5`: `feat(core): dual-discovery indexedDB cache, resilient launch checkpoints, and AstroGate AI SDK`
+    - `013dd58`: `feat(branding): enriched token metadata, logo support, social links, and live preview`
+- **Próximo Paso Recomendado**:
+  - Implementación del contrato atómico `contracts/launchpad` en Rust siguiendo el diseño validado.
+
 ## Handoff rápido (Nov 6 2026, sesiones 17–18 — AstroGate Rebrand, Live Pricing, $1.11 Fair Launch, Auditorías y DevOps)
 
 - **Rebrand definitivo a AstroGate 🌊🚀**: Unión del componente técnico de `stellar-core` (`Floodgate`, `src/overlay/Floodgate.cpp`) con el meme icónico de Stellar `Astro` (`$ASTRO` como token génesis/insignia). Fuente única: `src/lib/brand.ts`.
