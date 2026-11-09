@@ -6,6 +6,7 @@
   },
   "auth": [
     [],
+    [],
     [
       [
         "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
@@ -19,7 +20,7 @@
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
                 },
                 {
-                  "i128": "500"
+                  "i128": "0"
                 }
               ]
             }
@@ -28,7 +29,6 @@
         }
       ]
     ],
-    [],
     []
   ],
   "ledger": {
@@ -107,13 +107,13 @@
               },
               "durability": "persistent",
               "val": {
-                "i128": "500"
+                "i128": "0"
               }
             }
           },
           "ext": "v0"
         },
-        "live_until": 518400
+        "live_until": 4095
       },
       {
         "entry": {
@@ -131,7 +131,7 @@
               },
               "durability": "persistent",
               "val": {
-                "i128": "1500"
+                "i128": "1000"
               }
             }
           },
@@ -158,6 +158,18 @@
                       "key": {
                         "vec": [
                           {
+                            "symbol": "Cap"
+                          }
+                        ]
+                      },
+                      "val": {
+                        "i128": "1000"
+                      }
+                    },
+                    {
+                      "key": {
+                        "vec": [
+                          {
                             "symbol": "Meta"
                           }
                         ]
@@ -169,7 +181,7 @@
                               "symbol": "decimals"
                             },
                             "val": {
-                              "u32": 18
+                              "u32": 7
                             }
                           },
                           {

@@ -13,3 +13,7 @@
 mod contract;
 #[cfg(test)]
 mod test;
+
+// Cliente re-exportado para consumidores externos (tests cross-contract del
+// launchpad); en producción el UI usa bindings TS.
+pub use contract::TokenClient;

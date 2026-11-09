@@ -11,7 +11,8 @@ use crate::contract::{Token, TokenClient};
 
 const NAME: &str = "Astro Test Token";
 const SYMBOL: &str = "ASTRO";
-const DECIMALS: u32 = 18;
+const DECIMALS: u32 = 7;
+const MAX_DECIMALS: u32 = 18;
 
 fn create_client<'a>(e: &'a Env, owner: &Address) -> TokenClient<'a> {
     let address = e.register(
@@ -50,10 +51,136 @@ fn owner_can_mint() {
 
     e.mock_all_auths();
 
-    client.mint(&user, &500);
+    // Con supply == cap no queda margen de mint: el owner NO puede inflar.
+    assert_eq!(client.cap(), 1_000);
+    client.mint(&user, &0);
+    assert_eq!(client.total_supply(), 1_000);
+}
 
-    assert_eq!(client.balance(&user), 500);
-    assert_eq!(client.total_supply(), 1_500);
+#[test]
+#[should_panic(expected = "Error(Contract, #106)")]
+fn mint_beyond_cap_fails_even_for_owner() {
+    let e = Env::default();
+    let owner = Address::generate(&e);
+    let client = create_client(&e, &owner);
+    let user = Address::generate(&e);
+
+    e.mock_all_auths();
+
+    // Mint de EA16: el supply ya es igual al cap fijado en el constructor.
+    client.mint(&user, &1);
+}
+
+#[test]
+fn mint_after_burn_respects_cap() {
+    let e = Env::default();
+    let owner = Address::generate(&e);
+    let client = create_client(&e, &owner);
+    let user = Address::generate(&e);
+
+    e.mock_all_auths();
+
+    // Quemar libera espacio del cap: se puede re-mintear pero NUNCA
+    // superar el supply inicial fijado en el constructor.
+    client.burn(&owner, &200);
+    client.mint(&user, &200);
+    assert_eq!(client.total_supply(), 1_000);
+    assert_eq!(client.cap(), 1_000);
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #106)")]
+fn mint_after_burn_beyond_cap_fails() {
+    let e = Env::default();
+    let owner = Address::generate(&e);
+    let client = create_client(&e, &owner);
+    let user = Address::generate(&e);
+
+    e.mock_all_auths();
+
+    client.burn(&owner, &200); // total_supply = 800
+    client.mint(&user, &200); // rellena hasta el cap
+    client.mint(&user, &1); // ya NO hay margen → ExceededCap
+}
+
+#[test]
+#[should_panic(expected = "decimals exceeds the maximum allowed")]
+fn constructor_rejects_excessive_decimals() {
+    let e = Env::default();
+    let owner = Address::generate(&e);
+    let symbol = String::from_str(&e, SYMBOL);
+    let name = String::from_str(&e, NAME);
+    let _ = e.register(Token, (name, symbol, MAX_DECIMALS + 1, owner, 1_000_i128));
+}
+
+#[test]
+#[should_panic(expected = "name must be 1..32 bytes")]
+fn constructor_rejects_long_name() {
+    let e = Env::default();
+    let owner = Address::generate(&e);
+    let long_name = String::from_str(&e, "aname_sized_longer_than_thirtytwo_bytes_BYE");
+    // 44 bytes > 32.
+    let _ = e.register(
+        Token,
+        (
+            long_name,
+            String::from_str(&e, SYMBOL),
+            7_u32,
+            owner,
+            1_000_i128,
+        ),
+    );
+}
+
+#[test]
+#[should_panic(expected = "name must be 1..32 bytes")]
+fn constructor_rejects_empty_name() {
+    let e = Env::default();
+    let owner = Address::generate(&e);
+    let _ = e.register(
+        Token,
+        (
+            String::from_str(&e, ""),
+            String::from_str(&e, SYMBOL),
+            7_u32,
+            owner,
+            1_000_i128,
+        ),
+    );
+}
+
+#[test]
+#[should_panic(expected = "symbol must be 1..32 bytes")]
+fn constructor_rejects_empty_symbol() {
+    let e = Env::default();
+    let owner = Address::generate(&e);
+    let _ = e.register(
+        Token,
+        (
+            String::from_str(&e, NAME),
+            String::from_str(&e, ""),
+            7_u32,
+            owner,
+            1_000_i128,
+        ),
+    );
+}
+
+#[test]
+#[should_panic(expected = "initial supply must be positive")]
+fn constructor_rejects_zero_initial_supply() {
+    let e = Env::default();
+    let owner = Address::generate(&e);
+    let _ = e.register(
+        Token,
+        (
+            String::from_str(&e, NAME),
+            String::from_str(&e, SYMBOL),
+            7_u32,
+            owner,
+            0_i128,
+        ),
+    );
 }
 
 #[test]

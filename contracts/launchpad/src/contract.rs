@@ -10,9 +10,11 @@ use soroban_sdk::{
 #[repr(u32)]
 pub enum LaunchpadError {
     NotInitialized = 1,
-    AlreadyInitialized = 2,
-    InvalidAmount = 3,
-    InsufficientSupplyForLp = 4,
+    InvalidAmount = 2,
+    /// El par token/XLM ya existía y tiene reservas: no se va a añadir
+    /// liquidez encima de un par ajeno (el LP acuñado sería colateral de
+    /// una posición que este launchpad no controla).
+    PairAlreadySeeded = 3,
 }
 
 #[contracttype]
@@ -33,9 +35,12 @@ pub struct LaunchParams {
     pub initial_supply: i128,
     pub token_lp_amount: i128,
     pub xlm_lp_amount: i128,
-    pub burn_lp: bool,
-    pub renounce: bool,
     pub salt: BytesN<32>,
+    // NOTA: renounce y burn_lp se QUITARON del ABI a propósito. Son
+    // invariantes de fair launch, no opciones: el launchpad SIEMPRE quema
+    // 100% de los LP en la burn address y SIEMPRE renuncia a ownership
+    // (ver pasos 4 y 7). Un parámetro opcional permitiría inventar un
+    // "fair launch" con LP retirables o capacidad de mint encubierta.
 }
 
 #[contractevent]
@@ -71,8 +76,6 @@ pub trait SoroswapFactoryInterface {
 #[allow(dead_code)]
 #[soroban_sdk::contractclient(name = "SoroswapPairClient")]
 pub trait SoroswapPairInterface {
-    fn token_0(e: &Env) -> Address;
-    fn token_1(e: &Env) -> Address;
     fn get_reserves(e: &Env) -> (i128, i128);
     fn deposit(e: &Env, to: Address) -> i128;
 }
@@ -81,7 +84,6 @@ pub trait SoroswapPairInterface {
 #[soroban_sdk::contractclient(name = "OwnableClient")]
 pub trait OwnableInterface {
     fn renounce_ownership(e: &Env);
-    fn get_owner(e: &Env) -> Option<Address>;
 }
 
 #[contract]
@@ -110,11 +112,11 @@ impl Launchpad {
     /// Single-transaction atomic fair launch:
     /// 1. Pulls XLM from creator.
     /// 2. Deploys token contract and mints initial supply to launchpad.
-    /// 3. Sends creator token share.
-    /// 4. Renounces token ownership (if `renounce` is true).
-    /// 5. Creates pair on Soroswap.
+    /// 3. Sends remaining creator share (`initial_supply - token_lp_amount`).
+    /// 4. ALWAYS renounces token ownership (minting locked forever).
+    /// 5. Creates pair on Soroswap (or reuses an EMPTY existing pair).
     /// 6. Deposits liquidity directly into pair.
-    /// 7. Mints LP tokens to `burn_address` (if `burn_lp` is true) or `creator`.
+    /// 7. ALWAYS mints 100% of LP tokens to the burn address.
     pub fn launch_token(e: &Env, params: LaunchParams) -> Result<LaunchResult, LaunchpadError> {
         params.creator.require_auth();
 
@@ -165,21 +167,29 @@ impl Launchpad {
 
         let token_client = token::Client::new(e, &token_addr);
 
-        // 3. Send creator share if initial_supply > token_lp_amount (e.g. 1%)
+        // 3. Send creator share if initial_supply > token_lp_amount
         let creator_tokens = params.initial_supply - params.token_lp_amount;
         if creator_tokens > 0 {
             token_client.transfer(&this, &params.creator, &creator_tokens);
         }
 
-        // 4. Renounce ownership if requested (locks minting forever)
-        if params.renounce {
-            OwnableClient::new(e, &token_addr).renounce_ownership();
-        }
+        // 4. Invariante de fair launch: renuncia SIEMPRE (mint bloqueado).
+        OwnableClient::new(e, &token_addr).renounce_ownership();
 
-        // 5. Create or retrieve Soroswap Pair
+        // 5. Create or retrieve Soroswap Pair. Un par pre-existente solo se
+        // puede reutilizar si está VACÍO: si otro usuario lo hubiera sembrado
+        // con una ratio arbitraria, los LP acuñados por `deposit` serían
+        // colateral de una posición ajena (y la quema "integrada" sería
+        // estafaria). Con reservas > 0 se aborta sin tocar nada; el error
+        // revierte la tx completa (XLM incluido).
         let factory_client = SoroswapFactoryClient::new(e, &factory);
         let pair_addr = if factory_client.pair_exists(&token_addr, &xlm_sac) {
-            factory_client.get_pair(&token_addr, &xlm_sac)
+            let existing = factory_client.get_pair(&token_addr, &xlm_sac);
+            let (reserve_a, reserve_b) = SoroswapPairClient::new(e, &existing).get_reserves();
+            if reserve_a > 0 || reserve_b > 0 {
+                return Err(LaunchpadError::PairAlreadySeeded);
+            }
+            existing
         } else {
             factory_client.create_pair(&token_addr, &xlm_sac)
         };
@@ -188,14 +198,10 @@ impl Launchpad {
         token_client.transfer(&this, &pair_addr, &params.token_lp_amount);
         token::Client::new(e, &xlm_sac).transfer(&this, &pair_addr, &params.xlm_lp_amount);
 
-        // 7. Call deposit on Pair to mint LP tokens
-        let lp_recipient = if params.burn_lp {
-            burn_address
-        } else {
-            params.creator.clone()
-        };
+        // 7. Invariante de fair launch: 100% de los LP NUNCA salen de la burn
+        // address (liquidez no retirable).
         let pair_client = SoroswapPairClient::new(e, &pair_addr);
-        let lp_minted = pair_client.deposit(&lp_recipient);
+        let lp_minted = pair_client.deposit(&burn_address);
 
         // 8. Publish event
         TokenLaunchedEvent {
