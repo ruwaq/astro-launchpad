@@ -36,7 +36,19 @@ export const ASTRO_TOKEN_ID = 'CAI637WCEILQF3ZYOV6BRUCX532XQIVOOJ4CRWFPWHQRJHOH5
  * The launchpad deploys new instances with this hash without re-uploading the binary.
  */
 export const ASTRO_WASM_HASH =
-  '438d12a79855dd42c353d12bb42e6b57ed513eed47b7008094683ba33f971286'
+  '5930d6c69894f5cd6924e1a7d8d10282448c7c18de0143dce76e92884c39786b'
+
+/**
+ * Atomic Launchpad contract deployed on testnet.
+ */
+export const LAUNCHPAD_CONTRACT_ID =
+  'CASO42JQGKYLATUDXHUZFBBHC2XKZ5XI732MVRLQC4MT664X7JVJGS52'
+
+/**
+ * SHA-256 hash of the launchpad contract bytecode deployed on testnet.
+ */
+export const LAUNCHPAD_WASM_HASH =
+  '321e7a9e32c31699832272e8c7c3da1a8291d82776eada9ef1104f27264d5c18'
 
 /**
  * Ventana estándar de lectura de eventos RPC (~14 h de testnet, ledgers de ~5 s).

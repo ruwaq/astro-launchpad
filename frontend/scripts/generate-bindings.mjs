@@ -26,9 +26,14 @@ function constant(name) {
 
 const CONTRACTS = [
   {
-    id: constant('ASTRO_TOKEN_ID'),
+    wasmHash: constant('ASTRO_WASM_HASH'),
     name: 'AstroToken',
     out: 'src/contracts',
+  },
+  {
+    id: constant('LAUNCHPAD_CONTRACT_ID'),
+    name: 'AstroLaunchpad',
+    out: 'src/contracts/launchpad',
   },
   {
     id: constant('SOROSWAP_ROUTER'),
@@ -55,12 +60,15 @@ const CONTRACTS = [
 ]
 
 for (const contract of CONTRACTS) {
-  console.log(`\n== ${contract.name} (${contract.id}) ==`)
+  const targetLabel = contract.wasmHash ?? contract.id
+  console.log(`\n== ${contract.name} (${targetLabel}) ==`)
+  const targetArgs = contract.wasmHash
+    ? ['--wasm-hash', contract.wasmHash]
+    : ['--contract-id', contract.id]
   execFileSync(
     './node_modules/.bin/stellar-contract-bindings-typescript',
     [
-      '--contract-id',
-      contract.id,
+      ...targetArgs,
       '--network',
       'testnet',
       '--output-dir',

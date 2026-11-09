@@ -9,11 +9,13 @@
 - **Hardening on-chain (contratos, sesión 22)**:
   - `astro-token`: supply SELLADO con el extension OZ `Capped` (`Compose<(Capped, TotalSupply)>`, cap = initial_supply → mint imposible antes y después de renunciar; después de un burn solo puede rellenar hasta cap), validaciones de constructor (decimals ≤ 18, name/symbol 1..32 bytes, initial_supply > 0), tests 6→14. OJO: para el test cross-contract el crate ahora es `crate-type = ["cdylib","rlib"]` y re-exporta `TokenClient`.
   - `astro-launchpad-contract`: `renounce` y `burn_lp` ELIMINADOS del ABI (son invariantes, no opciones: SIEMPRE renuncia y SIEMPRE quema LP), par existente solo aceptado si está vacío (`get_reserves()==0`, nuevo error `PairAlreadySeeded`; par pre-sembrado causa revert total), traits muertos fuera (`token_0/token_1/get_owner`), variantes de error ya no usadas eliminadas y renumeradas (NotInitialized=1, InvalidAmount=2, PairAlreadySeeded=3), tests 3→4 (incluye verificación REAL de `get_owner()==None` tras el launch con el wasm de astro-token).
-  - **Wasm release reconstruidos (hashes NUEVOS, pendiente re-deploy del usuario)**:
-    - `astro_token.wasm`: `sha256 5930d6c69894f5cd6924e1a7d8d10282448c7c18de0143dce76e92884c39786b`
-    - `astro_launchpad_contract.wasm`: `sha256 321e7a9e32c31699832272e8c7c3da1a8291d82776eada9ef1104f27264d5c18`
-  - Tras re-deployar en testnet: actualizar `ASTRO_WASM_HASH` en `frontend/src/lib/network.ts` + `WASM_HASH` en `frontend/scripts/verify-launchpad.mjs` + hash en README/llms.txt/AGENTS.md.
-- **Gates de la sesión 22 — TODOS EN VERDE**: `tsc -b` (app+node, strict) ✓, vitest 103/103 (17 archivos) ✓, `check:csp` ✓, `cargo fmt --check` ✓, `clippy -D warnings` ✓, `cargo test --workspace` ✓ (18/18: 14 token + 4 launchpad), `npm run check` completo ✓ (build + oxlint 0 warnings + smoke SSR + PWA 10/10 + CSP paridad). 5 commits en `ai/audit-hardening` (c061d5e secret, ea8782d frontend, 36df0f7 config/docs/CI, d22e90e contracts, 81a83ef lint).
+  - **Wasm release desplegados on-chain en testnet**:
+    - `astro_token.wasm`: `sha256 5930d6c69894f5cd6924e1a7d8d10282448c7c18de0143dce76e92884c39786b` (subido y verificado).
+    - `astro_launchpad_contract.wasm`: `sha256 321e7a9e32c31699832272e8c7c3da1a8291d82776eada9ef1104f27264d5c18` (subido y verificado).
+    - Instancia de Launchpad desplegada e inicializada on-chain: `CASO42JQGKYLATUDXHUZFBBHC2XKZ5XI732MVRLQC4MT664X7JVJGS52` (factory, XLM SAC, token wasm hash y dead address vinculados y verificados con invocación directa).
+    - `ASTRO_WASM_HASH`, `LAUNCHPAD_CONTRACT_ID` y `LAUNCHPAD_WASM_HASH` actualizados en `frontend/src/lib/network.ts`, `README.md`, `AGENTS.md`, `frontend/public/llms.txt` y `frontend/scripts/verify-launchpad.mjs`.
+    - Bindings TypeScript regenerados con `npm run bindings` para `AstroToken` (con `cap`), `AstroLaunchpad`, `SoroswapRouter`, `SoroswapFactory`, `SoroswapPair` y `XlmSac`.
+- **Gates de la sesión 22 — TODOS EN VERDE**: `tsc -b` (app+node, strict) ✓, vitest 103/103 (17 archivos) ✓, `check:csp` ✓, `cargo fmt --check` ✓, `clippy -D warnings` ✓, `cargo test --workspace` ✓ (18/18: 14 token + 4 launchpad), `verify:launchpad` ✓ (deploy on-chain de token smoke exitoso), `verify:discovery` ✓, `npm run check` completo ✓ (build + oxlint 0 warnings + smoke SSR + PWA 10/10 + CSP paridad).
 
 ## Handoff rápido (Nov 7 2026, sesión 21 — Experiencia FOMO Principal, Tokens por Graduarse, Auditoría On-Chain de Contrato y Gráfico Interactivo de Compras/Ventas)
 
