@@ -1,4 +1,9 @@
 import { ASTRO_TOKEN_ID } from './network'
+import {
+  readStorageJson,
+  removeStorageKey,
+  writeStorageJson,
+} from './storage'
 
 export interface EnrichedTokenMetadata {
   tokenId: string
@@ -21,10 +26,22 @@ export const DEFAULT_TOKEN_METADATA: Record<string, EnrichedTokenMetadata> = {
     tokenId: ASTRO_TOKEN_ID,
     description:
       'The genesis insignia and community meme token of AstroGate on Stellar Soroban. Fair-launched with locked liquidity and renounced ownership.',
-    website: 'https://astrogate.workers.dev',
+    website: `https://${import.meta.env.VITE_SITE_ORIGIN ?? 'astrogate.workers.dev'}`,
     telegram: 'https://t.me/AstroGateStellar',
     twitter: 'https://x.com/AstroGateHQ',
   },
+}
+
+/** Shape guard for metadata restored from persistence. */
+function isEnrichedTokenMetadata(value: unknown): value is EnrichedTokenMetadata {
+  if (typeof value !== 'object' || value === null) return false
+  const tokenId = (value as { tokenId?: unknown }).tokenId
+  if (typeof tokenId !== 'string' || !tokenId.startsWith('C')) return false
+  for (const field of ['description', 'logoUrl', 'website', 'telegram', 'twitter']) {
+    const item = (value as Record<string, unknown>)[field]
+    if (item !== undefined && typeof item !== 'string') return false
+  }
+  return true
 }
 
 /**
@@ -35,17 +52,14 @@ export function getLocalTokenMetadata(tokenId: string): EnrichedTokenMetadata | 
     return DEFAULT_TOKEN_METADATA[tokenId]
   }
 
-  if (typeof window === 'undefined') {
-    return memoryCache.get(tokenId) ?? null
-  }
+  const fromMemory = memoryCache.get(tokenId)
+  if (fromMemory) return fromMemory
 
-  try {
-    const raw = window.localStorage.getItem(`${METADATA_KEY_PREFIX}${tokenId}`)
-    if (!raw) return memoryCache.get(tokenId) ?? null
-    return JSON.parse(raw) as EnrichedTokenMetadata
-  } catch {
-    return memoryCache.get(tokenId) ?? null
+  const restored = readStorageJson<unknown>(`${METADATA_KEY_PREFIX}${tokenId}`)
+  if (isEnrichedTokenMetadata(restored)) {
+    return restored
   }
+  return null
 }
 
 /**
@@ -58,27 +72,21 @@ export function saveLocalTokenMetadata(metadata: EnrichedTokenMetadata): void {
   }
   memoryCache.set(metadata.tokenId, payload)
 
-  if (typeof window === 'undefined') return
-
-  try {
-    window.localStorage.setItem(
-      `${METADATA_KEY_PREFIX}${metadata.tokenId}`,
-      JSON.stringify(payload),
-    )
-  } catch (err) {
-    console.warn('Failed to save token metadata:', err)
-  }
+  writeStorageJson(`${METADATA_KEY_PREFIX}${metadata.tokenId}`, payload)
 }
 
 /**
- * Clears memory cache and localStorage (useful for tests and resets).
+ * Clears memory cache and app-owned localStorage keys (tests and resets).
+ * Scoped: never touches localStorage entries of other apps on the same origin.
  */
 export function clearTokenMetadataCache(): void {
   memoryCache.clear()
-  if (typeof window === 'undefined') return
-  try {
-    window.localStorage.clear()
-  } catch {
-    // Ignore
+  const s = typeof window !== 'undefined' ? window.localStorage : null
+  if (!s) return
+  const toRemove: string[] = []
+  for (let i = 0; i < s.length; i++) {
+    const key = s.key(i)
+    if (key?.startsWith(METADATA_KEY_PREFIX)) toRemove.push(key)
   }
+  for (const key of toRemove) removeStorageKey(key)
 }

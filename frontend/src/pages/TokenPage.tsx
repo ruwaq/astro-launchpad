@@ -340,7 +340,7 @@ export function TokenPage() {
               <span>🧱</span> Cuadros
               {(events.data ?? []).length > 0 ? (
                 <span
-                  className={`rounded-full px-1.5 py-0.2 font-mono text-[10px] ${
+                  className={`rounded-full px-1.5 py-0.5 font-mono text-[10px] ${
                     leftTab === 'history'
                       ? 'bg-slate-950 text-emerald-300'
                       : 'bg-slate-800 text-slate-300'

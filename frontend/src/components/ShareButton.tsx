@@ -1,5 +1,5 @@
-import { useState } from 'react'
 import { BRAND } from '../lib/brand'
+import { useCopy } from '../hooks/useCopy'
 
 type Props = {
   text: string
@@ -8,7 +8,7 @@ type Props = {
 }
 
 export function ShareButton({ text, url, label = 'Share 🎉' }: Props) {
-  const [copied, setCopied] = useState(false)
+  const { copied, copy } = useCopy()
 
   async function onShare() {
     const nav = typeof navigator !== 'undefined' ? navigator : undefined
@@ -21,13 +21,7 @@ export function ShareButton({ text, url, label = 'Share 🎉' }: Props) {
       }
     }
     if (nav?.clipboard) {
-      try {
-        await nav.clipboard.writeText(`${text} ${url}`)
-        setCopied(true)
-        window.setTimeout(() => setCopied(false), 2000)
-      } catch {
-        // Clipboard access denied
-      }
+      await copy(`${text} ${url}`)
     }
   }
 

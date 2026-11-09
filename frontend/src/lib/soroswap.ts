@@ -10,7 +10,7 @@ import {
   SOROSWAP_ROUTER,
   XLM_SAC,
 } from './network'
-import { STELLAR_BURN_ADDRESS } from './tokenomics'
+import { STELLAR_BURN_ADDRESS, SOROSWAP_SWAP_FEE_PERCENT } from './tokenomics'
 
 /** Slippage por defecto (%). Es el mínimo de salida que exigimos al router. */
 export const SLIPPAGE_PERCENT = 2
@@ -41,9 +41,10 @@ export function spotAmountOut(
 }
 
 /**
- * Impacto de precio en porcentaje, incluyendo la comisión del router. Se
- * calcula contra la salida spot para que el usuario vea el coste real de su
- * tamaño de operación.
+ * Impacto de precio en porcentaje, descontando de la referencia spot la
+ * comisión del pool de Soroswap (30 bps). Así un trade pequeño no reporta
+ * un "impacto" puramente comisional, y el número refleja el coste real del
+ * tamaño de la operación contra el precio de mercado.
  */
 export function priceImpactPercent(
   amountIn: bigint,
@@ -53,9 +54,14 @@ export function priceImpactPercent(
 ): number {
   const spot = spotAmountOut(amountIn, reserveIn, reserveOut)
   if (spot <= 0n || amountOut <= 0n) return 0
-  const difference = spot - amountOut
+  // Soroswap aplica la fee sobre el amount_in (30 bps, mismo resultado en la
+  // salida): la referencia no-comisionada es spot * (1 - fee).
+  const feeBps = BigInt(Math.round(SOROSWAP_SWAP_FEE_PERCENT * 100))
+  const spotAfterFee = (spot * (10_000n - feeBps)) / 10_000n
+  if (spotAfterFee <= 0n) return 0
+  const difference = spotAfterFee - amountOut
   if (difference <= 0n) return 0
-  return Number((difference * 10_000n) / spot) / 100
+  return Number((difference * 10_000n) / spotAfterFee) / 100
 }
 
 /** Estado del par token/XLM en Soroswap. */
@@ -131,9 +137,22 @@ export function unwrapResult<T>(
     'isErr' in result &&
     typeof (result as { isErr: unknown }).isErr === 'function'
   ) {
-    const inner = result as { isErr(): boolean; unwrapErr(): { message: string }; unwrap(): T }
+    const inner = result as {
+      isErr(): boolean
+      unwrapErr(): unknown
+      unwrap(): T
+    }
     if (inner.isErr()) {
-      throw new Error(`${what}: ${inner.unwrapErr().message}`)
+      const raw = inner.unwrapErr()
+      const message =
+        typeof raw === 'string'
+          ? raw
+          : raw instanceof Error
+            ? raw.message
+            : typeof raw === 'object' && raw !== null && 'message' in raw
+              ? String((raw as { message?: unknown }).message)
+              : 'unknown contract error'
+      throw new Error(`${what}: ${message}`)
     }
     return inner.unwrap()
   }
@@ -245,7 +264,7 @@ function pairClientFor(pairId: string, signer?: Signer): PairClient {
 }
 
 /** Orden interno `[token_0, token_1]` y reservas, tal como las guarda el par. */
-export async function pairLayout(
+async function pairLayout(
   pairId: string,
   signer?: Signer,
 ): Promise<{ token0: string; token1: string; reserves: [bigint, bigint] }> {
@@ -346,10 +365,12 @@ export async function quoteXlmForToken(
 
 /**
  * Crea el par token/XLM en la factory (si no existe) y espera a que
- * aparezca. La creación es asíncrona: la factory despliega el par y el
- * router lo inicializa en el ledger siguiente.
+ * las reservas respondan. La creación es asíncrona: la factory despliega el
+ * par y el router lo inicializa en el ledger siguiente; añadir liquidez
+ * antes de esa inicialización falla con "insufficient a/b amount", así que
+ * comprobamos que `get_reserves()` responde antes de dar el par por listo.
  */
-export async function ensurePair(
+async function ensurePair(
   tokenId: string,
   signer?: Signer,
 ): Promise<string> {
@@ -368,6 +389,7 @@ export async function ensurePair(
   }
 
   // Espera acotada: como mucho 5 intentos, 1,5 s entre ellos.
+  // Se considera listo cuando el par existe Y sus reservas ya se leen.
   for (let attempt = 0; attempt < 5; attempt++) {
     const checkTx = await factory.pair_exists({
       token_a: tokenId,
@@ -380,7 +402,12 @@ export async function ensurePair(
       })
       const pairId = unwrapResult<string>(pairTx.result, 'get_pair')
       pairIdCache.set(tokenId, pairId)
-      return pairId
+      try {
+        await pairClientFor(pairId, signer).get_reserves()
+        return pairId
+      } catch {
+        // El router ya desplegó el par pero sus reservas aún no responden.
+      }
     }
     await new Promise((resolve) => setTimeout(resolve, 1500))
   }
@@ -595,33 +622,6 @@ export async function fetchBurnedLpInfo(pairId: string): Promise<{
     totalSupply,
     burnedPercent: lpSharePercent(burnedLp, totalSupply),
   }
-}
-
-/**
- * Quema permanentemente los LP tokens enviándolos a `STELLAR_BURN_ADDRESS`
- * (`GAAAA...WHF`). A diferencia de `pair.burn`, enviar a la dirección blackhole
- * conserva intacto `total_supply` del par para que ningún otro LP pueda reclamar
- * las reservas subyacentes: la liquidez queda bloqueada en el DEX para siempre.
- */
-export async function burnLpTokens(params: {
-  pairId: string
-  lpAmount: bigint
-  signer: Signer
-  onHash?: (hash: string) => void
-}): Promise<void> {
-  const { pairId, lpAmount, signer, onHash } = params
-  if (lpAmount <= 0n) {
-    throw new Error('LP amount to burn must be greater than 0')
-  }
-  const pair = pairClientFor(pairId, signer)
-  const tx = await pair.transfer({
-    from: signer.address,
-    to: STELLAR_BURN_ADDRESS,
-    amount: lpAmount,
-  })
-  const sent = await tx.signAndSend()
-  const hash = sent.sendTransactionResponse?.hash
-  if (hash) onHash?.(hash)
 }
 
 /** Deadline del router: unix timestamp + 5 minutos. */

@@ -3,19 +3,24 @@
  *
  * Anti-Fraud & Rug-Pull Rules:
  * 1. Standard Supply: 1,000,000,000 tokens (7 decimals).
- * 2. Creator Allocation: strictly 1% (10,000,000 tokens).
- * 3. Liquidity Pool Allocation: 99% (990,000,000 tokens) seeded directly into
- *    the Soroswap token/XLM pair at launch.
+ * 2. Creator Allocation: strictly 0.5% (5,000,000 tokens) across 5 vesting
+ *    phases after graduation.
+ * 3. Liquidity Pool Allocation: 99.5% (995,000,000 tokens) seeded directly
+ *    into the Soroswap token/XLM pair at launch.
  * 4. Automatic LP Burn: 100% of the initial LP tokens generated are permanently
  *    burned to Stellar's dead address (GAAAA...WHF), guaranteeing non-withdrawable liquidity.
  * 5. Renounced Ownership: Minting is disabled forever on launch; supply is 100% fixed.
- * 6. If the creator wants more than 1%, they must buy from the pool using XLM
+ * 6. If the creator wants more than 0.5%, they must buy from the pool using XLM
  *    just like any community participant, deepening liquidity for all.
  */
 import type { PoolState } from './soroswap'
+import { DEFAULT_XLM_USD_PRICE } from './xlm'
 
-/** Standard meme token supply in readable units (1B). */
-export const FAIR_LAUNCH_SUPPLY_UNITS = 1_000_000_000
+/** Total supply in readable units for a standard fair launch (1B, 7 decimals). */
+export const FAIR_LAUNCH_TOTAL_BASIS = 1_000_000_000n
+
+/** Decimals of every token deployed by this launchpad (native Stellar convention). */
+export const FAIR_LAUNCH_DECIMALS = 7
 
 /** Creator allocation in basis points (50 bps = 0.5% developer allocation). */
 export const CREATOR_ALLOCATION_BPS = 50n
@@ -44,16 +49,105 @@ export const STELLAR_BURN_ADDRESS =
  * Protocol Monetization Model (AstroGate Treasury):
  * 1. Fair launch deployment fee anchored to $1.11 USD (`PROTOCOL_DEPLOY_FEE_USD` = 1.11)
  *    calculated dynamically from current real-time XLM spot price.
- * 2. Trading fee on curve: 1.00% (0.70% treasury + 0.30% creator).
- * 3. Graduation fee at 1,000 XLM target: 15 XLM protocol + 5 XLM creator reward.
+ * 2. Trading fee on curve: planned 1.00% (0.70% treasury + 0.30% creator) —
+ *    NOTE: Soroswap pool swaps only charge the pool LP fee (0.30%); the
+ *    treasury/creator cuts are modeled, not enforced on-chain yet.
+ * 3. Graduation fee at 2,000 XLM target: modeled 15 XLM protocol + 5 XLM creator
+ *    reward (same note as above).
  */
 export const PROTOCOL_DEPLOY_FEE_USD = 1.11
-export const PROTOCOL_DEPLOY_FEE_XLM = 2
-export const PROTOCOL_TRADING_FEE_BPS = 100n
-export const PROTOCOL_TREASURY_CUT_BPS = 70n
-export const PROTOCOL_CREATOR_CUT_BPS = 30n
-export const PROTOCOL_GRADUATION_FEE_XLM = 15
 export const CREATOR_GRADUATION_REWARD_XLM = 5
+
+/** Ensure a fallback XLM/USD price is finite and positive; else use the default. */
+export function sanitizeXlmUsdPrice(xlmUsdPrice: number): number {
+  return Number.isFinite(xlmUsdPrice) && xlmUsdPrice > 0
+    ? xlmUsdPrice
+    : DEFAULT_XLM_USD_PRICE
+}
+
+/**
+ * Computes how many XLM correspond to $1.11 USD at current live XLM price.
+ */
+export function calculateDeployFeeInXlm(
+  xlmUsdPrice: number = DEFAULT_XLM_USD_PRICE,
+): number {
+  const safePrice = sanitizeXlmUsdPrice(xlmUsdPrice)
+  return Math.round((PROTOCOL_DEPLOY_FEE_USD / safePrice) * 100) / 100
+}
+
+/**
+ * Creator allocation share of `initialSupplyBase`, scaled by BPS.
+ * Single source of truth for the "995M / 5M" figures shown across the UI.
+ */
+export function allocationOfBps(totalBase: bigint, bps: bigint): bigint {
+  if (totalBase <= 0n) return 0n
+  return (totalBase * bps) / 10_000n
+}
+
+/** Pool share of a total supply in base units (99.5%). */
+export function poolAllocationBase(totalBase: bigint): bigint {
+  return allocationOfBps(totalBase, POOL_ALLOCATION_BPS)
+}
+
+/**
+ * Trade size tagged as "whale" by the UI: >= 1% of the standard fair-launch
+ * supply (10M readable tokens on a 1B launch), converted to base units.
+ */
+export const WHALE_TRADE_SHARE_BPS = 100n
+
+/** Whale threshold in base units for a token with `decimals` decimals. */
+export function whaleThresholdBase(
+  decimals: number = FAIR_LAUNCH_DECIMALS,
+): bigint {
+  const safeDecimals = Math.max(0, Math.trunc(decimals))
+  return (
+    allocationOfBps(FAIR_LAUNCH_TOTAL_BASIS, WHALE_TRADE_SHARE_BPS) *
+    10n ** BigInt(safeDecimals)
+  )
+}
+
+/**
+ * Natural AMM Market Share & Anti-Sniper Indicator:
+ * Rather than artificially blocking trades, constant-product AMM slippage naturally
+ * penalizes oversized orders. This helper informs users of their order's supply share.
+ */
+export function calculateSupplySharePercent(
+  amountTokensBase: bigint,
+  totalBase: bigint = poolAllocationBase(FAIR_LAUNCH_TOTAL_BASIS),
+): number {
+  if (totalBase <= 0n || amountTokensBase <= 0n) return 0
+  const bps = (amountTokensBase * 10_000n) / totalBase
+  return Number(bps) / 100
+}
+
+/**
+ * Liquidity target in XLM (readable units) for a token to graduate to Soroswap DEX.
+ * Calibrated to 2,000 XLM (~$310 USD) tailored for Stellar's community size, allowing
+ * achievable graduations (50-80 trades), healthy ~14x-16x bonding curves, and deep DEX pools.
+ */
+export const GRADUATION_TARGET_XLM = 2_000
+
+/** Soroswap pair swap fee (30 bps = 0.30%). */
+export const SOROSWAP_SWAP_FEE_PERCENT = 0.3
+
+export type GraduationStage =
+  | 'no-pool'
+  | 'seed'
+  | 'rising'
+  | 'heating'
+  | 'graduated'
+
+export type GraduationStatus = {
+  stage: GraduationStage
+  label: string
+  /** Progress 0 to 100%. */
+  percent: number
+  /** Current XLM in reserve. */
+  currentXlm: number
+  /** Target XLM for graduation. */
+  targetXlm: number
+  graduated: boolean
+}
 
 /**
  * Creator allocation anti-dump protection lock:
@@ -61,7 +155,6 @@ export const CREATOR_GRADUATION_REWARD_XLM = 5
  * (20% every 3 days) after graduation to protect buyers from immediate selloffs.
  */
 export const CREATOR_GRADUATION_LOCK_DAYS = 15
-export const CREATOR_GRADUATION_LOCK_SECONDS = 15 * 24 * 60 * 60
 export const CREATOR_VESTING_PHASES_COUNT = 5
 export const CREATOR_VESTING_INTERVAL_DAYS = 3
 export const CREATOR_VESTING_PERCENT_PER_PHASE = 20
@@ -150,143 +243,6 @@ export const SEED_LIQUIDITY_PRESETS: SeedPreset[] = [
     desc: 'Ballena — Para DAOs o proyectos consolidados',
   },
 ]
-
-/**
- * Computes how many XLM correspond to $1.11 USD at current live XLM price.
- */
-export function calculateDeployFeeInXlm(xlmUsdPrice: number = 0.1555): number {
-  const safePrice =
-    Number.isFinite(xlmUsdPrice) && xlmUsdPrice > 0 ? xlmUsdPrice : 0.1555
-  return Math.round((PROTOCOL_DEPLOY_FEE_USD / safePrice) * 100) / 100
-}
-
-/**
- * Liquidity target in XLM (readable units) for a token to graduate to Soroswap DEX.
- * Calibrated to 2,000 XLM (~$310 USD) tailored for Stellar's community size, allowing
- * achievable graduations (50-80 trades), healthy ~14x-16x bonding curves, and deep DEX pools.
- */
-export const GRADUATION_TARGET_XLM = 2_000
-
-/**
- * Natural AMM Market Share & Anti-Sniper Indicator:
- * Rather than artificially blocking trades, constant-product AMM slippage naturally
- * penalizes oversized orders. This helper informs users of their order's supply share.
- */
-export const ANTI_WHALE_MAX_BUY_PERCENT = 1.5
-export const ANTI_WHALE_MAX_TOKENS = 15_000_000n
-
-export function calculateSupplySharePercent(
-  amountTokensBase: bigint,
-  totalBase: bigint = 995_000_000n * 10_000_000n,
-): number {
-  if (totalBase <= 0n || amountTokensBase <= 0n) return 0
-  const bps = (amountTokensBase * 10_000n) / totalBase
-  return Number(bps) / 100
-}
-
-export function isAntiWhaleExceeded(
-  amountTokensBase: bigint,
-  decimals: number = 7,
-): boolean {
-  const maxBase = ANTI_WHALE_MAX_TOKENS * 10n ** BigInt(decimals)
-  return amountTokensBase > maxBase
-}
-
-/** Soroswap pair swap fee (30 bps = 0.30%). */
-export const SOROSWAP_SWAP_FEE_PERCENT = 0.3
-
-export type GraduationStage =
-  | 'no-pool'
-  | 'seed'
-  | 'rising'
-  | 'heating'
-  | 'graduated'
-
-export type GraduationStatus = {
-  stage: GraduationStage
-  label: string
-  /** Progress 0 to 100%. */
-  percent: number
-  /** Current XLM in reserve. */
-  currentXlm: number
-  /** Target XLM for graduation. */
-  targetXlm: number
-  graduated: boolean
-}
-
-/**
- * Splits total fair launch supply into:
- * - `creatorAmount` (1%): to creator.
- * - `poolAmount` (99%): seeded to pair.
- */
-export function splitFairLaunchSupply(totalSupplyBase: bigint): {
-  creatorAmount: bigint
-  poolAmount: bigint
-  curveSaleAmount: bigint
-  dexReserveAmount: bigint
-} {
-  if (totalSupplyBase <= 0n) {
-    return {
-      creatorAmount: 0n,
-      poolAmount: 0n,
-      curveSaleAmount: 0n,
-      dexReserveAmount: 0n,
-    }
-  }
-  const creatorAmount = (totalSupplyBase * CREATOR_ALLOCATION_BPS) / 10_000n
-  const dexReserveAmount =
-    (totalSupplyBase * DEX_RESERVE_ALLOCATION_BPS) / 10_000n
-  const poolAmount = totalSupplyBase - creatorAmount
-  const curveSaleAmount = poolAmount - dexReserveAmount
-  return { creatorAmount, poolAmount, curveSaleAmount, dexReserveAmount }
-}
-
-/**
- * Calculates protocol revenue & creator rewards.
- */
-export function calculateProtocolRevenue(params: {
-  volumeXlm: number
-  graduated: boolean
-  xlmUsdPrice?: number
-}): {
-  deployFeeUsd: number
-  deployFeeXlm: number
-  protocolTradingFeeXlm: number
-  creatorTradingRewardXlm: number
-  graduationProtocolFeeXlm: number
-  graduationCreatorRewardXlm: number
-  totalProtocolRevenueXlm: number
-  totalCreatorRewardXlm: number
-} {
-  const safeVol = Math.max(0, params.volumeXlm)
-  const deployFeeXlm =
-    params.xlmUsdPrice !== undefined
-      ? calculateDeployFeeInXlm(params.xlmUsdPrice)
-      : PROTOCOL_DEPLOY_FEE_XLM
-  const protocolTradingFeeXlm =
-    (safeVol * Number(PROTOCOL_TREASURY_CUT_BPS)) / 10_000
-  const creatorTradingRewardXlm =
-    (safeVol * Number(PROTOCOL_CREATOR_CUT_BPS)) / 10_000
-  const graduationProtocolFeeXlm = params.graduated
-    ? PROTOCOL_GRADUATION_FEE_XLM
-    : 0
-  const graduationCreatorRewardXlm = params.graduated
-    ? CREATOR_GRADUATION_REWARD_XLM
-    : 0
-
-  return {
-    deployFeeUsd: PROTOCOL_DEPLOY_FEE_USD,
-    deployFeeXlm,
-    protocolTradingFeeXlm,
-    creatorTradingRewardXlm,
-    graduationProtocolFeeXlm,
-    graduationCreatorRewardXlm,
-    totalProtocolRevenueXlm:
-      deployFeeXlm + protocolTradingFeeXlm + graduationProtocolFeeXlm,
-    totalCreatorRewardXlm:
-      creatorTradingRewardXlm + graduationCreatorRewardXlm,
-  }
-}
 
 /**
  * Calculates graduation progress for a token based on its XLM reserve (stroops, 7 decimals).

@@ -27,7 +27,7 @@ const wcProjectId = import.meta.env.VITE_WC_PROJECT_ID?.trim() ?? ''
 
 /** Origin tolerante a SSR (el smoke test renderiza en node sin window). */
 function appOrigin(): string {
-  return globalThis.location?.origin ?? 'https://floodgate.local'
+  return globalThis.location?.origin ?? 'https://astrogate.local'
 }
 
 /**
@@ -52,17 +52,32 @@ function walletModules() {
   )
 }
 
-// La kit es un singleton: se inicializa una sola vez por sesión de la app.
-StellarWalletsKit.init({
-  modules: walletModules(),
-  network: Networks.TESTNET,
-})
+/**
+ * Kit singleton inicializado LAZY (la llamada de la UI lo dispara).
+ * Inicializarlo en import-time ejecutaría side-effects (connect eager de
+ * WalletConnect) en cada carga aunque nadie use wallet.
+ *
+ * OJO: en kit >= 2.x `authModal`/`disconnect` son MÉTODOS ESTÁTICOS, por lo
+ * que aquí se guarda la clase (`typeof StellarWalletsKit`), no una instancia.
+ */
+let kit: typeof StellarWalletsKit | null = null
+function walletKit(): typeof StellarWalletsKit {
+  if (!kit) {
+    StellarWalletsKit.init({
+      modules: walletModules(),
+      network: Networks.TESTNET,
+    })
+    kit = StellarWalletsKit
+  }
+  return kit
+}
 
 export type WalletMode = 'wallet' | 'demo'
 
 type WalletState = {
   publicKey: string | null
   pending: boolean
+  error: string | null
   mode: WalletMode
   /** Cuentas desechables de testnet (modo prueba, sin wallet). */
   demoAccounts: DemoAccount[]
@@ -97,6 +112,7 @@ export const useWallet = create<WalletState>((set, get) => ({
     ? (storedDemo[storedDemoActive]?.publicKey ?? null)
     : null,
   pending: false,
+  error: null,
   mode: startInDemo ? 'demo' : 'wallet',
   demoAccounts: storedDemo,
   demoActive: storedDemoActive,
@@ -105,24 +121,37 @@ export const useWallet = create<WalletState>((set, get) => ({
   demoError: null,
 
   connect: async () => {
-    set({ pending: true })
+    set({ pending: true, error: null })
     try {
-      const { address } = await StellarWalletsKit.authModal()
+      const { address } = await walletKit().authModal()
       saveDemoMode(false)
       set({ publicKey: address, mode: 'wallet' })
+    } catch (error) {
+      const message = messageOf(error)
+      const dismissed =
+        /close|cancel|dismiss|abort/i.test(message) ||
+        message.toLowerCase().startsWith('error: code: ')
+      // Cerrar el modal no es un error de estado: se descarta silenciosamente.
+      if (!dismissed) set({ error: message })
     } finally {
       set({ pending: false })
     }
   },
 
   disconnect: async () => {
-    if (get().mode === 'demo') {
-      saveDemoMode(false)
-      set({ mode: 'wallet', publicKey: null })
-      return
+    if (get().pending) return // anti doble-click
+    set({ pending: true })
+    try {
+      if (get().mode === 'demo') {
+        saveDemoMode(false)
+        set({ mode: 'wallet', publicKey: null })
+        return
+      }
+      await walletKit().disconnect()
+      set({ publicKey: null })
+    } finally {
+      set({ pending: false })
     }
-    await StellarWalletsKit.disconnect()
-    set({ publicKey: null })
   },
 
   startDemo: async () => {
@@ -146,15 +175,17 @@ export const useWallet = create<WalletState>((set, get) => ({
       demoError: null,
     })
     try {
-      const accounts = await createDemoAccounts(({ index, status }) => {
-        const label = demoLabelForIndex(index)
-        set({
-          demoStage:
-            status === 'funding'
-              ? `Funding account ${label} with 10,000 XLM…`
-              : `Account ${label} ready ✓`,
-        })
-      })
+      const { accounts, failed } = await createDemoAccounts(
+        ({ index, status }) => {
+          const label = demoLabelForIndex(index)
+          set({
+            demoStage:
+              status === 'funding'
+                ? `Funding account ${label} with 10,000 XLM…`
+                : `Account ${label} ready ✓`,
+          })
+        },
+      )
       saveDemoAccounts(accounts)
       saveActiveDemo(0)
       saveDemoMode(true)
@@ -165,6 +196,11 @@ export const useWallet = create<WalletState>((set, get) => ({
         publicKey: accounts[0].publicKey,
         demoStage: null,
       })
+      if (failed > 0) {
+        set({
+          demoError: `Fueron fondeadas ${accounts.length} de ${accounts.length + failed} cuentas (Friendbot rate limit). Puedes añadir las que falten desde el menú.`,
+        })
+      }
     } catch (error) {
       set({ demoError: messageOf(error) })
     } finally {
@@ -216,15 +252,17 @@ export const useWallet = create<WalletState>((set, get) => ({
       demoError: null,
     })
     try {
-      const accounts = await createDemoAccounts(({ index, status }) => {
-        const label = demoLabelForIndex(index)
-        set({
-          demoStage:
-            status === 'funding'
-              ? `Funding new account ${label} with 10,000 XLM…`
-              : `Account ${label} ready ✓`,
-        })
-      })
+      const { accounts, failed } = await createDemoAccounts(
+        ({ index, status }) => {
+          const label = demoLabelForIndex(index)
+          set({
+            demoStage:
+              status === 'funding'
+                ? `Funding new account ${label} with 10,000 XLM…`
+                : `Account ${label} ready ✓`,
+          })
+        },
+      )
       saveDemoAccounts(accounts)
       saveActiveDemo(0)
       saveDemoMode(true)
@@ -235,6 +273,11 @@ export const useWallet = create<WalletState>((set, get) => ({
         publicKey: accounts[0].publicKey,
         demoStage: null,
       })
+      if (failed > 0) {
+        set({
+          demoError: `Fueron fondeadas ${accounts.length} de ${accounts.length + failed} cuentas (Friendbot rate limit).`,
+        })
+      }
     } catch (error) {
       set({ demoError: messageOf(error) })
     } finally {

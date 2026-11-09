@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   appendSnapshot,
+  dedupeSnapshots,
   recordSnapshot,
   snapshotLiquidity,
   snapshotPrice,
@@ -47,6 +48,34 @@ describe('appendSnapshot', () => {
   it('ignora relojes hacia atrás', () => {
     const history = [snap(600_000)]
     expect(appendSnapshot(history, snap(300_000))).toBe(history)
+  })
+})
+
+describe('dedupeSnapshots', () => {
+  it('fusiona puntos consecutivos idénticos y conserva el orden', () => {
+    const points = [
+      snap(1_000, '100', '200'),
+      snap(1_000, '100', '200'),
+      snap(2_000, '150', '180'),
+    ]
+    expect(dedupeSnapshots(points)).toEqual([
+      snap(1_000, '100', '200'),
+      snap(2_000, '150', '180'),
+    ])
+  })
+
+  it('no fusiona mismo instante con reservas distintas', () => {
+    const points = [snap(1_000, '100', '200'), snap(1_000, '110', '190')]
+    expect(dedupeSnapshots(points)).toEqual(points)
+  })
+
+  it('conserva extremos idénticos no consecutivos', () => {
+    const points = [
+      snap(1_000, '100', '200'),
+      snap(2_000, '150', '180'),
+      snap(3_000, '100', '200'),
+    ]
+    expect(dedupeSnapshots(points)).toEqual(points)
   })
 })
 

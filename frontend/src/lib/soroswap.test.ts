@@ -39,9 +39,14 @@ describe('impacto de precio', () => {
     expect(spotAmountOut(10_000n, 0n, 50_000n)).toBe(0n)
   })
 
-  it('expresa el impacto contra la salida spot', () => {
-    // Spot: 5.000 XLM. Salida real: 4.970 XLM => 0.6% de impacto.
-    expect(priceImpactPercent(10_000n, 4_970n, 100_000n, 50_000n)).toBe(0.6)
+  it('expresa el impacto contra la salida spot SIN mezclar la comisión (30 bps)', () => {
+    // Spot: 5.000 b. Spot tras fee (0.3%): 4.985 b. Salida real: 4.970 b
+    // => impacto = (4.985 - 4.970) / 4.985 ≈ 0.30%. La fee sola no cuenta
+    // como impacto: un trade mínimo reporta ~0 en vez de 0.3% falso.
+    expect(priceImpactPercent(10_000n, 4_970n, 100_000n, 50_000n)).toBe(0.3)
+    // Un trade mínimo con salida igual al spot-no-comisionado: antes reportaba
+    // 0.2% de impacto falso (solo fee); ahora la fee no cuenta como impacto.
+    expect(priceImpactPercent(1n, 5n, 1_000_000n, 5_000_000n)).toBe(0)
   })
 
   it('no inventa impacto si no hay cotización o el precio mejora', () => {

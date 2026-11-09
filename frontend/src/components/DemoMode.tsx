@@ -19,13 +19,11 @@ import type { LaunchpadToken } from '../lib/token'
 import { recordActivity } from '../store/activity'
 import { toast } from '../lib/toast'
 import { TxProgress } from './TxProgress'
-
-const inputClass =
-  'w-full rounded-lg border border-slate-800 bg-slate-950 px-3.5 py-3 text-base text-slate-100 outline-none focus:border-emerald-500'
-
-function formatXlm(value: number): string {
-  return value.toLocaleString('en-US', { maximumFractionDigits: 2 })
-}
+import { useCopy } from '../hooks/useCopy'
+import {
+  FORM_INPUT_CLASS,
+  UNSUPPORTED_SIGNER_MESSAGE,
+} from '../lib/constants'
 
 /**
  * Demo mode without a wallet: creates testnet accounts funded with Friendbot.
@@ -46,10 +44,10 @@ export function DemoMode({ token }: { token: LaunchpadToken }) {
     disconnect,
     getSigner,
   } = useWallet()
+  const { lastCopied, copy } = useCopy()
   const queryClient = useQueryClient()
   const [amount, setAmount] = useState('')
   const [busy, setBusy] = useState(false)
-  const [copiedKey, setCopiedKey] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [sent, setSent] = useState<{ amount: bigint; label: string } | null>(
     null,
@@ -85,7 +83,7 @@ export function DemoMode({ token }: { token: LaunchpadToken }) {
 
     const signer = getSigner()
     if (!signer) {
-      setError('Unable to prepare signer for the active account.')
+      setError(UNSUPPORTED_SIGNER_MESSAGE)
       return
     }
     if (amountBase <= 0n) {
@@ -197,7 +195,7 @@ export function DemoMode({ token }: { token: LaunchpadToken }) {
             {demoAccounts.map((account: DemoAccount, index: number) => {
               const isActive = index === demoActive
               const xlm = xlmBalances.data?.[index]
-              const copied = copiedKey === account.publicKey
+              const copied = lastCopied === account.publicKey
               return (
                 <div
                   key={account.publicKey}
@@ -225,17 +223,15 @@ export function DemoMode({ token }: { token: LaunchpadToken }) {
                       {shortAddress(account.publicKey)}
                     </code>
                     <span className="mt-1 block text-xs text-slate-300">
-                      {xlm !== undefined ? `${formatXlm(xlm)} XLM` : 'reading…'}
+                      {xlm !== undefined
+                        ? `${xlm.toLocaleString('en-US', { maximumFractionDigits: 2 })} XLM`
+                        : 'reading…'}
                     </span>
                   </button>
                   <div className="mt-2 border-t border-slate-800/80 pt-1.5">
                     <button
                       type="button"
-                      onClick={() => {
-                        void navigator.clipboard?.writeText(account.publicKey)
-                        setCopiedKey(account.publicKey)
-                        setTimeout(() => setCopiedKey(null), 1800)
-                      }}
+                      onClick={() => void copy(account.publicKey)}
                       className="text-[11px] text-slate-400 hover:text-emerald-300"
                     >
                       {copied ? 'Address copied ✓' : 'Copy G… address'}
@@ -314,7 +310,7 @@ export function DemoMode({ token }: { token: LaunchpadToken }) {
                     onChange={(event) =>
                       setRecipientIndex(Number(event.target.value))
                     }
-                    className={`${inputClass} mt-1`}
+                    className={`${FORM_INPUT_CLASS} mt-1`}
                   >
                     {recipients.map(({ account, index }) => (
                       <option key={account.publicKey} value={index}>
@@ -326,7 +322,7 @@ export function DemoMode({ token }: { token: LaunchpadToken }) {
                 <label className="flex-1 text-sm">
                   <span className="sr-only">Amount to send</span>
                   <input
-                    className={`${inputClass} mt-1`}
+                    className={`${FORM_INPUT_CLASS} mt-1`}
                     value={amount}
                     onChange={(event) => setAmount(event.target.value)}
                     placeholder="100"

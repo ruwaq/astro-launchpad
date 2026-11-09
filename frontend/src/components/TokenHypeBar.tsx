@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useWallet } from '../store/wallet'
 import { useTokenBalance } from '../hooks/useTokenBalance'
@@ -8,6 +8,10 @@ import { invalidateTokenData } from '../lib/query'
 import { toast } from '../lib/toast'
 import { shortAddress, formatAmount, parseAmount, errorMessage } from '../lib/format'
 import { explorerContractUrl, explorerTxUrl } from '../lib/explorer'
+import {
+  readStorageJson,
+  writeStorageJson,
+} from '../lib/storage'
 
 type ReactionKey = 'rocket' | 'fire' | 'diamond' | 'whale'
 
@@ -47,53 +51,31 @@ const QUICK_SHOUTS = [
 const BURN_PRESETS = ['10', '100', '1000', '5000']
 
 function storageKey(tokenId: string) {
-  return `astrogate:hype:v1:${tokenId}`
+  return `astrogate.hype.v1.${tokenId}`
 }
 
-function seedFromId(tokenId: string): TokenHypeState {
-  let hash = 0
-  for (let i = 0; i < tokenId.length; i++) {
-    hash = (hash * 31 + tokenId.charCodeAt(i)) >>> 0
-  }
-  return {
-    reactions: {
-      rocket: 12 + (hash % 29),
-      fire: 8 + ((hash >> 3) % 21),
-      diamond: 5 + ((hash >> 6) % 15),
-      whale: 2 + ((hash >> 9) % 9),
-    },
-    comments: [
-      {
-        id: 'seed-1',
-        author: 'GFAIR...LAUNCH',
-        text: '🌊 SEP-41 pair verified on-chain on Soroswap Testnet.',
-        at: Date.now() - 180_000,
-        isBurn: true,
-        burnedAmount: '100',
-      },
-    ],
-  }
+/**
+ * Estado vacío y HONESTO: las reacciones-guarda son locales de este navegador
+ * (no hay indexer de likes on-chain); las burns sí tienen tx verificable.
+ * Nada de datos inventados como "seed" que parezcan comunidad real.
+ */
+const EMPTY_HYPE: TokenHypeState = {
+  reactions: { rocket: 0, fire: 0, diamond: 0, whale: 0 },
+  comments: [],
 }
 
 function loadHype(tokenId: string): TokenHypeState {
-  const fallback = seedFromId(tokenId)
-  if (typeof window === 'undefined') return fallback
-  try {
-    const raw = window.localStorage.getItem(storageKey(tokenId))
-    if (!raw) return fallback
-    const parsed = JSON.parse(raw) as Partial<TokenHypeState>
-    if (!parsed || typeof parsed !== 'object') return fallback
-    return {
-      reactions: {
-        ...fallback.reactions,
-        ...(parsed.reactions ?? {}),
-      },
-      comments: Array.isArray(parsed.comments)
-        ? parsed.comments.slice(0, 40)
-        : fallback.comments,
-    }
-  } catch {
-    return fallback
+  const parsed =
+    readStorageJson<Partial<TokenHypeState>>(storageKey(tokenId)) ?? null
+  if (!parsed || typeof parsed !== 'object') return EMPTY_HYPE
+  return {
+    reactions: {
+      ...EMPTY_HYPE.reactions,
+      ...(typeof parsed.reactions === 'object' && parsed.reactions !== null
+        ? parsed.reactions
+        : {}),
+    },
+    comments: Array.isArray(parsed.comments) ? parsed.comments.slice(0, 40) : [],
   }
 }
 
@@ -133,6 +115,14 @@ export function TokenHypeBar({
   const [voted, setVoted] = useState<Record<string, boolean>>({})
   const [chatMode, setChatMode] = useState<'free' | 'burn'>('free')
 
+  // Al navegar entre tokens por la misma ruta (/token/:id no remonta):
+  // se re-carga el hype del token actual o el de A se pinta sobre B.
+  useEffect(() => {
+    setHype(loadHype(tokenId))
+    setVoted({})
+    setChatMode('free')
+  }, [tokenId])
+
   // Free shout state
   const [commentText, setCommentText] = useState('')
 
@@ -144,13 +134,7 @@ export function TokenHypeBar({
 
   function persist(next: TokenHypeState) {
     setHype(next)
-    if (typeof window !== 'undefined') {
-      try {
-        window.localStorage.setItem(storageKey(tokenId), JSON.stringify(next))
-      } catch {
-        // Ignore storage write quota errors
-      }
-    }
+    writeStorageJson(storageKey(tokenId), next)
   }
 
   function handleReact(key: ReactionKey) {
@@ -269,7 +253,8 @@ export function TokenHypeBar({
             <span>🔥</span> Community Hype Wall & Chat
           </h2>
           <p className="mt-0.5 text-xs text-slate-400">
-            Real-time sentiment for ${symbol}. Post a free shout or burn tokens on-chain for proof-of-hype!
+            Sentiment local para ${symbol}: reacciones y shouts viven en este
+            navegador; las burns quedan on-chain con tx verificable.
           </p>
         </div>
 
@@ -292,7 +277,7 @@ export function TokenHypeBar({
       {/* Live Reaction Buttons */}
       <div className="mt-4">
         <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-          Live Community Reactions
+          Reacciones (local, por navegador)
         </p>
         <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
           {REACTION_META.map((meta) => {

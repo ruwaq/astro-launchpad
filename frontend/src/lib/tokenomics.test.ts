@@ -1,51 +1,40 @@
 import { describe, expect, it } from 'vitest'
 import {
   auditTokenSecurity,
-  calculateProtocolRevenue,
   calculateSupplySharePercent,
   DEFAULT_OPTIMIZED_SEED_XLM,
   graduationProgress,
+  poolAllocationBase,
   SEED_LIQUIDITY_PRESETS,
-  splitFairLaunchSupply,
   STELLAR_BURN_ADDRESS,
+  WHALE_TRADE_SHARE_BPS,
+  whaleThresholdBase,
 } from './tokenomics'
 
-describe('splitFairLaunchSupply', () => {
-  it('reparte 0.5% creador, 79.5% curva y 20% reserva DEX (99.5% pool)', () => {
+describe('allocation math (single source for 995M/5M figures)', () => {
+  it('reparte 0.5% creador y 99.5% pool sobre el supply estándar', () => {
     const oneBillion = 1_000_000_000n * 10_000_000n // 1B con 7 decimales
-    const { creatorAmount, poolAmount, curveSaleAmount, dexReserveAmount } =
-      splitFairLaunchSupply(oneBillion)
-    expect(creatorAmount).toBe(5_000_000n * 10_000_000n) // 5M (0.5%)
-    expect(poolAmount).toBe(995_000_000n * 10_000_000n) // 995M (99.5%)
-    expect(curveSaleAmount).toBe(795_000_000n * 10_000_000n) // 795M (79.5%)
-    expect(dexReserveAmount).toBe(200_000_000n * 10_000_000n) // 200M (20%)
-    expect(creatorAmount + poolAmount).toBe(oneBillion)
+    expect(poolAllocationBase(oneBillion)).toBe(995_000_000n * 10_000_000n) // 995M (99.5%)
     expect(STELLAR_BURN_ADDRESS).toHaveLength(56)
   })
 
-  it('devuelve 0 si el supply es inválido', () => {
-    expect(splitFairLaunchSupply(0n)).toEqual({
-      creatorAmount: 0n,
-      poolAmount: 0n,
-      curveSaleAmount: 0n,
-      dexReserveAmount: 0n,
-    })
+  it('devuelve 0 sobre supplies inválidos', () => {
+    expect(poolAllocationBase(0n)).toBe(0n)
   })
 })
 
-describe('calculateProtocolRevenue', () => {
-  it('calcula ingresos de los developers y recompensas del creador antes y después de graduarse', () => {
-    const preGrad = calculateProtocolRevenue({ volumeXlm: 1_000, graduated: false })
-    expect(preGrad.deployFeeXlm).toBe(2)
-    expect(preGrad.protocolTradingFeeXlm).toBe(7) // 0.70% de 1000
-    expect(preGrad.creatorTradingRewardXlm).toBe(3) // 0.30% de 1000
-    expect(preGrad.totalProtocolRevenueXlm).toBe(9)
+describe('whale threshold', () => {
+  it('marca ballena a partir del 1% del supply del fair launch en base units', () => {
+    expect(WHALE_TRADE_SHARE_BPS).toBe(100n)
+    // 1% de 1B con 7 decimales = 10M tokens = 10M * 1e7 base units.
+    expect(whaleThresholdBase(7)).toBe(10_000_000n * 10_000_000n)
+  })
 
-    const postGrad = calculateProtocolRevenue({ volumeXlm: 1_000, graduated: true })
-    expect(postGrad.graduationProtocolFeeXlm).toBe(15)
-    expect(postGrad.graduationCreatorRewardXlm).toBe(5)
-    expect(postGrad.totalProtocolRevenueXlm).toBe(24) // 2 + 7 + 15
-    expect(postGrad.totalCreatorRewardXlm).toBe(8) // 3 + 5
+  it('escala con los decimales del token y tolera valores inválidos', () => {
+    expect(whaleThresholdBase(0)).toBe(10_000_000n)
+    expect(whaleThresholdBase(-3)).toBe(10_000_000n)
+    expect(whaleThresholdBase(2.9)).toBe(10_000_000n * 100n)
+    expect(whaleThresholdBase()).toBe(whaleThresholdBase(7))
   })
 })
 

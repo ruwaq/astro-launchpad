@@ -4,11 +4,15 @@ import { useTokenList } from '../hooks/useTokenList'
 import { useXlmUsdPrice } from '../hooks/useXlmUsdPrice'
 import {
   calculateDeployFeeInXlm,
+  CREATOR_ALLOCATION_BPS,
   graduationProgress,
+  POOL_ALLOCATION_BPS,
   PROTOCOL_DEPLOY_FEE_USD,
+  STELLAR_BURN_ADDRESS,
 } from '../lib/tokenomics'
 import { formatAmount, shortAddress } from '../lib/format'
 import { ASTRO_TOKEN_ID } from '../lib/network'
+import { DEFAULT_XLM_USD_PRICE } from '../lib/xlm'
 
 type TickerPill = {
   id: string
@@ -18,10 +22,14 @@ type TickerPill = {
   tone: 'emerald' | 'amber' | 'rose' | 'violet'
 }
 
+/** Cifras del fair launch en %, derivadas de tokenomics (0.5% / 99.5%). */
+const creatorPercent = Number(CREATOR_ALLOCATION_BPS) / 100 // 0.5%
+const poolPercent = Number(POOL_ALLOCATION_BPS) / 100 // 99.5%
+
 export function LiveTickerBar() {
   const entries = useActivity((state) => state.entries)
   const { data: tokens } = useTokenList()
-  const { data: xlmUsd = 0.1555 } = useXlmUsdPrice()
+  const { data: xlmUsd = DEFAULT_XLM_USD_PRICE } = useXlmUsdPrice()
   const mintFeeXlm = calculateDeployFeeInXlm(xlmUsd)
 
   const pills: TickerPill[] = []
@@ -100,7 +108,7 @@ export function LiveTickerBar() {
         id: 'seed-launch',
         to: '/create',
         badge: '🚀 FAIR LAUNCH',
-        text: '1% Creator · 99% Pool · LP Burned to GAAAA...WHF',
+        text: `${creatorPercent}% Creator · ${poolPercent}% Pool · LP Burned to ${shortAddress(STELLAR_BURN_ADDRESS)}`,
         tone: 'emerald',
       },
     )

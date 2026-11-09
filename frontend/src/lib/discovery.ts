@@ -18,17 +18,19 @@ import {
   type PoolState,
 } from './soroswap'
 import { tokenClient } from './token'
-import { ASTRO_TOKEN_ID, RPC_URL, SOROSWAP_FACTORY, XLM_SAC } from './network'
+import { ASTRO_TOKEN_ID, EVENT_WINDOW_LEDGERS, RPC_URL, SOROSWAP_FACTORY, XLM_SAC } from './network'
 import { shortAddress } from './format'
 import {
+  FACTORY_SYNC_META_KEY,
   getAllStoredTokens,
   putStoredTokens,
   putSyncMeta,
   type StoredTokenRecord,
 } from './indexed-db'
+import { readStorageJson, writeStorageJson } from './storage'
 
-/** Ventana por defecto: ~14 h de testnet (ledgers de ~5 s). */
-export const DEFAULT_WINDOW_LEDGERS = 10_000
+/** Ventana por defecto: ~14 h de testnet (ledgers de ~5 s). Única fuente: network.ts. */
+export const DEFAULT_WINDOW_LEDGERS = EVENT_WINDOW_LEDGERS
 
 /** Tokens que se listan como máximo. */
 export const DEFAULT_MAX_TOKENS = 50
@@ -149,7 +151,10 @@ export async function discoverPairs(options?: {
 
 /** Metadata SEP-41 con fallback legible si el contrato no la implementa. */
 const METADATA_TTL_MS = 24 * 60 * 60 * 1000
-const METADATA_STORAGE_KEY = 'floodgate.token-meta.v1'
+/** Doble del TTL: al escribir se depuran entradas caducadas para no crecer sin límite. */
+const METADATA_PRUNE_AFTER = METADATA_TTL_MS * 2
+const METADATA_MAX_ENTRIES = 100
+const METADATA_STORAGE_KEY = 'astrogate.token-meta.v1'
 
 export type ImmutableTokenMetadata = {
   name: string
@@ -163,30 +168,23 @@ const metadataCache = new Map<
 >()
 
 function loadStoredMetadata(): void {
-  if (typeof window === 'undefined' || metadataCache.size > 0) return
-  try {
-    const raw = window.localStorage.getItem(METADATA_STORAGE_KEY)
-    if (!raw) return
-    const parsed = JSON.parse(raw) as Record<
-      string,
-      { at: number; meta: ImmutableTokenMetadata }
-    >
-    const now = Date.now()
-    for (const [id, entry] of Object.entries(parsed)) {
-      if (
-        entry &&
-        typeof entry.at === 'number' &&
-        now - entry.at < METADATA_TTL_MS &&
-        entry.meta &&
-        typeof entry.meta.name === 'string' &&
-        typeof entry.meta.symbol === 'string' &&
-        typeof entry.meta.decimals === 'number'
-      ) {
-        metadataCache.set(id, entry)
-      }
+  if (metadataCache.size > 0) return
+  const parsed = readStorageJson<Record<string, unknown>>(METADATA_STORAGE_KEY)
+  if (!parsed) return
+  const now = Date.now()
+  for (const [id, entry] of Object.entries(parsed)) {
+    const typed = entry as { at?: unknown; meta?: Partial<ImmutableTokenMetadata> }
+    if (
+      typed &&
+      typeof typed.at === 'number' &&
+      now - typed.at < METADATA_TTL_MS &&
+      typed.meta &&
+      typeof typed.meta.name === 'string' &&
+      typeof typed.meta.symbol === 'string' &&
+      typeof typed.meta.decimals === 'number'
+    ) {
+      metadataCache.set(id, typed as { at: number; meta: ImmutableTokenMetadata })
     }
-  } catch {
-    // Modo privado o JSON corrupto: seguimos con la caché en memoria.
   }
 }
 
@@ -204,14 +202,20 @@ export function setCachedTokenMetadata(
   meta: ImmutableTokenMetadata,
 ): void {
   loadStoredMetadata()
-  metadataCache.set(tokenId, { at: Date.now(), meta })
-  if (typeof window === 'undefined') return
-  try {
-    const serialized = Object.fromEntries(metadataCache.entries())
-    window.localStorage.setItem(METADATA_STORAGE_KEY, JSON.stringify(serialized))
-  } catch {
-    // Cuota llena o modo privado.
+  const now = Date.now()
+  metadataCache.set(tokenId, { at: now, meta })
+
+  // Depura entradas caducadas/acotadas ANTES de persistir (evita crecimiento sin límite).
+  for (const [id, entry] of metadataCache) {
+    if (
+      now - entry.at >= METADATA_PRUNE_AFTER ||
+      (metadataCache.size > METADATA_MAX_ENTRIES && id !== tokenId)
+    ) {
+      metadataCache.delete(id)
+    }
   }
+
+  writeStorageJson(METADATA_STORAGE_KEY, Object.fromEntries(metadataCache.entries()))
 }
 
 async function fetchTokenMetadata(
@@ -286,8 +290,17 @@ async function mapLimit<T, R>(
   return results
 }
 
-/** Convierte un StoredTokenRecord de IndexedDB a TokenListing */
+/** Convierte un StoredTokenRecord de IndexedDB a TokenListing (tolerante a registros corruptos). */
 export function recordToListing(record: StoredTokenRecord): TokenListing {
+  // Los reserves vienen de disco; un registro corrupto con texto no numérico
+  // degrade a 0n en lugar de lanzar (BigInt SyntaxError) y tirar el feed.
+  const toBase = (raw: string): bigint => {
+    try {
+      return BigInt(raw || '0')
+    } catch {
+      return 0n
+    }
+  }
   return {
     id: record.id,
     name: record.name,
@@ -297,8 +310,8 @@ export function recordToListing(record: StoredTokenRecord): TokenListing {
     pool: {
       exists: true,
       pairId: record.pairId,
-      reserveToken: BigInt(record.reserveToken || '0'),
-      reserveXlm: BigInt(record.reserveXlm || '0'),
+      reserveToken: toBase(record.reserveToken),
+      reserveXlm: toBase(record.reserveXlm),
     },
   }
 }
@@ -354,7 +367,9 @@ export async function syncFactoryPairs(options?: {
             name: metadata.name,
             symbol: metadata.symbol,
             decimals: metadata.decimals,
-            ledger: i * 100,
+            // Escaneo histórico, no eventos: no hay ledger real. 0 lo ordena
+            // al final (más viejo) sin inventar ledgers que falseen novedad.
+            ledger: 0,
             pool: {
               exists: true,
               pairId,
@@ -371,7 +386,7 @@ export async function syncFactoryPairs(options?: {
     if (discoveredListings.length > 0) {
       await putStoredTokens(discoveredListings.map(listingToRecord))
       await putSyncMeta({
-        key: 'factory_sync',
+        key: FACTORY_SYNC_META_KEY,
         lastScannedIndex: totalPairs,
         totalPairs,
         lastSyncTimestamp: Date.now(),
@@ -399,7 +414,14 @@ export async function discoverTokens(options?: {
 
   // 1. Carga instantánea desde almacenamiento local persistente (0ms)
   const storedRecords = await getAllStoredTokens()
-  const storedListings = storedRecords.map(recordToListing)
+  const storedListings: TokenListing[] = []
+  for (const record of storedRecords) {
+    try {
+      storedListings.push(recordToListing(record))
+    } catch {
+      // Registro inválido: se ignora; getAllStored ya valida forma, esto es defensa extra.
+    }
+  }
 
   // 2. Traer pares de eventos en vivo
   try {

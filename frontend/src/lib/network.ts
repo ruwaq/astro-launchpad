@@ -1,5 +1,11 @@
 /**
  * Network configuration. Defaults to public Stellar testnet; supports environment overrides.
+ *
+ * NOTE (RPC como fuente única): todos los clientes Soroban se crean con `RPC_URL`.
+ * El failover entre RPCs deliberadamente NO se usa: reenviar una transacción
+ * construida sobre un nodo a otro nodo puede fallar por desfase de ledger,
+ * y mezclar URLs de redes distintas firmaría con passphrase incorrecta.
+ * La healthy-check (`checkRpcHealth`) se usa para diagnóstico en la UI.
  */
 export const NETWORK_NAME =
   (import.meta.env.VITE_STELLAR_NETWORK as string | undefined) || 'testnet'
@@ -12,20 +18,6 @@ export const NETWORK_PASSPHRASE =
 export const RPC_URL =
   (import.meta.env.VITE_SOROBAN_RPC_URL as string | undefined) ||
   'https://soroban-testnet.stellar.org'
-
-/**
- * High-availability RPC failover pool.
- * Orders primary endpoint first, followed by official and community fallback nodes.
- */
-export const RPC_POOL: string[] = Array.from(
-  new Set(
-    [
-      import.meta.env.VITE_SOROBAN_RPC_URL,
-      'https://soroban-testnet.stellar.org',
-      'https://rpc-testnet.stellar.org',
-    ].filter(Boolean) as string[],
-  ),
-)
 
 export const HORIZON_URL =
   (import.meta.env.VITE_HORIZON_URL as string | undefined) ||
@@ -45,6 +37,12 @@ export const ASTRO_TOKEN_ID = 'CAI637WCEILQF3ZYOV6BRUCX532XQIVOOJ4CRWFPWHQRJHOH5
  */
 export const ASTRO_WASM_HASH =
   '438d12a79855dd42c353d12bb42e6b57ed513eed47b7008094683ba33f971286'
+
+/**
+ * Ventana estándar de lectura de eventos RPC (~14 h de testnet, ledgers de ~5 s).
+ * Única fuente para discovery.ts y token-events.ts.
+ */
+export const EVENT_WINDOW_LEDGERS = 10_000
 
 /**
  * Quick health check for the Soroban RPC node.
@@ -72,7 +70,7 @@ export async function checkRpcHealth(url = RPC_URL): Promise<{
       error?: { message?: string }
     }
     const latencyMs = Math.round(performance.now() - start)
-    if (data?.result?.sequence) {
+    if (typeof data?.result?.sequence === 'number') {
       return { ok: true, sequence: data.result.sequence, latencyMs }
     }
     return {
@@ -83,23 +81,4 @@ export async function checkRpcHealth(url = RPC_URL): Promise<{
   } catch (err) {
     return { ok: false, error: (err as Error)?.message ?? 'Network unreachable' }
   }
-}
-
-/**
- * Executes an asynchronous RPC action with automatic fallback across the RPC pool.
- * If the primary RPC node times out or fails, automatically retries against the next healthy node.
- */
-export async function executeWithRpcFailover<T>(
-  action: (rpcUrl: string) => Promise<T>,
-  pool: string[] = RPC_POOL,
-): Promise<T> {
-  let lastError: unknown
-  for (const url of pool) {
-    try {
-      return await action(url)
-    } catch (err) {
-      lastError = err
-    }
-  }
-  throw lastError
 }

@@ -137,7 +137,7 @@ export function HomePage() {
       {/* Organized Showcase Section with Clean Tabs (Solves cluttered landscape) */}
       <div className="space-y-4">
         {/* Navigation Tabs Bar */}
-        <div className="flex items-center gap-1.5 overflow-x-auto border-b border-slate-800 pb-2 scrollbar-none">
+        <div className="flex items-center gap-1.5 overflow-x-auto border-b border-slate-800 pb-2 no-scrollbar">
           <button
             type="button"
             onClick={() => setActiveTab('radar')}

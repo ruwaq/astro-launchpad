@@ -37,7 +37,7 @@ function LaunchItem({
             >
               ${token.symbol}
             </Link>
-            <span className="shrink-0 rounded bg-slate-800 px-1.5 py-0.2 text-[10px] text-slate-400">
+            <span className="shrink-0 rounded bg-slate-800 px-1.5 py-0.5 text-[10px] text-slate-400">
               New
             </span>
           </div>

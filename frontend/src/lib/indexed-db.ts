@@ -25,6 +25,9 @@ export interface SyncMeta {
   lastSyncTimestamp: number
 }
 
+/** Clave única del registro de sincronización de la factory (compartida con discovery.ts). */
+export const FACTORY_SYNC_META_KEY = 'factory_sync'
+
 const DB_NAME = 'astrogate_db'
 const DB_VERSION = 1
 const TOKENS_STORE = 'tokens'
@@ -72,10 +75,37 @@ function getDB(): Promise<IDBDatabase | null> {
 // In-memory fallback if IndexedDB is disabled or in private mode with restrictions
 const memoryTokenCache = new Map<string, StoredTokenRecord>()
 let memorySyncMeta: SyncMeta = {
-  key: 'factory_sync',
+  key: FACTORY_SYNC_META_KEY,
   lastScannedIndex: 0,
   totalPairs: 0,
   lastSyncTimestamp: 0,
+}
+
+/**
+ * Guard de forma: los registros vienen de disco (IndexedDB) y pueden estar
+ * corruptos o de una versión vieja. Un registro inválido no debe entrar a
+ * memoria ni a la UI (un `reserveToken` no numérico lanzaría en BigInt()).
+ */
+export function isStoredTokenRecord(value: unknown): value is StoredTokenRecord {
+  if (typeof value !== 'object' || value === null) return false
+  const r = value as Partial<StoredTokenRecord>
+  return (
+    typeof r.id === 'string' &&
+    r.id.length > 2 &&
+    typeof r.name === 'string' &&
+    typeof r.symbol === 'string' &&
+    typeof r.decimals === 'number' &&
+    Number.isFinite(r.decimals) &&
+    typeof r.pairId === 'string' &&
+    typeof r.reserveToken === 'string' &&
+    /^-?\d+$/.test(r.reserveToken || '0') &&
+    typeof r.reserveXlm === 'string' &&
+    /^-?\d+$/.test(r.reserveXlm || '0') &&
+    typeof r.ledger === 'number' &&
+    Number.isFinite(r.ledger) &&
+    typeof r.updatedAt === 'number' &&
+    Number.isFinite(r.updatedAt)
+  )
 }
 
 export async function putStoredTokens(tokens: StoredTokenRecord[]): Promise<void> {
@@ -104,7 +134,7 @@ export async function putStoredTokens(tokens: StoredTokenRecord[]): Promise<void
 export async function getAllStoredTokens(): Promise<StoredTokenRecord[]> {
   const db = await getDB()
   if (!db) {
-    return Array.from(memoryTokenCache.values())
+    return Array.from(memoryTokenCache.values()).filter(isStoredTokenRecord)
   }
 
   return new Promise((resolve) => {
@@ -113,15 +143,16 @@ export async function getAllStoredTokens(): Promise<StoredTokenRecord[]> {
       const store = tx.objectStore(TOKENS_STORE)
       const req = store.getAll()
       req.onsuccess = () => {
-        const records = req.result as StoredTokenRecord[]
-        for (const r of records) {
+        const valid = (req.result as unknown[]).filter(isStoredTokenRecord)
+        for (const r of valid) {
           memoryTokenCache.set(r.id, r)
         }
-        resolve(records)
+        resolve(valid)
       }
-      req.onerror = () => resolve(Array.from(memoryTokenCache.values()))
+      req.onerror = () =>
+        resolve(Array.from(memoryTokenCache.values()).filter(isStoredTokenRecord))
     } catch {
-      resolve(Array.from(memoryTokenCache.values()))
+      resolve(Array.from(memoryTokenCache.values()).filter(isStoredTokenRecord))
     }
   })
 }
@@ -134,7 +165,7 @@ export async function getSyncMeta(): Promise<SyncMeta> {
     try {
       const tx = db.transaction(META_STORE, 'readonly')
       const store = tx.objectStore(META_STORE)
-      const req = store.get('factory_sync')
+      const req = store.get(FACTORY_SYNC_META_KEY)
       req.onsuccess = () => {
         if (req.result) {
           memorySyncMeta = req.result

@@ -1,5 +1,10 @@
-import { describe, expect, it } from 'vitest'
-import { xlmToStroops } from './xlm'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { DEFAULT_XLM_USD_PRICE, fetchXlmBalance, xlmToStroops } from './xlm'
+
+afterEach(() => {
+  vi.unstubAllGlobals()
+  if (typeof localStorage !== 'undefined') localStorage.clear()
+})
 
 describe('xlmToStroops', () => {
   it('convierte XLM a stroops sin decimales flotantes', () => {
@@ -15,5 +20,52 @@ describe('xlmToStroops', () => {
     expect(xlmToStroops(-1)).toBe(0n)
     expect(xlmToStroops(Number.NaN)).toBe(0n)
     expect(xlmToStroops(Number.POSITIVE_INFINITY)).toBe(0n)
+  })
+})
+
+describe('fetchXlmBalance', () => {
+  it('resuelve 0 para cuentas aún inexistentes (Horizon 404)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('resource missing', { status: 404 })),
+    )
+    await expect(fetchXlmBalance('GTEST')).resolves.toBe(0)
+  })
+
+  it('lanza error para fallos de Horizon distintos de 404 (no simula balance 0)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('server error', { status: 500 })),
+    )
+    await expect(fetchXlmBalance('GTEST')).rejects.toThrow('500')
+  })
+
+  it('extrae el balance nativo sobre una respuesta 200', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        new Response(
+          JSON.stringify({
+            balances: [
+              { asset_type: 'credit_alphanum4', balance: '1.0' },
+              { asset_type: 'native', balance: '42.5' },
+            ],
+          }),
+          { status: 200 },
+        ),
+      ),
+    )
+    await expect(fetchXlmBalance('GTEST')).resolves.toBe(42.5)
+  })
+})
+
+describe('fetchXlmUsdPrice', () => {
+  it('cae al precio por defecto cuando todos los oracles fallan', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('boom', { status: 503 })),
+    )
+    const { fetchXlmUsdPrice } = await import('./xlm')
+    await expect(fetchXlmUsdPrice()).resolves.toBe(DEFAULT_XLM_USD_PRICE)
   })
 })

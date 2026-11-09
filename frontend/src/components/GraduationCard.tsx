@@ -7,7 +7,12 @@ import {
   SOROSWAP_SWAP_FEE_PERCENT,
   STELLAR_BURN_ADDRESS,
 } from '../lib/tokenomics'
-import { explorerAccountUrl, explorerContractUrl } from '../lib/explorer'
+import {
+  explorerAccountUrl,
+  explorerContractUrl,
+  SOROSWAP_APP_URL,
+} from '../lib/explorer'
+import { shortAddress } from '../lib/format'
 import { fetchBurnedLpInfo, type PoolState } from '../lib/soroswap'
 
 export function GraduationCard({
@@ -139,7 +144,7 @@ export function GraduationCard({
                   rel="noreferrer"
                   className="underline hover:text-emerald-100"
                 >
-                  GAAAA...WHF ↗
+                  {shortAddress(STELLAR_BURN_ADDRESS)} ↗
                 </a>
               </>
             ) : (
@@ -209,7 +214,7 @@ export function GraduationCard({
           </span>
           <div className="flex flex-wrap gap-2">
             <a
-              href="https://app.soroswap.finance"
+              href={SOROSWAP_APP_URL}
               target="_blank"
               rel="noreferrer"
               className="rounded-md border border-emerald-800 bg-emerald-950/40 px-2.5 py-1 font-medium text-emerald-300 hover:border-emerald-600"

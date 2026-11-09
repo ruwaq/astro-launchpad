@@ -10,19 +10,25 @@
  * emit swap events directly; trades are detected by tracking pair transfers.
  */
 import { rpc, scValToNative } from '@stellar/stellar-sdk'
-import { RPC_URL } from './network'
+import { RPC_URL, EVENT_WINDOW_LEDGERS } from './network'
 import { shortAddress } from './format'
 import type { PoolState } from './soroswap'
-import type { ReserveSnapshot } from './snapshots'
+import { dedupeSnapshots, type ReserveSnapshot } from './snapshots'
 
-/** Default window: ~14 h of testnet (~5 s ledgers). */
-export const TOKEN_EVENT_WINDOW_LEDGERS = 10_000
+/**
+ * Ventana por defecto compartida con discovery.ts (misma constante en network.ts).
+ */
+export const TOKEN_EVENT_WINDOW_LEDGERS = EVENT_WINDOW_LEDGERS
 
 /** Max events returned to UI. */
 export const TOKEN_EVENT_LIMIT = 50
 
 const PAGE_LIMIT = 200
 const MAX_PAGES = 10
+/** Milisegundos entre el evento más viejo y el punto inicial reconstruido. */
+const SNAPSHOT_GAP_MS = 5_000
+/** Ventana de respaldo si la fecha del evento más viejo no se puede parsear. */
+const FALLBACK_WINDOW_MS = 60_000
 
 export type TokenEventKind = 'transfer' | 'mint' | 'burn'
 
@@ -136,7 +142,15 @@ export function classifyTokenEvent(
 }
 
 /**
- * Reconstructs reserve and price history from on-chain pair transfers using x * y = k invariant.
+ * Reconstructs reserve and price history from on-chain pair transfers.
+ *
+ * Approximation with disclosed limitation: Soroswap does not emit `swap`
+ * events (verified in testnet, 0 in 10k ledgers), so `buy`/`sell` and
+ * `add/remove liquidity` are indistinguishable from token transfers alone.
+ * Liquidity adds break the assumed `x * y = k` invariant and can skew the
+ * middle of the reconstructed curve; the realtime edge always uses the REAL
+ * reserves read from the pair, and discovery/snapshots re-anchor the recent
+ * history. A full fix requires an indexer of pair events.
  */
 export function reconstructSnapshotsFromEvents(
   events: TokenEvent[],
@@ -189,9 +203,9 @@ export function reconstructSnapshotsFromEvents(
     const oldestEvent = poolEvents[poolEvents.length - 1]
     const oldestTime = Date.parse(oldestEvent?.at ?? '')
     const startT =
-      Number.isFinite(oldestTime) && oldestTime > 5_000
-        ? oldestTime - 5_000
-        : now - 60_000
+      Number.isFinite(oldestTime) && oldestTime > SNAPSHOT_GAP_MS
+        ? oldestTime - SNAPSHOT_GAP_MS
+        : now - FALLBACK_WINDOW_MS
     reversedPoints.push({
       t: startT,
       xlm: curXlm.toString(),
@@ -206,7 +220,7 @@ export function reconstructSnapshotsFromEvents(
     token: pool.reserveToken.toString(),
   })
 
-  return chronological
+  return dedupeSnapshots(chronological)
 }
 
 /**

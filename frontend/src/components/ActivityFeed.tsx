@@ -9,6 +9,7 @@ import {
   type ActivityKind,
 } from '../store/activity'
 import { shortAddress } from '../lib/format'
+import { explorerTxUrl } from '../lib/explorer'
 
 const KIND_CLASSES: Record<ActivityKind, string> = {
   create: 'border-emerald-800 bg-emerald-950/40 text-emerald-300',
@@ -65,7 +66,7 @@ function ActivityRow({ entry }: { entry: ActivityEntry }) {
 
       {entry.hash ? (
         <a
-          href={`https://stellar.expert/explorer/testnet/tx/${entry.hash}`}
+          href={explorerTxUrl(entry.hash)}
           target="_blank"
           rel="noreferrer"
           className="shrink-0 text-xs text-slate-400 underline underline-offset-2 hover:text-slate-200"

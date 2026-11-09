@@ -55,11 +55,11 @@ function GraduatingItem({
                   ${token.symbol}
                 </Link>
                 {grad.graduated ? (
-                  <span className="rounded-full bg-emerald-500/20 px-2 py-0.2 text-[10px] font-semibold text-emerald-300">
+                  <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-semibold text-emerald-300">
                     🎓 Graduated
                   </span>
                 ) : (
-                  <span className="rounded-full bg-amber-500/20 px-2 py-0.2 text-[10px] font-bold text-amber-300">
+                  <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-bold text-amber-300">
                     {grad.percent.toFixed(0)}%
                   </span>
                 )}

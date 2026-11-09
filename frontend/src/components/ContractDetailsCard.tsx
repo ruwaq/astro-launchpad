@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import {
   explorerAccountUrl,
   explorerContractUrl,
@@ -7,6 +6,7 @@ import {
 import { shortAddress, formatAmount } from '../lib/format'
 import { STELLAR_BURN_ADDRESS } from '../lib/tokenomics'
 import { ASTRO_WASM_HASH } from '../lib/network'
+import { useCopy } from '../hooks/useCopy'
 import type { EnrichedTokenMetadata } from '../lib/token-metadata'
 
 export function ContractDetailsCard({
@@ -28,15 +28,7 @@ export function ContractDetailsCard({
   owner: string | null
   metadata?: EnrichedTokenMetadata | null
 }) {
-  const [copiedKey, setCopiedKey] = useState<string | null>(null)
-
-  function copy(text: string, key: string) {
-    if (typeof navigator !== 'undefined' && navigator.clipboard) {
-      void navigator.clipboard.writeText(text)
-      setCopiedKey(key)
-      setTimeout(() => setCopiedKey(null), 2000)
-    }
-  }
+  const { lastCopied, copy } = useCopy()
 
   const isRenounced = !owner
 
@@ -87,10 +79,10 @@ export function ContractDetailsCard({
             <div className="flex items-center gap-1.5 shrink-0">
               <button
                 type="button"
-                onClick={() => copy(tokenId, 'token')}
+                onClick={() => void copy(tokenId)}
                 className="rounded bg-slate-800 px-2 py-0.5 text-[11px] font-mono text-slate-300 transition hover:bg-slate-700"
               >
-                {copiedKey === 'token' ? 'Copied ✓' : 'Copy'}
+                {lastCopied === tokenId ? 'Copied ✓' : 'Copy'}
               </button>
               <a
                 href={explorerContractUrl(tokenId)}
@@ -117,10 +109,10 @@ export function ContractDetailsCard({
               <div className="flex items-center gap-1.5 shrink-0">
                 <button
                   type="button"
-                  onClick={() => copy(pairId, 'pair')}
+                  onClick={() => void copy(pairId ?? '')}
                   className="rounded bg-slate-800 px-2 py-0.5 text-[11px] font-mono text-slate-300 transition hover:bg-slate-700"
                 >
-                  {copiedKey === 'pair' ? 'Copied ✓' : 'Copy'}
+                  {lastCopied === pairId ? 'Copied ✓' : 'Copy'}
                 </button>
                 <a
                   href={explorerContractUrl(pairId)}
@@ -146,10 +138,10 @@ export function ContractDetailsCard({
             </span>
             <button
               type="button"
-              onClick={() => copy(ASTRO_WASM_HASH, 'wasm')}
+              onClick={() => void copy(ASTRO_WASM_HASH)}
               className="shrink-0 rounded bg-slate-800 px-2 py-0.5 text-[11px] font-mono text-slate-300 transition hover:bg-slate-700"
             >
-              {copiedKey === 'wasm' ? 'Copied ✓' : 'Copy'}
+              {lastCopied === ASTRO_WASM_HASH ? 'Copied ✓' : 'Copy'}
             </button>
           </div>
           <div className="mt-2 break-all font-mono text-xs text-slate-300">
@@ -241,14 +233,16 @@ export function ContractDetailsCard({
             </a>
           ) : null}
 
-          <a
-            href={horizonAccountUrl(tokenId)}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-1.5 text-xs text-slate-200 hover:border-emerald-500 hover:text-emerald-300"
-          >
-            <span>🌐</span> Horizon Account Data ↗
-          </a>
+          {owner ? (
+            <a
+              href={horizonAccountUrl(owner)}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-1.5 text-xs text-slate-200 hover:border-emerald-500 hover:text-emerald-300"
+            >
+              <span>🌐</span> Horizon Account Data ↗
+            </a>
+          ) : null}
 
           <a
             href="https://soroban-testnet.stellar.org/health"

@@ -9,6 +9,8 @@ import {
   type TokenEvent,
   type TokenTradeRole,
 } from '../lib/token-events'
+import { whaleThresholdBase } from '../lib/tokenomics'
+import { useCopy } from '../hooks/useCopy'
 import type { LaunchpadToken } from '../lib/token'
 
 type FilterKey = 'all' | 'buy' | 'sell' | 'whale'
@@ -103,18 +105,19 @@ export function TokenActivity({
   const pool = useSoroswapPool(activeId)
   const pairId = pool.data?.pairId ?? null
   const list = events.data ?? []
+  const { lastCopied, copy } = useCopy()
 
   const [filter, setFilter] = useState<FilterKey>('all')
   const [viewMode, setViewMode] = useState<ViewMode>('grid')
   const [selectedEvent, setSelectedEvent] = useState<TokenEvent | null>(null)
-  const [copiedHash, setCopiedHash] = useState(false)
 
   // Classify events
   const classifiedEvents = useMemo(() => {
+    const whaleThreshold = whaleThresholdBase(activeDecimals)
     return list.map((event) => {
       const role = classifyTokenEvent(event, pairId)
-      // A whale trade is > 10,000,000 tokens (1% of 1B supply)
-      const isWhale = event.amount >= 10_000_000n * 10n ** BigInt(activeDecimals)
+      // Whale trade: >= 1% of the standard fair-launch supply.
+      const isWhale = event.amount >= whaleThreshold
       return { event, role, isWhale }
     })
   }, [list, pairId, activeDecimals])
@@ -140,14 +143,6 @@ export function TokenActivity({
       return true
     })
   }, [classifiedEvents, filter])
-
-  function copyText(text: string) {
-    if (navigator?.clipboard) {
-      void navigator.clipboard.writeText(text)
-      setCopiedHash(true)
-      setTimeout(() => setCopiedHash(false), 2000)
-    }
-  }
 
   return (
     <section className="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/40 p-4 sm:p-6 shadow-sm">
@@ -360,10 +355,10 @@ export function TokenActivity({
               <div className="flex gap-2">
                 <button
                   type="button"
-                  onClick={() => copyText(selectedEvent.txHash ?? '')}
+                  onClick={() => void copy(selectedEvent.txHash ?? '')}
                   className="rounded border border-slate-700 bg-slate-900 px-2.5 py-1 text-slate-300 hover:border-slate-500"
                 >
-                  {copiedHash ? '✓ Copiado' : 'Copiar Hash'}
+                  {lastCopied === selectedEvent.txHash ? '✓ Copiado' : 'Copiar Hash'}
                 </button>
                 <a
                   href={explorerTxUrl(selectedEvent.txHash)}
@@ -465,15 +460,15 @@ export function TokenActivity({
                   </div>
 
                   {event.txHash ? (
-                    <span
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        window.open(explorerTxUrl(event.txHash!), '_blank')
-                      }}
+                    <a
+                      href={explorerTxUrl(event.txHash)}
+                      target="_blank"
+                      rel="noreferrer"
+                      onClick={(e) => e.stopPropagation()}
                       className="text-[11px] text-slate-400 hover:text-emerald-300 underline underline-offset-2 flex items-center gap-0.5"
                     >
                       tx ↗
-                    </span>
+                    </a>
                   ) : null}
                 </div>
               </div>
@@ -490,7 +485,16 @@ export function TokenActivity({
             return (
               <li
                 key={event.id}
+                role="button"
+                tabIndex={0}
+                aria-pressed={selectedEvent?.id === event.id}
                 onClick={() => setSelectedEvent(event)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    setSelectedEvent(event)
+                  }
+                }}
                 className="flex flex-col gap-2 py-2.5 sm:flex-row sm:items-center sm:justify-between cursor-pointer hover:bg-slate-900/50 px-2 rounded-lg transition"
               >
                 <div className="flex flex-wrap items-center gap-2">

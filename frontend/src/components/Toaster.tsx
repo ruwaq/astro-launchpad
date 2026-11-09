@@ -5,6 +5,7 @@ import {
   subscribeToasts,
   type ToastKind,
 } from '../lib/toast'
+import { explorerTxUrl } from '../lib/explorer'
 
 const styles: Record<
   ToastKind,
@@ -65,7 +66,7 @@ export function Toaster() {
               ) : null}
               {toast.hash ? (
                 <a
-                  href={`https://stellar.expert/explorer/testnet/tx/${toast.hash}`}
+                  href={explorerTxUrl(toast.hash)}
                   target="_blank"
                   rel="noreferrer"
                   className="mt-1 inline-block text-xs underline underline-offset-2 opacity-80 hover:opacity-100"

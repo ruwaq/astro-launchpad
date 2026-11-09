@@ -3,8 +3,12 @@ import { Link } from 'react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { deployToken, tokenClient } from '../lib/token'
 import {
+  allocationOfBps,
   calculateDeployFeeInXlm,
-  POOL_ALLOCATION_BPS,
+  CREATOR_ALLOCATION_BPS,
+  FAIR_LAUNCH_DECIMALS,
+  FAIR_LAUNCH_TOTAL_BASIS,
+  poolAllocationBase,
   PROTOCOL_DEPLOY_FEE_USD,
   STELLAR_BURN_ADDRESS,
   CREATOR_GRADUATION_LOCK_DAYS,
@@ -12,7 +16,7 @@ import {
   SEED_LIQUIDITY_PRESETS,
 } from '../lib/tokenomics'
 import { addLiquidity } from '../lib/soroswap'
-import { XLM_DECIMALS } from '../lib/xlm'
+import { DEFAULT_XLM_USD_PRICE, XLM_DECIMALS } from '../lib/xlm'
 import { useXlmUsdPrice } from '../hooks/useXlmUsdPrice'
 import { explorerContractUrl } from '../lib/explorer'
 import { ShareButton } from './ShareButton'
@@ -23,11 +27,33 @@ import { recordActivity } from '../store/activity'
 import { TxProgress } from './TxProgress'
 import { TokenArt } from './TokenArt'
 import { saveLocalTokenMetadata } from '../lib/token-metadata'
+import {
+  clearCheckpoint,
+  getCheckpoint,
+  saveCheckpoint,
+  type LaunchCheckpoint,
+} from '../lib/launch-checkpoint'
+import {
+  FORM_INPUT_CLASS,
+  LOGO_MAX_BYTES,
+  UNSUPPORTED_SIGNER_MESSAGE,
+} from '../lib/constants'
 
-const inputClass =
-  'w-full rounded-lg border border-slate-800 bg-slate-950 px-3.5 py-3 text-base text-slate-100 outline-none focus:border-emerald-500'
+const inputClass = FORM_INPUT_CLASS
 
 type LaunchStep = 'deploy' | 'pool' | 'renounce' | null
+
+/** Texto honesto del checkpoint si un lanzamiento quedó a medias. */
+function incompleteMessageFor(cp: LaunchCheckpoint): string {
+  return `Quedó pendiente de completar: el token ${cp.symbol} ya existe on-chain (paso: ${cp.step}). Puedes terminar el pool y el renounce desde su token page.`
+}
+
+// Cifras estándar del desglose, derivadas de la única fuente de tokenomics:
+const STANDARD_POOL_UNITS = poolAllocationBase(FAIR_LAUNCH_TOTAL_BASIS)
+const STANDARD_CREATOR_UNITS = allocationOfBps(
+  FAIR_LAUNCH_TOTAL_BASIS,
+  CREATOR_ALLOCATION_BPS,
+)
 
 export function CreateTokenForm({
   onCreated,
@@ -36,7 +62,7 @@ export function CreateTokenForm({
 }) {
   const { publicKey, getSigner, connect } = useWallet()
   const queryClient = useQueryClient()
-  const { data: xlmUsd = 0.1555 } = useXlmUsdPrice()
+  const { data: xlmUsd = DEFAULT_XLM_USD_PRICE } = useXlmUsdPrice()
   const dynamicMintFeeXlm = calculateDeployFeeInXlm(xlmUsd)
   const [seedXlmAmount, setSeedXlmAmount] = useState<number>(DEFAULT_OPTIMIZED_SEED_XLM)
   const gasBuffer = 0.1
@@ -53,12 +79,18 @@ export function CreateTokenForm({
   const [step, setStep] = useState<LaunchStep>(null)
   const [error, setError] = useState<string | null>(null)
   const [createdId, setCreatedId] = useState<string | null>(null)
+  /** Checkpoint legado de un intento anterior: se muestra para reanudarla. */
+  const [checkpointNote, setCheckpointNote] = useState<LaunchCheckpoint | null>(
+    () => getCheckpoint(),
+  )
 
   function onFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    if (file.size > 500_000) {
-      toast.error('Image too large', { message: 'Please select an image under 500KB.' })
+    if (file.size > LOGO_MAX_BYTES) {
+      toast.error('Image too large', {
+        message: `Please select an image under ${Math.round(LOGO_MAX_BYTES / 1000)}KB.`,
+      })
       return
     }
     const reader = new FileReader()
@@ -74,13 +106,14 @@ export function CreateTokenForm({
     event.preventDefault()
     setError(null)
     setCreatedId(null)
+    setCheckpointNote(null)
     if (!publicKey) {
       setError('Please connect your wallet first.')
       return
     }
     const signer = getSigner()
     if (!signer) {
-      setError('Unable to prepare signer for the active account.')
+      setError(UNSUPPORTED_SIGNER_MESSAGE)
       return
     }
 
@@ -91,12 +124,28 @@ export function CreateTokenForm({
       return
     }
 
-    const targetDecimals = 7
-    const initialSupply = parseAmount('1000000000', targetDecimals) // 1 Billion
-    // Fair Launch Pool: 99.5% of supply (995,000,000 tokens)
-    const poolTokens = (initialSupply * POOL_ALLOCATION_BPS) / 10_000n
+    const targetDecimals = FAIR_LAUNCH_DECIMALS
+    const initialSupply = parseAmount(
+      String(FAIR_LAUNCH_TOTAL_BASIS),
+      targetDecimals,
+    ) // 1 Billion
+    // Fair Launch Pool: 99.5% of supply, única fuente en lib/tokenomics.ts
+    const poolTokens = poolAllocationBase(initialSupply)
     // Initial XLM seed (optimized, default 0.5 XLM)
     const seedXlm = parseAmount(seedXlmAmount.toString(), XLM_DECIMALS)
+
+    const checkpointBase: LaunchCheckpoint = {
+      sessionId: `${publicKey}:${cleanSymbol}:${Date.now()}`,
+      tokenId: '',
+      name: cleanName,
+      symbol: cleanSymbol,
+      decimals: targetDecimals,
+      initialSupply: initialSupply.toString(),
+      seedXlm: seedXlm.toString(),
+      publicKey,
+      step: 'deploy',
+      updatedAt: Date.now(),
+    }
 
     setBusy(true)
     setStep('deploy')
@@ -116,6 +165,14 @@ export function CreateTokenForm({
       })
       const ticker = cleanSymbol
 
+      saveCheckpoint({
+        ...checkpointBase,
+        tokenId: newId,
+        step: 'deploy',
+        txHash: deployHash,
+        updatedAt: Date.now(),
+      })
+
       // 2. Save enriched metadata (Logo, Telegram, Description, Website, Twitter)
       saveLocalTokenMetadata({
         tokenId: newId,
@@ -126,9 +183,9 @@ export function CreateTokenForm({
         twitter: twitter.trim() || undefined,
       })
 
-      // 3. Auto-Seed Pool: Create Soroswap Pair, Deposit 99.5% Tokens + 5 XLM, and Burn LP!
+      // 3. Auto-Seed Pool: Create Soroswap Pair, Deposit 99.5% Tokens + seed XLM, and Burn LP!
       setStep('pool')
-      await addLiquidity({
+      const liquidity = await addLiquidity({
         tokenId: newId,
         amountToken: poolTokens,
         amountXlm: seedXlm,
@@ -139,10 +196,23 @@ export function CreateTokenForm({
         },
       })
 
+      saveCheckpoint({
+        ...checkpointBase,
+        tokenId: newId,
+        step: 'liquidity',
+        txHash: poolHash ?? deployHash,
+        lpAmount: liquidity.lpAmount.toString(),
+        updatedAt: Date.now(),
+      })
+
       // 4. Renounce ownership on-chain (Immutable supply, zero inflation)
       setStep('renounce')
       const renounceTx = await tokenClient(newId, signer).renounce_ownership()
-      await renounceTx.signAndSend()
+      const sentRenounce = await renounceTx.signAndSend()
+
+      // Lanzamiento completo: el checkpoint ya no es necesario.
+      clearCheckpoint()
+      setCheckpointNote(null)
 
       onCreated?.({ id: newId, decimals: targetDecimals, symbol: ticker })
       recordActivity({
@@ -159,7 +229,11 @@ export function CreateTokenForm({
       setCreatedId(newId)
       toast.success('¡Token y Pool Creados con Éxito!', {
         message: `$${ticker} listo con pool automático en Soroswap, LP quemado y propiedad renunciada.`,
-        hash: poolHash || deployHash,
+        hash:
+          (sentRenounce as { sendTransactionResponse?: { hash?: string } | undefined })
+            ?.sendTransactionResponse?.hash ??
+          poolHash ??
+          deployHash,
       })
 
       await Promise.all([
@@ -170,7 +244,20 @@ export function CreateTokenForm({
     } catch (err) {
       const message = errorMessage(err)
       setError(message)
-      toast.error('Failed to create token', { message })
+      // Éxito parcial: si el token ya se desplegó, el usuario DEBE saberlo:
+      // el contrato existe on-chain aunque el pool/renounce hayan fallado.
+      const partial = getCheckpoint()
+      if (partial?.tokenId) {
+        setCheckpointNote(partial)
+        setCreatedId(null)
+        toast.info('Token desplegado, lanzamiento incompleto', {
+          message:
+            'El contrato ya existe: revisa la nota de reanudación y su token page antes de reintentar con otro nombre.',
+          hash: poolHash ?? deployHash,
+        })
+      } else {
+        toast.error('Failed to create token', { message })
+      }
     } finally {
       setBusy(false)
       setStep(null)
@@ -238,6 +325,47 @@ export function CreateTokenForm({
                 url={typeof window !== 'undefined' ? `${window.location.origin}/token/${createdId}` : `/token/${createdId}`}
               />
             </div>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Lanzamiento anterior a medias: sin reintentar a ciegas */}
+      {checkpointNote && checkpointNote.tokenId ? (
+        <div
+          role="status"
+          className="mt-4 flex flex-col gap-2 rounded-xl border border-amber-500/60 bg-amber-950/20 p-4 text-amber-200"
+        >
+          <p className="text-sm font-semibold">⚠️ {incompleteMessageFor(checkpointNote)}</p>
+          <p className="font-mono text-xs break-all text-slate-300">
+            {checkpointNote.tokenId}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              to={`/token/${checkpointNote.tokenId}`}
+              className="rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-bold text-slate-950 hover:bg-amber-400"
+            >
+              Ir al token page para completar →
+            </Link>
+            {checkpointNote.txHash ? (
+              <a
+                href={explorerContractUrl(checkpointNote.tokenId)}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs text-slate-300 hover:border-slate-500"
+              >
+                Explorer ↗
+              </a>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => {
+                clearCheckpoint()
+                setCheckpointNote(null)
+              }}
+              className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs text-slate-300 hover:border-slate-500"
+            >
+              Descartar aviso
+            </button>
           </div>
         </div>
       ) : null}
@@ -390,7 +518,7 @@ export function CreateTokenForm({
                   {name.trim() || 'Untitled Token'}{' '}
                   <span className="font-normal text-slate-500">(${symbol || 'TKN'})</span>
                 </h4>
-                <span className="rounded border border-emerald-500/20 bg-emerald-500/10 px-1.5 py-0.2 text-[10px] font-medium text-emerald-400">
+                <span className="rounded border border-emerald-500/20 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-400">
                   100% Anti-Rug
                 </span>
               </div>
@@ -534,7 +662,7 @@ export function CreateTokenForm({
             <div className="rounded-lg bg-slate-900/60 p-2.5 border border-slate-800/60">
               <div className="text-slate-400 font-medium">💧 Semilla de Liquidez Pool</div>
               <div className="mt-1 font-mono font-bold text-slate-100">
-                {seedXlmAmount} XLM + 995M Tokens
+                {seedXlmAmount} XLM + {formatAmount(STANDARD_POOL_UNITS, FAIR_LAUNCH_DECIMALS)} Tokens
               </div>
               <div className="mt-0.5 text-[10px] text-emerald-400">
                 100% depositado en Soroswap y LP quemado
@@ -544,7 +672,7 @@ export function CreateTokenForm({
             <div className="rounded-lg bg-slate-900/60 p-2.5 border border-slate-800/60">
               <div className="text-slate-400 font-medium">🛡️ Dev Cut Anti-Dump (0.5%)</div>
               <div className="mt-1 font-mono font-bold text-amber-300">
-                5,000,000 $TOKEN
+                {formatAmount(STANDARD_CREATOR_UNITS, FAIR_LAUNCH_DECIMALS)} $TOKEN
               </div>
               <div className="mt-0.5 text-[10px] text-slate-400">
                 🔒 5 Fases de 20% cada 3 días ({CREATOR_GRADUATION_LOCK_DAYS} días post-graduación)

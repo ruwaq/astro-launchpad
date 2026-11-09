@@ -23,7 +23,7 @@ function navClass({ isActive }: { isActive: boolean }) {
 }
 
 export default function App() {
-  const { publicKey } = useWallet()
+  const publicKey = useWallet((state) => state.publicKey)
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 w-full max-w-full overflow-x-hidden">

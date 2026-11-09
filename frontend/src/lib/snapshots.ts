@@ -6,6 +6,9 @@
  * en `localStorage` cuando la app consulta el pool. Es honesto: el gráfico
  * solo muestra lo que este navegador ha visto, no un histórico global.
  */
+import { XLM_DECIMALS } from './xlm'
+import { readStorageJson, writeStorageJson } from './storage'
+
 export type ReserveSnapshot = {
   /** Unix timestamp en milisegundos. */
   t: number
@@ -22,8 +25,7 @@ export const SNAPSHOT_BUCKET_MS = 5 * 60_000
 export const MAX_SNAPSHOTS_PER_TOKEN = 288
 export const MAX_TRACKED_TOKENS = 30
 
-const STORAGE_KEY = 'floodgate.reserve-history.v1'
-const XLM_DECIMALS = 7
+const STORAGE_KEY = 'astrogate.reserve-history.v1'
 
 /**
  * Caché en memoria + suscriptores. `useSyncExternalStore` exige que
@@ -132,54 +134,61 @@ export function snapshotLiquidity(snapshot: ReserveSnapshot): number {
 }
 
 export function loadHistory(): SnapshotHistory {
-  if (typeof window === 'undefined') return {}
   if (cache !== null) return cache
 
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY)
-    if (!raw) {
-      cache = {}
-      return cache
-    }
-    const parsed: unknown = JSON.parse(raw)
-    if (
-      typeof parsed !== 'object' ||
-      parsed === null ||
-      Array.isArray(parsed)
-    ) {
-      cache = {}
-      return cache
-    }
-
-    const history: SnapshotHistory = {}
-    for (const [tokenId, snapshots] of Object.entries(
-      parsed as Record<string, unknown>,
-    )) {
-      if (!tokenId.startsWith('C') || !Array.isArray(snapshots)) continue
-      const valid = snapshots
-        .filter(isSnapshot)
-        .slice(-MAX_SNAPSHOTS_PER_TOKEN)
-      if (valid.length > 0) history[tokenId] = valid
-    }
-    cache = history
-    return cache
-  } catch {
+  const parsed = readStorageJson<unknown>(STORAGE_KEY)
+  if (
+    typeof parsed !== 'object' ||
+    parsed === null ||
+    Array.isArray(parsed)
+  ) {
     cache = {}
     return cache
   }
+
+  const history: SnapshotHistory = {}
+  for (const [tokenId, snapshots] of Object.entries(
+    parsed as Record<string, unknown>,
+  )) {
+    if (!tokenId.startsWith('C') || !Array.isArray(snapshots)) continue
+    const valid = snapshots
+      .filter(isSnapshot)
+      .slice(-MAX_SNAPSHOTS_PER_TOKEN)
+    if (valid.length > 0) history[tokenId] = valid
+  }
+  cache = history
+  return cache
 }
 
-function saveHistory(history: SnapshotHistory) {
-  if (typeof window === 'undefined') return
-  try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(history))
-  } catch {
-    // Modo privado o cuota llena: el gráfico sigue con lo que haya en memoria.
-  }
+function saveHistory(history: SnapshotHistory): boolean {
+  return writeStorageJson(STORAGE_KEY, history)
 }
 
 export function getSnapshots(tokenId: string): ReserveSnapshot[] {
   return loadHistory()[tokenId] ?? EMPTY_SNAPSHOTS
+}
+
+/**
+ * Elimina puntos consecutivos idénticos (mismo instante y mismas reservas).
+ * La reconstrucción on-chain puede generar duplicados: varios eventos del
+ * mismo ledger comparten `t` y reservas reconstruidas iguales, y el ancla
+ * `now` puede repetir el último punto. Fusionarlos no pierde información.
+ */
+export function dedupeSnapshots(points: ReserveSnapshot[]): ReserveSnapshot[] {
+  const out: ReserveSnapshot[] = []
+  for (const point of points) {
+    const last = out[out.length - 1]
+    if (
+      last &&
+      last.t === point.t &&
+      last.xlm === point.xlm &&
+      last.token === point.token
+    ) {
+      continue
+    }
+    out.push(point)
+  }
+  return out
 }
 
 /** Suscripción por token para `useSyncExternalStore`. */

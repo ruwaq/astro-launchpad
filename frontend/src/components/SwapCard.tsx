@@ -23,8 +23,12 @@ import {
 } from '../lib/soroswap'
 import {
   calculateSupplySharePercent,
+  FAIR_LAUNCH_TOTAL_BASIS,
+  poolAllocationBase,
   STELLAR_BURN_ADDRESS,
+  DEFAULT_OPTIMIZED_SEED_XLM,
 } from '../lib/tokenomics'
+import { AMOUNT_PERCENTS, FORM_INPUT_CLASS, UNSUPPORTED_SIGNER_MESSAGE } from '../lib/constants'
 import { explorerTxUrl } from '../lib/explorer'
 import { XLM_DECIMALS, XLM_FEE_BUFFER, xlmToStroops } from '../lib/xlm'
 import type { LaunchpadToken } from '../lib/token'
@@ -35,8 +39,7 @@ import { toast } from '../lib/toast'
 import { TokenArt } from './TokenArt'
 import { TxProgress } from './TxProgress'
 
-const inputClass =
-  'w-full rounded-lg border border-slate-800 bg-slate-950 px-3.5 py-3 text-base text-slate-100 outline-none focus:border-emerald-500'
+const inputClass = FORM_INPUT_CLASS
 
 type Direction = 'sell' | 'buy'
 
@@ -47,8 +50,14 @@ type SwapDone = {
   hash?: string
 }
 
-const AMOUNT_PERCENTS = [25, 50, 75, 100] as const
 const QUICK_XLM_AMOUNTS = ['5', '10', '25', '100'] as const
+
+/** 99.5% del supply estándar, derivado de lib/tokenomics (única fuente). */
+function expectedPoolSizeBase(decimals: number): bigint {
+  return poolAllocationBase(
+    parseAmount(String(FAIR_LAUNCH_TOTAL_BASIS), decimals),
+  )
+}
 
 function impactClass(impact: number): string {
   if (impact >= 5) return 'text-rose-300'
@@ -95,19 +104,19 @@ export function SwapCard({
     }
     const signer = getSigner()
     if (!signer) {
-      setError('Unable to prepare signer for the active account.')
+      setError(UNSUPPORTED_SIGNER_MESSAGE)
       return
     }
     setActivatingPool(true)
     setError(null)
     try {
-      const currentTokenBal =
-        tokenBalance.data ?? 995_000_000n * 10n ** BigInt(token.decimals)
-      const tokenDesired =
-        currentTokenBal > 0n
-          ? currentTokenBal
-          : 995_000_000n * 10n ** BigInt(token.decimals)
-      const seedXlm = parseAmount('10', XLM_DECIMALS)
+      const expectedPool = expectedPoolSizeBase(token.decimals)
+      const currentTokenBal = tokenBalance.data ?? expectedPool
+      const tokenDesired = currentTokenBal > 0n ? currentTokenBal : expectedPool
+      const seedXlm = parseAmount(
+        String(DEFAULT_OPTIMIZED_SEED_XLM),
+        XLM_DECIMALS,
+      )
 
       await addLiquidity({
         tokenId: token.id,
@@ -151,8 +160,18 @@ export function SwapCard({
 
   const amountIn = parseAmount(amount, inputDecimals)
 
+  // La cotización es válida SOLO para estas reservas: si el pool cambia
+  // (refetch 60 s, otro swap on-chain), el key fuerza refetch y evita firmar
+  // con una salida vieja.
   const quote = useQuery({
-    queryKey: ['soroswap-quote', token.id, direction, amountIn.toString()],
+    queryKey: [
+      'soroswap-quote',
+      token.id,
+      direction,
+      amountIn.toString(),
+      pool.data?.exists ? pool.data.reserveToken.toString() : 'x',
+      pool.data?.exists ? pool.data.reserveXlm.toString() : 'x',
+    ],
     queryFn: () =>
       isBuy
         ? quoteXlmForToken(amountIn, pool.data as PoolState)
@@ -176,7 +195,7 @@ export function SwapCard({
   const poolReserveTokens =
     pool.data?.exists && pool.data.reserveToken > 0n
       ? pool.data.reserveToken
-      : 995_000_000n * 10n ** BigInt(token.decimals)
+      : expectedPoolSizeBase(token.decimals)
   const supplySharePercent =
     quoted !== undefined && quoted > 0n
       ? calculateSupplySharePercent(quoted, poolReserveTokens)
@@ -202,7 +221,7 @@ export function SwapCard({
     }
     const signer = getSigner()
     if (!signer) {
-      setError('Unable to prepare signer for the active account.')
+      setError(UNSUPPORTED_SIGNER_MESSAGE)
       return
     }
     if (amountIn <= 0n) {
@@ -229,7 +248,9 @@ export function SwapCard({
     const quotedAmount = quote.data ?? 0n
     if (quotedAmount <= 0n) {
       setError(
-        'No quote available for that amount (pool may lack sufficient liquidity).',
+        quote.isPending
+          ? 'La cotización se está calculando; espera un momento e inténtalo de nuevo.'
+          : 'No quote available for that amount (pool may lack sufficient liquidity).',
       )
       return
     }
@@ -306,7 +327,7 @@ export function SwapCard({
         kind: 'swap',
         status: 'failed',
         tokenId: token.id,
-        tokenSymbol: isBuy ? 'XLM' : tokenSymbol,
+        tokenSymbol,
         amount: formatAmount(amountIn, inputDecimals),
         swapDirection: direction,
         detail: isBuy ? 'failed buy' : 'failed sell',
@@ -527,7 +548,7 @@ export function SwapCard({
                 </div>
                 <div className="flex flex-wrap justify-between gap-2">
                   <span className="text-slate-500">
-                    Price impact (includes fee)
+                    Price impact (excluye la fee del pool)
                   </span>
                   <span className={`font-mono ${impactClass(impact)}`}>
                     {impact.toFixed(2)}%
@@ -622,10 +643,11 @@ export function SwapCard({
               >
                 {activatingPool
                   ? '⏳ Activando Pool en Soroswap…'
-                  : '⚡ Activar Pool en Soroswap (10 XLM)'}
+                  : `⚡ Activar Pool en Soroswap (${DEFAULT_OPTIMIZED_SEED_XLM} XLM)`}
               </button>
               <p className="text-center text-xs text-slate-400">
-                Este token no tiene pool inicial. Haz 1 clic para sembrar 10 XLM y quemar LP para abrir el trading.
+                Este token no tiene pool inicial. Haz 1 clic para sembrar{' '}
+                {DEFAULT_OPTIMIZED_SEED_XLM} XLM y quemar LP para abrir el trading.
               </p>
             </div>
           ) : (
