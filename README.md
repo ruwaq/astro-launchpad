@@ -3,10 +3,10 @@
 AstroGate is a decentralized, zero-backend Fair Launchpad and automated market maker (AMM) built natively on Stellar/Soroban. It introduces fair, anti-rug memecoin launch mechanics to the Stellar ecosystem:
 
 - **$1.11 USD Fixed Launch Fee**: Mint fair tokens with low fees pegged via live multi-source price oracles.
-- **1% Creator · 99% Pool Allocation**: 10M tokens to the creator; 990M tokens seeded directly into the Soroswap AMM pair.
+- **0.5% Creator · 99.5% Pool Allocation**: 5M tokens max to the creator (vested after graduation); 995M tokens seeded directly into the Soroswap AMM pair.
 - **Mandatory Anti-Rug LP Burn**: 100% of initial LP tokens are irrevocably transferred on launch to Stellar's canonical dead address (`GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF`). Initial pool liquidity cannot be drained.
 - **Permanent Mint Freezing**: Contract ownership is renounced immediately on launch (`renounce_ownership`), disabling all future minting.
-- **Real-Time Live Pricing**: Multi-source oracle waterfall (Coinbase, Binance, CoinGecko, CryptoCompare) combined with real-time on-chain Soroswap AMM reserve calculations. Zero mock data.
+- **Real-Time Live Pricing**: Multi-source oracle waterfall (Coinbase, Binance, CoinGecko) combined with real-time on-chain Soroswap AMM reserve calculations. Zero mock data.
 - **Zero-Backend Architecture**: Identity = non-custodial wallet (`@creit.tech/stellar-wallets-kit`). Data = Stellar Horizon + Soroban RPC.
 
 ---
@@ -73,7 +73,7 @@ flowchart TD
 # Clone repository
 git clone https://github.com/ruwaq/astro-launchpad.git
 cd astro-launchpad
-git checkout ai/market-discovery
+git checkout main
 
 # Install dependencies and start dev server
 cd frontend
@@ -84,11 +84,12 @@ npm run dev # http://localhost:5173
 ### Verification & Testing Gates
 
 ```bash
-# Run full frontend quality gate (build + lint + tests + smoke SSR + PWA audit)
+# Run full frontend quality gate (build + lint + tests + smoke SSR + PWA audit + CSP parity)
 npm run check
 
 # Run smart contract unit tests
 cargo test -p astro-token
+cargo test -p astro-launchpad-contract
 
 # Run smart contract linter
 cargo clippy -p astro-token --all-targets -- -D warnings
@@ -118,9 +119,9 @@ vercel --prod
 
 ---
 
-## Security & Audit Status
+## Security Status
 
-- **Audit Report**: Complete full-stack audit verified.
-- **Smart Contracts**: Built on audited OpenZeppelin Stellar components (`stellar-tokens 0.8.0`).
-- **Anti-Rug Guarantee**: Mathematically irrevocable LP lock to canonical dead address.
-- **Content Security Policy**: Strict headers applied across all deployment targets with verified oracle endpoints.
+- **Verified via automated gates**: frontend strict typecheck, unit tests, lint, SSR smoke, PWA audit and CSP parity run on every `npm run check`; contract tests run with `cargo test`. No third-party security audit has been performed yet — do not rely on this repository as audited.
+- **Smart Contracts**: built on audited OpenZeppelin Stellar components (`stellar-tokens 0.8.0`).
+- **Anti-Rug Guarantee**: mathematically irrevocable LP lock to canonical dead address.
+- **Content Security Policy**: strict headers applied across all deployment targets (parity enforced by `npm run check:csp`).

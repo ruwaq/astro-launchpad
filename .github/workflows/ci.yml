@@ -14,6 +14,20 @@ permissions:
   contents: read
 
 jobs:
+  secrets:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Escanear secretos
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   frontend:
     name: Frontend (build + lint + tests + smoke)
     runs-on: ubuntu-latest
@@ -32,6 +46,14 @@ jobs:
 
       - name: Instalar dependencias
         run: npm ci
+
+      - name: Escaneo de dependencias (ratchet)
+        # Vulnerabilidades transitivas actuales de los módulos de wallet del
+        # kit (@hot-wallet/sdk → near/elliptic, @reown/appkit → zod) sin fix
+        # posible sin downgrade. Gate de regresión, no de perfección: si una
+        # dependencia nueva añade vulnerabilidades, falla. Cuando el kit suba
+        # limpio, bajar AUDIT_BASELINE aquí y en scripts/npm-audit-ratchet.mjs.
+        run: node scripts/npm-audit-ratchet.mjs
 
       - name: Build, lint, tests y smoke
         run: npm run check

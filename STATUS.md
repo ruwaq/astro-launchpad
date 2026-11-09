@@ -1,5 +1,13 @@
 # Estado actual (para continuar en la próxima sesión)
 
+## Handoff rápido (Nov 9 2026, sesión 22 — Auditoría full-stack y hardening)
+- **Lote de frontend consolidado en 2 commits** de la rama `ai/audit-hardening`:
+  1. `feat(security)`: credencial de `scripts/opencode-env/service.json` movida a `~/.secrets/` (fuera del repo) con README de política; repo con plantilla. → **Usuario debe ROTAR el password** (sigue en el historial de git) y re-desplegar contratos (el wasm hash cambiará tras el redeploy: entonces actualizar `ASTRO_WASM_HASH` en `lib/network.ts`, `contracts` en README/llms.txt y docs).
+  2. `refactor(frontend)`: suite de lib (storage con prefijo `astrogate.` + migración `floodgate.*`, tokenomics única fuente honesta, demo con guard mainnet, wallet kit lazy y tipado `typeof StellarWalletsKit` porque `authModal`/`disconnect` son estáticos en kit 2.7.1, signer, soroswap, explorer) y componentes (useCopy compartido en DemoMode/TokenActivity/ContractDetailsCard/ShareButton, checkpoint transaccional en CreateTokenForm, quote key con reservas en SwapCard, a11y en TokenActivity, FomoTicker eliminado como dead code).
+- **Config/docs de esta sesión**: `strict: true` en `tsconfig.app.json` (0 errores), `vitest.config.ts` incluido en `tsconfig.node.json`, `check:csp` (scripts/check-csp.mjs) valida paridad de CSP entre `vercel.json`, `public/_headers` y `nginx.conf`; CryptoCompare retirado de las 3 CSP y de los docs; header `no-cache` para `/sw.js` en `vercel.json`; README sin el claim falso de auditoría y sin `ai/market-discovery`; cifras 0.5%/99.5% corregidas en README y llms.txt; `VITE_SITE_ORIGIN` añadido a `.env.example`; PLAN.md drift (oxlint, charts SVG) actualizado; AGENTS.md con marca AstroGate.
+- **Nuevos helpers**: `tokenomics.whaleThresholdBase` (umbral ballena = ≥1% del supply del fair launch, con tests), `snapshots.dedupeSnapshots` (con tests) usado por `reconstructSnapshotsFromEvents`, `constants.ts` y `hooks/useCopy.ts` compartidos.
+- **Gates de la sesión 22 hasta aquí**: `tsc -b` (app+node) ✓, vitest tocados ✓ (34), `check:csp` ✓. → **Pendiente**: CI (job gitleaks + `npm audit --audit-level=high`), hardening P0 de contratos Rust (launchpad: par pre-seeded `PairAlreadySeeded`, exigir renounce+burn; token: caps de OZ, límites decimals/metadatos, limpiar MuxedAddress), `cargo test`, y `npm run check` completo final.
+
 ## Handoff rápido (Nov 7 2026, sesión 21 — Experiencia FOMO Principal, Tokens por Graduarse, Auditoría On-Chain de Contrato y Gráfico Interactivo de Compras/Ventas)
 
 - **Cero trabajo a medias / Código 100% Blindado y Verificado**:

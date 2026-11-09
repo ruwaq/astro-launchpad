@@ -1,7 +1,7 @@
 # AstroGate Protocol (llms.txt)
 > The Decentralized Fair-Launch & AMM Platform on Stellar/Soroban.
 
-AstroGate is a Web3 token launchpad and automated market maker (AMM) operating directly on Stellar Soroban. It provides 100% on-chain, verifiable token fair-launches ($1.11 USD deploy fee, 1% creator, 99% Soroswap AMM pool, mandatory LP burn to dead address, and ownership renunciation).
+AstroGate is a Web3 token launchpad and automated market maker (AMM) operating directly on Stellar Soroban. It provides 100% on-chain, verifiable token fair-launches ($1.11 USD deploy fee, 0.5% creator max allocation vested after graduation, 99.5% Soroswap AMM pool, mandatory LP burn to dead address, and ownership renunciation).
 
 ## Core Network & Contracts (Testnet)
 - Network: Stellar Testnet (`Test SDF Network ; September 2015`)
@@ -92,4 +92,4 @@ const audit = await verifyAntiRug(tokenId)
 ## Security & Architectural Guarantees
 - No Backend Auth: Identity is verified exclusively via ED25519 cryptographic signatures from Stellar wallets.
 - Atomic Settling: Token balances and LP shares are stored in Soroban ledger state with TTL extension.
-- Multi-Oracle Fallback: Real-time USD pricing derived from Coinbase, Binance, CoinGecko, and CryptoCompare with in-memory caching.
+- Multi-Oracle Fallback: Real-time USD pricing derived from Coinbase, Binance, and CoinGecko with in-memory caching.

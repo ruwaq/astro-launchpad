@@ -24,7 +24,8 @@ Empezar simple y crecer.
 - UI: Tailwind CSS + shadcn/ui.
 - Estado: TanStack Query + Zustand.
 - Wallet: @creit.tech/stellar-wallets-kit (login con wallet).
-- Charts: lightweight-charts.
+- Charts: SVG propio (lightweight-charts descartado; el diseño de la curva
+  es custom y no requiere una librería adicional).
 - Datos: Soroban RPC público + Horizon. Sin backend propio inicialmente.
 
 ### Backend (solo si es necesario, serverless/cloud)
@@ -37,7 +38,7 @@ Empezar simple y crecer.
 - Stellar CLI (instalando) para deploy y generación de bindings TS.
 - Scaffold Stellar (`stellar scaffold`).
 - Vitest (frontend), cargo test (contratos).
-- ESLint + Prettier + rustfmt + clippy.
+- oxlint (frontend), rustfmt + clippy (contratos).
 
 ## Red inicial
 - Testnet (Soroswap factory/router ya desplegados).
