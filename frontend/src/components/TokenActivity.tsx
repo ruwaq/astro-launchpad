@@ -13,6 +13,8 @@ import { whaleThresholdBase } from '../lib/tokenomics'
 import { useCopy } from '../hooks/useCopy'
 import type { LaunchpadToken } from '../lib/token'
 
+const EMPTY_EVENTS: TokenEvent[] = []
+
 type FilterKey = 'all' | 'buy' | 'sell' | 'whale'
 type ViewMode = 'grid' | 'list'
 
@@ -104,7 +106,7 @@ export function TokenActivity({
   const events = useTokenEvents(activeId)
   const pool = useSoroswapPool(activeId)
   const pairId = pool.data?.pairId ?? null
-  const list = events.data ?? []
+  const list = events.data ?? EMPTY_EVENTS
   const { lastCopied, copy } = useCopy()
 
   const [filter, setFilter] = useState<FilterKey>('all')

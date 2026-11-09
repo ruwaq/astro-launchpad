@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useWallet } from '../store/wallet'
 import { useTokenBalance } from '../hooks/useTokenBalance'
@@ -117,11 +117,16 @@ export function TokenHypeBar({
 
   // Al navegar entre tokens por la misma ruta (/token/:id no remonta):
   // se re-carga el hype del token actual o el de A se pinta sobre B.
-  useEffect(() => {
+  // Estado con `tokenId` incrustado: al cambiar de token, el render ya
+  // muestra el estado nuevo (y si localStorage falla, `null` → vacío).
+  const [stateForToken, setStateForToken] = useState(tokenId)
+
+  if (stateForToken !== tokenId) {
+    setStateForToken(tokenId)
     setHype(loadHype(tokenId))
     setVoted({})
     setChatMode('free')
-  }, [tokenId])
+  }
 
   // Free shout state
   const [commentText, setCommentText] = useState('')
