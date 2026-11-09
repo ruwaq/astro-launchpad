@@ -12,3 +12,7 @@ logs/*.log
 # Entornos
 .env
 .env.*
+
+# Secretos locales (nunca en repo)
+.secrets/
+$HOME/.secrets/
