@@ -13,7 +13,7 @@
     - `astro_token.wasm`: `sha256 5930d6c69894f5cd6924e1a7d8d10282448c7c18de0143dce76e92884c39786b`
     - `astro_launchpad_contract.wasm`: `sha256 321e7a9e32c31699832272e8c7c3da1a8291d82776eada9ef1104f27264d5c18`
   - Tras re-deployar en testnet: actualizar `ASTRO_WASM_HASH` en `frontend/src/lib/network.ts` + `WASM_HASH` en `frontend/scripts/verify-launchpad.mjs` + hash en README/llms.txt/AGENTS.md.
-- **Gates de la sesión 22 hasta aquí**: `tsc -b` (app+node) ✓, vitest tocados ✓ (34), `check:csp` ✓, `cargo fmt --check` ✓, `clippy -D warnings` ✓, `cargo test --workspace` ✓ (18/18). → **Pendiente**: `npm run check` completo final (build+lint+tests+smoke+PWA+CSP).
+- **Gates de la sesión 22 — TODOS EN VERDE**: `tsc -b` (app+node, strict) ✓, vitest 103/103 (17 archivos) ✓, `check:csp` ✓, `cargo fmt --check` ✓, `clippy -D warnings` ✓, `cargo test --workspace` ✓ (18/18: 14 token + 4 launchpad), `npm run check` completo ✓ (build + oxlint 0 warnings + smoke SSR + PWA 10/10 + CSP paridad). 5 commits en `ai/audit-hardening` (c061d5e secret, ea8782d frontend, 36df0f7 config/docs/CI, d22e90e contracts, 81a83ef lint).
 
 ## Handoff rápido (Nov 7 2026, sesión 21 — Experiencia FOMO Principal, Tokens por Graduarse, Auditoría On-Chain de Contrato y Gráfico Interactivo de Compras/Ventas)
 
