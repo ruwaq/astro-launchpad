@@ -1,11 +1,19 @@
+import { useQuery } from '@tanstack/react-query'
 import {
   explorerAccountUrl,
   explorerContractUrl,
   horizonAccountUrl,
 } from '../lib/explorer'
-import { shortAddress, formatAmount } from '../lib/format'
+import {
+  shortAddress,
+  formatAmount,
+  sanitizeHttpUrl,
+  sanitizeTelegramUrl,
+  sanitizeTwitterUrl,
+} from '../lib/format'
 import { STELLAR_BURN_ADDRESS } from '../lib/tokenomics'
-import { ASTRO_WASM_HASH } from '../lib/network'
+import { ASTRO_TOKEN_ID, ASTRO_WASM_HASH } from '../lib/network'
+import { fetchBurnedLpInfo } from '../lib/soroswap'
 import { useCopy } from '../hooks/useCopy'
 import type { EnrichedTokenMetadata } from '../lib/token-metadata'
 
@@ -30,7 +38,19 @@ export function ContractDetailsCard({
 }) {
   const { lastCopied, copy } = useCopy()
 
+  const { data: lpBurnInfo } = useQuery({
+    queryKey: ['burned-lp', pairId],
+    queryFn: () => (pairId ? fetchBurnedLpInfo(pairId) : null),
+    enabled: Boolean(pairId),
+    staleTime: 10_000,
+  })
+
   const isRenounced = !owner
+  const isLpBurned = Boolean(lpBurnInfo && lpBurnInfo.burnedPercent >= 90)
+
+  const safeWebsite = sanitizeHttpUrl(metadata?.website)
+  const safeTelegram = sanitizeTelegramUrl(metadata?.telegram)
+  const safeTwitter = sanitizeTwitterUrl(metadata?.twitter)
 
   return (
     <section
@@ -63,9 +83,19 @@ export function ContractDetailsCard({
             </span>
           )}
 
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-teal-500/40 bg-teal-500/10 px-3 py-1 text-xs font-semibold text-teal-300">
-            <span>🔥</span> LP Burned to Dead Address
-          </span>
+          {isLpBurned ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-teal-500/40 bg-teal-500/10 px-3 py-1 text-xs font-semibold text-teal-300">
+              <span>🔥</span> LP Burned to Dead Address ({lpBurnInfo?.burnedPercent.toFixed(0)}%)
+            </span>
+          ) : pairId ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-700 bg-slate-800/40 px-3 py-1 text-xs text-slate-400">
+              <span>💧</span> Pool Active ({lpBurnInfo ? `${lpBurnInfo.burnedPercent.toFixed(0)}% LP Burned` : 'Checking LP…'})
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-800 bg-slate-900/40 px-3 py-1 text-xs text-slate-500">
+              No AMM Pair Yet
+            </span>
+          )}
         </div>
       </div>
 
@@ -134,7 +164,7 @@ export function ContractDetailsCard({
         <div className="min-w-0 max-w-full overflow-hidden rounded-xl border border-slate-800 bg-slate-950/60 p-3.5">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium uppercase tracking-wider text-slate-500">
-              Token Bytecode WASM Hash
+              {tokenId === ASTRO_TOKEN_ID ? 'Token WASM Hash' : 'Fair-Launch Template WASM'}
             </span>
             <button
               type="button"
@@ -149,11 +179,11 @@ export function ContractDetailsCard({
           </div>
         </div>
 
-        {/* Issuer / Deployer */}
+        {/* Issuer / Current Owner */}
         <div className="min-w-0 max-w-full overflow-hidden rounded-xl border border-slate-800 bg-slate-950/60 p-3.5">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium uppercase tracking-wider text-slate-500">
-              Token Creator / Deployer
+              Contract Owner / Admin
             </span>
             {owner ? (
               <a
@@ -167,7 +197,7 @@ export function ContractDetailsCard({
             ) : null}
           </div>
           <div className="mt-2 break-all font-mono text-xs text-slate-300">
-            {owner ? owner : 'Renounced / Dead (No admin key)'}
+            {owner ? owner : 'Renounced (Immutable - No admin key)'}
           </div>
         </div>
       </div>
@@ -253,9 +283,9 @@ export function ContractDetailsCard({
             <span>⚡</span> Soroban RPC Health ↗
           </a>
 
-          {metadata?.website ? (
+          {safeWebsite ? (
             <a
-              href={metadata.website}
+              href={safeWebsite}
               target="_blank"
               rel="noreferrer"
               className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-800 bg-cyan-950/40 px-3 py-1.5 text-xs text-cyan-300 hover:border-cyan-500"
@@ -264,13 +294,9 @@ export function ContractDetailsCard({
             </a>
           ) : null}
 
-          {metadata?.telegram ? (
+          {safeTelegram ? (
             <a
-              href={
-                metadata.telegram.startsWith('http')
-                  ? metadata.telegram
-                  : `https://t.me/${metadata.telegram.replace('@', '')}`
-              }
+              href={safeTelegram}
               target="_blank"
               rel="noreferrer"
               className="inline-flex items-center gap-1.5 rounded-lg border border-sky-800 bg-sky-950/40 px-3 py-1.5 text-xs text-sky-300 hover:border-sky-500"
@@ -279,13 +305,9 @@ export function ContractDetailsCard({
             </a>
           ) : null}
 
-          {metadata?.twitter ? (
+          {safeTwitter ? (
             <a
-              href={
-                metadata.twitter.startsWith('http')
-                  ? metadata.twitter
-                  : `https://x.com/${metadata.twitter.replace('@', '')}`
-              }
+              href={safeTwitter}
               target="_blank"
               rel="noreferrer"
               className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-1.5 text-xs text-slate-200 hover:border-slate-500"

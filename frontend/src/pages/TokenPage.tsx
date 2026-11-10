@@ -7,7 +7,13 @@ import { useReserveHistory } from '../hooks/useReserveHistory'
 import { useTokenEvents } from '../hooks/useTokenEvents'
 import { useXlmUsdPrice } from '../hooks/useXlmUsdPrice'
 import { useWallet } from '../store/wallet'
-import { formatAmount, shortAddress } from '../lib/format'
+import {
+  formatAmount,
+  sanitizeHttpUrl,
+  sanitizeTelegramUrl,
+  sanitizeTwitterUrl,
+  shortAddress,
+} from '../lib/format'
 import { explorerAccountUrl, explorerContractUrl } from '../lib/explorer'
 import { tokenPriceInXlm } from '../lib/soroswap'
 import { classifyTokenEvent } from '../lib/token-events'
@@ -141,6 +147,10 @@ export function TokenPage() {
   const shareUrl =
     typeof window !== 'undefined' ? window.location.href : `/token/${id}`
 
+  const safeTelegram = sanitizeTelegramUrl(meta.data?.telegram)
+  const safeWebsite = sanitizeHttpUrl(meta.data?.website)
+  const safeTwitter = sanitizeTwitterUrl(meta.data?.twitter)
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -194,13 +204,9 @@ export function TokenPage() {
 
             {/* Social Buttons */}
             <div className="mt-3.5 flex flex-wrap items-center gap-2">
-              {meta.data?.telegram ? (
+              {safeTelegram ? (
                 <a
-                  href={
-                    meta.data.telegram.startsWith('http')
-                      ? meta.data.telegram
-                      : `https://t.me/${meta.data.telegram.replace('@', '')}`
-                  }
+                  href={safeTelegram}
                   target="_blank"
                   rel="noreferrer"
                   className="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border border-sky-800/80 bg-sky-950/40 px-3 py-1.5 text-xs font-bold text-sky-300 hover:border-sky-500 transition-colors"
@@ -209,9 +215,9 @@ export function TokenPage() {
                 </a>
               ) : null}
 
-              {meta.data?.website ? (
+              {safeWebsite ? (
                 <a
-                  href={meta.data.website}
+                  href={safeWebsite}
                   target="_blank"
                   rel="noreferrer"
                   className="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border border-cyan-800/80 bg-cyan-950/40 px-3 py-1.5 text-xs font-bold text-cyan-300 hover:border-cyan-500 transition-colors"
@@ -220,13 +226,9 @@ export function TokenPage() {
                 </a>
               ) : null}
 
-              {meta.data?.twitter ? (
+              {safeTwitter ? (
                 <a
-                  href={
-                    meta.data.twitter.startsWith('http')
-                      ? meta.data.twitter
-                      : `https://x.com/${meta.data.twitter.replace('@', '')}`
-                  }
+                  href={safeTwitter}
                   target="_blank"
                   rel="noreferrer"
                   className="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-1.5 text-xs font-bold text-slate-200 hover:border-slate-500 transition-colors"
@@ -323,7 +325,7 @@ export function TokenPage() {
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
               }`}
             >
-              <span>📈</span> Curva
+              <span>📈</span> Curve
             </button>
 
             <button
@@ -337,7 +339,7 @@ export function TokenPage() {
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
               }`}
             >
-              <span>🧱</span> Cuadros
+              <span>🧱</span> Activity
               {(events.data ?? []).length > 0 ? (
                 <span
                   className={`rounded-full px-1.5 py-0.5 font-mono text-[10px] ${
@@ -362,7 +364,7 @@ export function TokenPage() {
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
               }`}
             >
-              <span>📊</span> Hitos
+              <span>📊</span> Milestones
             </button>
 
             <button
@@ -375,9 +377,9 @@ export function TokenPage() {
                   ? 'bg-slate-800 text-slate-100 border border-slate-600'
                   : 'text-slate-500 hover:text-slate-300'
               }`}
-              title="Ver todos los gráficos y cuadros juntos"
+              title="View all sections together"
             >
-              <span>🌐</span> Todo
+              <span>🌐</span> All
             </button>
           </div>
 
@@ -427,7 +429,7 @@ export function TokenPage() {
           <details className="group rounded-2xl border border-slate-800 bg-slate-900/40 p-4 transition-all">
             <summary className="flex cursor-pointer select-none items-center justify-between text-xs font-bold text-slate-300 hover:text-emerald-400">
               <span className="flex items-center gap-1.5">
-                <span>💧</span> ¿Añadir Liquidez Comunitaria al Pool?
+                <span>💧</span> Add Community Liquidity to Pool?
               </span>
               <span className="text-slate-500 transition-transform group-open:rotate-180">
                 ▼
@@ -435,7 +437,7 @@ export function TokenPage() {
             </summary>
             <div className="mt-3 border-t border-slate-800/80 pt-3">
               <p className="text-[11px] text-slate-400 mb-3">
-                Cualquier miembro de la comunidad puede aportar XLM y ${token.symbol} para profundizar la liquidez del par en Soroswap y ganar comisiones del 0.3%.
+                Any community member can deposit XLM and ${token.symbol} to deepen pair liquidity on Soroswap and earn 0.30% swap fees.
               </p>
               <LiquidityForm token={token} />
             </div>

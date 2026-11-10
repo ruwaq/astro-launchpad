@@ -6,14 +6,14 @@
  */
 
 const PALETTES = [
-  { from: '#8b5cf6', to: '#22d3ee' }, // violeta → cian
-  { from: '#ec4899', to: '#fb923c' }, // fucsia → naranja
-  { from: '#38bdf8', to: '#4ade80' }, // azul → verde menta
-  { from: '#f43f5e', to: '#a78bfa' }, // rojo → lavanda
-  { from: '#2dd4bf', to: '#0f4c5c' }, // turquesa profunda
-  { from: '#facc15', to: '#f97316' }, // dorado → ámbar
-  { from: '#94a3b8', to: '#334155' }, // acero noche
-  { from: '#a3e635', to: '#0e7490' }, // lima → petróleo
+  { from: '#8b5cf6', to: '#22d3ee' }, // violet → cyan
+  { from: '#ec4899', to: '#fb923c' }, // fuchsia → orange
+  { from: '#38bdf8', to: '#4ade80' }, // blue → mint green
+  { from: '#f43f5e', to: '#a78bfa' }, // red → lavender
+  { from: '#2dd4bf', to: '#0f4c5c' }, // deep turquoise
+  { from: '#facc15', to: '#f97316' }, // gold → amber
+  { from: '#94a3b8', to: '#334155' }, // slate night
+  { from: '#a3e635', to: '#0e7490' }, // lime → teal
 ] as const
 
 export type TokenArtSpec = {

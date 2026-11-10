@@ -186,6 +186,13 @@ export function soroswapClients(signer?: Signer) {
 const pairIdCache = new Map<string, string>()
 const pairTokensCache = new Map<string, { token0: string; token1: string }>()
 
+/** Pre-popula la caché de pairId cuando el id del par ya es conocido (ej. eventos de factory). */
+export function cachePairId(tokenId: string, pairId: string): void {
+  if (isValidContractAddress(tokenId) && isValidContractAddress(pairId)) {
+    pairIdCache.set(tokenId, pairId)
+  }
+}
+
 /**
  * Estado del par token/XLM: si existe, su id y las reservas.
  *

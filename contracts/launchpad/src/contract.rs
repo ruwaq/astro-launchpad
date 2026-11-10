@@ -1,8 +1,8 @@
 //! Implementation of the AstroGate Atomic Launchpad Contract.
 
 use soroban_sdk::{
-    contract, contracterror, contractevent, contractimpl, contracttype, token, Address, BytesN,
-    ContractExecutable, Env, String,
+    contract, contracterror, contractevent, contractimpl, contracttype, token, xdr::ToXdr, Address,
+    Bytes, BytesN, ContractExecutable, Env, String,
 };
 
 #[contracterror]
@@ -107,6 +107,7 @@ impl Launchpad {
         e.storage()
             .instance()
             .set(&DataKey::BurnAddress, &burn_address);
+        e.storage().instance().extend_ttl(100_000, 200_000);
     }
 
     /// Single-transaction atomic fair launch:
@@ -126,6 +127,21 @@ impl Launchpad {
         {
             return Err(LaunchpadError::InvalidAmount);
         }
+
+        // Invariante de fair launch: al menos 99.5% (9,950 bps) del supply al pool
+        if params
+            .token_lp_amount
+            .checked_mul(10_000)
+            .unwrap_or(0)
+            < params
+                .initial_supply
+                .checked_mul(9_950)
+                .unwrap_or(i128::MAX)
+        {
+            return Err(LaunchpadError::InvalidAmount);
+        }
+
+        e.storage().instance().extend_ttl(100_000, 200_000);
 
         let this = e.current_contract_address();
         let factory = e
@@ -152,7 +168,12 @@ impl Launchpad {
         // 1. Pull XLM from creator to launchpad contract
         token::Client::new(e, &xlm_sac).transfer(&params.creator, &this, &params.xlm_lp_amount);
 
-        // 2. Deterministically deploy token instance with owner = this
+        // 2. Determinísticamente deriva el salt vinculando creator para evitar front-running global
+        let mut salt_payload = Bytes::new(e);
+        salt_payload.append(&params.creator.clone().to_xdr(e));
+        salt_payload.append(&params.salt.clone().into());
+        let derived_salt = e.crypto().sha256(&salt_payload);
+
         let ctor_args = (
             params.name,
             params.symbol,
@@ -162,7 +183,7 @@ impl Launchpad {
         );
         let token_addr = e
             .deployer()
-            .with_current_contract(params.salt)
+            .with_current_contract(derived_salt)
             .deploy_contract(ContractExecutable::Wasm(wasm_hash), ctor_args);
 
         let token_client = token::Client::new(e, &token_addr);

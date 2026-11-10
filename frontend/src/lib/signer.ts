@@ -29,7 +29,7 @@ export function walletSigner(address: string): Signer {
 function signerAddress(expected: string, provided?: string): string {
   if (provided && provided !== expected) {
     throw new Error(
-      `La wallet activa (${provided.slice(0, 6)}…${provided.slice(-4)}) no coincide con la cuenta esperada (${expected.slice(0, 6)}…${expected.slice(-4)}). Reconecta tu wallet e inténtalo de nuevo.`,
+      `Active wallet (${provided.slice(0, 6)}…${provided.slice(-4)}) does not match expected account (${expected.slice(0, 6)}…${expected.slice(-4)}). Please reconnect your wallet and try again.`,
     )
   }
   return expected

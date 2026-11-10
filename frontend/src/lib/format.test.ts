@@ -3,6 +3,9 @@ import {
   errorMessage,
   formatAmount,
   parseAmount,
+  sanitizeHttpUrl,
+  sanitizeTelegramUrl,
+  sanitizeTwitterUrl,
   shortAddress,
 } from './format'
 
@@ -86,5 +89,34 @@ describe('errorMessage', () => {
     expect(errorMessage(new Error('Transaction failed: txBadSeq'))).toBe(
       'Account sequence currently in use by another pending transaction. Wait 5 seconds and retry.',
     )
+  })
+})
+
+describe('url sanitizers', () => {
+  it('sanitizeHttpUrl permite http y https y rechaza javascript y protocolos peligrosos', () => {
+    expect(sanitizeHttpUrl('https://example.com/test')).toBe('https://example.com/test')
+    expect(sanitizeHttpUrl('http://example.com')).toBe('http://example.com/')
+    expect(sanitizeHttpUrl('example.com/token')).toBe('https://example.com/token')
+    expect(sanitizeHttpUrl('javascript:alert(1)')).toBeNull()
+    expect(sanitizeHttpUrl('data:text/html,bad')).toBeNull()
+    expect(sanitizeHttpUrl('')).toBeNull()
+    expect(sanitizeHttpUrl(null)).toBeNull()
+  })
+
+  it('sanitizeTelegramUrl convierte handles o valida URLs de t.me', () => {
+    expect(sanitizeTelegramUrl('@astro_stellar')).toBe('https://t.me/astro_stellar')
+    expect(sanitizeTelegramUrl('astro_stellar')).toBe('https://t.me/astro_stellar')
+    expect(sanitizeTelegramUrl('https://t.me/mygroup')).toBe('https://t.me/mygroup')
+    expect(sanitizeTelegramUrl('javascript:alert(1)')).toBeNull()
+    expect(sanitizeTelegramUrl('')).toBeNull()
+  })
+
+  it('sanitizeTwitterUrl convierte handles o valida URLs de twitter/x', () => {
+    expect(sanitizeTwitterUrl('@astro_token')).toBe('https://x.com/astro_token')
+    expect(sanitizeTwitterUrl('astro_token')).toBe('https://x.com/astro_token')
+    expect(sanitizeTwitterUrl('https://x.com/astro_hq')).toBe('https://x.com/astro_hq')
+    expect(sanitizeTwitterUrl('https://twitter.com/astro_hq')).toBe('https://twitter.com/astro_hq')
+    expect(sanitizeTwitterUrl('javascript:alert(1)')).toBeNull()
+    expect(sanitizeTwitterUrl('')).toBeNull()
   })
 })

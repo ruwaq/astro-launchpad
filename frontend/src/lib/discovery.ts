@@ -11,6 +11,7 @@
  */
 import { rpc, scValToNative } from '@stellar/stellar-sdk'
 import {
+  cachePairId,
   fetchPoolState,
   fetchPoolStateByPair,
   soroswapClients,
@@ -136,7 +137,10 @@ export async function discoverPairs(options?: {
     for (const event of page.events) {
       if (event.ledger > endLedger) break
       const pair = parseNewPairEvent(event)
-      if (pair) pairs.push(pair)
+      if (pair) {
+        cachePairId(pair.tokenId, pair.pairId)
+        pairs.push(pair)
+      }
     }
 
     const lastLedger = page.events.at(-1)?.ledger
@@ -257,6 +261,9 @@ export async function fetchTokenListing(
   pair: DiscoveredPair,
 ): Promise<TokenListing | null> {
   try {
+    if (pair.pairId) {
+      cachePairId(pair.tokenId, pair.pairId)
+    }
     const [metadata, pool] = await Promise.all([
       fetchTokenMetadata(pair.tokenId),
       fetchPoolState(pair.tokenId),
@@ -361,6 +368,7 @@ export async function syncFactoryPairs(options?: {
           const pool = await fetchPoolStateByPair(pairId)
           if (!pool || !pool.exists || !pool.tokenId) return null
 
+          cachePairId(pool.tokenId, pairId)
           const metadata = await fetchTokenMetadata(pool.tokenId)
           return {
             id: pool.tokenId,

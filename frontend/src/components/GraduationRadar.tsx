@@ -1,5 +1,5 @@
 import { Link } from 'react-router'
-import { graduationProgress } from '../lib/tokenomics'
+import { GRADUATION_TARGET_XLM, graduationProgress } from '../lib/tokenomics'
 import { formatAmount } from '../lib/format'
 import { tokenPriceInXlm } from '../lib/soroswap'
 import { useXlmUsdPrice } from '../hooks/useXlmUsdPrice'
@@ -147,9 +147,17 @@ export function GraduationRadar({
 }) {
   if (!tokens || tokens.length === 0) return null
 
-  // Filter tokens that have pool and sort by graduation progress (highest first)
-  const graduatingTokens = [...tokens]
-    .filter((t) => t.pool && t.pool.exists && t.pool.reserveXlm > 0n)
+  const targetStroops = BigInt(GRADUATION_TARGET_XLM) * 10_000_000n
+
+  // Prioritize active tokens racing towards graduation (< 2,000 XLM target)
+  const inProgress = [...tokens]
+    .filter(
+      (t) =>
+        t.pool &&
+        t.pool.exists &&
+        t.pool.reserveXlm > 0n &&
+        t.pool.reserveXlm < targetStroops,
+    )
     .sort((a, b) =>
       b.pool.reserveXlm > a.pool.reserveXlm
         ? 1
@@ -157,7 +165,25 @@ export function GraduationRadar({
           ? -1
           : 0,
     )
-    .slice(0, 3)
+
+  const graduated = [...tokens]
+    .filter(
+      (t) =>
+        t.pool &&
+        t.pool.exists &&
+        t.pool.reserveXlm >= targetStroops,
+    )
+    .sort((a, b) =>
+      b.pool.reserveXlm > a.pool.reserveXlm
+        ? 1
+        : b.pool.reserveXlm < a.pool.reserveXlm
+          ? -1
+          : 0,
+    )
+
+  const graduatingTokens = (
+    inProgress.length > 0 ? [...inProgress, ...graduated] : graduated
+  ).slice(0, 3)
 
   if (graduatingTokens.length === 0) return null
 

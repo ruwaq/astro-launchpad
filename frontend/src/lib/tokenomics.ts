@@ -173,35 +173,35 @@ export const CREATOR_VESTING_SCHEDULE: VestingPhase[] = [
     day: 3,
     percent: 20,
     tokensAmount: 1_000_000,
-    label: 'Fase 1 (Día 3): 20% (1M tokens) tras 72h de consolidación en DEX',
+    label: 'Phase 1 (Day 3): 20% (1M tokens) after 72h DEX consolidation',
   },
   {
     phase: 2,
     day: 6,
     percent: 20,
     tokensAmount: 1_000_000,
-    label: 'Fase 2 (Día 6): 20% (1M tokens)',
+    label: 'Phase 2 (Day 6): 20% (1M tokens)',
   },
   {
     phase: 3,
     day: 9,
     percent: 20,
     tokensAmount: 1_000_000,
-    label: 'Fase 3 (Día 9): 20% (1M tokens)',
+    label: 'Phase 3 (Day 9): 20% (1M tokens)',
   },
   {
     phase: 4,
     day: 12,
     percent: 20,
     tokensAmount: 1_000_000,
-    label: 'Fase 4 (Día 12): 20% (1M tokens)',
+    label: 'Phase 4 (Day 12): 20% (1M tokens)',
   },
   {
     phase: 5,
     day: 15,
     percent: 20,
     tokensAmount: 1_000_000,
-    label: 'Fase 5 (Día 15): 20% (1M tokens) — Desbloqueo final del 100%',
+    label: 'Phase 5 (Day 15): 20% (1M tokens) — Final 100% unlock',
   },
 ]
 
@@ -224,23 +224,23 @@ export const SEED_LIQUIDITY_PRESETS: SeedPreset[] = [
   {
     xlm: 5,
     label: '5 XLM',
-    desc: 'Semilla Ligera — ~$0.78 USD, ultra-económica para micro-memes',
+    desc: 'Light Seed — ~$0.78 USD, ultra-low cost for micro-memes',
   },
   {
     xlm: 10,
     label: '10 XLM',
-    desc: 'Recomendado ⭐ — ~$1.55 USD, balance óptimo y anti-sniper natural',
+    desc: 'Recommended ⭐ — ~$1.55 USD, optimal balance & natural anti-sniper depth',
     isRecommended: true,
   },
   {
     xlm: 20,
     label: '20 XLM',
-    desc: 'Profundo — ~$3.10 USD, mayor amortización para lanzamientos con comunidad',
+    desc: 'Deep — ~$3.10 USD, deeper pool for community launches',
   },
   {
     xlm: 50,
     label: '50 XLM',
-    desc: 'Ballena — Para DAOs o proyectos consolidados',
+    desc: 'Whale — For DAOs and established projects',
   },
 ]
 

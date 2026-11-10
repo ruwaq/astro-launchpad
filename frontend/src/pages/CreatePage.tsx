@@ -5,18 +5,18 @@ import type { LaunchpadToken } from '../lib/token'
 const LAUNCH_STEPS = [
   {
     icon: '✨',
-    title: '1. Configura tu Moneda',
-    hint: 'Nombre, símbolo, logo y Telegram. Fee único de deploy: $1.11 USD.',
+    title: '1. Configure Your Token',
+    hint: 'Name, ticker, logo, and Telegram. Single one-time deploy fee: $1.11 USD.',
   },
   {
     icon: '⚡',
-    title: '2. Pool Soroswap Automático',
-    hint: 'El pool se crea de forma 100% automática y los LP se queman en dead address.',
+    title: '2. Automatic Soroswap Pool',
+    hint: 'AMM pool is created 100% automatically and LP tokens are burned to the dead address.',
   },
   {
     icon: '🚀',
-    title: '3. Trading en Vivo al Instante',
-    hint: 'La comunidad puede comprar y vender inmediatamente en la curva sin pasos extras.',
+    title: '3. Instant Live Trading',
+    hint: 'Community can buy and sell immediately on the bonding curve with zero manual steps.',
   },
 ]
 
@@ -38,7 +38,7 @@ export function CreatePage() {
           <span>🎮</span> Launch Your Token
         </h1>
         <p className="mt-1 max-w-2xl text-sm text-slate-400">
-          Crea y lanza tu moneda en Stellar en segundos. Cero configuración manual: el token, el pool en Soroswap y la quema de LP se ejecutan automáticamente en un solo flujo.
+          Create and launch your token on Stellar in seconds. Zero manual configuration: the token contract, Soroswap AMM pool, and permanent LP burn execute automatically in a single flow.
         </p>
       </div>
 

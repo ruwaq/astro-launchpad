@@ -126,9 +126,9 @@ export function SwapCard({
         to: STELLAR_BURN_ADDRESS,
       })
 
-      toast.success('¡Pool Activado con Éxito!', {
+      toast.success('Pool Activated Successfully!', {
         message:
-          'La curva de trading está en vivo en Soroswap. ¡Ya puedes comprar y vender!',
+          'The trading curve is live on Soroswap. You can now buy and sell!',
       })
 
       await Promise.all([
@@ -249,7 +249,7 @@ export function SwapCard({
     if (quotedAmount <= 0n) {
       setError(
         quote.isPending
-          ? 'La cotización se está calculando; espera un momento e inténtalo de nuevo.'
+          ? 'Quote is being calculated; please wait a moment and try again.'
           : 'No quote available for that amount (pool may lack sufficient liquidity).',
       )
       return
@@ -581,19 +581,19 @@ export function SwapCard({
           isBuy ? (
             <div className="rounded-lg border border-emerald-900/40 bg-emerald-950/20 px-3 py-2 text-[11px] text-slate-300 space-y-1">
               <p className="flex items-center gap-1.5 font-semibold text-emerald-300">
-                <span>💧</span> Mecánica de Juego Justa (Soroswap AMM On-Chain):
+                <span>💧</span> Fair Play Mechanics (Soroswap AMM On-Chain):
               </p>
               <p className="text-slate-400 leading-relaxed">
-                Tus XLM entran 100% a la reserva del pool. El precio del token sube automáticamente con cada compra y baja con cada venta. Puedes vender tus ${tokenSymbol} en cualquier momento para recuperar tus XLM.
+                100% of your XLM enters the pool reserve. Token price rises automatically with every buy and adjusts with sells. You can swap ${tokenSymbol} back to XLM anytime.
               </p>
             </div>
           ) : (
             <div className="rounded-lg border border-rose-900/40 bg-rose-950/20 px-3 py-2 text-[11px] text-slate-300 space-y-1">
               <p className="flex items-center gap-1.5 font-semibold text-rose-300">
-                <span>💰</span> Salida a XLM Nativo en Cualquier Momento:
+                <span>💰</span> Instant Native XLM Liquidity:
               </p>
               <p className="text-slate-400 leading-relaxed">
-                Devuelves tus ${tokenSymbol} al pool y recibes XLM líquido directo en tu wallet. Cero riesgo de rug: el LP está 100% quemado en la dirección muerta de Stellar.
+                Return ${tokenSymbol} to the pool and receive liquid XLM directly in your wallet. Zero rug pull risk: initial LP is 100% burned to Stellar's dead address.
               </p>
             </div>
           )
@@ -610,16 +610,16 @@ export function SwapCard({
           >
             <div className="flex items-center justify-between font-semibold">
               <span className="flex items-center gap-1.5">
-                <span>{isLargeOrder ? '⚠️' : '📊'}</span> Participación de la Orden:
+                <span>{isLargeOrder ? '⚠️' : '📊'}</span> Order Supply Share:
               </span>
               <span className="font-mono text-emerald-400">
-                {supplySharePercent.toFixed(2)}% del pool
+                {supplySharePercent.toFixed(2)}% of pool
               </span>
             </div>
             <p className="text-[11px] text-slate-400 leading-relaxed">
               {isLargeOrder
-                ? `Esta orden adquiere una porción notable del pool. La curva AMM ajusta el precio exponencialmente protegiendo la liquidez comunitaria.`
-                : 'Compra libre en Soroswap AMM. El precio se regula de forma continua y transparente.'}
+                ? 'This order acquires a significant portion of the pool. The AMM curve naturally adjusts price impact to protect community liquidity.'
+                : 'Direct on-chain AMM swap. Price dynamically adjusts with total volume.'}
             </p>
           </div>
         ) : null}
@@ -631,7 +631,7 @@ export function SwapCard({
               onClick={() => void connect()}
               className="min-h-[48px] w-full rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 px-6 py-3.5 text-base font-black text-slate-950 shadow-lg shadow-amber-500/25 transition-all active:scale-[0.99]"
             >
-              🔌 Conectar Wallet para Operar
+              🔌 Connect Wallet to Trade
             </button>
           ) : !pool.data?.exists ? (
             <div className="space-y-2">
@@ -642,12 +642,12 @@ export function SwapCard({
                 className="min-h-[48px] w-full rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 px-6 py-3.5 text-base font-black text-white shadow-lg shadow-cyan-500/25 transition-all active:scale-[0.99] disabled:opacity-50"
               >
                 {activatingPool
-                  ? '⏳ Activando Pool en Soroswap…'
-                  : `⚡ Activar Pool en Soroswap (${DEFAULT_OPTIMIZED_SEED_XLM} XLM)`}
+                  ? '⏳ Activating Pool on Soroswap…'
+                  : `⚡ Activate Pool on Soroswap (${DEFAULT_OPTIMIZED_SEED_XLM} XLM)`}
               </button>
               <p className="text-center text-xs text-slate-400">
-                Este token no tiene pool inicial. Haz 1 clic para sembrar{' '}
-                {DEFAULT_OPTIMIZED_SEED_XLM} XLM y quemar LP para abrir el trading.
+                This token has no initial pool yet. Click to deposit{' '}
+                {DEFAULT_OPTIMIZED_SEED_XLM} XLM seed and permanently burn LP to enable trading.
               </p>
             </div>
           ) : (

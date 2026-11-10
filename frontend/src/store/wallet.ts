@@ -7,6 +7,7 @@ import {
 } from '@creit.tech/stellar-wallets-kit/modules/wallet-connect'
 import type { Signer } from '@stellar/stellar-sdk/contract'
 import { BRAND } from '../lib/brand'
+import { NETWORK_NAME } from '../lib/network'
 import { walletSigner } from '../lib/signer'
 import {
   MAX_DEMO_ACCOUNTS,
@@ -38,6 +39,10 @@ function appOrigin(): string {
  */
 function walletModules() {
   if (!wcProjectId) return defaultModules()
+  const targetChain =
+    NETWORK_NAME === 'mainnet'
+      ? WalletConnectTargetChain.PUBLIC
+      : WalletConnectTargetChain.TESTNET
   return defaultModules().concat(
     new WalletConnectModule({
       projectId: wcProjectId,
@@ -47,7 +52,7 @@ function walletModules() {
         url: appOrigin(),
         icons: [`${appOrigin()}/icon-192.png`],
       },
-      allowedChains: [WalletConnectTargetChain.TESTNET],
+      allowedChains: [targetChain],
     }),
   )
 }
@@ -65,7 +70,7 @@ function walletKit(): typeof StellarWalletsKit {
   if (!kit) {
     StellarWalletsKit.init({
       modules: walletModules(),
-      network: Networks.TESTNET,
+      network: NETWORK_NAME === 'mainnet' ? Networks.PUBLIC : Networks.TESTNET,
     })
     kit = StellarWalletsKit
   }
@@ -104,7 +109,7 @@ const storedDemoActive = Math.min(
 const startInDemo = storedDemo.length > 0 && loadDemoMode()
 
 function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : 'Error desconocido'
+  return error instanceof Error ? error.message : 'Unknown error'
 }
 
 export const useWallet = create<WalletState>((set, get) => ({
@@ -198,7 +203,7 @@ export const useWallet = create<WalletState>((set, get) => ({
       })
       if (failed > 0) {
         set({
-          demoError: `Fueron fondeadas ${accounts.length} de ${accounts.length + failed} cuentas (Friendbot rate limit). Puedes añadir las que falten desde el menú.`,
+          demoError: `Funded ${accounts.length} of ${accounts.length + failed} accounts (Friendbot rate limit). You can add more from the menu.`,
         })
       }
     } catch (error) {
@@ -275,7 +280,7 @@ export const useWallet = create<WalletState>((set, get) => ({
       })
       if (failed > 0) {
         set({
-          demoError: `Fueron fondeadas ${accounts.length} de ${accounts.length + failed} cuentas (Friendbot rate limit).`,
+          demoError: `Funded ${accounts.length} of ${accounts.length + failed} accounts (Friendbot rate limit).`,
         })
       }
     } catch (error) {

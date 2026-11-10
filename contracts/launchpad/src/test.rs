@@ -126,18 +126,30 @@ fn test_invalid_amounts_fail() {
     e.mock_all_auths();
 
     // 0 XLM should fail
-    let res = client.try_launch_token(&LaunchParams {
+    let res_zero_xlm = client.try_launch_token(&LaunchParams {
+        creator: creator.clone(),
+        name: String::from_str(&e, "Test"),
+        symbol: String::from_str(&e, "TST"),
+        decimals: 7,
+        initial_supply: 1_000_000_000,
+        token_lp_amount: 995_000_000,
+        xlm_lp_amount: 0, // invalid xlm amount
+        salt: BytesN::from_array(&e, &[1u8; 32]),
+    });
+    assert_eq!(res_zero_xlm, Err(Ok(LaunchpadError::InvalidAmount)));
+
+    // Less than 99.5% token LP allocation should fail
+    let res_low_lp = client.try_launch_token(&LaunchParams {
         creator,
         name: String::from_str(&e, "Test"),
         symbol: String::from_str(&e, "TST"),
         decimals: 7,
         initial_supply: 1_000_000_000,
-        token_lp_amount: 990_000_000,
-        xlm_lp_amount: 0, // invalid xlm amount
-        salt: BytesN::from_array(&e, &[1u8; 32]),
+        token_lp_amount: 990_000_000, // only 99.0%, fails fair launch 99.5% invariant
+        xlm_lp_amount: 10_000_000,
+        salt: BytesN::from_array(&e, &[2u8; 32]),
     });
-
-    assert_eq!(res, Err(Ok(LaunchpadError::InvalidAmount)));
+    assert_eq!(res_low_lp, Err(Ok(LaunchpadError::InvalidAmount)));
 }
 
 #[test]

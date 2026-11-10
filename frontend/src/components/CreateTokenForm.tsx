@@ -43,9 +43,9 @@ const inputClass = FORM_INPUT_CLASS
 
 type LaunchStep = 'deploy' | 'pool' | 'renounce' | null
 
-/** Texto honesto del checkpoint si un lanzamiento quedó a medias. */
+/** Honest recovery message if a token launch was interrupted halfway. */
 function incompleteMessageFor(cp: LaunchCheckpoint): string {
-  return `Quedó pendiente de completar: el token ${cp.symbol} ya existe on-chain (paso: ${cp.step}). Puedes terminar el pool y el renounce desde su token page.`
+  return `Pending completion: Token ${cp.symbol} already exists on-chain (step: ${cp.step}). You can complete the pool and ownership renunciation from its token page.`
 }
 
 // Cifras estándar del desglose, derivadas de la única fuente de tokenomics:
@@ -227,8 +227,8 @@ export function CreateTokenForm({
       })
 
       setCreatedId(newId)
-      toast.success('¡Token y Pool Creados con Éxito!', {
-        message: `$${ticker} listo con pool automático en Soroswap, LP quemado y propiedad renunciada.`,
+      toast.success('Token & Pool Created Successfully!', {
+        message: `$${ticker} is live with Soroswap AMM pool, LP burned, and ownership renounced.`,
         hash:
           (sentRenounce as { sendTransactionResponse?: { hash?: string } | undefined })
             ?.sendTransactionResponse?.hash ??
@@ -244,15 +244,14 @@ export function CreateTokenForm({
     } catch (err) {
       const message = errorMessage(err)
       setError(message)
-      // Éxito parcial: si el token ya se desplegó, el usuario DEBE saberlo:
-      // el contrato existe on-chain aunque el pool/renounce hayan fallado.
+      // Partial success: if the token is already deployed, notify user:
       const partial = getCheckpoint()
       if (partial?.tokenId) {
         setCheckpointNote(partial)
         setCreatedId(null)
-        toast.info('Token desplegado, lanzamiento incompleto', {
+        toast.info('Token deployed, launch incomplete', {
           message:
-            'El contrato ya existe: revisa la nota de reanudación y su token page antes de reintentar con otro nombre.',
+            'The contract already exists on-chain: review the recovery note and token page before retrying.',
           hash: poolHash ?? deployHash,
         })
       } else {
@@ -344,7 +343,7 @@ export function CreateTokenForm({
               to={`/token/${checkpointNote.tokenId}`}
               className="rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-bold text-slate-950 hover:bg-amber-400"
             >
-              Ir al token page para completar →
+              Go to token page to complete →
             </Link>
             {checkpointNote.txHash ? (
               <a
@@ -528,7 +527,7 @@ export function CreateTokenForm({
               <div className="mt-1.5 flex flex-wrap items-center gap-2 font-mono text-[11px] text-slate-500">
                 <span>Supply: 1,000,000,000</span>
                 <span>•</span>
-                <span>Dev Reward: 0.5% (5 Fases en 15 Días post-graduación)</span>
+                <span>Dev Reward: 0.5% (5 Phases over 15 Days post-graduation)</span>
                 {telegram ? (
                   <>
                     <span>•</span>
@@ -564,27 +563,27 @@ export function CreateTokenForm({
         {step ? (
           <div className="sm:col-span-2">
             <TxProgress
-              title="Pipeline de Creación Automática"
+              title="Automated Launch Pipeline"
               steps={[
                 {
-                  label: '1. Desplegar Contrato SEP-41',
+                  label: '1. Deploy SEP-41 Token Contract',
                   status: step === 'deploy' ? 'active' : 'done',
-                  detail: '1,000,000,000 supply fijo en Stellar testnet',
+                  detail: '1,000,000,000 fixed supply on Stellar testnet',
                 },
                 {
-                  label: '2. Crear Pool Soroswap & Quemar LP On-Chain',
+                  label: '2. Create Soroswap Pool & Burn LP On-Chain',
                   status:
                     step === 'pool'
                       ? 'active'
                       : step === 'renounce'
                         ? 'done'
                         : 'pending',
-                  detail: `99.5% tokens + ${seedXlmAmount} XLM depositados con LP 100% quemado en dead address`,
+                  detail: `99.5% tokens + ${seedXlmAmount} XLM deposited with LP 100% burned to dead address`,
                 },
                 {
-                  label: '3. Renunciar a la Propiedad On-Chain',
+                  label: '3. Renounce On-Chain Ownership',
                   status: step === 'renounce' ? 'active' : 'pending',
-                  detail: 'Cero inflación, suministro inmutable para siempre',
+                  detail: 'Zero inflation, immutable supply forever',
                 },
               ]}
             />
@@ -595,14 +594,14 @@ export function CreateTokenForm({
         <div className="sm:col-span-2 rounded-xl border border-slate-800 bg-slate-900/60 p-3.5 space-y-2">
           <div className="flex flex-wrap items-center justify-between gap-1 text-xs">
             <span className="font-semibold text-slate-200 flex items-center gap-1.5">
-              <span>💧</span> Semilla de Liquidez Inicial (XLM para activar el pool)
+              <span>💧</span> Initial Seed Liquidity (XLM to activate pool)
             </span>
             <span className="text-emerald-400 font-mono font-bold">
               {seedXlmAmount} XLM (~${(seedXlmAmount * xlmUsd).toFixed(2)} USD)
             </span>
           </div>
           <p className="text-[11px] text-slate-400 leading-relaxed">
-            Un depósito de <strong>5 a 10 XLM (~$0.75 - $1.55 USD)</strong> establece un precio justo y balanceado. Otorga profundidad natural al pool para que nadie acapare el suministro por centavos, permitiendo compras libres con un multiplicador sano de <strong>~14x a 16x</strong> hacia la meta comunitaria de 2,000 XLM en Soroswap DEX.
+            A deposit of <strong>5 to 10 XLM (~$0.75 - $1.55 USD)</strong> establishes a fair, balanced initial price. It provides natural AMM depth so snipers cannot monopolize supply for pennies, enabling community trading with a healthy <strong>~14x to 16x</strong> multiple towards the 2,000 XLM Soroswap DEX graduation milestone.
           </p>
           <div className="grid gap-2 sm:grid-cols-2 pt-1">
             {SEED_LIQUIDITY_PRESETS.map((preset) => (
@@ -621,7 +620,7 @@ export function CreateTokenForm({
                   <span>{preset.label}</span>
                   {preset.isRecommended ? (
                     <span className="rounded bg-emerald-500/20 px-1.5 py-0.5 text-[10px] text-emerald-300">
-                      Recomendado
+                      Recommended
                     </span>
                   ) : (
                     <span className="text-[10px] text-slate-500">
@@ -641,41 +640,41 @@ export function CreateTokenForm({
         <div className="sm:col-span-2 rounded-xl border border-slate-800 bg-slate-950/70 p-4 space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/80 pb-2">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
-              <span>🧾</span> Cuentas Claras: Desglose Exacto del Lanzamiento
+              <span>🧾</span> Transparent Economics: Exact Launch Breakdown
             </span>
             <span className="font-mono text-xs font-black text-emerald-400">
-              Total Requerido: ~{totalRequiredXlm.toFixed(2)} XLM (~${(totalRequiredXlm * xlmUsd).toFixed(2)} USD)
+              Total Required: ~{totalRequiredXlm.toFixed(2)} XLM (~${(totalRequiredXlm * xlmUsd).toFixed(2)} USD)
             </span>
           </div>
 
           <div className="grid gap-2 text-xs text-slate-300 sm:grid-cols-3">
             <div className="rounded-lg bg-slate-900/60 p-2.5 border border-slate-800/60">
-              <div className="text-slate-400 font-medium">🏛️ Fee del Protocolo</div>
+              <div className="text-slate-400 font-medium">🏛️ Protocol Fee</div>
               <div className="mt-1 font-mono font-bold text-slate-100">
                 ${PROTOCOL_DEPLOY_FEE_USD.toFixed(2)} USD (≈ {dynamicMintFeeXlm.toFixed(2)} XLM)
               </div>
               <div className="mt-0.5 text-[10px] text-slate-500">
-                Fondos para el tesoro y mantenimiento del launchpad
+                Treasury & launchpad maintenance
               </div>
             </div>
 
             <div className="rounded-lg bg-slate-900/60 p-2.5 border border-slate-800/60">
-              <div className="text-slate-400 font-medium">💧 Semilla de Liquidez Pool</div>
+              <div className="text-slate-400 font-medium">💧 Pool Seed Liquidity</div>
               <div className="mt-1 font-mono font-bold text-slate-100">
                 {seedXlmAmount} XLM + {formatAmount(STANDARD_POOL_UNITS, FAIR_LAUNCH_DECIMALS)} Tokens
               </div>
               <div className="mt-0.5 text-[10px] text-emerald-400">
-                100% depositado en Soroswap y LP quemado
+                100% deposited to Soroswap & LP burned
               </div>
             </div>
 
             <div className="rounded-lg bg-slate-900/60 p-2.5 border border-slate-800/60">
-              <div className="text-slate-400 font-medium">🛡️ Dev Cut Anti-Dump (0.5%)</div>
+              <div className="text-slate-400 font-medium">🛡️ Anti-Dump Dev Allocation (0.5%)</div>
               <div className="mt-1 font-mono font-bold text-amber-300">
                 {formatAmount(STANDARD_CREATOR_UNITS, FAIR_LAUNCH_DECIMALS)} $TOKEN
               </div>
               <div className="mt-0.5 text-[10px] text-slate-400">
-                🔒 5 Fases de 20% cada 3 días ({CREATOR_GRADUATION_LOCK_DAYS} días post-graduación)
+                🔒 5 Phases of 20% every 3 days ({CREATOR_GRADUATION_LOCK_DAYS} days post-graduation)
               </div>
             </div>
           </div>
@@ -683,7 +682,7 @@ export function CreateTokenForm({
 
         <div className="mt-2 flex flex-wrap items-center justify-between gap-3 sm:col-span-2 pt-2 border-t border-slate-800/80">
           <div className="text-xs text-slate-400">
-            Fondos mínimos en wallet:{' '}
+            Minimum required wallet balance:{' '}
             <strong className="text-emerald-300 font-mono">
               ~{totalRequiredXlm.toFixed(2)} XLM
             </strong>
@@ -695,7 +694,7 @@ export function CreateTokenForm({
               onClick={() => void connect()}
               className="min-h-[44px] rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 px-6 py-2.5 text-sm font-black text-slate-950 transition-all shadow-md shadow-amber-500/20 active:scale-[0.99] cursor-pointer"
             >
-              🔌 Conectar Wallet para Lanzar Token
+              🔌 Connect Wallet to Launch Token
             </button>
           ) : (
             <button
@@ -704,8 +703,8 @@ export function CreateTokenForm({
               className="min-h-[44px] rounded-xl bg-emerald-500 px-6 py-2.5 text-sm font-black text-slate-950 transition hover:bg-emerald-400 disabled:opacity-50 shadow-md shadow-emerald-500/20 cursor-pointer active:scale-[0.99]"
             >
               {busy
-                ? 'Lanzando Token y Creando Pool…'
-                : `🚀 Lanzar Token & Pool (~${totalRequiredXlm.toFixed(2)} XLM)`}
+                ? 'Launching Token & Creating Pool…'
+                : `🚀 Launch Token & Pool (~${totalRequiredXlm.toFixed(2)} XLM)`}
             </button>
           )}
         </div>

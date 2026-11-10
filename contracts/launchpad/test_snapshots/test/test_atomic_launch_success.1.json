@@ -289,7 +289,7 @@
           },
           "ext": "v0"
         },
-        "live_until": 4095
+        "live_until": 200000
       },
       {
         "entry": {
@@ -317,7 +317,7 @@
           "data": {
             "contract_data": {
               "ext": "v0",
-              "contract": "CDZSYS64YLPQ73FYG4NP4WO7ES7V6T64FTRIV6P7HLJ6OSILVPHMOS3O",
+              "contract": "CCHAU3UDYNU7ACFHA56GF66YPA5O75TJ2FNRAR3X7AMBMDFYEYVTGS2F",
               "key": {
                 "vec": [
                   {
@@ -344,7 +344,7 @@
           "data": {
             "contract_data": {
               "ext": "v0",
-              "contract": "CDZSYS64YLPQ73FYG4NP4WO7ES7V6T64FTRIV6P7HLJ6OSILVPHMOS3O",
+              "contract": "CCHAU3UDYNU7ACFHA56GF66YPA5O75TJ2FNRAR3X7AMBMDFYEYVTGS2F",
               "key": {
                 "vec": [
                   {
@@ -371,7 +371,7 @@
           "data": {
             "contract_data": {
               "ext": "v0",
-              "contract": "CDZSYS64YLPQ73FYG4NP4WO7ES7V6T64FTRIV6P7HLJ6OSILVPHMOS3O",
+              "contract": "CCHAU3UDYNU7ACFHA56GF66YPA5O75TJ2FNRAR3X7AMBMDFYEYVTGS2F",
               "key": {
                 "vec": [
                   {
@@ -398,7 +398,7 @@
           "data": {
             "contract_data": {
               "ext": "v0",
-              "contract": "CDZSYS64YLPQ73FYG4NP4WO7ES7V6T64FTRIV6P7HLJ6OSILVPHMOS3O",
+              "contract": "CCHAU3UDYNU7ACFHA56GF66YPA5O75TJ2FNRAR3X7AMBMDFYEYVTGS2F",
               "key": {
                 "vec": [
                   {
@@ -422,7 +422,7 @@
           "data": {
             "contract_data": {
               "ext": "v0",
-              "contract": "CDZSYS64YLPQ73FYG4NP4WO7ES7V6T64FTRIV6P7HLJ6OSILVPHMOS3O",
+              "contract": "CCHAU3UDYNU7ACFHA56GF66YPA5O75TJ2FNRAR3X7AMBMDFYEYVTGS2F",
               "key": "ledger_key_contract_instance",
               "durability": "persistent",
               "val": {
@@ -501,7 +501,7 @@
           },
           "ext": "v0"
         },
-        "live_until": 4095
+        "live_until": 200000
       },
       {
         "entry": {

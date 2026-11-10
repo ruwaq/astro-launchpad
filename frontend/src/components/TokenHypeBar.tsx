@@ -258,8 +258,8 @@ export function TokenHypeBar({
             <span>🔥</span> Community Hype Wall & Chat
           </h2>
           <p className="mt-0.5 text-xs text-slate-400">
-            Sentiment local para ${symbol}: reacciones y shouts viven en este
-            navegador; las burns quedan on-chain con tx verificable.
+            Local sentiment for ${symbol}: reactions and shouts live in this
+            browser; burns are verified on-chain.
           </p>
         </div>
 
@@ -282,7 +282,7 @@ export function TokenHypeBar({
       {/* Live Reaction Buttons */}
       <div className="mt-4">
         <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-          Reacciones (local, por navegador)
+          Reactions (local browser sentiment)
         </p>
         <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
           {REACTION_META.map((meta) => {
@@ -431,7 +431,7 @@ export function TokenHypeBar({
               onClick={() => void connect()}
               className="min-h-[44px] w-full rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 px-4 py-2.5 text-xs font-black text-slate-950 hover:from-amber-400 hover:to-amber-500 transition-colors shadow-md shadow-amber-500/20"
             >
-              🔌 Conectar Wallet para Quemar y Chatear
+              🔌 Connect Wallet to Burn & Chat
             </button>
           ) : (
             <button

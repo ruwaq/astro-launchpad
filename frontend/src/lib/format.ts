@@ -101,3 +101,71 @@ export function errorMessage(error: unknown): string {
   }
   return raw
 }
+
+/**
+ * Ensures an external web link begins strictly with http:// or https://.
+ * Rejects javascript:, data:, vbscript:, etc. to prevent XSS.
+ */
+export function sanitizeHttpUrl(url?: string | null): string | null {
+  if (!url) return null
+  const trimmed = url.trim()
+  if (!trimmed) return null
+  try {
+    const parsed = new URL(trimmed)
+    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+      return parsed.href
+    }
+    return null
+  } catch {
+    // If it's a domain like "example.com", prepend https://
+    if (/^[a-zA-Z0-9][-a-zA-Z0-9.]*\.[a-zA-Z]{2,}(\/.*)?$/.test(trimmed)) {
+      return `https://${trimmed}`
+    }
+    return null
+  }
+}
+
+/**
+ * Sanitizes a Telegram link or handle into a safe https://t.me/... link.
+ */
+export function sanitizeTelegramUrl(input?: string | null): string | null {
+  if (!input) return null
+  const trimmed = input.trim()
+  if (!trimmed) return null
+  if (trimmed.startsWith('https://t.me/') || trimmed.startsWith('http://t.me/')) {
+    return sanitizeHttpUrl(trimmed)
+  }
+  if (trimmed.includes(':') || trimmed.includes('/') || trimmed.includes('?') || trimmed.includes('(')) {
+    return null
+  }
+  const clean = trimmed.replace(/^@/, '')
+  if (/^[a-zA-Z0-9_]{1,64}$/.test(clean)) {
+    return `https://t.me/${clean}`
+  }
+  return null
+}
+
+/**
+ * Sanitizes a Twitter / X link or handle into a safe https://x.com/... link.
+ */
+export function sanitizeTwitterUrl(input?: string | null): string | null {
+  if (!input) return null
+  const trimmed = input.trim()
+  if (!trimmed) return null
+  if (
+    trimmed.startsWith('https://x.com/') ||
+    trimmed.startsWith('https://twitter.com/') ||
+    trimmed.startsWith('http://x.com/') ||
+    trimmed.startsWith('http://twitter.com/')
+  ) {
+    return sanitizeHttpUrl(trimmed)
+  }
+  if (trimmed.includes(':') || trimmed.includes('/') || trimmed.includes('?') || trimmed.includes('(')) {
+    return null
+  }
+  const clean = trimmed.replace(/^@/, '')
+  if (/^[a-zA-Z0-9_]{1,64}$/.test(clean)) {
+    return `https://x.com/${clean}`
+  }
+  return null
+}

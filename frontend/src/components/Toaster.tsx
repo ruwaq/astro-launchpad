@@ -71,7 +71,7 @@ export function Toaster() {
                   rel="noreferrer"
                   className="mt-1 inline-block text-xs underline underline-offset-2 opacity-80 hover:opacity-100"
                 >
-                  Ver transacción ↗
+                  View transaction ↗
                 </a>
               ) : null}
             </div>
@@ -79,7 +79,7 @@ export function Toaster() {
             <button
               type="button"
               onClick={() => dismissToast(toast.id)}
-              aria-label="Cerrar notificación"
+              aria-label="Close notification"
               className="-mr-1 -mt-1 flex min-h-[32px] min-w-[32px] items-center justify-center rounded-lg text-lg leading-none opacity-60 hover:bg-white/10 hover:opacity-100"
             >
               ×

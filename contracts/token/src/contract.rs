@@ -62,6 +62,7 @@ impl Token {
         // cap se aplique (Compose<(Capped, TotalSupply)> → mint con cap).
         <Self as FungibleToken>::ContractType::mint(e, &owner, initial_supply);
         ownable::set_owner(e, &owner);
+        e.storage().instance().extend_ttl(100_000, 200_000);
     }
 
     /// Mint solo para el owner (inyección de supply del launchpad).

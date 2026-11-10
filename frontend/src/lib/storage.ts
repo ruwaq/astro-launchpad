@@ -57,6 +57,7 @@ function migrateKey(key: string): void {
 
 /** Reads a raw string value (migrating legacy keys transparently). */
 export function readStorageString(key: string): string | null {
+  migrateKey(key)
   return storage()?.getItem(key) ?? null
 }
 

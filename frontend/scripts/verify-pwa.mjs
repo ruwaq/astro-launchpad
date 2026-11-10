@@ -28,7 +28,7 @@ check('manifest con iconos', Array.isArray(manifest.icons) && manifest.icons.len
 const sw = await readFile(new URL('sw.js', dist), 'utf8')
 check(
   'service worker copiado y estampado',
-  /floodgate-shell-[a-f0-9]{12}/.test(sw) && !sw.includes('__BUILD_ID__'),
+  /astrogate-shell-[a-f0-9]{12}/.test(sw) && !sw.includes('__BUILD_ID__'),
 )
 check('SW precachea index/assets', sw.includes("fetch('/', { cache: 'no-cache' })"))
 check('SW usa network-first en navegación', sw.includes("request.mode === 'navigate'"))

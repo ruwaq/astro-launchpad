@@ -86,55 +86,7 @@ export function HomePage() {
         swapped={swapped}
       />
 
-      {/* Quick Navigation Hub Cards */}
-      <div className="grid gap-3 sm:grid-cols-3">
-        <Link
-          to="/create"
-          className="group rounded-xl border border-slate-800 bg-slate-900/40 p-4 transition-all hover:border-emerald-500/50 hover:bg-slate-900/80"
-        >
-          <div className="flex items-center gap-2 text-emerald-400 font-bold text-sm">
-            <span>🚀</span> Launchpad
-          </div>
-          <p className="mt-1 text-xs text-slate-400">
-            Create in 1 click for $1.11 USD. 100% anti-rug with locked liquidity.
-          </p>
-          <span className="mt-2 inline-block text-xs font-semibold text-emerald-400 group-hover:underline">
-            Create Token →
-          </span>
-        </Link>
-
-        <Link
-          to="/market"
-          className="group rounded-xl border border-slate-800 bg-slate-900/40 p-4 transition-all hover:border-amber-500/50 hover:bg-slate-900/80"
-        >
-          <div className="flex items-center gap-2 text-amber-400 font-bold text-sm">
-            <span>👑</span> Live Market
-          </div>
-          <p className="mt-1 text-xs text-slate-400">
-            Discover trending pairs, top liquidity tokens, and DEX graduation races.
-          </p>
-          <span className="mt-2 inline-block text-xs font-semibold text-amber-400 group-hover:underline">
-            Explore Market →
-          </span>
-        </Link>
-
-        <Link
-          to="/portfolio"
-          className="group rounded-xl border border-slate-800 bg-slate-900/40 p-4 transition-all hover:border-sky-500/50 hover:bg-slate-900/80"
-        >
-          <div className="flex items-center gap-2 text-sky-400 font-bold text-sm">
-            <span>💼</span> Your Portfolio
-          </div>
-          <p className="mt-1 text-xs text-slate-400">
-            Track token balances, liquidity positions, and transaction history.
-          </p>
-          <span className="mt-2 inline-block text-xs font-semibold text-sky-400 group-hover:underline">
-            Open Portfolio →
-          </span>
-        </Link>
-      </div>
-
-      {/* Organized Showcase Section with Clean Tabs (Solves cluttered landscape) */}
+      {/* Organized Showcase Section with Clean Tabs */}
       <div className="space-y-4">
         {/* Navigation Tabs Bar */}
         <div className="flex items-center gap-1.5 overflow-x-auto border-b border-slate-800 pb-2 no-scrollbar">

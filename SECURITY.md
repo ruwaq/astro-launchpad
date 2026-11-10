@@ -1,6 +1,6 @@
-# Security policy — Floodgate (testnet)
+# Security policy — AstroGate (testnet)
 
-Floodgate es un launchpad **solo para testnet de Stellar**. No hay fondos
+AstroGate es un launchpad **solo para testnet de Stellar**. No hay fondos
 reales, no hay mainnet y las cuentas de demostración son desechables.
 
 ## Alcance

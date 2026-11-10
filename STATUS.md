@@ -1,5 +1,34 @@
 # Estado actual (para continuar en la próxima sesión)
 
+## Handoff rápido (Nov 10 2026, sesión 23 — Localización completa en inglés, Deploy en Cloudflare Workers y Hardening)
+- **Despliegue en producción testnet (Cloudflare Workers)**:
+  - URL en vivo: **https://astrogate-stellar.pepepop2000.workers.dev**
+  - Desplegado vía Wrangler con assets estáticos + SPA fallback nativo (`wrangler.jsonc`).
+  - Token de API resuelto automáticamente desde `~/.config/cloudflare/cf-api-token` (cuenta `pepepop2000@gmail.com`).
+  - Script `"deploy"` en `frontend/package.json` actualizado para auto-cargar el token si no está exportado en el shell.
+  - Verificación web online: HTTP 200 en `/`, en subrutas (`/tokens/new`), en `/sw.js` (estampado `astrogate-shell-d91ea7abb93f`) y `/manifest.webmanifest` con cabeceras de seguridad estrictas (CSP, HSTS, X-Frame-Options).
+- **Localización 100% en inglés (cero cadenas en español en UI)**:
+  - Verificado con escáner automático AST + regex en todo `frontend/src` y `frontend/public`.
+  - Páginas traducidas: `CreatePage.tsx`, `HomePage.tsx`, `TokenPage.tsx`.
+  - Componentes traducidos: `CreateTokenForm.tsx`, `SwapCard.tsx`, `TokenHypeBar.tsx` (reacciones locales, burn-to-chat on-chain, feed), `Toaster.tsx`, `ReserveChart.tsx`, `TokenActivity.tsx`, `ContractDetailsCard.tsx`, `GraduationCard.tsx`.
+  - PWA y assets traducidos: `sw.js` (errores y logs en inglés, prefijo `astrogate-shell-`), `_headers` (comentarios en inglés), `manifest.webmanifest`.
+  - Helpers y tests: Sanitizadores de redes en `format.ts` endurecidos contra inyecciones y caracteres inválidos (107 tests pasando).
+- **Hardening y correcciones de contratos**:
+  - `contracts/launchpad/src/contract.rs`: Corregido borrow of moved value en `params.creator` con `.clone().to_xdr(e)`.
+  - Snapshots de tests de contratos actualizados y sincronizados.
+- **Gates de la sesión 23 — TODOS EN VERDE**:
+  - Frontend: `cd frontend && npm run check` (Build Vite + TS strict + Oxlint 0 warnings + Vitest 107/107 tests + SSR Smoke render + PWA audit 10/10 + CSP parity) ✓.
+  - Rust workspace: `cargo test --workspace` (18/18 tests: 4 launchpad + 14 token) ✓.
+  - Cloudflare deploy: `cd frontend && npm run deploy` ✓ (HTTP 200 live testnet).
+
+## Próximos pasos recomendados para la Sesión 24
+1. **Configurar dominio personalizado (opcional)**:
+   - Vincular `astrogate.space` o similar en Cloudflare Routes si se desea reemplazar `astrogate-stellar.pepepop2000.workers.dev`.
+2. **Indexer persistente / Histórico de precios (Velas OHLCV)**:
+   - Configurar pipeline ligero (SubQuery / Mercury o Cron Worker) para almacenar snapshots de velas OHLCV de los pares en Soroswap (ya que el par no emite eventos `swap` directamente).
+3. **WalletConnect Project ID de producción**:
+   - Configurar `VITE_WC_PROJECT_ID` en las variables de entorno de producción para habilitar wallets móviles QR en dispositivos reales.
+
 ## Handoff rápido (Nov 9 2026, sesión 22 — Auditoría full-stack y hardening)
 - **Lote de frontend consolidado en 2 commits** de la rama `ai/audit-hardening`:
   1. `feat(security)`: credencial de `scripts/opencode-env/service.json` movida a `~/.secrets/` (fuera del repo) con README de política; repo con plantilla. → **Usuario debe ROTAR el password** (sigue en el historial de git) y re-desplegar contratos (el wasm hash cambiará tras el redeploy: entonces actualizar `ASTRO_WASM_HASH` en `lib/network.ts`, `contracts` en README/llms.txt y docs).

@@ -1,17 +1,17 @@
 /**
- * Service worker de Floodgate.
+ * AstroGate Service Worker.
  *
- * Estrategia deliberadamente conservadora:
- * - Precachea el shell (index + assets con hash + manifest/iconos).
- * - Navegación: network-first, con fallback al index cacheado.
- * - Assets estáticos: cache-first.
- * - NUNCA cachea RPC, Horizon, wallet relays ni respuestas de datos.
+ * Deliberately conservative caching strategy:
+ * - Pre-caches application shell (index + hashed assets + manifest/icons).
+ * - Navigation: network-first, falling back to cached index.
+ * - Static assets: cache-first.
+ * - NEVER caches RPC, Horizon, wallet relays, or live blockchain data.
  *
- * No hay operaciones offline: la app avisa y deja claro que la red manda.
+ * No offline transactions: app clearly indicates when network connectivity is required.
  */
-// El build id lo inyecta scripts/stamp-sw.mjs tras compilar: cada deploy
-// estrena caché y el activate borra las anteriores.
-const CACHE = 'floodgate-shell-__BUILD_ID__'
+// Build ID injected by scripts/stamp-sw.mjs at build time: each deploy
+// gets a fresh cache, and activate handler evicts previous versions.
+const CACHE = 'astrogate-shell-__BUILD_ID__'
 const SHELL = [
   '/manifest.webmanifest',
   '/favicon.svg',
@@ -22,7 +22,7 @@ const SHELL = [
 async function precache() {
   const cache = await caches.open(CACHE)
   const index = await fetch('/', { cache: 'no-cache' })
-  if (!index.ok) throw new Error('No se pudo precachear el index')
+  if (!index.ok) throw new Error('Failed to precache index shell')
   await cache.put('/', index.clone())
 
   const html = await index.text()
@@ -38,7 +38,7 @@ async function precache() {
         const response = await fetch(url, { cache: 'no-cache' })
         if (response.ok) await cache.put(url, response)
       } catch {
-        // Un asset que falla no invalida el shell ya cacheado.
+        // Failing asset does not invalidate cached shell.
       }
     }),
   )
@@ -49,7 +49,7 @@ async function precache() {
         const response = await fetch(url, { cache: 'no-cache' })
         if (response.ok) await cache.put(url, response)
       } catch {
-        // Iconos/manifest no críticos para operar.
+        // Non-critical icons / manifest assets.
       }
     }),
   )

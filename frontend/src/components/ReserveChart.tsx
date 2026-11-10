@@ -1,4 +1,4 @@
-import { useId, useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import {
   snapshotLiquidity,
   snapshotPrice,
@@ -57,7 +57,31 @@ export function ReserveChart({
   const activeSnapshots = snapshots ?? history ?? EMPTY_SNAPSHOTS
   const [metric, setMetric] = useState<Metric>('price')
   const [selectedPointIndex, setSelectedPointIndex] = useState<number | null>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [chartWidth, setChartWidth] = useState(WIDTH)
   const gradientId = useId().replace(/:/g, '')
+
+  useEffect(() => {
+    if (!containerRef.current) return
+    const el = containerRef.current
+    const updateWidth = () => {
+      const rect = el.getBoundingClientRect()
+      if (rect.width > 50) {
+        setChartWidth(Math.round(rect.width))
+      }
+    }
+    updateWidth()
+    if (typeof ResizeObserver !== 'undefined') {
+      const ro = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          const w = Math.round(entry.contentRect.width)
+          if (w > 50) setChartWidth(w)
+        }
+      })
+      ro.observe(el)
+      return () => ro.disconnect()
+    }
+  }, [])
 
   const pairId = pool?.pairId ?? null
 
@@ -96,15 +120,15 @@ export function ReserveChart({
   )
 
   const series = useMemo(
-    () => toChartPoints(values, WIDTH, HEIGHT, PADDING),
-    [values],
+    () => toChartPoints(values, chartWidth, HEIGHT, PADDING),
+    [values, chartWidth],
   )
 
   const points = series.points
     .map((point) => `${point.x.toFixed(2)},${point.y.toFixed(2)}`)
     .join(' ')
   const area = points
-    ? `${PADDING},${HEIGHT - PADDING} ${points} ${WIDTH - PADDING},${
+    ? `${PADDING},${HEIGHT - PADDING} ${points} ${chartWidth - PADDING},${
         HEIGHT - PADDING
       }`
     : ''
@@ -265,10 +289,12 @@ export function ReserveChart({
             <span>Floor: {formatMetric(series.min)}</span>
           </div>
 
-          <div className="relative mt-1 overflow-hidden rounded-xl border border-slate-800/80 bg-slate-950/80 p-2 w-full max-w-full min-w-0">
+          <div
+            ref={containerRef}
+            className="relative mt-1 overflow-hidden rounded-xl border border-slate-800/80 bg-slate-950/80 p-2 w-full max-w-full min-w-0"
+          >
             <svg
-              viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
-              preserveAspectRatio="none"
+              viewBox={`0 0 ${chartWidth} ${HEIGHT}`}
               role="img"
               aria-label={`${metricLabel}: min ${formatMetric(
                 series.min,
@@ -290,14 +316,14 @@ export function ReserveChart({
                   <line
                     x1={PADDING}
                     y1={targetY}
-                    x2={WIDTH - PADDING}
+                    x2={chartWidth - PADDING}
                     y2={targetY}
                     stroke="#f59e0b"
                     strokeWidth="1.5"
                     strokeDasharray="4 4"
                   />
                   <text
-                    x={WIDTH - PADDING - 4}
+                    x={chartWidth - PADDING - 4}
                     y={targetY - 4}
                     fill="#f59e0b"
                     fontSize="9"

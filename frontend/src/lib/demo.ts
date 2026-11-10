@@ -55,7 +55,7 @@ export type DemoProgress = (step: {
 function assertTestnet(): void {
   if (NETWORK_NAME !== 'testnet') {
     throw new Error(
-      'El modo demo solo está permitido en testnet. Cambia VITE_STELLAR_NETWORK=testnet para usarlo.',
+      'Demo mode is only supported on testnet. Set VITE_STELLAR_NETWORK=testnet to use it.',
     )
   }
 }
@@ -73,7 +73,7 @@ function isDemoAccount(value: unknown): value is DemoAccount {
 }
 
 export function loadDemoAccounts(): DemoAccount[] {
-  assertTestnet()
+  if (NETWORK_NAME !== 'testnet') return []
   const parsed = readStorageJson<unknown[]>(ACCOUNTS_KEY)
   if (!Array.isArray(parsed)) return []
   return parsed.filter(isDemoAccount).slice(0, MAX_DEMO_ACCOUNTS)
@@ -85,6 +85,7 @@ export function saveDemoAccounts(accounts: DemoAccount[]): void {
 }
 
 export function loadActiveDemo(): number {
+  if (NETWORK_NAME !== 'testnet') return 0
   const raw = readStorageString(ACTIVE_KEY)
   const index = raw ? Number.parseInt(raw, 10) : 0
   return Number.isInteger(index) && index >= 0 ? index : 0
@@ -95,6 +96,7 @@ export function saveActiveDemo(index: number): void {
 }
 
 export function loadDemoMode(): boolean {
+  if (NETWORK_NAME !== 'testnet') return false
   return readStorageString(MODE_KEY) === '1'
 }
 

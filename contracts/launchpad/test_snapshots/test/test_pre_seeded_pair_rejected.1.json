@@ -193,7 +193,7 @@
           },
           "ext": "v0"
         },
-        "live_until": 4095
+        "live_until": 200000
       },
       {
         "entry": {
@@ -207,7 +207,7 @@
           },
           "ext": "v0"
         },
-        "live_until": 4095
+        "live_until": 200000
       },
       {
         "entry": {
@@ -288,7 +288,7 @@
     {
       "event": {
         "ext": "v0",
-        "contract_id": "CAW2MXSQMMQAEWOZHQEOTLLUZ5BGJKS4ODIXPT7LUUM2DGDEDYYVY2UY",
+        "contract_id": "CCYKGGKB453RXZQN5UEJDBQFAE5PNDHL7UZM2JA4CFVDNP3BPE4QXJAT",
         "type": "contract",
         "body": {
           "v0": {
@@ -320,7 +320,7 @@
     {
       "event": {
         "ext": "v0",
-        "contract_id": "CAW2MXSQMMQAEWOZHQEOTLLUZ5BGJKS4ODIXPT7LUUM2DGDEDYYVY2UY",
+        "contract_id": "CCYKGGKB453RXZQN5UEJDBQFAE5PNDHL7UZM2JA4CFVDNP3BPE4QXJAT",
         "type": "contract",
         "body": {
           "v0": {
@@ -346,7 +346,7 @@
     {
       "event": {
         "ext": "v0",
-        "contract_id": "CAW2MXSQMMQAEWOZHQEOTLLUZ5BGJKS4ODIXPT7LUUM2DGDEDYYVY2UY",
+        "contract_id": "CCYKGGKB453RXZQN5UEJDBQFAE5PNDHL7UZM2JA4CFVDNP3BPE4QXJAT",
         "type": "contract",
         "body": {
           "v0": {

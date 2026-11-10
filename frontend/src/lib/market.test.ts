@@ -65,6 +65,13 @@ describe('filterAndSortTokens', () => {
     ])
   })
 
+  it('prioritizes tokens actively racing toward graduation over already graduated tokens', () => {
+    const graduated = listing('CT_GRAD', 'GRAD', 5, 25_000_000_000n) // 2500 XLM (> 2000 XLM target)
+    const inFlight = listing('CT_RACE', 'RACE', 5, 15_000_000_000n) // 1500 XLM (< 2000 XLM target)
+    const sorted = filterAndSortTokens([graduated, inFlight], '', 'graduation')
+    expect(sorted.map((t) => t.symbol)).toEqual(['RACE', 'GRAD'])
+  })
+
   it('aplica el límite después de ordenar', () => {
     expect(filterAndSortTokens(TOKENS, '', 'recent', 2)).toHaveLength(2)
     expect(filterAndSortTokens(TOKENS, '', 'recent', 2)[0]?.symbol).toBe('MOON')

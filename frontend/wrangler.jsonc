@@ -1,8 +1,8 @@
 {
-  // Frontend de Floodgate como Cloudflare Worker con assets estáticos.
-  // SPA fallback nativo: cualquier ruta cae en index.html.
+  // AstroGate Frontend as a Cloudflare Worker with static assets.
+  // Native SPA fallback: all routes fall back to index.html.
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "floodgate-stellar",
+  "name": "astrogate-stellar",
   "compatibility_date": "2026-10-22",
   "assets": {
     "directory": "./dist",

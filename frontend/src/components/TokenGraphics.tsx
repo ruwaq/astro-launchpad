@@ -38,24 +38,24 @@ export function TokenGraphics({
     { title: string; color: string; percent: number; desc: string; icon: string }
   > = {
     curve: {
-      title: 'Curva de Trading Justo (Bonding Curve)',
+      title: 'Fair Bonding Curve AMM Trading',
       color: 'bg-emerald-400 text-emerald-300 border-emerald-500',
       percent: curvePercent,
-      desc: '795,000,000 tokens disponibles para compra y venta inmediata de la comunidad en la curva constante antes de graduarse.',
+      desc: '795,000,000 tokens available for immediate community trading on the constant-product AMM before graduation.',
       icon: '📈',
     },
     dex: {
-      title: 'Reserva de Liquidez Soroswap DEX',
+      title: 'Soroswap DEX Deep Liquidity Reserve',
       color: 'bg-cyan-400 text-cyan-300 border-cyan-500',
       percent: dexPercent,
-      desc: '200,000,000 tokens reservados para fondear la piscina oficial de Soroswap DEX con el 100% de los tokens LP quemados.',
+      desc: '200,000,000 tokens reserved to anchor deep liquidity on Soroswap DEX with 100% of LP tokens burned.',
       icon: '🌊',
     },
     creator: {
-      title: 'Incentivo del Desarrollador / Creador',
+      title: 'Creator Fair Vesting Incentive',
       color: 'bg-amber-400 text-amber-300 border-amber-500',
       percent: creatorPercent,
-      desc: '5,000,000 tokens (0.5%) entregados al creador tras un periodo de bloqueo estricto de 15 días posteriores a la graduación para proteger a los inversores.',
+      desc: '5,000,000 tokens (0.5%) distributed to the creator across 5 vesting phases over 15 days post-graduation to protect community holders.',
       icon: '👑',
     },
   }
@@ -71,11 +71,11 @@ export function TokenGraphics({
             📊
           </span>
           <h2 className="text-base sm:text-lg font-bold text-slate-100">
-            Gráficos de Distribución & Hitos de ${symbol}
+            Token Distribution & Milestones for ${symbol}
           </h2>
         </div>
         <span className="rounded-full border border-slate-700 bg-slate-950/60 px-2.5 py-0.5 font-mono text-xs text-slate-300">
-          Supply: 1,000,000,000 Fijo
+          Supply: 1,000,000,000 Fixed
         </span>
       </div>
 
@@ -83,9 +83,9 @@ export function TokenGraphics({
       <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3.5 space-y-3">
         <div className="flex items-center justify-between text-xs text-slate-400">
           <span className="font-semibold text-slate-200">
-            Arquitectura de Tokens (100% Inmutable)
+            Token Architecture (100% Immutable)
           </span>
-          <span className="text-[11px] text-slate-500">Toca para ver detalles</span>
+          <span className="text-[11px] text-slate-500">Tap segments to view details</span>
         </div>
 
         {/* Visual Segmented Bar */}
@@ -93,7 +93,7 @@ export function TokenGraphics({
           <button
             type="button"
             onClick={() => setActiveSegment('curve')}
-            title="Curva de Trading (79.5%)"
+            title="Trading Curve (79.5%)"
             style={{ width: `${curvePercent}%` }}
             className={`h-full rounded-l-full bg-emerald-500 transition-all hover:opacity-90 ${
               activeSegment === 'curve' ? 'ring-2 ring-emerald-300' : 'opacity-80'
@@ -102,7 +102,7 @@ export function TokenGraphics({
           <button
             type="button"
             onClick={() => setActiveSegment('dex')}
-            title="Reserva Soroswap DEX (20.0%)"
+            title="Soroswap DEX Reserve (20.0%)"
             style={{ width: `${dexPercent}%` }}
             className={`h-full bg-cyan-400 transition-all hover:opacity-90 ${
               activeSegment === 'dex' ? 'ring-2 ring-cyan-300' : 'opacity-80'
@@ -111,7 +111,7 @@ export function TokenGraphics({
           <button
             type="button"
             onClick={() => setActiveSegment('creator')}
-            title="Premio Creador (0.5%)"
+            title="Creator Allocation (0.5%)"
             style={{ width: `${creatorPercent}%` }}
             className={`h-full rounded-r-full bg-amber-400 transition-all hover:opacity-90 ${
               activeSegment === 'creator' ? 'ring-2 ring-amber-300' : 'opacity-80'
@@ -131,7 +131,7 @@ export function TokenGraphics({
             }`}
           >
             <span className="block font-mono text-emerald-400">{curvePercent}%</span>
-            <span className="text-[11px] truncate">Curva Venta</span>
+            <span className="text-[11px] truncate">Bonding Curve</span>
           </button>
 
           <button
@@ -144,7 +144,7 @@ export function TokenGraphics({
             }`}
           >
             <span className="block font-mono text-cyan-400">{dexPercent}%</span>
-            <span className="text-[11px] truncate">Reserva DEX</span>
+            <span className="text-[11px] truncate">DEX Reserve</span>
           </button>
 
           <button
@@ -176,11 +176,11 @@ export function TokenGraphics({
       <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3.5 space-y-2">
         <div className="flex items-center justify-between text-xs">
           <span className="font-semibold text-slate-300 flex items-center gap-1">
-            <span>⚖️</span> Sentimiento de Trading ({totalSwaps} swaps)
+            <span>⚖️</span> Trade Sentiment ({totalSwaps} swaps)
           </span>
           <div className="flex gap-2 font-mono text-[11px]">
-            <span className="text-emerald-400 font-bold">🟢 {buyRatio.toFixed(0)}% Compras</span>
-            <span className="text-rose-400 font-bold">🔴 {sellRatio.toFixed(0)}% Ventas</span>
+            <span className="text-emerald-400 font-bold">🟢 {buyRatio.toFixed(0)}% Buys</span>
+            <span className="text-rose-400 font-bold">🔴 {sellRatio.toFixed(0)}% Sells</span>
           </div>
         </div>
 
@@ -196,10 +196,10 @@ export function TokenGraphics({
         </div>
       </div>
 
-      {/* 3. Cuadros de Hitos del Juego (Milestone Cards) */}
+      {/* 3. Milestone Cards */}
       <div>
         <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2 flex items-center gap-1.5">
-          <span>🏆</span> Cuadros de Hitos de ${symbol}
+          <span>🏆</span> Protocol Milestones for ${symbol}
         </h3>
 
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -208,12 +208,12 @@ export function TokenGraphics({
             <div className="flex items-center justify-between">
               <span className="text-base">🌱</span>
               <span className="text-[10px] font-bold uppercase text-emerald-400 bg-emerald-900/50 px-1.5 py-0.5 rounded">
-                Listo ✓
+                Complete ✓
               </span>
             </div>
-            <p className="mt-2 text-xs font-bold text-slate-200">1. Génesis</p>
+            <p className="mt-2 text-xs font-bold text-slate-200">1. Genesis</p>
             <p className="mt-0.5 text-[11px] text-slate-400">
-              1B supply inmutable, 0% inflación y propiedad renunciada.
+              1B immutable supply, 0% inflation, and ownership renounced.
             </p>
           </div>
 
@@ -234,14 +234,14 @@ export function TokenGraphics({
                     : 'text-amber-400 bg-amber-950/40'
                 }`}
               >
-                {pool?.exists ? 'Activo ✓' : 'Pendiente'}
+                {pool?.exists ? 'Active ✓' : 'Pending'}
               </span>
             </div>
-            <p className="mt-2 text-xs font-bold text-slate-200">2. Pool Inicial</p>
+            <p className="mt-2 text-xs font-bold text-slate-200">2. Initial Liquidity</p>
             <p className="mt-0.5 text-[11px] text-slate-400">
               {pool?.exists
-                ? 'Curva Soroswap abierta para trading de la comunidad.'
-                : 'Requiere sembrar la liquidez de arranque para activar la curva.'}
+                ? 'Soroswap AMM pool open for community trading.'
+                : 'Requires initial seed liquidity deposit to activate trading curve.'}
             </p>
           </div>
 
@@ -265,9 +265,9 @@ export function TokenGraphics({
                 {grad.percent >= 50 ? '50%+ ✓' : `${grad.percent.toFixed(0)}%`}
               </span>
             </div>
-            <p className="mt-2 text-xs font-bold text-slate-200">3. Carrera DEX</p>
+            <p className="mt-2 text-xs font-bold text-slate-200">3. DEX Sprint</p>
             <p className="mt-0.5 text-[11px] text-slate-400">
-              Objetivo: acumular compras en XLM rumbo a la graduación.
+              Goal: accumulate XLM buy volume racing towards the graduation milestone.
             </p>
           </div>
 
@@ -288,12 +288,12 @@ export function TokenGraphics({
                     : 'text-slate-500 bg-slate-800'
                 }`}
               >
-                {grad.graduated ? 'Graduado 🏆' : `${grad.targetXlm} XLM`}
+                {grad.graduated ? 'Graduated 🏆' : `${grad.targetXlm} XLM`}
               </span>
             </div>
             <p className="mt-2 text-xs font-bold text-slate-200">4. Soroswap DEX</p>
             <p className="mt-0.5 text-[11px] text-slate-400">
-              100% de LP quemados a{' '}
+              100% of LP burned to{' '}
               <a
                 href={explorerAccountUrl(STELLAR_BURN_ADDRESS)}
                 target="_blank"

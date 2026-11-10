@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { tokenArtSpec } from '../lib/art'
 
 type Props = {
@@ -9,11 +9,15 @@ type Props = {
 }
 
 /**
- * Identidad visual del token: muestra el logo si existe, o un arte generativo
- * con degradado derivado del hash del contrato y monograma con el símbolo.
+ * Visual identity of the token: displays the logo if provided, or a deterministic
+ * generative SVG artwork derived from the contract address hash and symbol monogram.
  */
 export function TokenArt({ id, symbol, logoUrl, className }: Props) {
   const [imageError, setImageError] = useState(false)
+
+  useEffect(() => {
+    setImageError(false)
+  }, [id, logoUrl])
 
   if (logoUrl && !imageError) {
     return (

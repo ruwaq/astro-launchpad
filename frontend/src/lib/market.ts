@@ -1,4 +1,5 @@
 import { tokenPriceInXlm } from './soroswap'
+import { GRADUATION_TARGET_XLM } from './tokenomics'
 import type { TokenListing } from './discovery'
 
 export type MarketSortKey =
@@ -44,7 +45,14 @@ export function filterAndSortTokens(
 
   const sorted = [...filtered].sort((a, b) => {
     switch (sort) {
-      case 'graduation':
+      case 'graduation': {
+        const targetStroops = BigInt(GRADUATION_TARGET_XLM) * 10_000_000n
+        const aGrad = a.pool.reserveXlm >= targetStroops
+        const bGrad = b.pool.reserveXlm >= targetStroops
+        if (!aGrad && bGrad) return -1
+        if (aGrad && !bGrad) return 1
+        return compareBigInt(a.pool.reserveXlm, b.pool.reserveXlm)
+      }
       case 'liquidity':
         return compareBigInt(a.pool.reserveXlm, b.pool.reserveXlm)
       case 'price':

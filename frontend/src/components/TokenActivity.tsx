@@ -23,35 +23,35 @@ const ROLE_BADGES: Record<
   { label: string; bg: string; text: string; border: string; icon: string }
 > = {
   buy: {
-    label: 'COMPRA',
+    label: 'BUY',
     bg: 'bg-emerald-500/20',
     text: 'text-emerald-300',
     border: 'border-emerald-500/50',
     icon: '🟢',
   },
   sell: {
-    label: 'VENTA',
+    label: 'SELL',
     bg: 'bg-rose-500/20',
     text: 'text-rose-300',
     border: 'border-rose-500/50',
     icon: '🔴',
   },
   mint: {
-    label: 'CREACIÓN',
+    label: 'MINT',
     bg: 'bg-cyan-500/20',
     text: 'text-cyan-300',
     border: 'border-cyan-500/50',
     icon: '✨',
   },
   burn: {
-    label: 'QUEMA',
+    label: 'BURN',
     bg: 'bg-purple-500/20',
     text: 'text-purple-300',
     border: 'border-purple-500/50',
     icon: '🔥',
   },
   transfer: {
-    label: 'ENVÍO',
+    label: 'TRANSFER',
     bg: 'bg-sky-500/20',
     text: 'text-sky-300',
     border: 'border-sky-500/50',
@@ -61,13 +61,13 @@ const ROLE_BADGES: Record<
 
 function timeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime()
-  if (diff < 60_000) return 'hace un momento'
+  if (diff < 60_000) return 'just now'
   const mins = Math.floor(diff / 60_000)
-  if (mins < 60) return `hace ${mins}m`
+  if (mins < 60) return `${mins}m ago`
   const hours = Math.floor(mins / 60)
-  if (hours < 24) return `hace ${hours}h`
+  if (hours < 24) return `${hours}h ago`
   const days = Math.floor(hours / 24)
-  return `hace ${days}d`
+  return `${days}d ago`
 }
 
 function addressAvatarColor(address?: string): string {
@@ -156,11 +156,11 @@ export function TokenActivity({
               🧱
             </span>
             <h2 className="text-base sm:text-lg font-bold text-slate-100">
-              Recent On-Chain Activity · Historial en Cuadros
+              Recent On-Chain Activity
             </h2>
           </div>
           <p className="mt-1 text-xs text-slate-400">
-            Historial interactivo de compras, ventas y movimientos en vivo directamente desde Soroban RPC.
+            Interactive live feed of buys, sells, and token movements fetched directly from Soroban RPC.
           </p>
         </div>
 
@@ -170,26 +170,26 @@ export function TokenActivity({
             <button
               type="button"
               onClick={() => setViewMode('grid')}
-              title="Vista en Cuadros"
+              title="Grid View"
               className={`rounded-md px-2.5 py-1 text-xs font-semibold transition ${
                 viewMode === 'grid'
                   ? 'bg-emerald-500 text-slate-950 font-bold'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              ⊞ Cuadros
+              ⊞ Grid
             </button>
             <button
               type="button"
               onClick={() => setViewMode('list')}
-              title="Vista en Lista"
+              title="List View"
               className={`rounded-md px-2.5 py-1 text-xs font-semibold transition ${
                 viewMode === 'list'
                   ? 'bg-emerald-500 text-slate-950 font-bold'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              ☰ Lista
+              ☰ List
             </button>
           </div>
 
@@ -199,7 +199,7 @@ export function TokenActivity({
             disabled={events.isFetching}
             className="min-h-[34px] rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:border-slate-500 disabled:opacity-50 transition"
           >
-            {events.isFetching ? 'Refrescando…' : '🔄 Refrescar'}
+            {events.isFetching ? 'Refreshing…' : '🔄 Refresh'}
           </button>
         </div>
       </div>
@@ -215,7 +215,7 @@ export function TokenActivity({
               : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
           }`}
         >
-          🌐 Todos ({list.length})
+          🌐 All ({list.length})
         </button>
 
         <button
@@ -227,7 +227,7 @@ export function TokenActivity({
               : 'text-slate-400 hover:text-emerald-300 hover:bg-slate-900'
           }`}
         >
-          <span>🟢</span> Compras ({buyCount})
+          <span>🟢</span> Buys ({buyCount})
         </button>
 
         <button
@@ -239,7 +239,7 @@ export function TokenActivity({
               : 'text-slate-400 hover:text-rose-300 hover:bg-slate-900'
           }`}
         >
-          <span>🔴</span> Ventas ({sellCount})
+          <span>🔴</span> Sells ({sellCount})
         </button>
 
         <button
@@ -251,7 +251,7 @@ export function TokenActivity({
               : 'text-slate-400 hover:text-amber-300 hover:bg-slate-900'
           }`}
         >
-          <span>🐋</span> Ballenas ({whaleCount})
+          <span>🐋</span> Whales ({whaleCount})
         </button>
       </div>
 
@@ -259,14 +259,14 @@ export function TokenActivity({
       {events.isPending ? (
         <div className="py-8 text-center text-sm text-slate-400">
           <div className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-emerald-500 border-t-transparent" />
-          <p className="mt-2">Leyendo historial en cuadros desde la red Stellar…</p>
+          <p className="mt-2">Reading on-chain activity from Stellar network…</p>
         </div>
       ) : null}
 
       {/* Error state */}
       {events.isError ? (
         <div className="rounded-xl border border-rose-900 bg-rose-950/40 p-4 text-xs text-rose-300">
-          Error leyendo eventos de Soroban: {events.error.message}
+          Error reading events from Soroban: {events.error.message}
         </div>
       ) : null}
 
@@ -274,9 +274,9 @@ export function TokenActivity({
       {events.isSuccess && list.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-800 bg-slate-950/30 p-8 text-center space-y-2">
           <span className="text-3xl">🌱</span>
-          <p className="text-sm font-bold text-slate-200">¡Sé el primer jugador en el historial!</p>
+          <p className="text-sm font-bold text-slate-200">Be the first trader in history!</p>
           <p className="text-xs text-slate-400 max-w-sm mx-auto">
-            Aún no hay compras registradas en esta ventana. Realiza un swap en la consola para colocar el primer cuadro en el muro.
+            No trades recorded in this ledger window yet. Execute a swap to place the first block on the board.
           </p>
         </div>
       ) : null}
@@ -286,34 +286,34 @@ export function TokenActivity({
         <div className="rounded-xl border border-emerald-500/60 bg-slate-950 p-4 shadow-lg shadow-emerald-500/10 space-y-3 transition-all animate-fadeIn">
           <div className="flex items-center justify-between border-b border-slate-800 pb-2">
             <span className="text-xs font-bold text-emerald-300 flex items-center gap-1.5">
-              <span>🔍</span> Detalle del Cuadro Seleccionado
+              <span>🔍</span> Selected Event Details
             </span>
             <button
               type="button"
               onClick={() => setSelectedEvent(null)}
               className="text-xs text-slate-400 hover:text-white px-2 py-0.5 rounded border border-slate-800 hover:bg-slate-800"
             >
-              ✕ Cerrar
+              ✕ Close
             </button>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
             <div>
-              <span className="text-slate-500">Monto:</span>
+              <span className="text-slate-500">Amount:</span>
               <p className="font-mono text-sm font-bold text-emerald-300 mt-0.5">
                 {formatAmount(selectedEvent.amount, activeDecimals)} ${activeSymbol}
               </p>
             </div>
 
             <div>
-              <span className="text-slate-500">Fecha / Hora:</span>
+              <span className="text-slate-500">Timestamp:</span>
               <p className="font-mono text-slate-300 mt-0.5">
                 {new Date(selectedEvent.at).toLocaleString()}
               </p>
             </div>
 
             <div>
-              <span className="text-slate-500">De (Origen):</span>
+              <span className="text-slate-500">From (Sender):</span>
               <p className="font-mono text-slate-300 break-all mt-0.5">
                 {selectedEvent.from ? (
                   <a
@@ -325,13 +325,13 @@ export function TokenActivity({
                     {selectedEvent.from}
                   </a>
                 ) : (
-                  'Génesis / Minteo'
+                  'Genesis / Mint'
                 )}
               </p>
             </div>
 
             <div>
-              <span className="text-slate-500">Hacia (Destino):</span>
+              <span className="text-slate-500">To (Recipient):</span>
               <p className="font-mono text-slate-300 break-all mt-0.5">
                 {selectedEvent.to ? (
                   <a
@@ -343,7 +343,7 @@ export function TokenActivity({
                     {selectedEvent.to}
                   </a>
                 ) : (
-                  'Quema'
+                  'Burn'
                 )}
               </p>
             </div>
@@ -360,7 +360,7 @@ export function TokenActivity({
                   onClick={() => void copy(selectedEvent.txHash ?? '')}
                   className="rounded border border-slate-700 bg-slate-900 px-2.5 py-1 text-slate-300 hover:border-slate-500"
                 >
-                  {lastCopied === selectedEvent.txHash ? '✓ Copiado' : 'Copiar Hash'}
+                  {lastCopied === selectedEvent.txHash ? '✓ Copied' : 'Copy Hash'}
                 </button>
                 <a
                   href={explorerTxUrl(selectedEvent.txHash)}
@@ -416,7 +416,7 @@ export function TokenActivity({
                     </span>
                     {isWhale ? (
                       <span className="rounded-full border border-amber-500/50 bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-bold text-amber-300 animate-pulse">
-                        🐋 Ballena
+                        🐋 Whale
                       </span>
                     ) : null}
                   </div>
@@ -426,9 +426,9 @@ export function TokenActivity({
                   </span>
                 </div>
 
-                {/* Cuadro Amount */}
+                {/* Card Amount */}
                 <div className="mt-2.5">
-                  <span className="text-[11px] text-slate-500">Monto Operado</span>
+                  <span className="text-[11px] text-slate-500">Traded Amount</span>
                   <div className="flex items-baseline gap-1 font-mono">
                     <span
                       className={`text-base sm:text-lg font-black tracking-tight ${
@@ -534,7 +534,7 @@ export function TokenActivity({
       ) : null}
 
       <p className="mt-2 text-center text-[11px] text-slate-500">
-        Ventana de retención RPC (~14 h). Los cuadros se sincronizan automáticamente con cada bloque de Stellar.
+        Soroban RPC retention window (~14h). Activity blocks sync automatically with each Stellar ledger.
       </p>
     </section>
   )

@@ -192,10 +192,15 @@ export function reconstructSnapshotsFromEvents(
 
     if (ev.from === pairId) {
       curToken = curToken + ev.amount
-      curXlm = k / curToken
+      curXlm = curToken > 0n ? k / curToken : curXlm
     } else if (ev.to === pairId && curToken > ev.amount) {
-      curToken = curToken - ev.amount
-      curXlm = k / curToken
+      const nextToken = curToken - ev.amount
+      if (nextToken > 1000n) {
+        curToken = nextToken
+        curXlm = k / curToken
+      } else {
+        break
+      }
     }
   }
 
