@@ -7,6 +7,7 @@ import { useReserveHistory } from '../hooks/useReserveHistory'
 import { useTokenEvents } from '../hooks/useTokenEvents'
 import { useXlmUsdPrice } from '../hooks/useXlmUsdPrice'
 import { useWallet } from '../store/wallet'
+import { useCopy } from '../hooks/useCopy'
 import {
   formatAmount,
   sanitizeHttpUrl,
@@ -14,63 +15,22 @@ import {
   sanitizeTwitterUrl,
   shortAddress,
 } from '../lib/format'
-import { explorerAccountUrl, explorerContractUrl } from '../lib/explorer'
-import { tokenPriceInXlm } from '../lib/soroswap'
-import { classifyTokenEvent } from '../lib/token-events'
+import { explorerContractUrl, explorerAccountUrl } from '../lib/explorer'
+import { tokenPriceInXlmNumber, formatTokenPrice } from '../lib/soroswap'
 import { TokenArt } from '../components/TokenArt'
-import { tokenArtSpec } from '../lib/art'
-import { ShareButton } from '../components/ShareButton'
 import { SwapCard } from '../components/SwapCard'
-import { LiquidityPosition } from '../components/LiquidityPosition'
+import { ReserveChart } from '../components/ReserveChart'
+import { TokenHypeBar } from '../components/TokenHypeBar'
 import { LiquidityForm } from '../components/LiquidityForm'
 import { TransferCard } from '../components/TransferCard'
 import { BurnCard } from '../components/BurnCard'
 import { MintCard } from '../components/MintCard'
-import { ReserveChart } from '../components/ReserveChart'
-import { GraduationCard } from '../components/GraduationCard'
-import { TokenHypeBar } from '../components/TokenHypeBar'
-import { TokenActivity } from '../components/TokenActivity'
-import { TokenGraphics } from '../components/TokenGraphics'
-import { ContractDetailsCard } from '../components/ContractDetailsCard'
 import { NotFoundPage } from './NotFoundPage'
 import { useTokenMetadata } from '../hooks/useTokenMetadata'
 import { isValidContractAddress } from '../lib/address'
 import type { LaunchpadToken } from '../lib/token'
 
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl border border-white/[0.08] bg-slate-950/50 px-4 py-3 shadow-inner">
-      <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">{label}</div>
-      <div className="mt-1 font-mono text-xs sm:text-sm font-bold text-white truncate">{value}</div>
-    </div>
-  )
-}
-
-function TraitTile({
-  type,
-  value,
-  rarity,
-}: {
-  type: string
-  value: string
-  rarity?: string
-}) {
-  return (
-    <div className="nft-trait-tile flex flex-col justify-between rounded-2xl p-3 text-center">
-      <span className="text-[10px] font-bold tracking-wider text-sky-400 uppercase">
-        {type}
-      </span>
-      <span className="mt-1 font-semibold text-xs text-white truncate" title={value}>
-        {value}
-      </span>
-      {rarity ? (
-        <span className="mt-1 text-[10px] text-slate-400">
-          {rarity}
-        </span>
-      ) : null}
-    </div>
-  )
-}
+const GRADUATION_TARGET_STROOPS = 2000n * 10_000_000n // 2,000 XLM
 
 export function TokenPage() {
   const { id = '' } = useParams<{ id: string }>()
@@ -86,23 +46,10 @@ export function TokenPage() {
   const events = useTokenEvents(queryId)
   const { data: xlmUsd = 0.1555 } = useXlmUsdPrice()
   const meta = useTokenMetadata(queryId)
-  const [leftTab, setLeftTab] = useState<'chart' | 'history' | 'graphics' | 'all'>('chart')
+  const { copied, copy } = useCopy()
   const [openAdvanced, setOpenAdvanced] = useState(
     () => typeof window !== 'undefined' && window.location.hash === '#advanced-tools',
   )
-
-  const pairId = pool.data?.pairId ?? null
-  const buyCount = useMemo(() => {
-    return (events.data ?? []).filter(
-      (e) => classifyTokenEvent(e, pairId) === 'buy',
-    ).length
-  }, [events.data, pairId])
-
-  const sellCount = useMemo(() => {
-    return (events.data ?? []).filter(
-      (e) => classifyTokenEvent(e, pairId) === 'sell',
-    ).length
-  }, [events.data, pairId])
 
   const token: LaunchpadToken = useMemo(
     () => ({
@@ -118,27 +65,16 @@ export function TokenPage() {
   if (info.isPending) {
     return (
       <div className="space-y-4">
-        <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-4 sm:p-6">
+        <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-6 animate-pulse">
           <p className="text-sm text-slate-400">
             Reading token {shortAddress(id)} on testnet…
           </p>
-          <div aria-hidden="true" className="mt-4 flex items-center gap-4">
-            <div className="h-20 w-20 shrink-0 animate-pulse rounded-2xl bg-slate-800" />
-            <div className="flex-1 space-y-2">
-              <div className="h-6 w-48 animate-pulse rounded bg-slate-800" />
-              <div className="h-3 w-64 animate-pulse rounded bg-slate-800/70" />
+          <div className="mt-4 flex items-center gap-4">
+            <div className="h-16 w-16 rounded-2xl bg-slate-800" />
+            <div className="space-y-2">
+              <div className="h-6 w-48 rounded bg-slate-800" />
+              <div className="h-3 w-64 rounded bg-slate-800/70" />
             </div>
-          </div>
-          <div
-            aria-hidden="true"
-            className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
-          >
-            {Array.from({ length: 4 }).map((_, idx) => (
-              <div
-                key={idx}
-                className="h-16 animate-pulse rounded-lg border border-slate-800 bg-slate-900/60"
-              />
-            ))}
           </div>
         </div>
       </div>
@@ -147,27 +83,24 @@ export function TokenPage() {
 
   if (info.isError) {
     return (
-      <section className="rounded-xl border border-rose-900 bg-rose-950/30 p-6">
-        <h1 className="text-xl font-semibold text-rose-200">
-          Unable to read this token
+      <section className="rounded-2xl border border-rose-900 bg-rose-950/30 p-6">
+        <h1 className="text-xl font-bold text-rose-200">
+          Unable to load token
         </h1>
         <p className="mt-2 text-sm text-slate-400">
-          {id} does not appear to be a valid SEP-41 contract on testnet, or RPC did not respond.
+          {id} does not appear to be a valid contract on testnet, or RPC timed out.
         </p>
-        <p className="mt-2 font-mono text-xs text-slate-500">
-          {info.error.message}
-        </p>
-        <div className="mt-4 flex flex-wrap gap-2">
+        <div className="mt-4 flex gap-3">
           <button
             type="button"
             onClick={() => void info.refetch()}
-            className="min-h-[44px] rounded-lg bg-emerald-500 px-4 py-2 text-sm font-medium text-slate-950 hover:bg-emerald-400"
+            className="min-h-[40px] rounded-xl bg-emerald-500 px-4 py-2 text-sm font-bold text-slate-950 hover:bg-emerald-400"
           >
             Retry
           </button>
           <Link
             to="/market"
-            className="inline-flex min-h-[44px] items-center rounded-lg border border-slate-700 px-4 py-2 text-sm hover:border-slate-500"
+            className="inline-flex min-h-[40px] items-center rounded-xl border border-slate-700 px-4 py-2 text-sm text-slate-300 hover:text-white"
           >
             Back to Market
           </Link>
@@ -176,16 +109,16 @@ export function TokenPage() {
     )
   }
 
-  const artSpec = tokenArtSpec(id)
-  const price = pool.data ? tokenPriceInXlm(pool.data, token.decimals) : 0n
-  const priceUsd =
-    price > 0n ? (Number(price) / 1e7) * xlmUsd : 0
+  const priceNumber = pool.data ? tokenPriceInXlmNumber(pool.data, token.decimals) : 0
+  const priceUsd = priceNumber > 0 ? priceNumber * xlmUsd : 0
   const liquidity = pool.data?.reserveXlm ?? 0n
-  const liquidityUsd = (Number(liquidity) / 1e7) * xlmUsd
   const owner = info.data.owner
   const isOwner = Boolean(publicKey && owner === publicKey)
-  const shareUrl =
-    typeof window !== 'undefined' ? window.location.href : `/token/${id}`
+
+  const graduationPercent = Math.min(
+    100,
+    Math.round((Number(liquidity) / Number(GRADUATION_TARGET_STROOPS)) * 100),
+  )
 
   const safeTelegram = sanitizeTelegramUrl(meta.data?.telegram)
   const safeWebsite = sanitizeHttpUrl(meta.data?.website)
@@ -193,337 +126,137 @@ export function TokenPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <Link
-          to="/market"
-          className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-medium text-slate-400 hover:text-emerald-300 transition-colors"
-        >
-          <span>←</span> Back to Market
-        </Link>
-        <div className="flex items-center gap-2">
-          {owner === null ? (
-            <span className="rounded-full border border-emerald-800/80 bg-emerald-950/40 px-3 py-1 text-[11px] font-semibold text-emerald-300 flex items-center gap-1">
-              <span>🛡️</span> 100% Rug-Proof (Renounced)
+      {/* 1. Sleek Minimalist Header */}
+      <div className="liquid-glass rounded-2xl p-4 sm:p-5 border border-sky-500/20 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5">
+          {/* Token Visual Avatar */}
+          <div className="relative h-14 w-14 shrink-0 rounded-2xl overflow-hidden bg-slate-950 border border-sky-500/30 shadow-md">
+            <TokenArt
+              id={id}
+              symbol={token.symbol}
+              logoUrl={meta.data?.logoUrl}
+              className="h-full w-full"
+            />
+          </div>
+
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+                {info.data.name}
+              </h1>
+              <span className="rounded-lg bg-sky-500/20 border border-sky-500/30 px-2 py-0.5 font-mono text-xs font-bold text-sky-300">
+                ${token.symbol}
+              </span>
+              {owner === null ? (
+                <span
+                  className="rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-semibold text-emerald-300 flex items-center gap-1"
+                  title="100% LP burned & ownership renounced on-chain"
+                >
+                  <span>🛡️</span> 100% Rug-Proof
+                </span>
+              ) : isOwner ? (
+                <span className="rounded-full bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 text-[10px] font-semibold text-amber-300">
+                  Creator
+                </span>
+              ) : null}
+            </div>
+
+            {/* Contract & Socials Bar */}
+            <div className="mt-1 flex flex-wrap items-center gap-2.5 text-xs text-slate-400">
+              <button
+                type="button"
+                onClick={() => void copy(id)}
+                className="font-mono text-slate-300 hover:text-white transition flex items-center gap-1 bg-slate-900/60 px-2 py-0.5 rounded-lg border border-slate-800"
+                title="Copy full contract address"
+              >
+                <span>{shortAddress(id)}</span>
+                <span>{copied ? '✓' : '📋'}</span>
+              </button>
+
+              {safeTelegram ? (
+                <a
+                  href={safeTelegram}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-sky-400 hover:text-sky-300 hover:underline"
+                >
+                  Telegram ↗
+                </a>
+              ) : null}
+              {safeTwitter ? (
+                <a
+                  href={safeTwitter}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-slate-300 hover:text-white hover:underline"
+                >
+                  Twitter ↗
+                </a>
+              ) : null}
+              {safeWebsite ? (
+                <a
+                  href={safeWebsite}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-cyan-300 hover:text-cyan-200 hover:underline"
+                >
+                  Website ↗
+                </a>
+              ) : null}
+              <a
+                href={explorerContractUrl(id)}
+                target="_blank"
+                rel="noreferrer"
+                className="text-slate-400 hover:text-slate-200 hover:underline"
+              >
+                Explorer ↗
+              </a>
+            </div>
+          </div>
+        </div>
+
+        {/* Spot Price & Graduation Progress Bar */}
+        <div className="flex flex-col sm:items-end gap-1.5 font-mono pt-2 md:pt-0 border-t md:border-t-0 border-slate-800">
+          <div className="flex items-baseline gap-2">
+            <span className="text-lg sm:text-xl font-black text-white">
+              {priceNumber > 0 ? `${formatTokenPrice(priceNumber)} XLM` : '—'}
             </span>
-          ) : isOwner ? (
-            <span className="rounded-full border border-amber-800/80 bg-amber-950/40 px-3 py-1 text-[11px] font-semibold text-amber-300">
-              You are the Creator
-            </span>
-          ) : null}
+            {priceUsd > 0 ? (
+              <span className="text-xs text-slate-400">
+                ≈ ${priceUsd < 0.01 ? priceUsd.toFixed(6) : priceUsd.toFixed(4)}
+              </span>
+            ) : null}
+          </div>
+
+          <div className="w-full sm:w-52 space-y-1">
+            <div className="flex justify-between text-[10px] text-slate-400">
+              <span>Graduation Progress</span>
+              <span className="font-bold text-amber-300">{graduationPercent}% (2,000 XLM)</span>
+            </div>
+            <div className="h-1.5 w-full bg-slate-900 rounded-full overflow-hidden border border-slate-800">
+              <div
+                className="h-full bg-gradient-to-r from-sky-400 via-indigo-400 to-amber-400 rounded-full"
+                style={{ width: `${graduationPercent}%` }}
+              />
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Token Showcase Header: Vector Art Pedestal + Traits + Live Market Telemetry */}
-      <section className="liquid-glass rounded-3xl p-5 sm:p-8 space-y-6">
-        <div className="grid gap-6 lg:grid-cols-12 items-center">
-          {/* Left Pedestal: Large 1:1 Art Frame */}
-          <div className="lg:col-span-5 flex flex-col items-center">
-            <div className="liquid-glass-card group relative aspect-square w-full max-w-sm overflow-hidden rounded-3xl bg-slate-950">
-              <TokenArt
-                id={id}
-                symbol={token.symbol}
-                logoUrl={meta.data?.logoUrl}
-                className="h-full w-full transition-transform duration-500 ease-out group-hover:scale-105"
-              />
-              <div className="nft-holo-sheen absolute inset-0" />
-              <div className="absolute top-3 left-3">
-                <span className="liquid-glass-pill rounded-full px-2.5 py-1 text-[10px] font-semibold tracking-wider text-white/90 uppercase">
-                  {artSpec.archetype}
-                </span>
-              </div>
-              <div className="absolute bottom-3 right-3">
-                <span className="liquid-glass-pill rounded-full px-2.5 py-1 font-mono text-[10px] text-sky-300">
-                  {artSpec.editionCode}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Right Info: Header, Socials, Explorer & Live Price Stats */}
-          <div className="lg:col-span-7 flex flex-col justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-semibold tracking-wider text-sky-400 uppercase">
-                  {artSpec.paletteName} Series
-                </span>
-                <span className="text-slate-600">•</span>
-                <span className="font-mono text-xs text-slate-400">
-                  {shortAddress(id)}
-                </span>
-              </div>
-
-              <div className="mt-1 flex flex-wrap items-baseline gap-3">
-                <h1 className="text-2xl sm:text-4xl font-extrabold text-white tracking-tight">
-                  {info.data.name}
-                </h1>
-                <span className="rounded-xl border border-sky-400/30 bg-sky-950/60 px-2.5 py-0.5 font-mono text-sm font-bold text-sky-300">
-                  ${token.symbol}
-                </span>
-              </div>
-
-              {meta.data?.description ? (
-                <p className="mt-2 text-sm text-slate-300 leading-relaxed">
-                  {meta.data.description}
-                </p>
-              ) : null}
-
-              {/* Social & Explorer Pills */}
-              <div className="mt-4 flex flex-wrap items-center gap-2">
-                {safeTelegram ? (
-                  <a
-                    href={safeTelegram}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="liquid-glass-pill inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold text-sky-300 hover:text-white transition"
-                  >
-                    <span>✈️</span> Telegram ↗
-                  </a>
-                ) : null}
-
-                {safeWebsite ? (
-                  <a
-                    href={safeWebsite}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="liquid-glass-pill inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold text-cyan-300 hover:text-white transition"
-                  >
-                    <span>🌐</span> Website ↗
-                  </a>
-                ) : null}
-
-                {safeTwitter ? (
-                  <a
-                    href={safeTwitter}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="liquid-glass-pill inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-200 hover:text-white transition"
-                  >
-                    <span>𝕏</span> Twitter ↗
-                  </a>
-                ) : null}
-
-                <ShareButton
-                  text={`🌊 Check out $${token.symbol} on AstroGate (Stellar testnet):`}
-                  url={shareUrl}
-                />
-
-                <a
-                  href={explorerContractUrl(id)}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="liquid-glass-pill inline-flex items-center rounded-xl px-3 py-1.5 text-xs text-slate-300 hover:text-white transition"
-                >
-                  Explorer ↗
-                </a>
-              </div>
-            </div>
-
-            {/* Live Pricing & Liquidity Grid */}
-            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-              <Stat
-                label="Spot Price"
-                value={
-                  pool.isPending
-                    ? '…'
-                    : price > 0n
-                      ? `${formatAmount(price, 7)} XLM`
-                      : '—'
-                }
-              />
-              <Stat
-                label="USD Value"
-                value={
-                  priceUsd > 0
-                    ? `$${priceUsd < 0.01 ? priceUsd.toFixed(6) : priceUsd.toFixed(4)}`
-                    : '—'
-                }
-              />
-              <Stat
-                label="Pool Depth"
-                value={
-                  pool.isPending
-                    ? '…'
-                    : pool.isError
-                      ? 'Error reading pool'
-                      : pool.data?.exists
-                        ? `${formatAmount(liquidity, 7)} XLM (≈ $${liquidityUsd < 0.01 ? liquidityUsd.toFixed(4) : liquidityUsd.toFixed(2)})`
-                        : 'No pool yet'
-                }
-              />
-              <Stat
-                label="Your Balance"
-                value={
-                  publicKey
-                    ? balance.isPending
-                    ? '…'
-                    : `${formatAmount(balance.data ?? 0n, token.decimals)} ${token.symbol}`
-                    : 'Connect wallet'
-                }
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Provenance & Generative Token Properties Grid */}
-        <div className="pt-2">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
-              <span>💎</span> Artwork Properties & On-Chain Provenance
-            </span>
-            <span className="text-[11px] text-slate-500">SEP-41 + Soroswap AMM</span>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-6">
-            <TraitTile
-              type="Archetype"
-              value={artSpec.archetype}
-              rarity="Generative 1-of-1"
-            />
-            <TraitTile
-              type="Palette"
-              value={artSpec.paletteName}
-              rarity="Curated Spectrum"
-            />
-            <TraitTile
-              type="Edition"
-              value={artSpec.editionCode}
-              rarity="Deterministic Seed"
-            />
-            <TraitTile
-              type="Supply Cap"
-              value="Capped 1B"
-              rarity="100% Immutable"
-            />
-            <TraitTile
-              type="LP Custody"
-              value="100% Burned"
-              rarity="Zero Rug Vector"
-            />
-            <TraitTile
-              type="Mint Authority"
-              value={owner === null ? 'Renounced' : 'Active'}
-              rarity={owner === null ? 'Protected' : 'Creator Controlled'}
-            />
-          </div>
-        </div>
-      </section>
-
-      {/* Gamified Graduation Rocket Card */}
-      <GraduationCard
-        symbol={token.symbol ?? 'TOKEN'}
-        owner={owner}
-        totalSupply={info.data.totalSupply}
-        pool={pool.data}
-      />
-
-      {/* Main Trading Arena (2 Columns on Desktop) */}
+      {/* 2. Main Arena: Gráfico + Chat on Left, Buy & Sell on Right */}
       <div className="grid gap-6 lg:grid-cols-12 items-start">
-        {/* Left Column: Visual Chart, Interactive History in Cuadros, Tokenomics Graphics */}
-        <div className="min-w-0 space-y-4 lg:col-span-7">
-          {/* Minimalist Interactive Tab Switcher */}
-          <div
-            role="tablist"
-            className="flex items-center gap-1 rounded-xl border border-slate-800 bg-slate-950/80 p-1 backdrop-blur"
-          >
-            <button
-              type="button"
-              role="tab"
-              aria-selected={leftTab === 'chart'}
-              onClick={() => setLeftTab('chart')}
-              className={`flex-1 min-h-[38px] rounded-lg px-2.5 py-1.5 text-xs font-bold transition flex items-center justify-center gap-1.5 ${
-                leftTab === 'chart'
-                  ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
-              }`}
-            >
-              <span>📈</span> Curve
-            </button>
+        {/* Left Column: Gráfico (Chart) + Live Chat (TokenHypeBar) */}
+        <div className="min-w-0 space-y-5 lg:col-span-7">
+          {/* Gráfico */}
+          <ReserveChart
+            history={history}
+            symbol={token.symbol}
+            decimals={token.decimals}
+            events={events.data}
+            pool={pool.data}
+          />
 
-            <button
-              type="button"
-              role="tab"
-              aria-selected={leftTab === 'history'}
-              onClick={() => setLeftTab('history')}
-              className={`flex-1 min-h-[38px] rounded-lg px-2.5 py-1.5 text-xs font-bold transition flex items-center justify-center gap-1.5 ${
-                leftTab === 'history'
-                  ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
-              }`}
-            >
-              <span>🧱</span> Activity
-              {(events.data ?? []).length > 0 ? (
-                <span
-                  className={`rounded-full px-1.5 py-0.5 font-mono text-[10px] ${
-                    leftTab === 'history'
-                      ? 'bg-slate-950 text-emerald-300'
-                      : 'bg-slate-800 text-slate-300'
-                  }`}
-                >
-                  {(events.data ?? []).length}
-                </span>
-              ) : null}
-            </button>
-
-            <button
-              type="button"
-              role="tab"
-              aria-selected={leftTab === 'graphics'}
-              onClick={() => setLeftTab('graphics')}
-              className={`flex-1 min-h-[38px] rounded-lg px-2.5 py-1.5 text-xs font-bold transition flex items-center justify-center gap-1.5 ${
-                leftTab === 'graphics'
-                  ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
-              }`}
-            >
-              <span>📊</span> Milestones
-            </button>
-
-            <button
-              type="button"
-              role="tab"
-              aria-selected={leftTab === 'all'}
-              onClick={() => setLeftTab('all')}
-              className={`min-h-[38px] rounded-lg px-2.5 py-1.5 text-xs font-bold transition flex items-center justify-center gap-1 ${
-                leftTab === 'all'
-                  ? 'bg-slate-800 text-slate-100 border border-slate-600'
-                  : 'text-slate-500 hover:text-slate-300'
-              }`}
-              title="View all sections together"
-            >
-              <span>🌐</span> All
-            </button>
-          </div>
-
-          {/* Tab 1: Chart */}
-          {leftTab === 'chart' || leftTab === 'all' ? (
-            <ReserveChart
-              history={history}
-              symbol={token.symbol}
-              decimals={token.decimals}
-              events={events.data}
-              pool={pool.data}
-            />
-          ) : null}
-
-          {/* Tab 2: Interactive History in Cuadros */}
-          {leftTab === 'history' || leftTab === 'all' ? (
-            <TokenActivity
-              tokenId={id}
-              decimals={token.decimals}
-              token={token}
-            />
-          ) : null}
-
-          {/* Tab 3: Token Distribution Graphics & Milestone Cards */}
-          {leftTab === 'graphics' || leftTab === 'all' ? (
-            <TokenGraphics
-              symbol={token.symbol}
-              pool={pool.data}
-              buyCount={buyCount}
-              sellCount={sellCount}
-            />
-          ) : null}
-
+          {/* Chat / Shouts / Burn-to-Chat */}
           <TokenHypeBar
             tokenId={id}
             symbol={token.symbol ?? 'TOKEN'}
@@ -532,87 +265,81 @@ export function TokenPage() {
           />
         </div>
 
-        {/* Right Column: Arcade Buy & Sell Console (Sticky on Desktop) */}
+        {/* Right Column: Comprar y Vender (SwapCard) + Minimalist Telemetry */}
         <div className="min-w-0 space-y-4 lg:col-span-5 lg:sticky lg:top-20">
           <SwapCard token={token} />
 
-          {/* Community Liquidity Addition */}
-          <details className="group rounded-2xl border border-slate-800 bg-slate-900/40 p-4 transition-all">
-            <summary className="flex cursor-pointer select-none items-center justify-between text-xs font-bold text-slate-300 hover:text-emerald-400">
-              <span className="flex items-center gap-1.5">
-                <span>💧</span> Add Community Liquidity to Pool?
+          {/* Minimalist Telemetry Box */}
+          <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4 space-y-2.5 text-xs font-mono">
+            <div className="flex justify-between text-slate-400">
+              <span>AMM Liquidity:</span>
+              <span className="font-bold text-white">
+                {pool.data?.exists ? `${formatAmount(liquidity, 7)} XLM` : 'No pool yet'}
               </span>
-              <span className="text-slate-500 transition-transform group-open:rotate-180">
+            </div>
+            <div className="flex justify-between text-slate-400">
+              <span>Your Balance:</span>
+              <span className="font-bold text-sky-300">
+                {publicKey
+                  ? balance.isPending
+                    ? '…'
+                    : `${formatAmount(balance.data ?? 0n, token.decimals)} ${token.symbol}`
+                  : 'Connect wallet'}
+              </span>
+            </div>
+            <div className="flex justify-between text-slate-400">
+              <span>Pool Status:</span>
+              <span className="font-bold text-emerald-400">
+                {pool.data?.exists ? '🟢 Active on Soroswap' : '⚪ Unseeded'}
+              </span>
+            </div>
+          </div>
+
+          {/* Collapsed Advanced Developer Tools */}
+          <details
+            id="advanced-tools"
+            open={openAdvanced}
+            onToggle={(e) => setOpenAdvanced(e.currentTarget.open)}
+            className="group rounded-2xl border border-slate-800/80 bg-slate-950/40 p-3.5 transition-all"
+          >
+            <summary className="flex cursor-pointer select-none items-center justify-between text-xs font-bold text-slate-400 hover:text-white">
+              <span className="flex items-center gap-1.5">
+                <span>🛠️</span> Advanced Tools & Liquidity
+              </span>
+              <span className="text-[10px] text-slate-500 transition-transform group-open:rotate-180">
                 ▼
               </span>
             </summary>
-            <div className="mt-3 border-t border-slate-800/80 pt-3">
-              <p className="text-[11px] text-slate-400 mb-3">
-                Any community member can deposit XLM and ${token.symbol} to deepen pair liquidity on Soroswap and earn 0.30% swap fees.
-              </p>
-              <LiquidityForm token={token} />
+
+            <div className="mt-4 space-y-4 border-t border-slate-800/80 pt-4">
+              <div className="space-y-2">
+                <div className="text-xs font-semibold text-slate-300">Add Community Liquidity</div>
+                <LiquidityForm token={token} />
+              </div>
+
+              <div className="grid gap-3">
+                <TransferCard token={token} />
+                <BurnCard token={token} />
+                {isOwner ? <MintCard token={token} /> : null}
+              </div>
+
+              {owner ? (
+                <div className="text-[11px] font-mono text-slate-500">
+                  Owner:{' '}
+                  <a
+                    href={explorerAccountUrl(owner)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline text-slate-400"
+                  >
+                    {shortAddress(owner)}
+                  </a>
+                </div>
+              ) : null}
             </div>
           </details>
         </div>
       </div>
-
-      {/* Collapsible Power-User / Developer Tools Drawer */}
-      <details
-        id="advanced-tools"
-        open={openAdvanced}
-        onToggle={(e) => setOpenAdvanced(e.currentTarget.open)}
-        className="group rounded-2xl border border-slate-800 bg-slate-900/30 p-4 transition-all"
-      >
-        <summary className="flex cursor-pointer select-none items-center justify-between text-sm font-bold text-slate-300 hover:text-white">
-          <span className="flex items-center gap-2">
-            <span>🛠️</span> Advanced Developer Tools & Contract Details
-          </span>
-          <span className="text-xs text-slate-500 transition-transform group-open:rotate-180">
-            ▼
-          </span>
-        </summary>
-
-        <div className="mt-5 space-y-6 border-t border-slate-800/80 pt-5">
-          <ContractDetailsCard
-            tokenId={id}
-            pairId={pool.data?.pairId}
-            symbol={token.symbol ?? 'TOKEN'}
-            name={info.data.name}
-            decimals={token.decimals}
-            totalSupply={info.data.totalSupply}
-            owner={owner}
-            metadata={meta.data}
-          />
-
-          <LiquidityPosition token={token} />
-
-          <div className="grid gap-4 lg:grid-cols-2">
-            <TransferCard token={token} />
-            <BurnCard token={token} />
-          </div>
-
-          {isOwner ? (
-            <MintCard token={token} />
-          ) : owner ? (
-            <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-4 text-xs text-slate-400">
-              Owner contract:{' '}
-              <a
-                href={explorerAccountUrl(owner)}
-                target="_blank"
-                rel="noreferrer"
-                className="font-mono underline hover:text-slate-200"
-              >
-                {shortAddress(owner)}
-              </a>
-              . Only the owner can execute administrative mints.
-            </section>
-          ) : (
-            <section className="rounded-xl border border-emerald-900/50 bg-emerald-950/20 p-4 text-xs text-emerald-300">
-              ✓ Ownership renounced on-chain. Minting is permanently locked; total supply is 100% immutable.
-            </section>
-          )}
-        </div>
-      </details>
     </div>
   )
 }
