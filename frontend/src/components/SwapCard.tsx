@@ -7,7 +7,6 @@ import {
   errorMessage,
   formatAmount,
   parseAmount,
-  shortAddress,
 } from '../lib/format'
 import {
   addLiquidity,
@@ -35,7 +34,6 @@ import { useWallet } from '../store/wallet'
 import { useProgress } from '../store/progress'
 import { recordActivity } from '../store/activity'
 import { toast } from '../lib/toast'
-import { TokenArt } from './TokenArt'
 import { TxProgress } from './TxProgress'
 
 const inputClass = FORM_INPUT_CLASS
@@ -362,25 +360,13 @@ export function SwapCard({
   }
 
   return (
-    <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-4 sm:p-6">
-      <h2 className="flex items-center gap-2 text-lg font-semibold">
-        <TokenArt
-          id={token.id}
-          symbol={token.symbol}
-          className="h-9 w-9 shrink-0 rounded-lg"
-        />
-        <span className="min-w-0 truncate">
-          Swap with XLM · {shortAddress(token.id)}
-        </span>
-      </h2>
-      <p className="mt-1 text-sm text-slate-400">
-        Trade {tokenSymbol} against native XLM on Soroswap AMM.
-      </p>
+    <section className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4 sm:p-5">
+      <h2 className="sr-only">Swap with XLM</h2>
 
       <div
         role="group"
         aria-label="Swap direction"
-        className="mt-3 grid grid-cols-2 gap-1.5 rounded-xl border border-slate-800 bg-slate-950/70 p-1.5"
+        className="grid grid-cols-2 gap-1.5 rounded-xl border border-slate-800 bg-slate-950/70 p-1.5"
       >
         <button
           type="button"
@@ -622,9 +608,10 @@ export function SwapCard({
                   : `💰 Quick Sell ${tokenSymbol} for XLM`}
             </button>
           )}
-          <p className="mt-2 text-center text-xs text-slate-400">
-            Slippage {slippage}% · Protected by Soroswap Router on Stellar testnet
-          </p>
+          <div className="mt-2.5 flex items-center justify-between text-[11px] font-mono text-slate-400">
+            <span>Slippage: {slippage}%</span>
+            <span className="text-emerald-400 font-semibold">Soroswap Protected</span>
+          </div>
         </div>
 
         {busy ? (

@@ -11,8 +11,6 @@ import { TokenPage } from './pages/TokenPage'
 import { PortfolioPage } from './pages/PortfolioPage'
 import { CreatePage } from './pages/CreatePage'
 import { NotFoundPage } from './pages/NotFoundPage'
-import { useWallet } from './store/wallet'
-import { ASTRO_TOKEN_ID, RPC_URL } from './lib/network'
 import { BRAND } from './lib/brand'
 
 function navClass({ isActive }: { isActive: boolean }) {
@@ -24,8 +22,6 @@ function navClass({ isActive }: { isActive: boolean }) {
 }
 
 export default function App() {
-  const publicKey = useWallet((state) => state.publicKey)
-
   return (
     <div className="min-h-screen text-slate-100 w-full max-w-full overflow-x-hidden">
       <a
@@ -114,15 +110,10 @@ export default function App() {
         </ErrorBoundary>
       </main>
 
-      <footer className="mx-auto w-full max-w-5xl border-t border-slate-900 px-3.5 sm:px-4 pb-8 pt-4 text-xs text-slate-400">
+      <footer className="mx-auto w-full max-w-5xl border-t border-slate-800/60 px-4 py-6 text-center text-xs text-slate-500">
         <p>
-          {BRAND.name}: {BRAND.provenance}.
+          {BRAND.emoji} {BRAND.name} · Fair Memecoin Launchpad on Stellar Soroban
         </p>
-        <p className="mt-1">
-          RPC: <span className="font-mono break-all">{RPC_URL}</span> · Flagship Token:{' '}
-          <span className="font-mono break-all">{ASTRO_TOKEN_ID}</span>
-        </p>
-        {publicKey ? <p className="mt-1 break-all">Connected as {publicKey}</p> : null}
       </footer>
 
       <PwaInstallPrompt />

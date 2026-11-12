@@ -8,11 +8,8 @@ import {
 import { GRADUATION_TARGET_XLM, graduationProgress } from '../lib/tokenomics'
 import {
   classifyTokenEvent,
-  tokenEventSummary,
   type TokenEvent,
 } from '../lib/token-events'
-import { explorerTxUrl } from '../lib/explorer'
-import { formatAmount, shortAddress } from '../lib/format'
 import type { PoolState } from '../lib/soroswap'
 
 const WIDTH = 400
@@ -160,24 +157,30 @@ export function ReserveChart({
       : null
 
   return (
-    <section className="rounded-2xl border border-slate-800 bg-slate-900/40 p-3 sm:p-6 shadow-sm w-full max-w-full min-w-0 overflow-hidden">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500/20 text-sm">
-              📈
+    <section className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4 sm:p-5 shadow-sm w-full max-w-full min-w-0 overflow-hidden space-y-3">
+      <h2 className="sr-only">Pair History</h2>
+      {/* Sleek Chart Header */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800/80 pb-3">
+        <div className="flex items-baseline gap-2.5">
+          <span className="font-mono text-2xl font-black text-white">
+            {formatMetric(selectedPoint ? (selectedPoint.value ?? latest) : latest)}
+          </span>
+          <span className="text-xs font-mono text-slate-400">
+            {metric === 'price' ? `XLM / $${symbol ?? 'TOKEN'}` : 'XLM Liquidity'}
+          </span>
+          {delta !== null ? (
+            <span
+              className={`rounded-full px-2 py-0.5 text-[10px] font-mono font-bold ${
+                delta >= 0 ? 'bg-emerald-500/15 text-emerald-300' : 'bg-rose-500/15 text-rose-300'
+              }`}
+            >
+              {delta >= 0 ? '+' : ''}{delta.toFixed(1)}%
             </span>
-            <h2 className="text-xl font-bold text-slate-100">
-              Pair History & Trading Curve
-            </h2>
-          </div>
-          <p className="mt-1 text-xs text-slate-400">
-            Real-time Soroban AMM trades for {symbol ?? 'token'}, upward price pressure (🟢 buys), sells (🔴), and progress towards the {GRADUATION_TARGET_XLM.toLocaleString()} XLM DEX graduation threshold.
-          </p>
+          ) : null}
         </div>
 
         <div
-          className="flex rounded-lg border border-slate-700 p-1 bg-slate-950/60"
+          className="flex rounded-xl border border-slate-800 p-0.5 bg-slate-950/70"
           role="tablist"
           aria-label="Chart metric"
         >
@@ -189,13 +192,13 @@ export function ReserveChart({
               setMetric('price')
               setSelectedPointIndex(null)
             }}
-            className={`min-h-[44px] rounded-md px-3.5 py-2 text-xs font-semibold transition ${
+            className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
               metric === 'price'
-                ? 'bg-emerald-500 text-slate-950 shadow font-bold'
-                : 'text-slate-300 hover:text-slate-100'
+                ? 'bg-sky-500 text-slate-950 font-bold shadow-sm'
+                : 'text-slate-400 hover:text-white'
             }`}
           >
-            📈 Price Curve
+            Price
           </button>
           <button
             type="button"
@@ -205,88 +208,20 @@ export function ReserveChart({
               setMetric('liquidity')
               setSelectedPointIndex(null)
             }}
-            className={`min-h-[44px] rounded-md px-3.5 py-2 text-xs font-semibold transition ${
+            className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
               metric === 'liquidity'
-                ? 'bg-emerald-500 text-slate-950 shadow font-bold'
-                : 'text-slate-300 hover:text-slate-100'
+                ? 'bg-sky-500 text-slate-950 font-bold shadow-sm'
+                : 'text-slate-400 hover:text-white'
             }`}
           >
-            🌊 Liquidity & DEX Goal
+            Liquidity
           </button>
-        </div>
-      </div>
-
-      {/* FOMO Trade Stats & Sentiment */}
-      <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3">
-          <span className="text-[11px] font-medium uppercase tracking-wider text-slate-400">
-            DEX Graduation
-          </span>
-          <div className="mt-1 flex items-baseline gap-1.5 font-mono">
-            <span className="text-base font-bold text-amber-300">
-              {grad.percent.toFixed(1)}%
-            </span>
-            <span className="text-[11px] text-slate-400">
-              ({grad.currentXlm.toFixed(1)} / {grad.targetXlm} XLM)
-            </span>
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3">
-          <span className="text-[11px] font-medium uppercase tracking-wider text-slate-400">
-            Curve Momentum
-          </span>
-          <div className="mt-1 flex items-baseline gap-1 font-mono">
-            <span className="text-base font-bold text-emerald-400">
-              {delta !== null ? `${delta >= 0 ? '+' : ''}${delta.toFixed(1)}%` : 'Active'}
-            </span>
-            <span className="text-[11px] text-slate-400">since start</span>
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-emerald-900/40 bg-emerald-950/20 p-3">
-          <span className="text-[11px] font-medium uppercase tracking-wider text-emerald-400">
-            🟢 Total Buys
-          </span>
-          <div className="mt-1 font-mono text-base font-bold text-emerald-300">
-            {buyCount} {buyCount === 1 ? 'swap' : 'swaps'}
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-rose-900/40 bg-rose-950/20 p-3">
-          <span className="text-[11px] font-medium uppercase tracking-wider text-rose-400">
-            🔴 Total Sells
-          </span>
-          <div className="mt-1 font-mono text-base font-bold text-rose-300">
-            {sellCount} {sellCount === 1 ? 'swap' : 'swaps'}
-          </div>
         </div>
       </div>
 
       {values.length >= 2 ? (
         <>
-          <div className="mt-4 flex flex-wrap items-end justify-between gap-3 border-t border-slate-800/60 pt-3">
-            <div>
-              <p className="text-xs text-slate-400">{metricLabel}</p>
-              <p className="mt-1 font-mono text-2xl font-bold text-emerald-300">
-                {formatMetric(selectedPoint ? (selectedPoint.value ?? latest) : latest)}
-              </p>
-              {selectedPoint?.snapshot ? (
-                <p className="text-[11px] text-slate-400">
-                  Recorded at {formatTime(selectedPoint.snapshot.t)}
-                </p>
-              ) : null}
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-300">
-                <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-                Live Curve Sync
-              </span>
-            </div>
-          </div>
-
-          <div className="mt-2 flex items-center justify-between font-mono text-[10px] text-slate-400">
+          <div className="flex items-center justify-between font-mono text-[10px] text-slate-400">
             <span>Peak: {formatMetric(series.max)}</span>
             <span>Floor: {formatMetric(series.min)}</span>
           </div>
@@ -381,79 +316,22 @@ export function ReserveChart({
           </div>
         </>
       ) : (
-        <div className="mt-4 rounded-xl border border-dashed border-slate-700 bg-slate-950/40 p-5 text-center">
-          <p className="text-sm font-semibold text-slate-300">
-            Curve awaiting initial buy/sell trades
-          </p>
-          <p className="mt-1 text-xs text-slate-400">
-            Swaps against the Soroswap AMM pool are tracked live and plotted automatically as upward (🟢) and downward (🔴) vectors.
+        <div className="rounded-xl border border-dashed border-slate-800 bg-slate-950/40 p-6 text-center">
+          <p className="text-xs text-slate-400">
+            Awaiting trades · Swaps on Soroswap are plotted live automatically
           </p>
         </div>
       )}
 
-      {/* Pre-Graduation Live Trade Feed */}
-      <div className="mt-6 border-t border-slate-800/80 pt-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">
-            Pre-Graduation Trades ({trades.length})
-          </h3>
-          <span className="text-[11px] text-slate-400">
-            Soroban AMM swaps
-          </span>
+      {/* Clean Telemetry Status Row */}
+      <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800/80 font-mono text-[11px] text-slate-400">
+        <div className="flex items-center gap-3">
+          <span className="text-emerald-400 font-bold">🟢 {buyCount} buys</span>
+          <span className="text-rose-400 font-bold">🔴 {sellCount} sells</span>
         </div>
-
-        {trades.length === 0 ? (
-          <p className="mt-2 text-xs text-slate-400">
-            No trades recorded in recent ledger window. Swap on this token to initiate the curve!
-          </p>
-        ) : (
-          <div className="mt-3 divide-y divide-slate-800/60 overflow-hidden rounded-xl border border-slate-800/80 bg-slate-950/50">
-            {trades.slice(0, 5).map((ev: TokenEvent) => {
-              const role = classifyTokenEvent(ev, pairId)
-              const isBuy = role === 'buy'
-              return (
-                <div
-                  key={ev.id}
-                  className="flex flex-wrap items-center justify-between gap-2 p-2.5 text-xs"
-                >
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${
-                        isBuy
-                          ? 'bg-emerald-500/20 text-emerald-300'
-                          : 'bg-rose-500/20 text-rose-300'
-                      }`}
-                    >
-                      {isBuy ? '🟢 BUY' : '🔴 SELL'}
-                    </span>
-                    <span className="font-mono text-slate-200">
-                      {formatAmount(ev.amount, decimals)} {symbol ?? 'TOKEN'}
-                    </span>
-                    <span className="text-[11px] text-slate-400">
-                      by {shortAddress((isBuy ? ev.to : ev.from) ?? '')}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <span className="text-[11px] text-slate-400">
-                      {tokenEventSummary(ev, pairId)}
-                    </span>
-                    {ev.txHash ? (
-                      <a
-                        href={explorerTxUrl(ev.txHash)}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="font-mono text-[11px] text-emerald-400 underline hover:text-emerald-300"
-                      >
-                        tx ↗
-                      </a>
-                    ) : null}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          <span>Target: <strong className="text-amber-300 font-bold">{grad.percent.toFixed(1)}%</strong> ({grad.targetXlm} XLM)</span>
+        </div>
       </div>
     </section>
   )

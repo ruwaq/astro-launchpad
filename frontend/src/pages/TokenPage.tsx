@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { useTokenInfo } from '../hooks/useTokenInfo'
-import { useTokenBalance } from '../hooks/useTokenBalance'
 import { useSoroswapPool } from '../hooks/useSoroswapPool'
 import { useReserveHistory } from '../hooks/useReserveHistory'
 import { useTokenEvents } from '../hooks/useTokenEvents'
@@ -15,7 +14,8 @@ import {
   sanitizeTwitterUrl,
   shortAddress,
 } from '../lib/format'
-import { explorerContractUrl, explorerAccountUrl } from '../lib/explorer'
+import { explorerContractUrl, explorerAccountUrl, explorerTxUrl } from '../lib/explorer'
+import { classifyTokenEvent } from '../lib/token-events'
 import { tokenPriceInXlmNumber, formatTokenPrice } from '../lib/soroswap'
 import { TokenArt } from '../components/TokenArt'
 import { SwapCard } from '../components/SwapCard'
@@ -41,7 +41,6 @@ export function TokenPage() {
   const publicKey = useWallet((state) => state.publicKey)
   const info = useTokenInfo(queryId)
   const pool = useSoroswapPool(queryId || null)
-  const balance = useTokenBalance(publicKey, queryId)
   const history = useReserveHistory(queryId, pool.data)
   const events = useTokenEvents(queryId)
   const { data: xlmUsd = 0.1555 } = useXlmUsdPrice()
@@ -50,6 +49,7 @@ export function TokenPage() {
   const [openAdvanced, setOpenAdvanced] = useState(
     () => typeof window !== 'undefined' && window.location.hash === '#advanced-tools',
   )
+  const [activeTab, setActiveTab] = useState<'thread' | 'trades'>('thread')
 
   const token: LaunchpadToken = useMemo(
     () => ({
@@ -59,6 +59,14 @@ export function TokenPage() {
     }),
     [id, info.data?.decimals, info.data?.symbol],
   )
+
+  const trades = useMemo(() => {
+    if (!events.data) return []
+    return events.data.filter((ev) => {
+      const role = classifyTokenEvent(ev, pool.data?.pairId)
+      return role === 'buy' || role === 'sell'
+    })
+  }, [events.data, pool.data?.pairId])
 
   if (!validId) return <NotFoundPage />
 
@@ -245,8 +253,8 @@ export function TokenPage() {
 
       {/* 2. Main Arena: Gráfico + Chat on Left, Buy & Sell on Right */}
       <div className="grid gap-6 lg:grid-cols-12 items-start">
-        {/* Left Column: Gráfico (Chart) + Live Chat (TokenHypeBar) */}
-        <div className="min-w-0 space-y-5 lg:col-span-7">
+        {/* Left Column: Gráfico (Chart) + Tabs [Thread | Trades] */}
+        <div className="min-w-0 space-y-4 lg:col-span-7">
           {/* Gráfico */}
           <ReserveChart
             history={history}
@@ -256,44 +264,102 @@ export function TokenPage() {
             pool={pool.data}
           />
 
-          {/* Chat / Shouts / Burn-to-Chat */}
-          <TokenHypeBar
-            tokenId={id}
-            symbol={token.symbol ?? 'TOKEN'}
-            pairId={pool.data?.pairId}
-            decimals={token.decimals}
-          />
+          {/* Tabbed Interactive Section: Thread vs Live Trades */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 border-b border-slate-800/80 pb-2">
+              <button
+                type="button"
+                onClick={() => setActiveTab('thread')}
+                className={`rounded-xl px-4 py-1.5 text-xs font-bold transition flex items-center gap-1.5 ${
+                  activeTab === 'thread'
+                    ? 'bg-sky-500/20 text-sky-300 border border-sky-400/30 shadow-sm'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <span>💬 Thread</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('trades')}
+                className={`rounded-xl px-4 py-1.5 text-xs font-bold transition flex items-center gap-1.5 ${
+                  activeTab === 'trades'
+                    ? 'bg-sky-500/20 text-sky-300 border border-sky-400/30 shadow-sm'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <span>⚡ Live Trades</span>
+                <span className="rounded-full bg-slate-800 px-1.5 py-0.5 text-[10px] font-mono text-slate-300">
+                  {trades.length}
+                </span>
+              </button>
+            </div>
+
+            {activeTab === 'thread' ? (
+              <TokenHypeBar
+                tokenId={id}
+                symbol={token.symbol ?? 'TOKEN'}
+                pairId={pool.data?.pairId}
+                decimals={token.decimals}
+              />
+            ) : (
+              <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4 shadow-sm space-y-2">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-800/80 text-[11px] font-mono text-slate-400">
+                  <span>Action · Amount</span>
+                  <span>Trader · Tx</span>
+                </div>
+                {trades.length === 0 ? (
+                  <p className="text-xs text-slate-500 text-center py-6">
+                    No on-chain swaps recorded yet. Trade to initiate the curve!
+                  </p>
+                ) : (
+                  <div className="divide-y divide-slate-800/50 max-h-72 overflow-y-auto">
+                    {trades.map((ev) => {
+                      const isBuy = classifyTokenEvent(ev, pool.data?.pairId) === 'buy'
+                      return (
+                        <div
+                          key={ev.id}
+                          className="py-2 flex items-center justify-between text-xs font-mono"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                isBuy
+                                  ? 'bg-emerald-500/20 text-emerald-300'
+                                  : 'bg-rose-500/20 text-rose-300'
+                              }`}
+                            >
+                              {isBuy ? '🟢 BUY' : '🔴 SELL'}
+                            </span>
+                            <span className="text-white font-bold">
+                              {formatAmount(ev.amount, token.decimals)} ${token.symbol}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 text-slate-400 text-[11px]">
+                            <span>by {shortAddress((isBuy ? ev.to : ev.from) ?? '')}</span>
+                            {ev.txHash ? (
+                              <a
+                                href={explorerTxUrl(ev.txHash)}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-sky-400 hover:text-sky-300 underline"
+                              >
+                                tx ↗
+                              </a>
+                            ) : null}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Right Column: Comprar y Vender (SwapCard) + Minimalist Telemetry */}
+        {/* Right Column: Comprar y Vender (SwapCard) Sticky */}
         <div className="min-w-0 space-y-4 lg:col-span-5 lg:sticky lg:top-20">
           <SwapCard token={token} />
-
-          {/* Minimalist Telemetry Box */}
-          <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4 space-y-2.5 text-xs font-mono">
-            <div className="flex justify-between text-slate-400">
-              <span>AMM Liquidity:</span>
-              <span className="font-bold text-white">
-                {pool.data?.exists ? `${formatAmount(liquidity, 7)} XLM` : 'No pool yet'}
-              </span>
-            </div>
-            <div className="flex justify-between text-slate-400">
-              <span>Your Balance:</span>
-              <span className="font-bold text-sky-300">
-                {publicKey
-                  ? balance.isPending
-                    ? '…'
-                    : `${formatAmount(balance.data ?? 0n, token.decimals)} ${token.symbol}`
-                  : 'Connect wallet'}
-              </span>
-            </div>
-            <div className="flex justify-between text-slate-400">
-              <span>Pool Status:</span>
-              <span className="font-bold text-emerald-400">
-                {pool.data?.exists ? '🟢 Active on Soroswap' : '⚪ Unseeded'}
-              </span>
-            </div>
-          </div>
 
           {/* Collapsed Advanced Developer Tools */}
           <details
