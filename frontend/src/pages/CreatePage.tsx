@@ -6,7 +6,7 @@ const LAUNCH_STEPS = [
   {
     icon: '✨',
     title: '1. Configure Your Token',
-    hint: 'Name, ticker, logo, and Telegram. Single one-time deploy fee: $1.11 USD.',
+    hint: 'Name, ticker, logo, and Telegram. Zero launchpad fees on testnet — fair & free.',
   },
   {
     icon: '⚡',

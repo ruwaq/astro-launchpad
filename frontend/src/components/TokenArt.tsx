@@ -24,7 +24,7 @@ function isValidImageUrl(url: string): boolean {
 
 /**
  * Collector-grade visual identity of the token: displays custom artwork if provided,
- * or a deterministic multi-layered generative SVG NFT artwork derived from the contract address.
+ * or a deterministic multi-layered generative SVG token artwork derived from the contract address.
  */
 export function TokenArt({ id, symbol, logoUrl, className, showBadge = false }: Props) {
   const [failedLogoKey, setFailedLogoKey] = useState<string | null>(null)

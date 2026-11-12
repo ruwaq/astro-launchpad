@@ -1,10 +1,10 @@
 /**
- * Deterministic generative NFT art engine for each token on AstroGate.
+ * Deterministic generative vector art engine for each token on AstroGate.
  *
  * Derives curated color palettes, generative archetypes, geometric harmonics,
  * and edition codes directly from the contract address hash.
  * 100% SVG & pure math: zero external asset dependencies, zero network requests,
- * and identical visual identity across every device (OpenSea / Foundation art style).
+ * and identical visual identity across every device (cosmic generative art style).
  */
 
 export type ArtArchetype =

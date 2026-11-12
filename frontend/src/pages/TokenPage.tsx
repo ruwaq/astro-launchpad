@@ -213,7 +213,7 @@ export function TokenPage() {
         </div>
       </div>
 
-      {/* OpenSea Item Showcase Header: 1:1 NFT Art Pedestal + Traits + Live Market Telemetry */}
+      {/* Token Showcase Header: Vector Art Pedestal + Traits + Live Market Telemetry */}
       <section className="liquid-glass rounded-3xl p-5 sm:p-8 space-y-6">
         <div className="grid gap-6 lg:grid-cols-12 items-center">
           {/* Left Pedestal: Large 1:1 Art Frame */}
@@ -364,7 +364,7 @@ export function TokenPage() {
           </div>
         </div>
 
-        {/* OpenSea Provenance & Artwork Properties Grid */}
+        {/* Provenance & Generative Token Properties Grid */}
         <div className="pt-2">
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
