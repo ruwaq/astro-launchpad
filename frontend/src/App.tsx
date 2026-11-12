@@ -57,7 +57,7 @@ export default function App() {
                 Home
               </NavLink>
               <NavLink to="/market" className={navClass}>
-                Market & Art
+                Market
               </NavLink>
               <NavLink to="/portfolio" className={navClass}>
                 Portfolio

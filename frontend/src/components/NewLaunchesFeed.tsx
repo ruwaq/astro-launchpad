@@ -138,13 +138,13 @@ export function NewLaunchesFeed({
             to="/create"
             className="text-xs font-semibold text-emerald-400 hover:text-emerald-300"
           >
-            + Launch Yours ($1.11 USD)
+            + Launch Token
           </Link>
         </div>
         <div className="rounded-2xl border border-dashed border-slate-800 bg-slate-950/40 p-6 text-center space-y-2">
           <p className="text-sm font-semibold text-slate-300">No new launches discovered in recent ledgers</p>
           <p className="text-xs text-slate-500">
-            Be the first to launch an on-chain Generative Collectible with Soroswap AMM liquidity.
+            Be the first to launch a fair memecoin with Soroswap AMM liquidity.
           </p>
         </div>
       </section>
@@ -171,7 +171,7 @@ export function NewLaunchesFeed({
           to="/create"
           className="text-xs font-semibold text-emerald-400 hover:text-emerald-300"
         >
-          + Launch Yours ($1.11 USD)
+          + Launch Token
         </Link>
       </div>
 

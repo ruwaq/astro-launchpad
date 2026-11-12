@@ -22,7 +22,6 @@ import {
   type PoolState,
 } from '../lib/soroswap'
 import {
-  calculateSupplySharePercent,
   FAIR_LAUNCH_TOTAL_BASIS,
   poolAllocationBase,
   STELLAR_BURN_ADDRESS,
@@ -208,16 +207,6 @@ export function SwapCard({
           isBuy ? pool.data.reserveToken : pool.data.reserveXlm,
         )
       : null
-
-  const poolReserveTokens =
-    pool.data?.exists && pool.data.reserveToken > 0n
-      ? pool.data.reserveToken
-      : expectedPoolSizeBase(token.decimals)
-  const supplySharePercent =
-    quoted !== undefined && quoted > 0n
-      ? calculateSupplySharePercent(quoted, poolReserveTokens)
-      : 0
-  const isLargeOrder = isBuy && supplySharePercent >= 5
 
   function changeDirection(next: Direction) {
     if (busy || next === direction) return
@@ -569,34 +558,16 @@ export function SwapCard({
             </p>
 
             {quoted !== undefined && quoted > 0n && impact !== null ? (
-              <div className="grid gap-1 rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-xs">
-                <div className="flex flex-wrap justify-between gap-2">
-                  <span className="text-slate-500">
-                    Minimum after slippage ({slippage}%)
-                  </span>
-                  <span className="font-mono text-slate-300">
-                    {formatAmount(minimum ?? 0n, outputDecimals)} {outputSymbol}
-                  </span>
-                </div>
-                <div className="flex flex-wrap justify-between gap-2">
-                  <span className="text-slate-500">
-                    Price impact (excludes pool fee)
-                  </span>
-                  <span className={`font-mono ${impactClass(impact)}`}>
-                    {impact.toFixed(2)}%
-                  </span>
-                </div>
-                {impact >= 15 ? (
-                  <div className="mt-1 rounded border border-rose-800 bg-rose-950/50 p-2 text-xs text-rose-300">
-                    ⚠️ <strong>Extreme price impact ({impact.toFixed(1)}%)!</strong>{' '}
-                    Liquidity in this pool is shallow for this order size. You
-                    will experience significant slippage.
-                  </div>
-                ) : impact >= 5 ? (
-                  <p className="text-amber-300">
-                    Moderate/high price impact: consider a smaller trade size.
-                  </p>
-                ) : null}
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-800/80 bg-slate-950/40 px-3 py-2 text-xs">
+                <span className="text-slate-400">
+                  Min received: <strong className="font-mono text-slate-200">{formatAmount(minimum ?? 0n, outputDecimals)} {outputSymbol}</strong>
+                </span>
+                <span className="text-slate-400">
+                  Impact: <strong className={`font-mono ${impactClass(impact)}`}>{impact.toFixed(1)}%</strong>
+                  {impact >= 15 ? (
+                    <span className="ml-1 text-rose-400 font-bold">⚠️ High</span>
+                  ) : null}
+                </span>
               </div>
             ) : null}
           </div>
@@ -606,54 +577,6 @@ export function SwapCard({
           <p role="alert" className="text-xs text-rose-300">
             Failed to quote: {errorMessage(quote.error)}
           </p>
-        ) : null}
-
-        {/* Game Mechanics & Fair Trading Notice */}
-        {pool.data?.exists ? (
-          isBuy ? (
-            <div className="rounded-lg border border-emerald-900/40 bg-emerald-950/20 px-3 py-2 text-[11px] text-slate-300 space-y-1">
-              <p className="flex items-center gap-1.5 font-semibold text-emerald-300">
-                <span>💧</span> Fair Play Mechanics (Soroswap AMM On-Chain):
-              </p>
-              <p className="text-slate-400 leading-relaxed">
-                100% of your XLM enters the pool reserve. Token price rises automatically with every buy and adjusts with sells. You can swap ${tokenSymbol} back to XLM anytime.
-              </p>
-            </div>
-          ) : (
-            <div className="rounded-lg border border-rose-900/40 bg-rose-950/20 px-3 py-2 text-[11px] text-slate-300 space-y-1">
-              <p className="flex items-center gap-1.5 font-semibold text-rose-300">
-                <span>💰</span> Instant Native XLM Liquidity:
-              </p>
-              <p className="text-slate-400 leading-relaxed">
-                Return ${tokenSymbol} to the pool and receive liquid XLM directly in your wallet. Zero rug pull risk: initial LP is 100% burned to Stellar's dead address.
-              </p>
-            </div>
-          )
-        ) : null}
-
-        {/* Informative Supply Share & Price Protection Badge */}
-        {isBuy && quoted !== undefined && quoted > 0n && supplySharePercent > 0 ? (
-          <div
-            className={`rounded-xl border p-3 text-xs space-y-1 ${
-              isLargeOrder
-                ? 'border-amber-500/40 bg-amber-950/25 text-amber-200'
-                : 'border-slate-800 bg-slate-950/40 text-slate-300'
-            }`}
-          >
-            <div className="flex items-center justify-between font-semibold">
-              <span className="flex items-center gap-1.5">
-                <span>{isLargeOrder ? '⚠️' : '📊'}</span> Order Supply Share:
-              </span>
-              <span className="font-mono text-emerald-400">
-                {supplySharePercent.toFixed(2)}% of pool
-              </span>
-            </div>
-            <p className="text-[11px] text-slate-400 leading-relaxed">
-              {isLargeOrder
-                ? 'This order acquires a significant portion of the pool. The AMM curve naturally adjusts price impact to protect community liquidity.'
-                : 'Direct on-chain AMM swap. Price dynamically adjusts with total volume.'}
-            </p>
-          </div>
         ) : null}
 
         <div>

@@ -14,7 +14,6 @@ import {
   type MarketSortKey,
 } from '../lib/market'
 import { TokenArt } from './TokenArt'
-import { tokenArtSpec } from '../lib/art'
 import { KingOfTheHill } from './KingOfTheHill'
 import { useTokenMetadata } from '../hooks/useTokenMetadata'
 import type { LaunchpadToken } from '../lib/token'
@@ -59,7 +58,6 @@ function MarketCard({
   const isFav = useWatchlist((s) => s.favorites.includes(token.id))
   const toggleFav = useWatchlist((s) => s.toggle)
   const meta = useTokenMetadata(token.id)
-  const artSpec = tokenArtSpec(token.id)
 
   const isGraduated = grad.graduated
   const ageLabel = token.ledger > 0 ? `#${token.ledger}` : null
@@ -90,26 +88,25 @@ function MarketCard({
         selected ? 'ring-2 ring-sky-400 border-sky-400/50' : ''
       }`}
     >
-      {/* 1:1 OpenSea Square Artwork Showcase Frame */}
+      {/* Token Emblem Showcase Frame */}
       <div className="relative aspect-square w-full overflow-hidden bg-slate-950">
         <TokenArt
           id={token.id}
           symbol={token.symbol}
           logoUrl={meta.data?.logoUrl}
-          showBadge
           className="h-full w-full transition-transform duration-500 ease-out group-hover:scale-105"
         />
 
-        {/* Holographic Foil Sheen */}
-        <div className="nft-holo-sheen absolute inset-0" />
+        {/* Holographic Sheen */}
+        <div className="holo-sheen absolute inset-0" />
 
         {/* Subtle Bottom Vignette for Floating Glass Controls */}
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-slate-950/90 via-slate-950/35 to-transparent" />
 
-        {/* Top-Left: Generative Archetype & Edition Glass Pill */}
+        {/* Top-Left: Ticker & Ledger Glass Pill */}
         <div className="absolute top-3 left-3 flex items-center gap-1.5">
-          <span className="liquid-glass-pill rounded-full px-2.5 py-1 text-[10px] font-semibold tracking-wider text-white/90 uppercase">
-            {artSpec.archetype}
+          <span className="liquid-glass-pill rounded-full px-2.5 py-1 text-[10px] font-bold tracking-wider text-sky-300 font-mono">
+            ${token.symbol}
           </span>
           {ageLabel ? (
             <span className="liquid-glass-pill rounded-full px-2 py-1 font-mono text-[10px] text-slate-300">
@@ -193,14 +190,11 @@ function MarketCard({
         </div>
       </div>
 
-      {/* Collector Metadata & Price Pedestal */}
+      {/* Token Details & Price Pedestal */}
       <div className="flex flex-1 flex-col justify-between gap-3 p-4">
         <div>
           <div className="flex items-center justify-between gap-2">
-            <span className="text-[11px] font-medium tracking-wider text-sky-400/90 uppercase">
-              {artSpec.paletteName} Collection
-            </span>
-            <span className="font-mono text-[11px] text-slate-500">
+            <span className="font-mono text-[11px] text-slate-400">
               {shortAddress(token.id)}
             </span>
           </div>
@@ -219,7 +213,7 @@ function MarketCard({
           ) : null}
         </div>
 
-        {/* OpenSea-Style Floor / Spot Price & Pool Reserve Split */}
+        {/* Spot Price & Pool Reserve Split */}
         <div className="grid grid-cols-2 gap-2 rounded-2xl border border-white/[0.07] bg-slate-950/45 p-2.5">
           <div>
             <p className="text-[10px] font-medium tracking-wider text-slate-400 uppercase">
@@ -253,13 +247,13 @@ function MarketCard({
           </div>
         </div>
 
-        {/* Action Link to Full Token Studio */}
+        {/* Action Link to Full Token Trading */}
         <Link
           to={`/token/${token.id}`}
           onClick={(e) => e.stopPropagation()}
-          className="liquid-glass-pill flex items-center justify-center gap-1.5 rounded-xl py-2 text-center text-xs font-medium text-slate-200 hover:text-sky-300 transition"
+          className="liquid-glass-pill flex items-center justify-center gap-1.5 rounded-xl py-2 text-center text-xs font-semibold text-slate-200 hover:text-sky-300 transition"
         >
-          <span>View Art & Provenance Studio</span>
+          <span>Trade & Chart</span>
           <span aria-hidden="true">→</span>
         </Link>
       </div>

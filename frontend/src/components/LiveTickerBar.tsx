@@ -1,18 +1,14 @@
 import { Link } from 'react-router'
 import { useActivity } from '../store/activity'
 import { useTokenList } from '../hooks/useTokenList'
-import { useXlmUsdPrice } from '../hooks/useXlmUsdPrice'
 import {
-  calculateDeployFeeInXlm,
   CREATOR_ALLOCATION_BPS,
   graduationProgress,
   POOL_ALLOCATION_BPS,
-  PROTOCOL_DEPLOY_FEE_USD,
   STELLAR_BURN_ADDRESS,
 } from '../lib/tokenomics'
 import { formatAmount, shortAddress } from '../lib/format'
 import { ASTRO_TOKEN_ID } from '../lib/network'
-import { DEFAULT_XLM_USD_PRICE } from '../lib/xlm'
 
 type TickerPill = {
   id: string
@@ -29,8 +25,6 @@ const poolPercent = Number(POOL_ALLOCATION_BPS) / 100 // 99.5%
 export function LiveTickerBar() {
   const entries = useActivity((state) => state.entries)
   const { data: tokens } = useTokenList()
-  const { data: xlmUsd = DEFAULT_XLM_USD_PRICE } = useXlmUsdPrice()
-  const mintFeeXlm = calculateDeployFeeInXlm(xlmUsd)
 
   const pills: TickerPill[] = []
 
@@ -137,16 +131,10 @@ export function LiveTickerBar() {
 
         <Link
           to="/create"
-          className="inline-flex shrink-0 items-center gap-1 rounded-full border border-slate-800 bg-slate-900/90 px-2.5 py-0.5 font-mono text-[11px] text-slate-300 hover:border-emerald-500/60 hover:text-emerald-200"
-          title={`Mint fee pegged to $${PROTOCOL_DEPLOY_FEE_USD.toFixed(2)} USD based on real-time live spot XLM`}
+          className="inline-flex shrink-0 items-center gap-1 rounded-full border border-sky-500/30 bg-sky-950/50 px-2.5 py-0.5 text-[11px] font-semibold text-sky-300 hover:border-sky-400 hover:text-white transition-colors"
         >
-          <span>⚡ Mint:</span>
-          <strong className="text-emerald-300">
-            ${PROTOCOL_DEPLOY_FEE_USD.toFixed(2)} USD
-          </strong>
-          <span className="text-slate-400">
-            (≈ {mintFeeXlm.toFixed(2)} XLM @ ${xlmUsd.toFixed(3)})
-          </span>
+          <span>🚀</span>
+          <span>Launch Token</span>
         </Link>
 
         <div className="flex items-center gap-2">

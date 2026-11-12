@@ -255,9 +255,9 @@ export function CreateTokenForm({
       </div>
 
       <p className="mt-1 text-sm text-slate-400">
-        Standard <strong>Fair Launch</strong>: 1,000,000,000 tokens fixed supply ·{' '}
-        <span className="text-emerald-300">Ownership renounced</span> (nobody can ever inflate or rug).
-        First create your token, then visit its dashboard to add liquidity or trade like any normal user!
+        Standard <strong>Fair Launch</strong>: 1,000,000,000 supply ·{' '}
+        <span className="text-emerald-300">100% LP burned & ownership renounced</span>.
+        Token is created and paired on Soroswap in a single transaction.
       </p>
 
       {/* Success View */}
@@ -281,7 +281,7 @@ export function CreateTokenForm({
                   Contract: {createdId}
                 </p>
                 <p className="mt-1 text-xs text-slate-400">
-                  ✓ Supply locked at 1B · Ownership renounced on-chain.
+                  ✓ Supply locked at 1B · 100% LP burned to dead address.
                 </p>
               </div>
             </div>
@@ -291,7 +291,7 @@ export function CreateTokenForm({
                 to={`/token/${createdId}`}
                 className="rounded-lg bg-emerald-500 px-4 py-2.5 text-sm font-bold text-slate-950 hover:bg-emerald-400 shadow-md shadow-emerald-500/20"
               >
-                Go to Token Page & Add Liquidity →
+                Go to Token Page & Trade →
               </Link>
               <a
                 href={explorerContractUrl(createdId)}
@@ -567,8 +567,8 @@ export function CreateTokenForm({
               {seedXlmAmount} XLM (~${(seedXlmAmount * xlmUsd).toFixed(2)} USD)
             </span>
           </div>
-          <p className="text-[11px] text-slate-400 leading-relaxed">
-            A deposit of <strong>5 to 10 XLM (~$0.75 - $1.55 USD)</strong> establishes a fair, balanced initial price. It provides natural AMM depth so snipers cannot monopolize supply for pennies, enabling community trading with a healthy <strong>~14x to 16x</strong> multiple towards the 2,000 XLM Soroswap DEX graduation milestone.
+          <p className="text-[11px] text-slate-400">
+            Initial XLM seeds the AMM pool alongside 99.5% of token supply. 100% of LP tokens are automatically burned.
           </p>
           <div className="grid gap-2 sm:grid-cols-2 pt-1">
             {SEED_LIQUIDITY_PRESETS.map((preset) => (

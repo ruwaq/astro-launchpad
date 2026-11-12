@@ -53,7 +53,7 @@ body {
 }
 
 /* ============================================================================
-   macOS Liquid Glass & OpenSea NFT Gallery Design System
+   macOS Liquid Glass Design System
    ============================================================================ */
 
 :root {
@@ -80,7 +80,7 @@ body {
   box-shadow: var(--glass-shadow-ambient), var(--glass-shadow-specular);
 }
 
-/* Elevated Interactive Glass (Hoverable NFT Cards & Modals) */
+/* Elevated Interactive Glass (Hoverable Cards & Modals) */
 .liquid-glass-card {
   position: relative;
   background: linear-gradient(
@@ -120,8 +120,8 @@ body {
     inset 0 1px 0 0 rgba(255, 255, 255, 0.2);
 }
 
-/* OpenSea Trait / Attribute Glass Tile */
-.nft-trait-tile {
+/* Token Metric Tile */
+.metric-tile {
   background: linear-gradient(
     135deg,
     rgba(56, 189, 248, 0.07) 0%,
@@ -134,7 +134,7 @@ body {
   transition: border-color 0.2s ease, background-color 0.2s ease;
 }
 
-.nft-trait-tile:hover {
+.metric-tile:hover {
   border-color: rgba(56, 189, 248, 0.42);
   background: linear-gradient(
     135deg,
@@ -143,8 +143,8 @@ body {
   );
 }
 
-/* Holographic Foil Glare Overlay for NFT Art Frames */
-.nft-holo-sheen {
+/* Holographic Glare Overlay */
+.holo-sheen {
   background: linear-gradient(
     115deg,
     transparent 20%,
@@ -163,7 +163,7 @@ body {
 }
 
 @media (hover: hover) {
-  .group:hover .nft-holo-sheen {
+  .group:hover .holo-sheen {
     background-position: 100% 100%;
   }
 }

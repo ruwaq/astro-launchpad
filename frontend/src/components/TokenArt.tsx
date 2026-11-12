@@ -6,7 +6,6 @@ type Props = {
   symbol?: string
   logoUrl?: string
   className?: string
-  showBadge?: boolean
 }
 
 /** Protocol whitelist to block unsafe/scriptable image URL schemes */
@@ -23,10 +22,10 @@ function isValidImageUrl(url: string): boolean {
 }
 
 /**
- * Collector-grade visual identity of the token: displays custom artwork if provided,
- * or a deterministic multi-layered generative SVG token artwork derived from the contract address.
+ * Clean deterministic visual token identity: displays custom logo if provided,
+ * or a multi-layered geometric vector emblem derived from the contract address.
  */
-export function TokenArt({ id, symbol, logoUrl, className, showBadge = false }: Props) {
+export function TokenArt({ id, symbol, logoUrl, className }: Props) {
   const [failedLogoKey, setFailedLogoKey] = useState<string | null>(null)
   const rawInstanceId = useId()
   const instanceId = rawInstanceId.replace(/[^a-zA-Z0-9_-]/g, '')
@@ -206,22 +205,6 @@ export function TokenArt({ id, symbol, logoUrl, className, showBadge = false }: 
       >
         {mono}
       </text>
-
-      {showBadge ? (
-        <text
-          x="80"
-          y="146"
-          textAnchor="middle"
-          fontSize="8.5"
-          fontWeight="600"
-          fill="#e2e8f0"
-          fillOpacity="0.75"
-          fontFamily="ui-monospace, SFMono-Regular, monospace"
-          letterSpacing="1.2"
-        >
-          {spec.archetype.toUpperCase()} · {spec.editionCode}
-        </text>
-      ) : null}
     </svg>
   )
 }

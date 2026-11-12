@@ -63,9 +63,8 @@ try {
   const checks = [
     'AstroGate',
     'Market',
-    'Swap with XLM',
-    'Buy with XLM',
     'Launch Token',
+    'Single-Tx Atomic Deploy',
   ]
   for (const text of checks) {
     if (!html.includes(text)) {
@@ -115,6 +114,21 @@ try {
   )
   if (!liquidityHtml.includes('Add Liquidity')) {
     throw new Error('el render de LiquidityForm no contiene "Add Liquidity"')
+  }
+
+  // Swap terminal render
+  const { SwapCard } = await vite.ssrLoadModule('/src/components/SwapCard.tsx')
+  const swapHtml = renderToString(
+    createElement(
+      QueryClientProvider,
+      { client: queryClient },
+      createElement(SwapCard, {
+        token: { id: 'CTOKEN', decimals: 7, symbol: 'TEST' },
+      }),
+    ),
+  )
+  if (!swapHtml.includes('Swap with XLM') || !swapHtml.includes('Buy with XLM')) {
+    throw new Error('el render de SwapCard no contiene los controles de swap')
   }
 
   // Detección de wallet: ambas ramas (detectada / por instalar), con datos
