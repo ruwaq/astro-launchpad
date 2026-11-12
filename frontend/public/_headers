@@ -7,7 +7,11 @@
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()
   Strict-Transport-Security: max-age=31536000; includeSubDomains
-  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://*.stellar.org wss://*.stellar.org https://*.walletconnect.com https://*.walletconnect.org wss://*.walletconnect.com wss://*.walletconnect.org https://*.reown.com https://*.web3modal.org https://*.web3modal.com https://api.coinbase.com https://api.binance.com https://api.coingecko.com https://friendbot.stellar.org; worker-src 'self' blob:; manifest-src 'self'; media-src 'self' blob:; frame-src 'self' https://*.walletconnect.com https://*.walletconnect.org; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'none';
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data: https://fonts.reown.com; connect-src 'self' https://*.stellar.org wss://*.stellar.org https://*.walletconnect.com https://*.walletconnect.org wss://*.walletconnect.com wss://*.walletconnect.org https://*.reown.com https://*.web3modal.org https://*.web3modal.com https://api.coinbase.com https://api.binance.com https://api.coingecko.com https://friendbot.stellar.org; worker-src 'self' blob:; manifest-src 'self'; media-src 'self' blob:; frame-src 'self' https://*.walletconnect.com https://*.walletconnect.org; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'none';
+
+# SPA HTML shell is revalidated to ensure users always receive latest asset hashes
+/index.html
+  Cache-Control: no-cache
 
 # Vite assets have content hashes: 1 year immutable cache.
 /assets/*

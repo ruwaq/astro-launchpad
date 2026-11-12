@@ -144,7 +144,7 @@ export function LiquidityPosition({ token }: { token: LaunchpadToken }) {
             to return both assets along with accrued fees.
           </p>
 
-          <div className="mt-4 flex flex-wrap gap-2">
+          <div role="group" aria-label="Withdrawal percentage" className="mt-4 flex flex-wrap gap-2">
             {PERCENTS.map((option) => (
               <button
                 key={option}

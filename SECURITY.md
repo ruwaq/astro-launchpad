@@ -23,7 +23,7 @@ AstroGate is a decentralized token launchpad and AMM studio built **exclusively 
 - **Ownership Renunciation & LP Burn**: Fair-launch tokens renounce `Ownable` ownership (`owner() == None`) and burn initial LP tokens to the Stellar burn address (`GAAAA...WHF`), preventing rug-pulls and post-launch inflation.
 - **Pre-Seeded Pool Protection (`PairAlreadySeeded`)**: `contracts/launchpad` verifies that any pre-existing Soroswap pair has `(0, 0)` reserves before adding initial liquidity, preventing pool price hijacking or LP dilution attacks.
 - **Anti-Frontrunning Salt Derivation**: `contracts/launchpad` hashes `(creator, salt)` with `sha256` before calling `deployer().with_current_contract(derived_salt)`, preventing third parties from front-running a creator's salt.
-- **Strict CSP & HTTP Security Headers**: Configured identically across `frontend/public/_headers`, `frontend/vercel.json`, and `frontend/nginx.conf` (`X-Content-Type-Options: nosniff`, `frame-ancestors 'none'`, `object-src 'none'`, explicit `connect-src` allowlist), verified in CI via `npm run check:csp`.
+- **Strict CSP & HTTP Security Headers**: Configured identically across `frontend/public/_headers`, `frontend/vercel.json`, and `frontend/nginx.conf` (`X-Content-Type-Options: nosniff`, `frame-ancestors 'none'`, `object-src 'none'`, explicit `connect-src` and `font-src` allowlists including Reown fonts), verified in CI via `npm run check:csp`.
 - **Safe Rendering**: All on-chain metadata is rendered as plain text via React without `dangerouslySetInnerHTML`.
 - **Slippage & Balance Guards**: Swaps use live Soroswap router quotes (`router_get_amount_out`), enforce minimum output amounts (`amount_out_min`), and validate balances + gas reserves before prompting wallet signatures.
 - **Non-Caching Service Worker**: `frontend/public/sw.js` only caches the static application shell and assets; it never caches Soroban RPC, Horizon, or wallet relay requests.
@@ -34,6 +34,7 @@ AstroGate is a decentralized token launchpad and AMM studio built **exclusively 
 - **No Off-Chain Indexer**: Visible on-chain activity depends on the Soroban RPC event retention window; the testnet Soroswap pair contract does not emit `swap` events, so historical price charts rely on local browser snapshots (`IndexedDB` / `localStorage`).
 - **Off-Chain Extended Metadata**: Custom token logos (Data URLs), descriptions, and social links are currently stored in browser `localStorage` (`astrogate.token.meta.<id>`); cross-device persistence requires IPFS CID / on-chain metadata storage.
 - **Demo Mode Keys**: Testnet keys live in `localStorage` by design for one-click onboarding.
+- **Credential Rotation**: A historical local test credential (`scripts/opencode-env/service.json`) in early git commit history was purged from the working tree and replaced by an uncredentialed template; the underlying service password must be rotated and never reused.
 
 ## Reporting a Vulnerability
 

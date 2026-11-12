@@ -156,11 +156,16 @@ body {
   background-size: 220% 220%;
   mix-blend-mode: screen;
   pointer-events: none;
+  border-radius: inherit;
+  transform: translateZ(0);
+  will-change: background-position, opacity;
   transition: opacity 0.35s ease, background-position 0.6s ease;
 }
 
-.group:hover .nft-holo-sheen {
-  background-position: 100% 100%;
+@media (hover: hover) {
+  .group:hover .nft-holo-sheen {
+    background-position: 100% 100%;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

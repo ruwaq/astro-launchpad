@@ -239,12 +239,125 @@ fn non_owner_cannot_mint() {
 }
 
 #[test]
-fn sep41_interface_via_token_client() {
+#[should_panic(expected = "initial supply must be positive")]
+fn constructor_rejects_negative_initial_supply() {
+    let e = Env::default();
+    let owner = Address::generate(&e);
+    let _ = e.register(
+        Token,
+        (
+            String::from_str(&e, NAME),
+            String::from_str(&e, SYMBOL),
+            7_u32,
+            owner,
+            -1_i128,
+        ),
+    );
+}
+
+#[test]
+fn renounce_ownership_locks_mint_permanently() {
+    let e = Env::default();
+    let owner = Address::generate(&e);
+    let client = create_client(&e, &owner);
+    let user = Address::generate(&e);
+
+    e.mock_all_auths();
+
+    // Renuncia exitosa
+    assert_eq!(client.get_owner(), Some(owner));
+    client.renounce_ownership();
+    assert_eq!(client.get_owner(), None);
+
+    // Quemar para dejar espacio en el cap
+    client.burn(&user, &0);
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #2100)")]
+fn mint_fails_after_renounce_ownership() {
+    let e = Env::default();
+    let owner = Address::generate(&e);
+    let client = create_client(&e, &owner);
+    let user = Address::generate(&e);
+
+    e.mock_all_auths();
+
+    // Quema 100 para liberar margen bajo el cap
+    client.burn(&owner, &100);
+
+    // Renuncia
+    client.renounce_ownership();
+
+    // Intentar mint falla con OwnableError::OwnerNotSet (#100)
+    client.mint(&user, &100);
+}
+
+#[test]
+fn transfer_and_accept_ownership_workflow() {
+    let e = Env::default();
+    let owner = Address::generate(&e);
+    let client = create_client(&e, &owner);
+    let new_owner = Address::generate(&e);
+
+    e.mock_all_auths();
+
+    // Inicia transferencia de 2 pasos
+    client.transfer_ownership(&new_owner, &(e.ledger().sequence() + 100));
+    assert_eq!(client.get_owner(), Some(owner));
+
+    // Acepta transferencia
+    client.accept_ownership();
+    assert_eq!(client.get_owner(), Some(new_owner));
+}
+
+#[test]
+fn extend_ttl_works() {
     let e = Env::default();
     let owner = Address::generate(&e);
     let client = create_client(&e, &owner);
 
+    client.extend_ttl();
+}
+
+#[test]
+fn sep41_interface_via_token_client() {
+    let e = Env::default();
+    let owner = Address::generate(&e);
+    let client = create_client(&e, &owner);
+    let user = Address::generate(&e);
+    let spender = Address::generate(&e);
+
+    e.mock_all_auths();
+
     // Interfaz SEP-41 estándar: el cliente genérico `token::Client` funciona.
     let sc = token::Client::new(&e, &client.address);
     assert_eq!(sc.balance(&owner), 1_000);
+    assert_eq!(sc.decimals(), DECIMALS);
+    assert_eq!(sc.name(), String::from_str(&e, NAME));
+    assert_eq!(sc.symbol(), String::from_str(&e, SYMBOL));
+
+    // transfer vía SEP-41
+    sc.transfer(&owner, &user, &300);
+    assert_eq!(sc.balance(&owner), 700);
+    assert_eq!(sc.balance(&user), 300);
+
+    // approve + allowance vía SEP-41
+    sc.approve(&owner, &spender, &200, &(e.ledger().sequence() + 100));
+    assert_eq!(sc.allowance(&owner, &spender), 200);
+
+    // transfer_from vía SEP-41
+    sc.transfer_from(&spender, &owner, &user, &100);
+    assert_eq!(sc.balance(&owner), 600);
+    assert_eq!(sc.balance(&user), 400);
+    assert_eq!(sc.allowance(&owner, &spender), 100);
+
+    // burn vía SEP-41
+    sc.burn(&user, &100);
+    assert_eq!(sc.balance(&user), 300);
+
+    // burn_from vía SEP-41
+    sc.burn_from(&spender, &owner, &50);
+    assert_eq!(sc.balance(&owner), 550);
+    assert_eq!(sc.allowance(&owner, &spender), 50);
 }

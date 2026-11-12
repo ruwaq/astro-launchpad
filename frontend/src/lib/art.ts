@@ -62,11 +62,12 @@ export const ARCHETYPES: readonly ArtArchetype[] = [
   'Solar Prism',
 ]
 
-/** FNV-1a 32-bit: fast + uniform distribution for art hashing. */
+/** FNV-1a 32-bit: fast + uniform distribution for art hashing. Normalizes input with trim. */
 export function artSeed(id: string): number {
+  const clean = id.trim()
   let hash = 0x811c9dc5
-  for (let i = 0; i < id.length; i++) {
-    hash ^= id.charCodeAt(i)
+  for (let i = 0; i < clean.length; i++) {
+    hash ^= clean.charCodeAt(i)
     hash = Math.imul(hash, 0x01000193)
   }
   return hash >>> 0
@@ -78,33 +79,38 @@ function byte(hash: number, index: number): number {
 
 export function tokenArtSpec(id: string): TokenArtSpec {
   const seed = artSeed(id)
-  const secondary = artSeed(`${id}:art`)
-  const palette = PALETTES[seed % PALETTES.length]
+  const secondary = artSeed(`${id.trim()}:art`)
+
+  // Decoupled bit-slicing across the 32-bit seed entropy pool
+  const palette = PALETTES[seed & 7]
   const archetype = ARCHETYPES[(seed >>> 3) % ARCHETYPES.length]
+  const ringCount = 2 + ((seed >>> 6) & 3)
+  const rotation = ((seed >>> 8) % 12) * 30
+  const editionCode = `#${(((seed >>> 12) % 9000) + 1000).toString(10)}`
 
   const shape = (i: number): ArtShape => {
-    const b1 = byte(seed, i)
-    const b2 = byte(secondary, i + 1)
-    const b3 = byte(seed ^ secondary, i + 2)
+    const b1 = byte(seed, (i + 1) % 4)
+    const b2 = byte(secondary, i)
+    const b3 = byte(seed ^ secondary, (i + 2) % 4)
     return {
       cx: 16 + (b1 % 64),
       cy: 16 + (b2 % 64),
       r: 14 + (b3 % 28),
-      light: (b1 & 1) === 0,
+      light: (b2 & 1) === 0,
     }
   }
 
   return {
     seed,
-    editionCode: `#${((seed % 9000) + 1000).toString(10)}`,
+    editionCode,
     archetype,
     paletteName: palette.name,
     from: palette.from,
     via: palette.via,
     to: palette.to,
     accent: palette.accent,
-    rotation: (seed % 12) * 30,
-    ringCount: 2 + (seed % 4),
+    rotation,
+    ringCount,
     shapes: [shape(0), shape(1), shape(2)],
   }
 }

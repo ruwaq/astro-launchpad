@@ -36,14 +36,28 @@ const META_STORE = 'sync_meta'
 let dbPromise: Promise<IDBDatabase | null> | null = null
 
 function getDB(): Promise<IDBDatabase | null> {
-  if (typeof window === 'undefined' || !window.indexedDB) {
+  if (typeof window === 'undefined') {
     return Promise.resolve(null)
   }
+
+  let idb: IDBFactory | undefined
+  try {
+    idb = window.indexedDB
+  } catch {
+    return Promise.resolve(null)
+  }
+  if (!idb) return Promise.resolve(null)
 
   if (!dbPromise) {
     dbPromise = new Promise((resolve) => {
       try {
-        const req = window.indexedDB.open(DB_NAME, DB_VERSION)
+        const req = idb.open(DB_NAME, DB_VERSION)
+
+        req.onblocked = () => {
+          console.warn('IndexedDB blocked by another open tab; falling back to in-memory cache')
+          dbPromise = null
+          resolve(null)
+        }
 
         req.onupgradeneeded = (event) => {
           const db = (event.target as IDBOpenDBRequest).result
@@ -52,18 +66,44 @@ function getDB(): Promise<IDBDatabase | null> {
             tokenStore.createIndex('by_symbol', 'symbol', { unique: false })
             tokenStore.createIndex('by_ledger', 'ledger', { unique: false })
             tokenStore.createIndex('by_updatedAt', 'updatedAt', { unique: false })
+          } else {
+            const tokenStore = (event.target as IDBOpenDBRequest).transaction?.objectStore(TOKENS_STORE)
+            if (tokenStore) {
+              if (!tokenStore.indexNames.contains('by_symbol')) {
+                tokenStore.createIndex('by_symbol', 'symbol', { unique: false })
+              }
+              if (!tokenStore.indexNames.contains('by_ledger')) {
+                tokenStore.createIndex('by_ledger', 'ledger', { unique: false })
+              }
+              if (!tokenStore.indexNames.contains('by_updatedAt')) {
+                tokenStore.createIndex('by_updatedAt', 'updatedAt', { unique: false })
+              }
+            }
           }
           if (!db.objectStoreNames.contains(META_STORE)) {
             db.createObjectStore(META_STORE, { keyPath: 'key' })
           }
         }
 
-        req.onsuccess = () => resolve(req.result)
+        req.onsuccess = () => {
+          const db = req.result
+          db.onversionchange = () => {
+            db.close()
+            dbPromise = null
+          }
+          db.onclose = () => {
+            dbPromise = null
+          }
+          resolve(db)
+        }
+
         req.onerror = () => {
-          console.warn('IndexedDB failed to open, falling back to memory/localStorage')
+          console.warn('IndexedDB failed to open, falling back to in-memory cache')
+          dbPromise = null
           resolve(null)
         }
       } catch {
+        dbPromise = null
         resolve(null)
       }
     })
@@ -82,25 +122,27 @@ let memorySyncMeta: SyncMeta = {
 }
 
 /**
- * Guard de forma: los registros vienen de disco (IndexedDB) y pueden estar
- * corruptos o de una versión vieja. Un registro inválido no debe entrar a
- * memoria ni a la UI (un `reserveToken` no numérico lanzaría en BigInt()).
+ * Shape guard: validates stored records from disk (IndexedDB) against corruption.
+ * Contract IDs must be valid 56-char Stellar C-addresses.
+ * Reserves must be non-negative digit strings.
  */
 export function isStoredTokenRecord(value: unknown): value is StoredTokenRecord {
   if (typeof value !== 'object' || value === null) return false
   const r = value as Partial<StoredTokenRecord>
   return (
     typeof r.id === 'string' &&
-    r.id.length > 2 &&
+    r.id.startsWith('C') &&
+    r.id.length === 56 &&
     typeof r.name === 'string' &&
     typeof r.symbol === 'string' &&
     typeof r.decimals === 'number' &&
     Number.isFinite(r.decimals) &&
+    r.decimals >= 0 &&
     typeof r.pairId === 'string' &&
     typeof r.reserveToken === 'string' &&
-    /^-?\d+$/.test(r.reserveToken || '0') &&
+    /^\d+$/.test(r.reserveToken) &&
     typeof r.reserveXlm === 'string' &&
-    /^-?\d+$/.test(r.reserveXlm || '0') &&
+    /^\d+$/.test(r.reserveXlm) &&
     typeof r.ledger === 'number' &&
     Number.isFinite(r.ledger) &&
     typeof r.updatedAt === 'number' &&
@@ -108,25 +150,80 @@ export function isStoredTokenRecord(value: unknown): value is StoredTokenRecord 
   )
 }
 
+/**
+ * Evicts oldest tokens when quota is exceeded or storage reaches high watermark.
+ */
+async function pruneOldTokens(db: IDBDatabase, keepCount = 500): Promise<void> {
+  return new Promise((resolve) => {
+    try {
+      const tx = db.transaction(TOKENS_STORE, 'readwrite')
+      const store = tx.objectStore(TOKENS_STORE)
+      const index = store.index('by_updatedAt')
+      const countReq = store.count()
+      countReq.onsuccess = () => {
+        const total = countReq.result
+        if (total <= keepCount) {
+          resolve()
+          return
+        }
+        const toDelete = total - keepCount
+        let deleted = 0
+        const cursorReq = index.openKeyCursor() // oldest first
+        cursorReq.onsuccess = () => {
+          const cursor = cursorReq.result
+          if (cursor && deleted < toDelete) {
+            store.delete(cursor.primaryKey)
+            deleted++
+            cursor.continue()
+          } else {
+            resolve()
+          }
+        }
+        cursorReq.onerror = () => resolve()
+      }
+      countReq.onerror = () => resolve()
+      tx.oncomplete = () => resolve()
+      tx.onerror = () => resolve()
+      tx.onabort = () => resolve()
+    } catch {
+      resolve()
+    }
+  })
+}
+
 export async function putStoredTokens(tokens: StoredTokenRecord[]): Promise<void> {
   for (const t of tokens) {
-    memoryTokenCache.set(t.id, t)
+    if (isStoredTokenRecord(t)) {
+      memoryTokenCache.set(t.id, t)
+    }
   }
 
   const db = await getDB()
   if (!db) return
 
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     try {
       const tx = db.transaction(TOKENS_STORE, 'readwrite')
       const store = tx.objectStore(TOKENS_STORE)
       for (const token of tokens) {
-        store.put(token)
+        if (isStoredTokenRecord(token)) {
+          store.put(token)
+        }
       }
       tx.oncomplete = () => resolve()
-      tx.onerror = () => reject(tx.error)
-    } catch {
-      resolve() // Non-blocking
+      tx.onerror = (event) => {
+        event.preventDefault()
+        if (tx.error?.name === 'QuotaExceededError') {
+          pruneOldTokens(db, 300).catch(() => {})
+        }
+        resolve()
+      }
+      tx.onabort = () => resolve()
+    } catch (err: unknown) {
+      if (err instanceof DOMException && err.name === 'QuotaExceededError') {
+        pruneOldTokens(db, 300).catch(() => {})
+      }
+      resolve()
     }
   })
 }
@@ -150,6 +247,10 @@ export async function getAllStoredTokens(): Promise<StoredTokenRecord[]> {
         resolve(valid)
       }
       req.onerror = () =>
+        resolve(Array.from(memoryTokenCache.values()).filter(isStoredTokenRecord))
+      tx.onerror = () =>
+        resolve(Array.from(memoryTokenCache.values()).filter(isStoredTokenRecord))
+      tx.onabort = () =>
         resolve(Array.from(memoryTokenCache.values()).filter(isStoredTokenRecord))
     } catch {
       resolve(Array.from(memoryTokenCache.values()).filter(isStoredTokenRecord))
@@ -175,6 +276,8 @@ export async function getSyncMeta(): Promise<SyncMeta> {
         }
       }
       req.onerror = () => resolve(memorySyncMeta)
+      tx.onerror = () => resolve(memorySyncMeta)
+      tx.onabort = () => resolve(memorySyncMeta)
     } catch {
       resolve(memorySyncMeta)
     }
@@ -192,7 +295,11 @@ export async function putSyncMeta(meta: SyncMeta): Promise<void> {
       const store = tx.objectStore(META_STORE)
       store.put(meta)
       tx.oncomplete = () => resolve()
-      tx.onerror = () => resolve()
+      tx.onerror = (event) => {
+        event.preventDefault()
+        resolve()
+      }
+      tx.onabort = () => resolve()
     } catch {
       resolve()
     }

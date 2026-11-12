@@ -14,6 +14,7 @@ AstroGate publica una especificación estandarizada en `/llms.txt` accesible tan
   * Router: `CCJUD55AG6W5HAI5LRVNKAE5WDP5XGZBUDS5WNTIVDU7O264UZZE7BRD`
   * SAC XLM: `CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC`
   * Token Base ASTRO: `CAI637WCEILQF3ZYOV6BRUCX532XQIVOOJ4CRWFPWHQRJHOH5OKHSXRE`
+  * Launchpad Atómico: `CASO42JQGKYLATUDXHUZFBBHC2XKZ5XI732MVRLQC4MT664X7JVJGS52`
 
 ---
 
@@ -28,9 +29,11 @@ import {
   quoteSwap,
   verifyAntiRug,
   checkRpcHealth,
+  executeWithRpcFailover,
+  fetchTokenEvents,
 } from './src/sdk'
 
-// 1. Verificar salud de la red y latencia RPC
+// 1. Verificar salud de la red y latencia RPC (con timeout y validación HTTP)
 const health = await checkRpcHealth()
 console.log(`RPC conectado: ${health.ok} (${health.latencyMs} ms)`)
 
@@ -40,18 +43,23 @@ for (const token of market) {
   console.log(`${token.symbol}: ${token.priceXlm} XLM (Graduación: ${token.graduationPercent}%)`)
 }
 
-// 3. Cotizar un swap de 5 XLM por un token
+// 3. Cotizar un swap de 5 XLM por un token con impacto de precio
 const quote = await quoteSwap({
   tokenId: market[0].id,
   amountIn: 50_000_000n, // 5 XLM en stroops (7 decimales)
   direction: 'buy',
   slippagePercent: 2,
 })
-console.log(`Recibes estimado: ${quote.amountOutEstimated} tokens (mínimo garantizado: ${quote.amountOutMinimum})`)
+console.log(
+  `Recibes estimado: ${quote.amountOutEstimated} tokens (mínimo: ${quote.amountOutMinimum}, impacto: ${quote.priceImpactPercent}%)`
+)
 
-// 4. Auditar Anti-Rug on-chain
+// 4. Auditar Anti-Rug on-chain (ownership renounced + 100% LP quemado en STELLAR_BURN_ADDRESS)
 const audit = await verifyAntiRug(market[0].id)
-console.log(`Es Anti-Rug Verificado: ${audit.isAntiRugVerified}`)
+console.log(`Es Anti-Rug Verificado: ${audit.isAntiRugVerified} (LP quemado: ${audit.lpBurned})`)
+
+// 5. Historial reciente de órdenes/trades
+const events = await fetchTokenEvents(market[0].id, { maxEvents: 20 })
 ```
 
 ---
@@ -80,14 +88,29 @@ Puedes proporcionar estas herramientas a cualquier agente autónomo para que mon
       "type": "function",
       "function": {
         "name": "quote_swap",
-        "description": "Calcula la cotización exacta en el AMM de Soroswap con protección de slippage.",
+        "description": "Calcula la cotización exacta en el AMM de Soroswap con protección de slippage e impacto de precio.",
         "parameters": {
           "type": "object",
           "required": ["tokenId", "amountIn", "direction"],
           "properties": {
             "tokenId": { "type": "string" },
             "amountIn": { "type": "string", "description": "Monto en base units (7 decimales)" },
-            "direction": { "type": "string", "enum": ["buy", "sell"] }
+            "direction": { "type": "string", "enum": ["buy", "sell"] },
+            "slippagePercent": { "type": "number", "description": "Slippage máximo porcentual (default 2)" }
+          }
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "verify_anti_rug",
+        "description": "Audita si un token tiene el 100% de LP quemado irreversiblemente en GAAAA...WHF y propiedad renunciada.",
+        "parameters": {
+          "type": "object",
+          "required": ["tokenId"],
+          "properties": {
+            "tokenId": { "type": "string", "description": "Dirección C... del contrato token" }
           }
         }
       }
@@ -102,3 +125,4 @@ Puedes proporcionar estas herramientas a cualquier agente autónomo para que mon
 1. **Decimales**: Tanto XLM nativo como los tokens estándar de AstroGate operan con **7 decimales** (`1 XLM = 10,000,000 stroops`).
 2. **Sin Allowance en Soroswap**: El Router de Soroswap opera mediante `transfer` directo en su transacción atómica; no es necesario llamar a `approve` por separado.
 3. **Quema de LP**: Todos los tokens de liquidez de un Fair Launch son enviados a `GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF` de forma permanente e irreversible.
+4. **Alta Disponibilidad Multi-RPC**: Las consultas de mercado, eventos y cotizaciones utilizan failover automático y retroceso exponencial contra errores 429 de rate-limiting.

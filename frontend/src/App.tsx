@@ -4,6 +4,7 @@ import { ScrollToTop } from './components/ScrollToTop'
 import { OfflineBanner } from './components/OfflineBanner'
 import { PwaInstallPrompt } from './components/PwaInstallPrompt'
 import { LiveTickerBar } from './components/LiveTickerBar'
+import { ErrorBoundary, PageErrorFallback } from './components/ErrorBoundary'
 import { HomePage } from './pages/HomePage'
 import { MarketPage } from './pages/MarketPage'
 import { TokenPage } from './pages/TokenPage'
@@ -101,25 +102,27 @@ export default function App() {
         className="mx-auto flex w-full max-w-5xl min-w-0 flex-col gap-4 px-3.5 sm:px-4 py-4 sm:py-8"
       >
         <ScrollToTop />
-        <Routes>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/market" element={<MarketPage />} />
-          <Route path="/token/:id" element={<TokenPage />} />
-          <Route path="/portfolio" element={<PortfolioPage />} />
-          <Route path="/create" element={<CreatePage />} />
-          <Route path="*" element={<NotFoundPage />} />
-        </Routes>
+        <ErrorBoundary fallback={(err, retry) => <PageErrorFallback error={err} onRetry={retry} />}>
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/market" element={<MarketPage />} />
+            <Route path="/token/:id" element={<TokenPage />} />
+            <Route path="/portfolio" element={<PortfolioPage />} />
+            <Route path="/create" element={<CreatePage />} />
+            <Route path="*" element={<NotFoundPage />} />
+          </Routes>
+        </ErrorBoundary>
       </main>
 
-      <footer className="mx-auto w-full max-w-5xl border-t border-slate-900 px-3.5 sm:px-4 pb-8 pt-4 text-xs text-slate-500">
+      <footer className="mx-auto w-full max-w-5xl border-t border-slate-900 px-3.5 sm:px-4 pb-8 pt-4 text-xs text-slate-400">
         <p>
           {BRAND.name}: {BRAND.provenance}.
         </p>
         <p className="mt-1">
-          RPC: <span className="font-mono">{RPC_URL}</span> · Flagship Token:{' '}
-          <span className="font-mono">{ASTRO_TOKEN_ID}</span>
+          RPC: <span className="font-mono break-all">{RPC_URL}</span> · Flagship Token:{' '}
+          <span className="font-mono break-all">{ASTRO_TOKEN_ID}</span>
         </p>
-        {publicKey ? <p className="mt-1">Connected as {publicKey}</p> : null}
+        {publicKey ? <p className="mt-1 break-all">Connected as {publicKey}</p> : null}
       </footer>
 
       <PwaInstallPrompt />

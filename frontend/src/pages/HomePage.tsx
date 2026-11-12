@@ -9,6 +9,7 @@ import { TokenInfoCard } from '../components/TokenInfoCard'
 import { GraduationRadar } from '../components/GraduationRadar'
 import { NewLaunchesFeed } from '../components/NewLaunchesFeed'
 import { TokenArt } from '../components/TokenArt'
+import { tokenArtSpec } from '../lib/art'
 import { useTokenList } from '../hooks/useTokenList'
 import { useCreatedTokens } from '../store/creations'
 import { useProgress } from '../store/progress'
@@ -18,14 +19,15 @@ import { BRAND } from '../lib/brand'
 import type { LaunchpadToken } from '../lib/token'
 
 /** Genesis token: already deployed and paired on Soroswap testnet. */
-const DEMO_TOKEN: LaunchpadToken = { id: ASTRO_TOKEN_ID, decimals: 7 }
+const DEMO_TOKEN: LaunchpadToken = { id: ASTRO_TOKEN_ID, decimals: 7, symbol: 'ASTRO' }
+const ASTRO_SPEC = tokenArtSpec(ASTRO_TOKEN_ID)
 
 type HomeTab = 'radar' | 'launches' | 'market' | 'demo'
 
 export function HomePage() {
   const [selectedToken, setSelectedToken] = useState<LaunchpadToken>(DEMO_TOKEN)
   const [activeTab, setActiveTab] = useState<HomeTab>('radar')
-  const { demoActive } = useWallet()
+  const demoActive = useWallet((state) => state.demoActive)
   const list = useTokenList()
   const createdTokens = useCreatedTokens((state) => state.tokens)
   const liquidity = useProgress((state) => state.liquidity)
@@ -100,7 +102,7 @@ export function HomePage() {
                   <p className="text-xs font-bold text-white group-hover:text-sky-300 transition-colors">
                     $ASTRO Flagship
                   </p>
-                  <p className="text-[10px] text-slate-400">Cosmic Nebula Series</p>
+                  <p className="text-[10px] text-slate-400">{ASTRO_SPEC.paletteName} Series</p>
                 </div>
                 <span className="liquid-glass-pill rounded-lg px-2 py-1 text-[10px] font-mono font-semibold text-emerald-300">
                   Live Pool ↗
@@ -176,6 +178,7 @@ export function HomePage() {
           <div className="space-y-3">
             <GraduationRadar
               tokens={list.data ?? []}
+              isLoading={list.isPending}
               onSelect={setSelectedToken}
             />
           </div>
@@ -186,6 +189,7 @@ export function HomePage() {
           <div className="space-y-3">
             <NewLaunchesFeed
               tokens={list.data ?? []}
+              isLoading={list.isPending}
               onSelect={setSelectedToken}
             />
           </div>
@@ -230,7 +234,7 @@ export function HomePage() {
             Trading ${selectedToken.symbol ?? 'TOKEN'}
           </span>
         </div>
-        <SwapCard token={selectedToken} />
+        <SwapCard key={selectedToken.id} token={selectedToken} />
       </div>
 
       {/* Token Info Card */}

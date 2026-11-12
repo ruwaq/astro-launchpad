@@ -22,7 +22,7 @@ type TickerPill = {
   tone: 'emerald' | 'amber' | 'rose' | 'violet'
 }
 
-/** Cifras del fair launch en %, derivadas de tokenomics (0.5% / 99.5%). */
+/** Fair launch figures in %, derived from tokenomics (0.5% / 99.5%). */
 const creatorPercent = Number(CREATOR_ALLOCATION_BPS) / 100 // 0.5%
 const poolPercent = Number(POOL_ALLOCATION_BPS) / 100 // 99.5%
 
@@ -125,7 +125,7 @@ export function LiveTickerBar() {
   }
 
   return (
-    <div
+    <aside
       aria-label="Live launchpad activity"
       className="w-full max-w-full overflow-hidden border-b border-slate-900 bg-slate-950/95 px-3 py-1.5 text-xs"
     >
@@ -162,6 +162,6 @@ export function LiveTickerBar() {
           ))}
         </div>
       </div>
-    </div>
+    </aside>
   )
 }

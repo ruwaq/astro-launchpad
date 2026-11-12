@@ -1,4 +1,3 @@
-import { tokenPriceInXlm } from './soroswap'
 import { GRADUATION_TARGET_XLM } from './tokenomics'
 import type { TokenListing } from './discovery'
 
@@ -46,6 +45,12 @@ export function filterAndSortTokens(
   const sorted = [...filtered].sort((a, b) => {
     switch (sort) {
       case 'graduation': {
+        const aSeeded = a.pool.exists && a.pool.reserveXlm > 0n
+        const bSeeded = b.pool.exists && b.pool.reserveXlm > 0n
+        if (aSeeded && !bSeeded) return -1
+        if (!aSeeded && bSeeded) return 1
+        if (!aSeeded && !bSeeded) return b.ledger - a.ledger
+
         const targetStroops = BigInt(GRADUATION_TARGET_XLM) * 10_000_000n
         const aGrad = a.pool.reserveXlm >= targetStroops
         const bGrad = b.pool.reserveXlm >= targetStroops
@@ -55,11 +60,22 @@ export function filterAndSortTokens(
       }
       case 'liquidity':
         return compareBigInt(a.pool.reserveXlm, b.pool.reserveXlm)
-      case 'price':
-        return compareBigInt(
-          tokenPriceInXlm(a.pool, a.decimals),
-          tokenPriceInXlm(b.pool, b.decimals),
-        )
+      case 'price': {
+        const aValid =
+          a.pool.exists && a.pool.reserveToken > 0n && a.pool.reserveXlm > 0n
+        const bValid =
+          b.pool.exists && b.pool.reserveToken > 0n && b.pool.reserveXlm > 0n
+        if (aValid && !bValid) return -1
+        if (!aValid && bValid) return 1
+        if (!aValid && !bValid) return b.ledger - a.ledger
+
+        // Cross-multiplication prevents integer stroop underflow for micro-cap fair launch tokens
+        const aDec = 10n ** BigInt(Math.max(0, Math.trunc(a.decimals)))
+        const bDec = 10n ** BigInt(Math.max(0, Math.trunc(b.decimals)))
+        const aVal = a.pool.reserveXlm * aDec * b.pool.reserveToken
+        const bVal = b.pool.reserveXlm * bDec * a.pool.reserveToken
+        return compareBigInt(aVal, bVal)
+      }
       case 'symbol':
         return a.symbol.localeCompare(b.symbol)
       case 'recent':

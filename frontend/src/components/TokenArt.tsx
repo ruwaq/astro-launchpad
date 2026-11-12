@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { tokenArtSpec } from '../lib/art'
 
 type Props = {
@@ -9,28 +9,51 @@ type Props = {
   showBadge?: boolean
 }
 
+/** Protocol whitelist to block unsafe/scriptable image URL schemes */
+function isValidImageUrl(url: string): boolean {
+  const trimmed = url.trim()
+  if (!trimmed) return false
+  if (/^(https?:\/\/|\/|ipfs:\/\/)/i.test(trimmed)) {
+    return true
+  }
+  if (/^data:image\/(png|jpeg|jpg|webp|gif|svg\+xml);base64,/i.test(trimmed)) {
+    return true
+  }
+  return false
+}
+
 /**
  * Collector-grade visual identity of the token: displays custom artwork if provided,
  * or a deterministic multi-layered generative SVG NFT artwork derived from the contract address.
  */
 export function TokenArt({ id, symbol, logoUrl, className, showBadge = false }: Props) {
   const [failedLogoKey, setFailedLogoKey] = useState<string | null>(null)
-  const currentLogoKey = logoUrl ? `${id}:${logoUrl}` : null
+  const rawInstanceId = useId()
+  const instanceId = rawInstanceId.replace(/[^a-zA-Z0-9_-]/g, '')
+
+  const safeLogoUrl = logoUrl && isValidImageUrl(logoUrl) ? logoUrl.trim() : null
+  const currentLogoKey = safeLogoUrl ? `${id}:${safeLogoUrl}` : null
   const imageError = currentLogoKey !== null && failedLogoKey === currentLogoKey
 
   const spec = tokenArtSpec(id)
-  const gid = `ag-art-${spec.seed}`
-  const glowId = `ag-glow-${spec.seed}`
-  const gridId = `ag-grid-${spec.seed}`
-  const mono = (symbol?.trim() || id.slice(1, 3)).slice(0, 4).toUpperCase()
+  const gid = `ag-art-${spec.seed}-${instanceId}`
+  const glowId = `ag-glow-${spec.seed}-${instanceId}`
+  const gridId = `ag-grid-${spec.seed}-${instanceId}`
 
-  if (logoUrl && !imageError) {
+  // Strip non-printable, zero-width, and bidirectional control characters
+  const rawSymbol = (symbol?.trim() || id.slice(1, 3))
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\x00-\x1F\x7F-\x9F\u200B-\u200D\uFEFF\u202A-\u202E]/g, '')
+    .trim()
+  const mono = (rawSymbol || 'TKN').slice(0, 4).toUpperCase()
+
+  if (safeLogoUrl && !imageError) {
     return (
       <img
-        src={logoUrl}
+        src={safeLogoUrl}
         alt={symbol ?? id}
         onError={() => setFailedLogoKey(currentLogoKey)}
-        className={`${className ?? ''} object-cover`}
+        className={`overflow-hidden object-cover ${className ?? ''}`}
       />
     )
   }
@@ -39,7 +62,7 @@ export function TokenArt({ id, symbol, logoUrl, className, showBadge = false }: 
     <svg
       viewBox="0 0 160 160"
       preserveAspectRatio="xMidYMid slice"
-      className={className}
+      className={`overflow-hidden ${className ?? ''}`}
       aria-hidden="true"
     >
       <defs>
@@ -69,16 +92,21 @@ export function TokenArt({ id, symbol, logoUrl, className, showBadge = false }: 
       <rect width="160" height="160" fill={`url(#${glowId})`} />
 
       {/* Ambient Generative Orbs */}
-      {spec.shapes.map((shape, index) => (
-        <circle
-          key={index}
-          cx={(shape.cx / 96) * 160}
-          cy={(shape.cy / 96) * 160}
-          r={(shape.r / 96) * 160}
-          fill={shape.light ? '#ffffff' : '#020617'}
-          fillOpacity={shape.light ? 0.12 : 0.22}
-        />
-      ))}
+      {spec.shapes.map((shape, index) => {
+        const cx = Math.round((shape.cx / 96) * 160)
+        const cy = Math.round((shape.cy / 96) * 160)
+        const r = Math.round((shape.r / 96) * 160)
+        return (
+          <circle
+            key={index}
+            cx={cx}
+            cy={cy}
+            r={r}
+            fill={shape.light ? '#ffffff' : '#020617'}
+            fillOpacity={shape.light ? 0.12 : 0.22}
+          />
+        )
+      })}
 
       {/* Archetype Geometric Layer */}
       <g transform={`translate(80, 80) rotate(${spec.rotation})`}>
@@ -116,6 +144,39 @@ export function TokenArt({ id, symbol, logoUrl, className, showBadge = false }: 
             strokeWidth="1.25"
           />
         ) : null}
+        {spec.archetype === 'Cyber Horizon' ? (
+          <>
+            <line
+              x1="-54"
+              y1="0"
+              x2="54"
+              y2="0"
+              stroke={spec.accent}
+              strokeOpacity="0.45"
+              strokeWidth="1.5"
+            />
+            <line
+              x1="-42"
+              y1="-16"
+              x2="42"
+              y2="-16"
+              stroke="#ffffff"
+              strokeOpacity="0.18"
+              strokeWidth="1"
+              strokeDasharray="3 3"
+            />
+            <line
+              x1="-42"
+              y1="16"
+              x2="42"
+              y2="16"
+              stroke="#ffffff"
+              strokeOpacity="0.18"
+              strokeWidth="1"
+              strokeDasharray="3 3"
+            />
+          </>
+        ) : null}
       </g>
 
       {/* Glass Pedestal Monogram */}
@@ -133,13 +194,15 @@ export function TokenArt({ id, symbol, logoUrl, className, showBadge = false }: 
       />
       <text
         x="80"
-        y="87"
+        y={mono.length > 3 ? '86' : '87'}
         textAnchor="middle"
-        fontSize="24"
+        fontSize={mono.length > 3 ? '18' : '24'}
         fontWeight="800"
         fill="#ffffff"
         fontFamily="ui-sans-serif, system-ui, sans-serif"
-        letterSpacing="1.5"
+        letterSpacing={mono.length > 3 ? '1' : '1.5'}
+        lengthAdjust="spacingAndGlyphs"
+        textLength={mono.length > 3 ? '72' : undefined}
       >
         {mono}
       </text>

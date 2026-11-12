@@ -13,6 +13,5 @@ logs/*.log
 .env
 .env.*
 
-# Secretos locales (nunca en repo)
+# Secretos locales (nunca en repo; ~/.secrets vive fuera del repo)
 .secrets/
-$HOME/.secrets/

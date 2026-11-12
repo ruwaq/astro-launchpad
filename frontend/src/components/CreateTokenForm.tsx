@@ -4,18 +4,16 @@ import { useQueryClient } from '@tanstack/react-query'
 import { launchTokenAtomic } from '../lib/token'
 import {
   allocationOfBps,
-  calculateDeployFeeInXlm,
   CREATOR_ALLOCATION_BPS,
   FAIR_LAUNCH_DECIMALS,
   FAIR_LAUNCH_TOTAL_BASIS,
   poolAllocationBase,
-  PROTOCOL_DEPLOY_FEE_USD,
-  CREATOR_GRADUATION_LOCK_DAYS,
   DEFAULT_OPTIMIZED_SEED_XLM,
   SEED_LIQUIDITY_PRESETS,
 } from '../lib/tokenomics'
-import { DEFAULT_XLM_USD_PRICE, XLM_DECIMALS } from '../lib/xlm'
+import { DEFAULT_XLM_USD_PRICE, XLM_DECIMALS, XLM_FEE_BUFFER, xlmToStroops } from '../lib/xlm'
 import { useXlmUsdPrice } from '../hooks/useXlmUsdPrice'
+import { useXlmBalance } from '../hooks/useXlmBalance'
 import { explorerContractUrl } from '../lib/explorer'
 import { ShareButton } from './ShareButton'
 import { useWallet } from '../store/wallet'
@@ -28,6 +26,7 @@ import { saveLocalTokenMetadata } from '../lib/token-metadata'
 import {
   clearCheckpoint,
   getCheckpoint,
+  saveCheckpoint,
   type LaunchCheckpoint,
 } from '../lib/launch-checkpoint'
 import {
@@ -38,11 +37,11 @@ import {
 
 const inputClass = FORM_INPUT_CLASS
 
-type LaunchStep = 'deploy' | 'pool' | 'renounce' | null
+type LaunchStep = 'launching' | null
 
 /** Honest recovery message if a token launch was interrupted halfway. */
 function incompleteMessageFor(cp: LaunchCheckpoint): string {
-  return `Pending completion: Token ${cp.symbol} already exists on-chain (step: ${cp.step}). You can complete the pool and ownership renunciation from its token page.`
+  return `Previous launch attempt recorded for ${cp.symbol} (${cp.tokenId || 'pending broadcast'}). Check transaction status on Stellar Explorer.`
 }
 
 // Cifras estándar del desglose, derivadas de la única fuente de tokenomics:
@@ -60,10 +59,10 @@ export function CreateTokenForm({
   const { publicKey, getSigner, connect } = useWallet()
   const queryClient = useQueryClient()
   const { data: xlmUsd = DEFAULT_XLM_USD_PRICE } = useXlmUsdPrice()
-  const dynamicMintFeeXlm = calculateDeployFeeInXlm(xlmUsd)
+  const xlmBalance = useXlmBalance(publicKey)
   const [seedXlmAmount, setSeedXlmAmount] = useState<number>(DEFAULT_OPTIMIZED_SEED_XLM)
   const gasBuffer = 0.1
-  const totalRequiredXlm = dynamicMintFeeXlm + seedXlmAmount + gasBuffer
+  const totalRequiredXlm = seedXlmAmount + gasBuffer
   const [name, setName] = useState('')
   const [symbol, setSymbol] = useState('')
   const [description, setDescription] = useState('')
@@ -78,7 +77,7 @@ export function CreateTokenForm({
   const [createdId, setCreatedId] = useState<string | null>(null)
   /** Checkpoint legado de un intento anterior: se muestra para reanudarla. */
   const [checkpointNote, setCheckpointNote] = useState<LaunchCheckpoint | null>(
-    () => getCheckpoint(),
+    () => getCheckpoint(publicKey),
   )
 
   function onFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
@@ -121,6 +120,16 @@ export function CreateTokenForm({
       return
     }
 
+    const encoder = new TextEncoder()
+    if (encoder.encode(cleanName).length > 32) {
+      setError('Token Name exceeds 32 bytes in UTF-8. Please shorten or remove complex symbols.')
+      return
+    }
+    if (encoder.encode(cleanSymbol).length > 12) {
+      setError('Token Symbol exceeds 12 bytes in UTF-8.')
+      return
+    }
+
     const targetDecimals = FAIR_LAUNCH_DECIMALS
     const initialSupply = parseAmount(
       String(FAIR_LAUNCH_TOTAL_BASIS),
@@ -131,8 +140,32 @@ export function CreateTokenForm({
     // Initial XLM seed (default 10 XLM)
     const seedXlm = parseAmount(seedXlmAmount.toString(), XLM_DECIMALS)
 
+    const currentXlmBase =
+      xlmBalance.data !== undefined ? xlmToStroops(xlmBalance.data) : undefined
+    const requiredStroops = seedXlm + XLM_FEE_BUFFER
+    if (currentXlmBase !== undefined && currentXlmBase < requiredStroops) {
+      setError(
+        `Insufficient XLM balance. You have ${formatAmount(currentXlmBase, XLM_DECIMALS)} XLM, but need at least ${formatAmount(requiredStroops, XLM_DECIMALS)} XLM (${seedXlmAmount} XLM seed + 1 XLM fee buffer).`,
+      )
+      return
+    }
+
     setBusy(true)
-    setStep('deploy')
+    setStep('launching')
+    const sessionId = `launch-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+    saveCheckpoint({
+      sessionId,
+      tokenId: '',
+      name: cleanName,
+      symbol: cleanSymbol,
+      decimals: targetDecimals,
+      initialSupply: initialSupply.toString(),
+      seedXlm: seedXlm.toString(),
+      publicKey,
+      step: 'deploy',
+      updatedAt: Date.now(),
+    })
+
     let deployHash: string | undefined
     try {
       // 1. Single-transaction fair launch via Atomic Launchpad contract
@@ -146,10 +179,24 @@ export function CreateTokenForm({
         signer,
         onHash: (value) => {
           deployHash = value
+          saveCheckpoint({
+            sessionId,
+            tokenId: '',
+            name: cleanName,
+            symbol: cleanSymbol,
+            decimals: targetDecimals,
+            initialSupply: initialSupply.toString(),
+            seedXlm: seedXlm.toString(),
+            publicKey,
+            step: 'deploy',
+            txHash: value,
+            updatedAt: Date.now(),
+          })
         },
       })
       const newId = atomicResult.token
       const ticker = cleanSymbol
+      const finalHash = atomicResult.hash ?? deployHash
 
       // 2. Save enriched metadata (Logo, Telegram, Description, Website, Twitter)
       saveLocalTokenMetadata({
@@ -161,7 +208,7 @@ export function CreateTokenForm({
         twitter: twitter.trim() || undefined,
       })
 
-      clearCheckpoint()
+      clearCheckpoint(publicKey)
       setCheckpointNote(null)
 
       onCreated?.({ id: newId, decimals: targetDecimals, symbol: ticker })
@@ -173,19 +220,20 @@ export function CreateTokenForm({
         secondaryAmount: formatAmount(seedXlm, XLM_DECIMALS),
         secondarySymbol: 'XLM',
         account: publicKey,
-        hash: deployHash,
+        hash: finalHash,
       })
 
       setCreatedId(newId)
       toast.success('Token & Pool Created Successfully!', {
         message: `$${ticker} is live with Soroswap AMM pool, LP burned, and ownership renounced in 1 atomic transaction.`,
-        hash: deployHash,
+        hash: finalHash,
       })
 
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['token-list'] }),
         queryClient.invalidateQueries({ queryKey: ['demo-xlm-balances'] }),
         queryClient.invalidateQueries({ queryKey: ['soroswap-pool', newId] }),
+        queryClient.invalidateQueries({ queryKey: ['xlm-balance', publicKey] }),
       ])
     } catch (err) {
       const message = errorMessage(err)
@@ -202,7 +250,7 @@ export function CreateTokenForm({
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-lg font-semibold">Launch Your Token</h2>
         <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/40 bg-emerald-950/40 px-2.5 py-0.5 text-xs font-semibold text-emerald-300">
-          <span>⚡</span> Fee: ${PROTOCOL_DEPLOY_FEE_USD.toFixed(2)} USD (≈ {dynamicMintFeeXlm.toFixed(2)} XLM)
+          <span>⚡</span> Protocol Fee: 0 XLM (Free Testnet Launch)
         </span>
       </div>
 
@@ -292,7 +340,7 @@ export function CreateTokenForm({
             <button
               type="button"
               onClick={() => {
-                clearCheckpoint()
+                clearCheckpoint(publicKey)
                 setCheckpointNote(null)
               }}
               className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs text-slate-300 hover:border-slate-500"
@@ -461,7 +509,7 @@ export function CreateTokenForm({
               <div className="mt-1.5 flex flex-wrap items-center gap-2 font-mono text-[11px] text-slate-500">
                 <span>Supply: 1,000,000,000</span>
                 <span>•</span>
-                <span>Dev Reward: 0.5% (5 Phases over 15 Days post-graduation)</span>
+                <span>Creator Allocation: 0.5% (5M tokens at launch)</span>
                 {telegram ? (
                   <>
                     <span>•</span>
@@ -497,27 +545,12 @@ export function CreateTokenForm({
         {step ? (
           <div className="sm:col-span-2">
             <TxProgress
-              title="Automated Launch Pipeline"
+              title="Automated Atomic Launch"
               steps={[
                 {
-                  label: '1. Deploy SEP-41 Token Contract',
-                  status: step === 'deploy' ? 'active' : 'done',
-                  detail: '1,000,000,000 fixed supply on Stellar testnet',
-                },
-                {
-                  label: '2. Create Soroswap Pool & Burn LP On-Chain',
-                  status:
-                    step === 'pool'
-                      ? 'active'
-                      : step === 'renounce'
-                        ? 'done'
-                        : 'pending',
-                  detail: `99.5% tokens + ${seedXlmAmount} XLM deposited with LP 100% burned to dead address`,
-                },
-                {
-                  label: '3. Renounce On-Chain Ownership',
-                  status: step === 'renounce' ? 'active' : 'pending',
-                  detail: 'Zero inflation, immutable supply forever',
+                  label: 'Single-Transaction Fair Launch',
+                  status: 'active',
+                  detail: `Atomic deployment: SEP-41 token created, ${seedXlmAmount} XLM + 99.5% tokens deposited to Soroswap, 100% LP burned to dead address, and ownership renounced in 1 signature.`,
                 },
               ]}
             />
@@ -583,19 +616,19 @@ export function CreateTokenForm({
 
           <div className="grid gap-2 text-xs text-slate-300 sm:grid-cols-3">
             <div className="rounded-lg bg-slate-900/60 p-2.5 border border-slate-800/60">
-              <div className="text-slate-400 font-medium">🏛️ Protocol Fee</div>
+              <div className="text-slate-400 font-medium">🏛️ Protocol Deploy Fee</div>
               <div className="mt-1 font-mono font-bold text-slate-100">
-                ${PROTOCOL_DEPLOY_FEE_USD.toFixed(2)} USD (≈ {dynamicMintFeeXlm.toFixed(2)} XLM)
+                0 XLM (Free)
               </div>
-              <div className="mt-0.5 text-[10px] text-slate-500">
-                Treasury & launchpad maintenance
+              <div className="mt-0.5 text-[10px] text-emerald-400">
+                100% free testnet deployment
               </div>
             </div>
 
             <div className="rounded-lg bg-slate-900/60 p-2.5 border border-slate-800/60">
               <div className="text-slate-400 font-medium">💧 Pool Seed Liquidity</div>
               <div className="mt-1 font-mono font-bold text-slate-100">
-                {seedXlmAmount} XLM + {formatAmount(STANDARD_POOL_UNITS, FAIR_LAUNCH_DECIMALS)} Tokens
+                {seedXlmAmount} XLM + {STANDARD_POOL_UNITS.toLocaleString()} Tokens
               </div>
               <div className="mt-0.5 text-[10px] text-emerald-400">
                 100% deposited to Soroswap & LP burned
@@ -603,12 +636,12 @@ export function CreateTokenForm({
             </div>
 
             <div className="rounded-lg bg-slate-900/60 p-2.5 border border-slate-800/60">
-              <div className="text-slate-400 font-medium">🛡️ Anti-Dump Dev Allocation (0.5%)</div>
+              <div className="text-slate-400 font-medium">🛡️ Creator Allocation (0.5%)</div>
               <div className="mt-1 font-mono font-bold text-amber-300">
-                {formatAmount(STANDARD_CREATOR_UNITS, FAIR_LAUNCH_DECIMALS)} $TOKEN
+                {STANDARD_CREATOR_UNITS.toLocaleString()} $TOKEN
               </div>
               <div className="mt-0.5 text-[10px] text-slate-400">
-                🔒 5 Phases of 20% every 3 days ({CREATOR_GRADUATION_LOCK_DAYS} days post-graduation)
+                Minted directly to creator wallet at launch (0.5% max)
               </div>
             </div>
           </div>

@@ -107,16 +107,33 @@ export function SwapCard({
       setError(UNSUPPORTED_SIGNER_MESSAGE)
       return
     }
+
+    const currentXlm =
+      xlmBalance.data !== undefined ? xlmToStroops(xlmBalance.data) : undefined
+    const seedXlm = parseAmount(
+      String(DEFAULT_OPTIMIZED_SEED_XLM),
+      XLM_DECIMALS,
+    )
+    if (currentXlm !== undefined && currentXlm < seedXlm + XLM_FEE_BUFFER) {
+      setError(
+        `Insufficient XLM balance to activate pool. You need at least ${formatAmount(seedXlm + XLM_FEE_BUFFER, XLM_DECIMALS)} XLM (${DEFAULT_OPTIMIZED_SEED_XLM} XLM seed + 1 XLM fee buffer).`,
+      )
+      return
+    }
+
+    const expectedPool = expectedPoolSizeBase(token.decimals)
+    const currentTokenBal = tokenBalance.data ?? 0n
+    if (currentTokenBal < expectedPool) {
+      setError(
+        `You need ${formatAmount(expectedPool, token.decimals)} ${tokenSymbol} in your wallet to seed the initial pool.`,
+      )
+      return
+    }
+
     setActivatingPool(true)
     setError(null)
     try {
-      const expectedPool = expectedPoolSizeBase(token.decimals)
-      const currentTokenBal = tokenBalance.data ?? expectedPool
-      const tokenDesired = currentTokenBal > 0n ? currentTokenBal : expectedPool
-      const seedXlm = parseAmount(
-        String(DEFAULT_OPTIMIZED_SEED_XLM),
-        XLM_DECIMALS,
-      )
+      const tokenDesired = currentTokenBal
 
       await addLiquidity({
         tokenId: token.id,
@@ -228,6 +245,11 @@ export function SwapCard({
       setError('Please enter an amount greater than 0.')
       return
     }
+    const MAX_SAFE_SWAP_AMOUNT = 10n ** 30n
+    if (amountIn > MAX_SAFE_SWAP_AMOUNT) {
+      setError('Amount is too large. Please enter a smaller trade amount.')
+      return
+    }
     if (inputBalanceBase !== undefined && amountIn > inputBalanceBase) {
       setError(
         isBuy
@@ -242,6 +264,10 @@ export function SwapCard({
       amountIn + XLM_FEE_BUFFER > inputBalanceBase
     ) {
       setError('Leave at least 1 XLM for transaction fees and minimum balance.')
+      return
+    }
+    if (!isBuy && xlmBase !== undefined && xlmBase < XLM_FEE_BUFFER) {
+      setError('Leave at least 1 XLM in your wallet to cover transaction fees.')
       return
     }
 
@@ -323,18 +349,24 @@ export function SwapCard({
     } catch (err) {
       const message = errorMessage(err)
       setError(message)
-      recordActivity({
-        kind: 'swap',
-        status: 'failed',
-        tokenId: token.id,
-        tokenSymbol,
-        amount: formatAmount(amountIn, inputDecimals),
-        swapDirection: direction,
-        detail: isBuy ? 'failed buy' : 'failed sell',
-        account: publicKey,
-        error: message,
-      })
-      toast.error('Swap failed', { message })
+      if (message === 'Transaction cancelled in wallet.') {
+        toast.info('Swap cancelled', {
+          message: 'You cancelled the transaction in your wallet.',
+        })
+      } else {
+        recordActivity({
+          kind: 'swap',
+          status: 'failed',
+          tokenId: token.id,
+          tokenSymbol,
+          amount: formatAmount(amountIn, inputDecimals),
+          swapDirection: direction,
+          detail: isBuy ? 'failed buy' : 'failed sell',
+          account: publicKey,
+          error: message,
+        })
+        toast.error('Swap failed', { message })
+      }
     } finally {
       setBusy(false)
     }

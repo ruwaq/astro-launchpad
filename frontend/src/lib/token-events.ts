@@ -174,6 +174,7 @@ export function reconstructSnapshotsFromEvents(
     (e) =>
       e.kind === 'transfer' &&
       e.amount > 0n &&
+      e.from !== e.to &&
       (e.from === pairId || e.to === pairId),
   )
 
@@ -230,28 +231,62 @@ export function reconstructSnapshotsFromEvents(
 
 /**
  * Reads recent window and returns up to `maxEvents`.
+ * Robust against quiet ledgers and Soroban RPC retention window bounds.
  */
 export async function fetchTokenEvents(
   tokenId: string,
   options?: { windowLedgers?: number; maxEvents?: number },
 ): Promise<TokenEvent[]> {
+  if (!tokenId) return []
+
   const windowLedgers = options?.windowLedgers ?? TOKEN_EVENT_WINDOW_LEDGERS
   const maxEvents = Math.max(1, options?.maxEvents ?? TOKEN_EVENT_LIMIT)
   const server = new rpc.Server(RPC_URL)
-  const latest = await server.getLatestLedger()
-  const startLedger = Math.max(1, latest.sequence - windowLedgers)
-  const endLedger = latest.sequence
+
+  let latestLedgerSeq: number
+  try {
+    const latest = await server.getLatestLedger()
+    latestLedgerSeq = latest.sequence
+  } catch {
+    return []
+  }
+
+  let startLedger = Math.max(1, latestLedgerSeq - windowLedgers)
+  const endLedger = latestLedgerSeq
   const filters = [{ type: 'contract' as const, contractIds: [tokenId] }]
 
   let cursor: string | undefined
   let collected: TokenEvent[] = []
+  let emptyPagesCount = 0
+  const MAX_EMPTY_PAGES = 5
+  let retriedWithClampedLedger = false
 
-  for (let pageNumber = 0; pageNumber < MAX_PAGES; pageNumber++) {
-    const page = await server.getEvents({
-      filters,
-      ...(cursor ? { cursor } : { startLedger }),
-      limit: PAGE_LIMIT,
-    })
+  for (
+    let pageNumber = 0;
+    pageNumber < MAX_PAGES && emptyPagesCount < MAX_EMPTY_PAGES;
+    pageNumber++
+  ) {
+    let page: rpc.Api.GetEventsResponse
+    try {
+      page = await server.getEvents({
+        filters,
+        ...(cursor ? { cursor } : { startLedger }),
+        limit: PAGE_LIMIT,
+      })
+    } catch (err: unknown) {
+      const errMsg = (err as Error)?.message || String(err)
+      const match = errMsg.match(/ledger range:\s*(\d+)\s*-\s*(\d+)/i)
+      if (match && match[1] && !retriedWithClampedLedger) {
+        const minLedger = parseInt(match[1], 10)
+        if (Number.isFinite(minLedger) && minLedger > 0) {
+          startLedger = minLedger
+          retriedWithClampedLedger = true
+          pageNumber-- // Retry without consuming an iteration
+          continue
+        }
+      }
+      break
+    }
 
     let reachedEnd = false
     for (const event of page.events) {
@@ -263,8 +298,28 @@ export async function fetchTokenEvents(
       if (parsed) collected.push(parsed)
     }
 
-    if (reachedEnd || page.events.length === 0 || !page.cursor) break
-    if (page.events.length < PAGE_LIMIT) break
+    if (reachedEnd) break
+
+    // Quiet ledger handling: consecutive empty pages increment counter,
+    // but a non-empty page resets it without aborting pagination prematurely.
+    if (page.events.length === 0) {
+      emptyPagesCount++
+    } else {
+      emptyPagesCount = 0
+    }
+
+    if (!page.cursor || page.cursor === cursor) break
+
+    try {
+      const cursorToid = BigInt(page.cursor.split('-')[0] || '0')
+      const cursorLedger = Number(cursorToid >> 32n)
+      if (cursorLedger >= endLedger) {
+        break
+      }
+    } catch {
+      // Ignore cursor parsing failure
+    }
+
     cursor = page.cursor
 
     if (collected.length > maxEvents * 4) {

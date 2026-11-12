@@ -251,7 +251,7 @@ export function LiquidityForm({
           </label>
 
           {publicKey && balance.data !== undefined ? (
-            <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
               <span>
                 Balance:{' '}
                 <span className="font-mono text-slate-300">
@@ -269,7 +269,7 @@ export function LiquidityForm({
                       onClick={() =>
                         updateTokenAmount(formatAmount(slice, token.decimals))
                       }
-                      className="inline-flex min-h-[32px] items-center rounded-md border border-slate-800 bg-slate-950/60 px-2.5 py-1 text-xs font-medium text-emerald-300 hover:border-emerald-500 disabled:opacity-50"
+                      className="inline-flex min-h-[36px] items-center rounded-md border border-slate-800 bg-slate-950/60 px-3 py-1.5 text-xs font-medium text-emerald-300 hover:border-emerald-500 disabled:opacity-50"
                     >
                       {pct === 100 ? 'MAX' : `${pct}%`}
                     </button>
@@ -293,7 +293,7 @@ export function LiquidityForm({
           </label>
 
           {publicKey && xlmBase !== undefined ? (
-            <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
               <span>
                 Your XLM:{' '}
                 <span className="font-mono text-slate-300">
@@ -312,7 +312,7 @@ export function LiquidityForm({
                       onClick={() =>
                         updateXlmAmount(formatAmount(slice, XLM_DECIMALS))
                       }
-                      className="inline-flex min-h-[32px] items-center rounded-md border border-slate-800 bg-slate-950/60 px-2.5 py-1 text-xs font-medium text-emerald-300 hover:border-emerald-500 disabled:opacity-50"
+                      className="inline-flex min-h-[36px] items-center rounded-md border border-slate-800 bg-slate-950/60 px-3 py-1.5 text-xs font-medium text-emerald-300 hover:border-emerald-500 disabled:opacity-50"
                     >
                       {pct === 100 ? 'MAX' : `${pct}%`}
                     </button>

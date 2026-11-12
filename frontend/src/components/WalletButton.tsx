@@ -55,10 +55,11 @@ export function WalletButton() {
                 type="button"
                 onClick={() => selectDemo(idx)}
                 aria-pressed={idx === demoActive}
+                aria-label={`Use test account ${acc.label} (${shortAddress(acc.publicKey)})`}
                 title={`Use account ${acc.label} (${shortAddress(acc.publicKey)})`}
-                className={`min-h-[28px] min-w-[28px] rounded px-1.5 text-xs font-semibold transition-colors ${
+                className={`min-h-[36px] min-w-[36px] rounded px-2 text-xs font-semibold transition-colors ${
                   idx === demoActive
-                    ? 'bg-emerald-500 text-slate-950'
+                    ? 'bg-emerald-500 text-slate-950 font-bold'
                     : 'text-emerald-200 hover:bg-emerald-500/20'
                 }`}
               >
@@ -70,8 +71,9 @@ export function WalletButton() {
                 type="button"
                 disabled={demoPending}
                 onClick={() => void addDemoAccount()}
+                aria-label="Add another test account (+10,000 XLM)"
                 title="Add another test account (+10,000 XLM)"
-                className="min-h-[28px] min-w-[28px] rounded px-1.5 text-xs font-bold text-emerald-300 hover:bg-emerald-500/20 disabled:opacity-40"
+                className="min-h-[36px] min-w-[36px] rounded px-2 text-xs font-bold text-emerald-300 hover:bg-emerald-500/20 disabled:opacity-40"
               >
                 {demoPending ? '…' : '+'}
               </button>
@@ -84,7 +86,7 @@ export function WalletButton() {
         <button
           type="button"
           onClick={() => void onDisconnect()}
-          className="min-h-[36px] rounded-lg border border-slate-700 px-2.5 py-1.5 text-xs hover:bg-slate-800 sm:min-h-[40px] sm:px-3 sm:text-sm"
+          className="min-h-[44px] rounded-lg border border-slate-700 px-3 py-1.5 text-xs hover:bg-slate-800 sm:px-3.5 sm:text-sm"
         >
           Disconnect
         </button>

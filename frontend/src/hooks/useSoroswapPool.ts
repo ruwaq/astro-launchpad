@@ -2,8 +2,8 @@ import { useQuery } from '@tanstack/react-query'
 import { fetchPoolState, type PoolState } from '../lib/soroswap'
 
 /**
- * Estado del par token/XLM en Soroswap (reservas leídas on-chain).
- * La red es la fuente de verdad: solo hay caché corta para no martillear el RPC.
+ * State of the token/XLM pair on Soroswap (reserves read directly on-chain).
+ * Network is the source of truth: uses a short cache to avoid hammering the RPC.
  */
 export function useSoroswapPool(tokenId: string | null) {
   return useQuery({
@@ -11,9 +11,9 @@ export function useSoroswapPool(tokenId: string | null) {
     queryFn: async (): Promise<PoolState> => fetchPoolState(tokenId as string),
     enabled: Boolean(tokenId),
     staleTime: 10_000,
-    // El gráfico local necesita lecturas periódicas mientras la pestaña está
-    // abierta. TanStack solo refresca queries activas, así que no hay polling
-    // de fondo en otras páginas.
+    // The local chart needs periodic readings while the tab is active.
+    // TanStack only refreshes active queries, avoiding background polling
+    // on inactive pages.
     refetchInterval: 60_000,
     refetchIntervalInBackground: false,
   })

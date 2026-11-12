@@ -1,11 +1,11 @@
 export type ToastKind = 'success' | 'error' | 'info'
 
 export type ToastOptions = {
-  /** Texto secundario, normalmente el detalle de la transacción. */
+  /** Secondary text, usually transaction details. */
   message?: string
-  /** Hash de una transacción de Stellar para enlazar al explorador. */
+  /** Hash of a Stellar transaction to link to explorer. */
   hash?: string
-  /** 0 desactiva el cierre automático. */
+  /** 0 disables auto-dismiss. */
   durationMs?: number
 }
 
@@ -41,7 +41,7 @@ function pushToast(input: ToastInput): number {
     durationMs: input.durationMs ?? (input.kind === 'error' ? 8_000 : 6_000),
   }
 
-  // Máximo 4 visibles: evita tapar la UI en móvil.
+  // At most 4 visible: avoids covering UI on mobile.
   toasts = [...toasts, toast].slice(-4)
   emit()
 

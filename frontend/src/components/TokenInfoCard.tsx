@@ -9,7 +9,7 @@ import type { LaunchpadToken } from '../lib/token'
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-lg border border-slate-800 bg-slate-900/60 px-4 py-3">
-      <div className="text-xs uppercase tracking-wide text-slate-500">{label}</div>
+      <div className="text-xs uppercase tracking-wide text-slate-400">{label}</div>
       <div className="mt-1 font-mono text-sm text-slate-100">{value}</div>
     </div>
   )
@@ -55,7 +55,7 @@ export function TokenInfoCard({
         <button
           type="button"
           onClick={() => void info.refetch()}
-          className="ml-3 rounded border border-rose-800 px-2 py-1 text-xs"
+          className="ml-3 inline-flex min-h-[36px] items-center rounded border border-rose-800 px-3 py-1.5 text-xs hover:bg-rose-900/40"
         >
           Retry
         </button>
@@ -70,7 +70,7 @@ export function TokenInfoCard({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-lg font-semibold">
           {token.name}{' '}
-          <span className="text-slate-500">
+          <span className="text-slate-400">
             ({token.symbol}){example ? ' · Genesis Meme Token' : ''}
           </span>
         </h2>
@@ -78,7 +78,8 @@ export function TokenInfoCard({
           href={explorerContractUrl(activeTokenId)}
           target="_blank"
           rel="noreferrer"
-          className="font-mono text-xs text-emerald-400 hover:underline"
+          aria-label={`View contract ${activeTokenId} on Stellar Explorer`}
+          className="inline-flex min-h-[36px] items-center font-mono text-xs text-emerald-400 hover:underline"
         >
           {activeTokenId.slice(0, 8)}…{activeTokenId.slice(-4)} ↗
         </a>
@@ -102,7 +103,7 @@ export function TokenInfoCard({
         />
       </div>
 
-      <p className="mt-4 text-xs text-slate-500">
+      <p className="mt-4 text-xs text-slate-400">
         Live data queried from the contract on Stellar testnet via Soroban RPC. Zero backend: the blockchain is the single source of truth.
       </p>
     </section>

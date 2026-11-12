@@ -1,9 +1,11 @@
 //! Contrato del token fungible del launchpad (SEP-41, OpenZeppelin Stellar).
 //!
 //! Garantías de fair launch:
-//! - Supply fijo: el cap se fija en el constructor al `initial_supply`, y el
-//!   OZ `Capped` rechaza cualquier mint que lo supere (incluso ANTES de
-//!   renunciar ownership).
+//! - Supply fijo y deflacionario: el cap se fija en el constructor al `initial_supply`
+//!   y se acuña por completo. La renuncia irrevocable de ownership (`renounce_ownership`)
+//!   es la barrera definitiva que sella la acuñación: aunque `Capped` limita el supply
+//!   circulante al cap, quemar tokens liberaría margen bajo el cap que un owner activo
+//!   podría volver a acuñar. Al renunciar al owner, `mint` queda inhabilitado para siempre.
 //! - Metadata saneada: decimals 0..18, name/symbol no vacíos y ≤ 32 bytes.
 
 use soroban_sdk::{contract, contractimpl, Address, Env, MuxedAddress, String};
@@ -20,11 +22,17 @@ use stellar_tokens::fungible::{
 // `#[contractimpl(contracttrait)]` lo requiere en scope (los defaults de los
 // traits de OZ lo referencian). Sin él el macro no compila.
 
-/// Límite razonable de decimales (native Stellar usa 7; EPS-41 no impone tope).
+/// Límite razonable de decimales (native Stellar usa 7; SEP-41 no impone tope).
 const MAX_DECIMALS: u32 = 18;
 
 /// Límite de tamaño de name/symbol: evita inflar metadata en storage.
 const MAX_STRING_BYTES: u32 = 32;
+
+/// Constantes de extensión de TTL de instancia (Soroban testnet/mainnet).
+/// 1 día ≈ 17.280 ledgers a ~5s por ledger.
+const DAY_IN_LEDGERS: u32 = 17_280;
+pub const INSTANCE_BUMP_AMOUNT: u32 = 90 * DAY_IN_LEDGERS; // ~90 días (1.555.200 ledgers)
+pub const INSTANCE_TTL_THRESHOLD: u32 = INSTANCE_BUMP_AMOUNT - (7 * DAY_IN_LEDGERS); // ~83 días (1.434.240 ledgers)
 
 #[contract]
 pub struct Token;
@@ -55,24 +63,35 @@ impl Token {
         }
 
         Base::set_metadata(e, decimals, name, symbol);
-        // El cap fija el techo TOTAL del supply; el mint del constructor lo
-        // respeta y ya no queda margen para inflación posterior.
+        // El cap fija el techo inicial del supply igual al initial_supply.
+        // Nota: quemar tokens reduce el supply total circulante; por tanto,
+        // la renuncia de ownership (post-deploy) es lo que garantiza que no
+        // se puedan re-acuñar tokens quemados.
         Capped::set_cap(e, initial_supply);
         // Ruta por el ContractType para que el supply quede trackeado y el
         // cap se aplique (Compose<(Capped, TotalSupply)> → mint con cap).
         <Self as FungibleToken>::ContractType::mint(e, &owner, initial_supply);
         ownable::set_owner(e, &owner);
-        e.storage().instance().extend_ttl(100_000, 200_000);
+        Self::extend_ttl(e);
     }
 
-    /// Mint solo para el owner (inyección de supply del launchpad).
+    /// Mint solo para el owner (inyección inicial / pruebas antes de renunciar).
     ///
-    /// El cap impone un techo absoluto: con supply == cap, esta vía está
-    /// cerrada incluso estando el owner activo (más fácil que confiar solo
-    /// en la renuncia de ownership).
+    /// Importante: El cap restringe el supply total circulante instantáneo.
+    /// Si un usuario quema tokens, el supply baja y el owner podría re-mintear
+    /// hasta el cap. Por ello, la renuncia de ownership (`renounce_ownership`)
+    /// en el launchpad es el mecanismo indispensable que sella la acuñación para siempre.
     #[only_owner]
     pub fn mint(e: &Env, to: Address, amount: i128) {
         <Self as FungibleToken>::ContractType::mint(e, &to, amount);
+    }
+
+    /// Extiende el TTL de la instancia del contrato (metadata, cap y owner).
+    /// Cualquier usuario o keeper puede invocarlo para mantener vivo el contrato.
+    pub fn extend_ttl(e: &Env) {
+        e.storage()
+            .instance()
+            .extend_ttl(INSTANCE_TTL_THRESHOLD, INSTANCE_BUMP_AMOUNT);
     }
 }
 

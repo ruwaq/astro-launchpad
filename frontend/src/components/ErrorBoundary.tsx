@@ -2,7 +2,48 @@ import { Component, type ErrorInfo, type ReactNode } from 'react'
 
 type Props = {
   children: ReactNode
-  fallback?: ReactNode
+  fallback?: ReactNode | ((error: Error, retry: () => void) => ReactNode)
+}
+
+export function PageErrorFallback({
+  error,
+  onRetry,
+}: {
+  error?: Error | null
+  onRetry?: () => void
+}) {
+  return (
+    <section className="rounded-2xl border border-rose-900 bg-rose-950/30 p-6 text-slate-100">
+      <h1 className="text-xl font-bold text-rose-200">
+        Unable to display this view
+      </h1>
+      <p className="mt-2 text-sm text-slate-300">
+        Your funds remain safe on-chain. An unexpected error occurred while rendering this page.
+      </p>
+      {error?.message ? (
+        <p className="mt-2 break-words font-mono text-xs text-rose-300/80">
+          {error.message}
+        </p>
+      ) : null}
+      <div className="mt-4 flex flex-wrap gap-2">
+        {onRetry ? (
+          <button
+            type="button"
+            onClick={onRetry}
+            className="min-h-[44px] rounded-lg bg-emerald-500 px-4 py-2 text-sm font-medium text-slate-950 hover:bg-emerald-400"
+          >
+            Retry view
+          </button>
+        ) : null}
+        <a
+          href="/"
+          className="inline-flex min-h-[44px] items-center rounded-lg border border-slate-700 px-4 py-2 text-sm hover:bg-slate-800"
+        >
+          Return Home
+        </a>
+      </div>
+    </section>
+  )
 }
 
 type State = {
@@ -26,6 +67,9 @@ export class ErrorBoundary extends Component<Props, State> {
 
   render() {
     if (this.state.error) {
+      if (typeof this.props.fallback === 'function') {
+        return this.props.fallback(this.state.error, () => this.setState({ error: null }))
+      }
       return (
         this.props.fallback ?? (
           <div className="flex min-h-screen items-center justify-center bg-slate-950 p-4 text-slate-100">

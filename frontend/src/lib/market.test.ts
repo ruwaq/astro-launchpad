@@ -65,11 +65,20 @@ describe('filterAndSortTokens', () => {
     ])
   })
 
-  it('prioritizes tokens actively racing toward graduation over already graduated tokens', () => {
+  it('prioritizes tokens actively racing toward graduation over already graduated tokens and puts unseeded at the bottom', () => {
     const graduated = listing('CT_GRAD', 'GRAD', 5, 25_000_000_000n) // 2500 XLM (> 2000 XLM target)
     const inFlight = listing('CT_RACE', 'RACE', 5, 15_000_000_000n) // 1500 XLM (< 2000 XLM target)
-    const sorted = filterAndSortTokens([graduated, inFlight], '', 'graduation')
-    expect(sorted.map((t) => t.symbol)).toEqual(['RACE', 'GRAD'])
+    const unseeded = listing('CT_ZERO', 'ZERO', 5, 0n) // 0 XLM unseeded
+    const sorted = filterAndSortTokens([unseeded, graduated, inFlight], '', 'graduation')
+    expect(sorted.map((t) => t.symbol)).toEqual(['RACE', 'GRAD', 'ZERO'])
+  })
+
+  it('correctly sorts low-ratio fair launch tokens by price without integer stroop underflow', () => {
+    // 995M supply, both prices < 1 stroop per token
+    const tokenLow = listing('CT_LOW', 'LOW', 5, 10n * 10_000_000n, 995_000_000n * 10_000_000n) // 10 XLM
+    const tokenHigh = listing('CT_HIGH', 'HIGH', 5, 50n * 10_000_000n, 995_000_000n * 10_000_000n) // 50 XLM
+    const sorted = filterAndSortTokens([tokenLow, tokenHigh], '', 'price')
+    expect(sorted.map((t) => t.symbol)).toEqual(['HIGH', 'LOW'])
   })
 
   it('aplica el límite después de ordenar', () => {

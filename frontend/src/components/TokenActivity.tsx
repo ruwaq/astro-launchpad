@@ -166,12 +166,13 @@ export function TokenActivity({
 
         <div className="flex items-center gap-2">
           {/* View mode toggle */}
-          <div className="flex rounded-lg border border-slate-800 bg-slate-950/80 p-0.5">
+          <div role="group" aria-label="Activity view mode" className="flex rounded-lg border border-slate-800 bg-slate-950/80 p-0.5">
             <button
               type="button"
               onClick={() => setViewMode('grid')}
+              aria-pressed={viewMode === 'grid'}
               title="Grid View"
-              className={`rounded-md px-2.5 py-1 text-xs font-semibold transition ${
+              className={`min-h-[36px] rounded-md px-2.5 py-1 text-xs font-semibold transition ${
                 viewMode === 'grid'
                   ? 'bg-emerald-500 text-slate-950 font-bold'
                   : 'text-slate-400 hover:text-slate-200'
@@ -182,8 +183,9 @@ export function TokenActivity({
             <button
               type="button"
               onClick={() => setViewMode('list')}
+              aria-pressed={viewMode === 'list'}
               title="List View"
-              className={`rounded-md px-2.5 py-1 text-xs font-semibold transition ${
+              className={`min-h-[36px] rounded-md px-2.5 py-1 text-xs font-semibold transition ${
                 viewMode === 'list'
                   ? 'bg-emerald-500 text-slate-950 font-bold'
                   : 'text-slate-400 hover:text-slate-200'
@@ -197,7 +199,7 @@ export function TokenActivity({
             type="button"
             onClick={() => void events.refetch()}
             disabled={events.isFetching}
-            className="min-h-[34px] rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:border-slate-500 disabled:opacity-50 transition"
+            className="min-h-[36px] rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:border-slate-500 disabled:opacity-50 transition"
           >
             {events.isFetching ? 'Refreshing…' : '🔄 Refresh'}
           </button>
@@ -205,11 +207,13 @@ export function TokenActivity({
       </div>
 
       {/* Filter Tabs */}
-      <div className="flex flex-wrap items-center gap-1.5 border-b border-slate-800/80 pb-2">
+      <div role="tablist" aria-label="Activity filters" className="flex flex-wrap items-center gap-1.5 border-b border-slate-800/80 pb-2">
         <button
           type="button"
+          role="tab"
+          aria-selected={filter === 'all'}
           onClick={() => setFilter('all')}
-          className={`min-h-[32px] rounded-lg px-3 py-1 text-xs font-bold transition ${
+          className={`min-h-[36px] rounded-lg px-3 py-1.5 text-xs font-bold transition ${
             filter === 'all'
               ? 'bg-slate-800 text-slate-100 border border-slate-600 shadow-sm'
               : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
@@ -220,8 +224,10 @@ export function TokenActivity({
 
         <button
           type="button"
+          role="tab"
+          aria-selected={filter === 'buy'}
           onClick={() => setFilter('buy')}
-          className={`min-h-[32px] rounded-lg px-3 py-1 text-xs font-bold transition flex items-center gap-1.5 ${
+          className={`min-h-[36px] rounded-lg px-3 py-1.5 text-xs font-bold transition flex items-center gap-1.5 ${
             filter === 'buy'
               ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500 shadow-sm'
               : 'text-slate-400 hover:text-emerald-300 hover:bg-slate-900'
@@ -232,8 +238,10 @@ export function TokenActivity({
 
         <button
           type="button"
+          role="tab"
+          aria-selected={filter === 'sell'}
           onClick={() => setFilter('sell')}
-          className={`min-h-[32px] rounded-lg px-3 py-1 text-xs font-bold transition flex items-center gap-1.5 ${
+          className={`min-h-[36px] rounded-lg px-3 py-1.5 text-xs font-bold transition flex items-center gap-1.5 ${
             filter === 'sell'
               ? 'bg-rose-500/20 text-rose-300 border border-rose-500 shadow-sm'
               : 'text-slate-400 hover:text-rose-300 hover:bg-slate-900'
@@ -244,8 +252,10 @@ export function TokenActivity({
 
         <button
           type="button"
+          role="tab"
+          aria-selected={filter === 'whale'}
           onClick={() => setFilter('whale')}
-          className={`min-h-[32px] rounded-lg px-3 py-1 text-xs font-bold transition flex items-center gap-1.5 ${
+          className={`min-h-[36px] rounded-lg px-3 py-1.5 text-xs font-bold transition flex items-center gap-1.5 ${
             filter === 'whale'
               ? 'bg-amber-500/20 text-amber-300 border border-amber-500 shadow-sm'
               : 'text-slate-400 hover:text-amber-300 hover:bg-slate-900'
@@ -299,21 +309,21 @@ export function TokenActivity({
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
             <div>
-              <span className="text-slate-500">Amount:</span>
+              <span className="text-slate-400">Amount:</span>
               <p className="font-mono text-sm font-bold text-emerald-300 mt-0.5">
                 {formatAmount(selectedEvent.amount, activeDecimals)} ${activeSymbol}
               </p>
             </div>
 
             <div>
-              <span className="text-slate-500">Timestamp:</span>
+              <span className="text-slate-400">Timestamp:</span>
               <p className="font-mono text-slate-300 mt-0.5">
                 {new Date(selectedEvent.at).toLocaleString()}
               </p>
             </div>
 
             <div>
-              <span className="text-slate-500">From (Sender):</span>
+              <span className="text-slate-400">From (Sender):</span>
               <p className="font-mono text-slate-300 break-all mt-0.5">
                 {selectedEvent.from ? (
                   <a
@@ -331,7 +341,7 @@ export function TokenActivity({
             </div>
 
             <div>
-              <span className="text-slate-500">To (Recipient):</span>
+              <span className="text-slate-400">To (Recipient):</span>
               <p className="font-mono text-slate-300 break-all mt-0.5">
                 {selectedEvent.to ? (
                   <a
@@ -387,15 +397,7 @@ export function TokenActivity({
             return (
               <div
                 key={event.id}
-                role="button"
-                tabIndex={0}
-                onClick={() => setSelectedEvent(event)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    setSelectedEvent(event)
-                  }
-                }}
-                className={`group relative rounded-xl border p-3.5 transition-all text-left cursor-pointer hover:-translate-y-0.5 hover:shadow-lg ${
+                className={`group relative flex flex-col justify-between rounded-xl border p-3.5 transition-all text-left hover:-translate-y-0.5 hover:shadow-lg ${
                   isSelected
                     ? 'border-emerald-400 bg-slate-950 ring-2 ring-emerald-500/30'
                     : role === 'buy'
@@ -405,48 +407,56 @@ export function TokenActivity({
                         : 'border-slate-800 bg-slate-950/50 hover:border-slate-600'
                 }`}
               >
-                {/* Cuadro Header */}
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-1.5">
-                    <span
-                      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-black tracking-wide ${badge.border} ${badge.bg} ${badge.text}`}
-                    >
-                      <span>{badge.icon}</span>
-                      <span>{badge.label}</span>
-                    </span>
-                    {isWhale ? (
-                      <span className="rounded-full border border-amber-500/50 bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-bold text-amber-300 animate-pulse">
-                        🐋 Whale
+                <button
+                  type="button"
+                  onClick={() => setSelectedEvent(event)}
+                  aria-pressed={isSelected}
+                  aria-label={`View details for ${role} event of ${formatAmount(event.amount, activeDecimals)} ${activeSymbol}`}
+                  className="w-full text-left cursor-pointer"
+                >
+                  {/* Cuadro Header */}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5">
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-black tracking-wide ${badge.border} ${badge.bg} ${badge.text}`}
+                      >
+                        <span>{badge.icon}</span>
+                        <span>{badge.label}</span>
                       </span>
-                    ) : null}
-                  </div>
+                      {isWhale ? (
+                        <span className="rounded-full border border-amber-500/50 bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-bold text-amber-300 animate-pulse">
+                          🐋 Whale
+                        </span>
+                      ) : null}
+                    </div>
 
-                  <span className="text-[11px] font-mono text-slate-400">
-                    {timeAgo(event.at)}
-                  </span>
-                </div>
-
-                {/* Card Amount */}
-                <div className="mt-2.5">
-                  <span className="text-[11px] text-slate-500">Traded Amount</span>
-                  <div className="flex items-baseline gap-1 font-mono">
-                    <span
-                      className={`text-base sm:text-lg font-black tracking-tight ${
-                        role === 'buy'
-                          ? 'text-emerald-400'
-                          : role === 'sell'
-                            ? 'text-rose-400'
-                            : 'text-slate-100'
-                      }`}
-                    >
-                      {role === 'buy' ? '+' : role === 'sell' ? '-' : ''}
-                      {formatAmount(event.amount, activeDecimals)}
-                    </span>
-                    <span className="text-xs font-bold text-slate-400">
-                      ${activeSymbol}
+                    <span className="text-[11px] font-mono text-slate-400">
+                      {timeAgo(event.at)}
                     </span>
                   </div>
-                </div>
+
+                  {/* Card Amount */}
+                  <div className="mt-2.5">
+                    <span className="text-[11px] text-slate-400">Traded Amount</span>
+                    <div className="flex items-baseline gap-1 font-mono">
+                      <span
+                        className={`text-base sm:text-lg font-black tracking-tight ${
+                          role === 'buy'
+                            ? 'text-emerald-400'
+                            : role === 'sell'
+                              ? 'text-rose-400'
+                              : 'text-slate-100'
+                        }`}
+                      >
+                        {role === 'buy' ? '+' : role === 'sell' ? '-' : ''}
+                        {formatAmount(event.amount, activeDecimals)}
+                      </span>
+                      <span className="text-xs font-bold text-slate-400">
+                        ${activeSymbol}
+                      </span>
+                    </div>
+                  </div>
+                </button>
 
                 {/* Cuadro Trader Footer */}
                 <div className="mt-3 flex items-center justify-between border-t border-slate-800/60 pt-2.5 text-xs">
@@ -466,8 +476,8 @@ export function TokenActivity({
                       href={explorerTxUrl(event.txHash)}
                       target="_blank"
                       rel="noreferrer"
-                      onClick={(e) => e.stopPropagation()}
-                      className="text-[11px] text-slate-400 hover:text-emerald-300 underline underline-offset-2 flex items-center gap-0.5"
+                      aria-label={`View transaction ${shortAddress(event.txHash)} on Stellar Explorer`}
+                      className="inline-flex min-h-[36px] items-center text-[11px] text-slate-400 hover:text-emerald-300 underline underline-offset-2 gap-0.5"
                     >
                       tx ↗
                     </a>
@@ -484,22 +494,19 @@ export function TokenActivity({
         <ul className="divide-y divide-slate-800">
           {filtered.map(({ event, role }) => {
             const badge = ROLE_BADGES[role]
+            const isSelected = selectedEvent?.id === event.id
             return (
               <li
                 key={event.id}
-                role="button"
-                tabIndex={0}
-                aria-pressed={selectedEvent?.id === event.id}
-                onClick={() => setSelectedEvent(event)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault()
-                    setSelectedEvent(event)
-                  }
-                }}
-                className="flex flex-col gap-2 py-2.5 sm:flex-row sm:items-center sm:justify-between cursor-pointer hover:bg-slate-900/50 px-2 rounded-lg transition"
+                className="flex flex-col gap-2 py-2.5 sm:flex-row sm:items-center sm:justify-between px-2 rounded-lg transition hover:bg-slate-900/50"
               >
-                <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedEvent(event)}
+                  aria-pressed={isSelected}
+                  aria-label={`View details for ${role} event: ${formatAmount(event.amount, activeDecimals)} ${activeSymbol}`}
+                  className="flex flex-wrap items-center gap-2 text-left flex-1 min-h-[44px] cursor-pointer"
+                >
                   <span
                     className={`rounded-full border px-2 py-0.5 text-[10px] font-bold ${badge.border} ${badge.bg} ${badge.text}`}
                   >
@@ -511,17 +518,17 @@ export function TokenActivity({
                   <span className="text-[11px] text-slate-400">
                     {tokenEventSummary(event, pairId)}
                   </span>
-                </div>
+                </button>
 
-                <div className="flex items-center gap-3 font-mono text-[11px] text-slate-500">
+                <div className="flex items-center gap-3 font-mono text-[11px] text-slate-400">
                   <span>{timeAgo(event.at)}</span>
                   {event.txHash ? (
                     <a
                       href={explorerTxUrl(event.txHash)}
                       target="_blank"
                       rel="noreferrer"
-                      onClick={(e) => e.stopPropagation()}
-                      className="text-slate-400 hover:text-emerald-300 underline"
+                      aria-label={`View transaction ${shortAddress(event.txHash)} on Stellar Explorer`}
+                      className="inline-flex min-h-[36px] items-center text-slate-400 hover:text-emerald-300 underline"
                     >
                       tx ↗
                     </a>
@@ -533,7 +540,7 @@ export function TokenActivity({
         </ul>
       ) : null}
 
-      <p className="mt-2 text-center text-[11px] text-slate-500">
+      <p className="mt-2 text-center text-[11px] text-slate-400">
         Soroban RPC retention window (~14h). Activity blocks sync automatically with each Stellar ledger.
       </p>
     </section>

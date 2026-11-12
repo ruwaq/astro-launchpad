@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 
 /**
- * Copiado al portapapeles con estado transitorio y cleanup correcto:
- * - El timeout se cancela al desmontar (sin setState tras unmount).
- * - Copiar dos veces seguidas no resucita el estado de la primera (reset).
+ * Clipboard copy helper with transient state and proper cleanup:
+ * - Cancels timeout on unmount (avoids setState after unmount).
+ * - Successive copies reset the timer without resurrecting stale state.
  */
 export function useCopy(resetAfterMs = 1800): {
   copied: boolean
-  /** Último valor copiado (para UIs con varias filas/campos copiables). */
+  /** Last copied value (useful for UIs with multiple copyable rows/fields). */
   lastCopied: string | null
   copy: (value: string) => Promise<void>
 } {
@@ -32,7 +32,7 @@ export function useCopy(resetAfterMs = 1800): {
       setLastCopied(value)
       timerRef.current = setTimeout(() => setCopied(false), resetAfterMs)
     } catch {
-      // Sin permiso de portapapeles: sin estado engañoso.
+      // Clipboard permission denied or unavailable: keep state honest.
     }
   }
 

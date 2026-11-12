@@ -85,46 +85,43 @@ export function TokenGraphics({
           <span className="font-semibold text-slate-200">
             Token Architecture (100% Immutable)
           </span>
-          <span className="text-[11px] text-slate-500">Tap segments to view details</span>
+          <span className="text-[11px] text-slate-400">Tap segments to view details</span>
         </div>
 
         {/* Visual Segmented Bar */}
-        <div className="flex h-4 w-full overflow-hidden rounded-full p-0.5 bg-slate-900 border border-slate-800 gap-0.5">
-          <button
-            type="button"
-            onClick={() => setActiveSegment('curve')}
-            title="Trading Curve (79.5%)"
+        <div
+          role="img"
+          aria-label={`Token allocation: ${curvePercent}% bonding curve, ${dexPercent}% DEX reserve, ${creatorPercent}% dev`}
+          className="flex h-4 w-full overflow-hidden rounded-full p-0.5 bg-slate-900 border border-slate-800 gap-0.5"
+        >
+          <div
             style={{ width: `${curvePercent}%` }}
-            className={`h-full rounded-l-full bg-emerald-500 transition-all hover:opacity-90 ${
+            className={`h-full rounded-l-full bg-emerald-500 transition-all ${
               activeSegment === 'curve' ? 'ring-2 ring-emerald-300' : 'opacity-80'
             }`}
           />
-          <button
-            type="button"
-            onClick={() => setActiveSegment('dex')}
-            title="Soroswap DEX Reserve (20.0%)"
+          <div
             style={{ width: `${dexPercent}%` }}
-            className={`h-full bg-cyan-400 transition-all hover:opacity-90 ${
+            className={`h-full bg-cyan-400 transition-all ${
               activeSegment === 'dex' ? 'ring-2 ring-cyan-300' : 'opacity-80'
             }`}
           />
-          <button
-            type="button"
-            onClick={() => setActiveSegment('creator')}
-            title="Creator Allocation (0.5%)"
+          <div
             style={{ width: `${creatorPercent}%` }}
-            className={`h-full rounded-r-full bg-amber-400 transition-all hover:opacity-90 ${
+            className={`h-full rounded-r-full bg-amber-400 transition-all ${
               activeSegment === 'creator' ? 'ring-2 ring-amber-300' : 'opacity-80'
             }`}
           />
         </div>
 
         {/* Interactive Segment Buttons */}
-        <div className="grid grid-cols-3 gap-1.5 text-center text-xs">
+        <div role="tablist" aria-label="Token distribution segments" className="grid grid-cols-3 gap-1.5 text-center text-xs">
           <button
             type="button"
+            role="tab"
+            aria-selected={activeSegment === 'curve'}
             onClick={() => setActiveSegment('curve')}
-            className={`rounded-lg border p-1.5 transition-all ${
+            className={`min-h-[44px] rounded-lg border p-1.5 transition-all flex flex-col items-center justify-center ${
               activeSegment === 'curve'
                 ? 'border-emerald-500 bg-emerald-950/40 text-emerald-300 font-bold'
                 : 'border-slate-800 bg-slate-900/40 text-slate-400 hover:text-slate-200'
@@ -136,8 +133,10 @@ export function TokenGraphics({
 
           <button
             type="button"
+            role="tab"
+            aria-selected={activeSegment === 'dex'}
             onClick={() => setActiveSegment('dex')}
-            className={`rounded-lg border p-1.5 transition-all ${
+            className={`min-h-[44px] rounded-lg border p-1.5 transition-all flex flex-col items-center justify-center ${
               activeSegment === 'dex'
                 ? 'border-cyan-500 bg-cyan-950/40 text-cyan-300 font-bold'
                 : 'border-slate-800 bg-slate-900/40 text-slate-400 hover:text-slate-200'
@@ -149,8 +148,10 @@ export function TokenGraphics({
 
           <button
             type="button"
+            role="tab"
+            aria-selected={activeSegment === 'creator'}
             onClick={() => setActiveSegment('creator')}
-            className={`rounded-lg border p-1.5 transition-all ${
+            className={`min-h-[44px] rounded-lg border p-1.5 transition-all flex flex-col items-center justify-center ${
               activeSegment === 'creator'
                 ? 'border-amber-500 bg-amber-950/40 text-amber-300 font-bold'
                 : 'border-slate-800 bg-slate-900/40 text-slate-400 hover:text-slate-200'
@@ -184,7 +185,11 @@ export function TokenGraphics({
           </div>
         </div>
 
-        <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-slate-900 border border-slate-800">
+        <div
+          role="img"
+          aria-label={`Trade sentiment: ${buyRatio.toFixed(0)}% buys, ${sellRatio.toFixed(0)}% sells across ${totalSwaps} swaps`}
+          className="flex h-2.5 w-full overflow-hidden rounded-full bg-slate-900 border border-slate-800"
+        >
           <div
             style={{ width: `${buyRatio}%` }}
             className="h-full bg-emerald-500 transition-all duration-500"
@@ -285,7 +290,7 @@ export function TokenGraphics({
                 className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded ${
                   grad.graduated
                     ? 'text-emerald-300 bg-emerald-900/60 animate-pulse'
-                    : 'text-slate-500 bg-slate-800'
+                    : 'text-slate-400 bg-slate-800'
                 }`}
               >
                 {grad.graduated ? 'Graduated 🏆' : `${grad.targetXlm} XLM`}

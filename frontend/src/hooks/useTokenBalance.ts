@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ASTRO_TOKEN_ID } from '../lib/network'
 import { fetchTokenBalance } from '../lib/token'
 
-/** Balance SEP-41 de una cuenta para un token (por defecto, el de ejemplo). */
+/** SEP-41 token balance for an account (defaults to the example ASTRO token). */
 export function useTokenBalance(
   account: string | null,
   contractId: string = ASTRO_TOKEN_ID,

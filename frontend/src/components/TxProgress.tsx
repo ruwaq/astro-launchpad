@@ -14,7 +14,7 @@ const stepIcon: Record<TxStepStatus, string> = {
 }
 
 const stepColor: Record<TxStepStatus, string> = {
-  pending: 'text-slate-500',
+  pending: 'text-slate-400',
   active: 'text-amber-300',
   done: 'text-emerald-400',
   error: 'text-rose-400',
@@ -76,12 +76,12 @@ export function TxProgress({
             </span>
             <span
               className={
-                step.status === 'pending' ? 'text-slate-500' : 'text-slate-200'
+                step.status === 'pending' ? 'text-slate-400' : 'text-slate-200'
               }
             >
               {step.label}
               {step.detail ? (
-                <span className="mt-0.5 block text-xs text-slate-500">
+                <span className="mt-0.5 block text-xs text-slate-400">
                   {step.detail}
                 </span>
               ) : null}

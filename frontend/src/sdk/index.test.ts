@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   AstroGateConstants,
+  getTokenDetails,
   quoteSwap,
   verifyAntiRug,
 } from './index'
@@ -11,7 +12,19 @@ describe('AstroGate AI & Developer SDK', () => {
     expect(AstroGateConstants.STELLAR_BURN_ADDRESS).toBe(
       'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF',
     )
-    expect(AstroGateConstants.PROTOCOL_DEPLOY_FEE_USD).toBe(1.11)
+    expect(AstroGateConstants.LAUNCHPAD_CONTRACT_ID.startsWith('C')).toBe(true)
+    expect(AstroGateConstants.ASTRO_WASM_HASH.length).toBe(64)
+    expect(AstroGateConstants.LAUNCHPAD_WASM_HASH.length).toBe(64)
+  })
+
+  it('validates amountIn > 0 for quoteSwap', async () => {
+    await expect(
+      quoteSwap({
+        tokenId: 'CAI637WCEILQF3ZYOV6BRUCX532XQIVOOJ4CRWFPWHQRJHOH5OKHSXRE',
+        amountIn: 0n,
+        direction: 'buy',
+      }),
+    ).rejects.toThrow(/amountIn must be greater than zero/)
   })
 
   it('fails gracefully when quoting a non-existent token pool', async () => {
@@ -24,9 +37,16 @@ describe('AstroGate AI & Developer SDK', () => {
     ).rejects.toThrow(/No active AMM liquidity pool found/)
   })
 
+  it('validates contract address in getTokenDetails', async () => {
+    await expect(getTokenDetails('not-a-valid-contract')).rejects.toThrow(
+      /Invalid Stellar contract address/,
+    )
+  })
+
   it('verifies non-existent token anti-rug status correctly', async () => {
     const audit = await verifyAntiRug('CNOTEXIST123')
     expect(audit.isAntiRugVerified).toBe(false)
+    expect(audit.lpBurned).toBe(false)
     expect(audit.pairId).toBeNull()
   })
 })

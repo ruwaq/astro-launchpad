@@ -140,12 +140,41 @@ function GraduatingItem({
 
 export function GraduationRadar({
   tokens,
+  isLoading,
   onSelect,
 }: {
   tokens: TokenListing[]
+  isLoading?: boolean
   onSelect?: (token: LaunchpadToken) => void
 }) {
-  if (!tokens || tokens.length === 0) return null
+  if (isLoading) {
+    return (
+      <section className="space-y-3 w-full max-w-full overflow-hidden">
+        <div className="flex items-center gap-2">
+          <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-amber-400/20 text-xs">
+            🎓
+          </span>
+          <h2 className="text-xl font-bold tracking-tight text-slate-100">
+            Graduating Soon · Moonshot Radar
+          </h2>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="animate-pulse rounded-2xl border border-slate-800 bg-slate-900/40 p-4 space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="h-12 w-12 rounded-xl bg-slate-800" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-4 w-20 rounded bg-slate-800" />
+                  <div className="h-3 w-32 rounded bg-slate-800/60" />
+                </div>
+              </div>
+              <div className="h-2 w-full rounded bg-slate-800" />
+            </div>
+          ))}
+        </div>
+      </section>
+    )
+  }
 
   const targetStroops = BigInt(GRADUATION_TARGET_XLM) * 10_000_000n
 
@@ -185,7 +214,26 @@ export function GraduationRadar({
     inProgress.length > 0 ? [...inProgress, ...graduated] : graduated
   ).slice(0, 3)
 
-  if (graduatingTokens.length === 0) return null
+  if (!tokens || tokens.length === 0 || graduatingTokens.length === 0) {
+    return (
+      <section className="space-y-3 w-full max-w-full overflow-hidden">
+        <div className="flex items-center gap-2">
+          <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-amber-400/20 text-xs">
+            🎓
+          </span>
+          <h2 className="text-xl font-bold tracking-tight text-slate-100">
+            Graduating Soon · Moonshot Radar
+          </h2>
+        </div>
+        <div className="rounded-2xl border border-dashed border-slate-800 bg-slate-950/40 p-6 text-center space-y-2">
+          <p className="text-sm font-semibold text-slate-300">No tokens approaching graduation yet</p>
+          <p className="text-xs text-slate-500 max-w-md mx-auto">
+            Tokens with active AMM curve liquidity will appear here as they race towards the {GRADUATION_TARGET_XLM.toLocaleString()} XLM DEX threshold.
+          </p>
+        </div>
+      </section>
+    )
+  }
 
   return (
     <section className="space-y-3 w-full max-w-full overflow-hidden">

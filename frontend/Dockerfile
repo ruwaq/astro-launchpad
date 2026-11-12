@@ -17,19 +17,20 @@ COPY . .
 # Run production build and stamp service worker
 RUN npm run build
 
-# Stage 2: Minimal Hardened Nginx Runtime
-FROM nginx:1.27-alpine AS runner
+# Stage 2: Minimal Hardened Nginx Runtime (Rootless / Unprivileged)
+FROM nginxinc/nginx-unprivileged:1.27-alpine AS runner
 
 # Remove default nginx welcome page
 RUN rm -rf /usr/share/nginx/html/*
 
 # Copy built static assets from builder stage
-COPY --from=builder /app/dist /usr/share/nginx/html
+COPY --from=builder --chown=nginx:nginx /app/dist /usr/share/nginx/html
 
 # Copy optimized SPA nginx configuration
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY --chown=nginx:nginx nginx.conf /etc/nginx/conf.d/default.conf
 
-# Run as unprivileged nginx user for enhanced security
+# Run as unprivileged nginx user for enhanced security (port 8080)
+USER nginx
 EXPOSE 8080
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \

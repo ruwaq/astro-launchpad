@@ -2,7 +2,7 @@ import { Link } from 'react-router'
 import type { TokenListing } from '../lib/discovery'
 import type { LaunchpadToken } from '../lib/token'
 import { formatAmount } from '../lib/format'
-import { tokenPriceInXlm } from '../lib/soroswap'
+import { tokenPriceInXlmNumber } from '../lib/soroswap'
 import { graduationProgress } from '../lib/tokenomics'
 import { useXlmUsdPrice } from '../hooks/useXlmUsdPrice'
 import { TokenArt } from './TokenArt'
@@ -30,11 +30,11 @@ export function KingOfTheHill({
   if (!king || king.pool.reserveXlm <= 0n) return null
 
   const grad = graduationProgress(king.pool.reserveXlm)
-  const priceStroops = tokenPriceInXlm(king.pool, king.decimals)
+  const priceXlm = tokenPriceInXlmNumber(king.pool, king.decimals)
   const reserveXlmNum = Number(king.pool.reserveXlm) / 1e7
   const liquidityUsd = reserveXlmNum * xlmUsd
   // Market cap estimated on standard 1B supply
-  const marketCapXlm = (Number(priceStroops) / 1e7) * 1_000_000_000
+  const marketCapXlm = priceXlm * 1_000_000_000
   const marketCapUsd = marketCapXlm * xlmUsd
 
   return (

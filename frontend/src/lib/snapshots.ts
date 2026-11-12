@@ -112,25 +112,47 @@ export function toChartPoints(
   return { points, min, max }
 }
 
-/** Precio spot en XLM a partir de una lectura de reservas. */
+/**
+ * Spot price in XLM per token calculated with BigInt precision without intermediate floating-point overflow.
+ * Formula: (reserveXlm / 10^XLM_DECIMALS) / (reserveToken / 10^decimals)
+ *        = (reserveXlm * 10^decimals) / (reserveToken * 10^XLM_DECIMALS)
+ */
 export function snapshotPrice(
   snapshot: ReserveSnapshot,
   decimals: number,
 ): number {
-  const xlm = Number(snapshot.xlm)
-  const token = Number(snapshot.token)
-  if (!Number.isFinite(xlm) || !Number.isFinite(token) || token <= 0) return 0
+  try {
+    const reserveXlm = BigInt(snapshot.xlm)
+    const reserveToken = BigInt(snapshot.token)
+    if (reserveXlm <= 0n || reserveToken <= 0n) return 0
 
-  const safeDecimals = Math.max(0, Math.trunc(decimals))
-  const tokenUnits = token / 10 ** safeDecimals
-  if (tokenUnits <= 0) return 0
-  return xlm / 10 ** XLM_DECIMALS / tokenUnits
+    const safeDecimals = Math.max(0, Math.min(18, Math.trunc(decimals)))
+    const SCALE_DECIMALS = 12n
+    const scale = 10n ** SCALE_DECIMALS
+
+    const numerator = reserveXlm * (10n ** BigInt(safeDecimals)) * scale
+    const denominator = reserveToken * (10n ** BigInt(XLM_DECIMALS))
+
+    if (denominator === 0n) return 0
+    const scaledResult = numerator / denominator
+
+    return Number(scaledResult) / Number(scale)
+  } catch {
+    return 0
+  }
 }
 
-/** Liquidez del lado XLM en unidades (no stroops), para el gráfico. */
+/** Liquidez del lado XLM en unidades (no stroops), para el gráfico con precisión BigInt. */
 export function snapshotLiquidity(snapshot: ReserveSnapshot): number {
-  const xlm = Number(snapshot.xlm)
-  return Number.isFinite(xlm) ? xlm / 10 ** XLM_DECIMALS : 0
+  try {
+    const xlm = BigInt(snapshot.xlm)
+    if (xlm <= 0n) return 0
+    const scale = 1_000_000n
+    const scaled = (xlm * scale) / (10n ** BigInt(XLM_DECIMALS))
+    return Number(scaled) / Number(scale)
+  } catch {
+    return 0
+  }
 }
 
 export function loadHistory(): SnapshotHistory {
@@ -249,4 +271,15 @@ export function recordSnapshot(
   cache = Object.fromEntries(kept)
   notify(tokenId)
   return next
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (event) => {
+    if (event.key === STORAGE_KEY || event.key?.startsWith('floodgate.reserve-history')) {
+      cache = null
+      for (const tokenId of listeners.keys()) {
+        notify(tokenId)
+      }
+    }
+  })
 }

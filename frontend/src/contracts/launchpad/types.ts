@@ -33,7 +33,8 @@ export const LaunchpadError = {
    * liquidez encima de un par ajeno (el LP acuñado sería colateral de
    * una posición que este launchpad no controla).
    */
-  3 : { message: "PairAlreadySeeded" }
+  3 : { message: "PairAlreadySeeded" },
+  4 : { message: "InvalidMetadata" }
 }
 
 /**

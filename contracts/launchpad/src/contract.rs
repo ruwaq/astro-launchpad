@@ -9,12 +9,17 @@ use soroban_sdk::{
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
 #[repr(u32)]
 pub enum LaunchpadError {
+    /// Instance configuration missing from contract storage.
+    /// Note: Unreachable on valid deployments as `__constructor` enforces and sets
+    /// all keys at deployment time; retained for ABI stability and defensive handling.
     NotInitialized = 1,
     InvalidAmount = 2,
     /// The token/XLM pair already existed with non-zero reserves: liquidity will
     /// not be added on top of an external pair (minted LP would back a position
     /// not controlled by this launchpad).
     PairAlreadySeeded = 3,
+    /// Token metadata validation failure: decimals > 18, or empty/oversized (>32 bytes) name/symbol.
+    InvalidMetadata = 4,
 }
 
 #[contracttype]
@@ -88,10 +93,16 @@ pub trait OwnableInterface {
 
 const INSTANCE_LIFETIME_THRESHOLD: u32 = 100_000;
 const INSTANCE_BUMP_AMOUNT: u32 = 200_000;
+/// Minimum initial supply (1,000 stroops) to prevent Soroswap MINIMUM_LIQUIDITY (1000) underflow
+const MIN_INITIAL_SUPPLY: i128 = 1_000;
 /// Minimum 1 XLM (10^7 stroops) initial liquidity to prevent Soroswap MINIMUM_LIQUIDITY (1000) trap
 const MIN_XLM_LP_STROOPS: i128 = 10_000_000;
 /// Maximum initial supply (1 trillion tokens with 7 decimals = 10^19 stroops) to prevent AMM reserve overflow
 const MAX_INITIAL_SUPPLY: i128 = 10_000_000_000_000_000_000;
+/// Minimum fair launch pool allocation: 99.5% (9,950 bps)
+const MIN_LP_ALLOCATION_BPS: i128 = 9_950;
+/// Basis points denominator (100% = 10,000 bps)
+const BPS_DENOMINATOR: i128 = 10_000;
 
 #[contract]
 pub struct Launchpad;
@@ -114,7 +125,9 @@ impl Launchpad {
         e.storage()
             .instance()
             .set(&DataKey::BurnAddress, &burn_address);
-        e.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+        e.storage()
+            .instance()
+            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
     }
 
     /// Single-transaction atomic fair launch:
@@ -134,10 +147,10 @@ impl Launchpad {
             || params.symbol.is_empty()
             || params.symbol.len() > 32
         {
-            return Err(LaunchpadError::InvalidAmount);
+            return Err(LaunchpadError::InvalidMetadata);
         }
 
-        if params.initial_supply <= 1_000
+        if params.initial_supply <= MIN_INITIAL_SUPPLY
             || params.initial_supply > MAX_INITIAL_SUPPLY
             || params.token_lp_amount <= 0
             || params.xlm_lp_amount < MIN_XLM_LP_STROOPS
@@ -149,17 +162,19 @@ impl Launchpad {
         // Invariante de fair launch: al menos 99.5% (9,950 bps) del supply al pool
         if params
             .token_lp_amount
-            .checked_mul(10_000)
+            .checked_mul(BPS_DENOMINATOR)
             .unwrap_or(0)
             < params
                 .initial_supply
-                .checked_mul(9_950)
+                .checked_mul(MIN_LP_ALLOCATION_BPS)
                 .unwrap_or(i128::MAX)
         {
             return Err(LaunchpadError::InvalidAmount);
         }
 
-        e.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+        e.storage()
+            .instance()
+            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
         let this = e.current_contract_address();
         let factory = e

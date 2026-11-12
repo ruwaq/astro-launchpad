@@ -15,9 +15,9 @@ export type TokenInfo = {
 }
 
 /**
- * Metadata y estado del token leídos on-chain.
- * Reutiliza la metadata inmutable SEP-41 (`name`, `symbol`, `decimals`) si ya
- * se leyó antes, ahorrando 3 simulaciones RPC en cada recarga.
+ * Token metadata and state read on-chain.
+ * Reuses immutable SEP-41 metadata (`name`, `symbol`, `decimals`) if
+ * previously read, saving 3 RPC simulations on each reload.
  */
 export function useTokenInfo(contractId: string = ASTRO_TOKEN_ID) {
   return useQuery({

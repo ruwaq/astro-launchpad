@@ -92,7 +92,7 @@ export function ContractDetailsCard({
               <span>💧</span> Pool Active ({lpBurnInfo ? `${lpBurnInfo.burnedPercent.toFixed(0)}% LP Burned` : 'Checking LP…'})
             </span>
           ) : (
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-800 bg-slate-900/40 px-3 py-1 text-xs text-slate-500">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-800 bg-slate-900/40 px-3 py-1 text-xs text-slate-400">
               No AMM Pair Yet
             </span>
           )}
@@ -103,14 +103,15 @@ export function ContractDetailsCard({
         {/* Token Contract ID */}
         <div className="min-w-0 max-w-full overflow-hidden rounded-xl border border-slate-800 bg-slate-950/60 p-3.5">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium uppercase tracking-wider text-slate-500">
+            <span className="text-xs font-medium uppercase tracking-wider text-slate-400">
               Token Contract ID
             </span>
             <div className="flex items-center gap-1.5 shrink-0">
               <button
                 type="button"
                 onClick={() => void copy(tokenId)}
-                className="rounded bg-slate-800 px-2 py-0.5 text-[11px] font-mono text-slate-300 transition hover:bg-slate-700"
+                aria-label={lastCopied === tokenId ? 'Copied token contract ID' : 'Copy token contract ID'}
+                className="inline-flex min-h-[36px] items-center rounded-lg bg-slate-800 px-2.5 py-1 text-xs font-mono text-slate-300 transition hover:bg-slate-700"
               >
                 {lastCopied === tokenId ? 'Copied ✓' : 'Copy'}
               </button>
@@ -118,7 +119,8 @@ export function ContractDetailsCard({
                 href={explorerContractUrl(tokenId)}
                 target="_blank"
                 rel="noreferrer"
-                className="rounded bg-slate-800 px-2 py-0.5 text-[11px] font-mono text-emerald-400 transition hover:bg-slate-700"
+                aria-label={`View token ${tokenId} on Stellar Explorer`}
+                className="inline-flex min-h-[36px] items-center rounded-lg bg-slate-800 px-2.5 py-1 text-xs font-mono text-emerald-400 transition hover:bg-slate-700"
               >
                 Explorer ↗
               </a>
@@ -132,7 +134,7 @@ export function ContractDetailsCard({
         {/* Soroswap Pair ID */}
         <div className="min-w-0 max-w-full overflow-hidden rounded-xl border border-slate-800 bg-slate-950/60 p-3.5">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium uppercase tracking-wider text-slate-500">
+            <span className="text-xs font-medium uppercase tracking-wider text-slate-400">
               Soroswap AMM Pair
             </span>
             {pairId ? (
@@ -140,7 +142,8 @@ export function ContractDetailsCard({
                 <button
                   type="button"
                   onClick={() => void copy(pairId ?? '')}
-                  className="rounded bg-slate-800 px-2 py-0.5 text-[11px] font-mono text-slate-300 transition hover:bg-slate-700"
+                  aria-label={lastCopied === pairId ? 'Copied pair contract ID' : 'Copy pair contract ID'}
+                  className="inline-flex min-h-[36px] items-center rounded-lg bg-slate-800 px-2.5 py-1 text-xs font-mono text-slate-300 transition hover:bg-slate-700"
                 >
                   {lastCopied === pairId ? 'Copied ✓' : 'Copy'}
                 </button>
@@ -148,7 +151,8 @@ export function ContractDetailsCard({
                   href={explorerContractUrl(pairId)}
                   target="_blank"
                   rel="noreferrer"
-                  className="rounded bg-slate-800 px-2 py-0.5 text-[11px] font-mono text-emerald-400 transition hover:bg-slate-700"
+                  aria-label={`View pair ${pairId} on Soroswap DEX`}
+                  className="inline-flex min-h-[36px] items-center rounded-lg bg-slate-800 px-2.5 py-1 text-xs font-mono text-emerald-400 transition hover:bg-slate-700"
                 >
                   Pair DEX ↗
                 </a>
@@ -163,13 +167,14 @@ export function ContractDetailsCard({
         {/* WASM Hash & Standard */}
         <div className="min-w-0 max-w-full overflow-hidden rounded-xl border border-slate-800 bg-slate-950/60 p-3.5">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium uppercase tracking-wider text-slate-500">
+            <span className="text-xs font-medium uppercase tracking-wider text-slate-400">
               {tokenId === ASTRO_TOKEN_ID ? 'Token WASM Hash' : 'Fair-Launch Template WASM'}
             </span>
             <button
               type="button"
               onClick={() => void copy(ASTRO_WASM_HASH)}
-              className="shrink-0 rounded bg-slate-800 px-2 py-0.5 text-[11px] font-mono text-slate-300 transition hover:bg-slate-700"
+              aria-label={lastCopied === ASTRO_WASM_HASH ? 'Copied WASM hash' : 'Copy WASM hash'}
+              className="inline-flex min-h-[36px] items-center shrink-0 rounded-lg bg-slate-800 px-2.5 py-1 text-xs font-mono text-slate-300 transition hover:bg-slate-700"
             >
               {lastCopied === ASTRO_WASM_HASH ? 'Copied ✓' : 'Copy'}
             </button>
@@ -182,7 +187,7 @@ export function ContractDetailsCard({
         {/* Issuer / Current Owner */}
         <div className="min-w-0 max-w-full overflow-hidden rounded-xl border border-slate-800 bg-slate-950/60 p-3.5">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium uppercase tracking-wider text-slate-500">
+            <span className="text-xs font-medium uppercase tracking-wider text-slate-400">
               Contract Owner / Admin
             </span>
             {owner ? (
@@ -190,7 +195,8 @@ export function ContractDetailsCard({
                 href={explorerAccountUrl(owner)}
                 target="_blank"
                 rel="noreferrer"
-                className="shrink-0 rounded bg-slate-800 px-2 py-0.5 text-[11px] font-mono text-slate-300 transition hover:bg-slate-700"
+                aria-label={`View owner account ${owner} on Stellar Explorer`}
+                className="inline-flex min-h-[36px] items-center shrink-0 rounded-lg bg-slate-800 px-2.5 py-1 text-xs font-mono text-slate-300 transition hover:bg-slate-700"
               >
                 Account ↗
               </a>
@@ -205,28 +211,28 @@ export function ContractDetailsCard({
       {/* Contract Parameters Bar */}
       <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div className="rounded-lg border border-slate-800/80 bg-slate-950/40 p-3">
-          <div className="text-[11px] text-slate-500 uppercase">Standard</div>
+          <div className="text-[11px] text-slate-400 uppercase">Standard</div>
           <div className="mt-0.5 font-mono text-xs font-semibold text-slate-200">
             SEP-41 Soroban
           </div>
         </div>
 
         <div className="rounded-lg border border-slate-800/80 bg-slate-950/40 p-3">
-          <div className="text-[11px] text-slate-500 uppercase">Decimals</div>
+          <div className="text-[11px] text-slate-400 uppercase">Decimals</div>
           <div className="mt-0.5 font-mono text-xs font-semibold text-slate-200">
             {decimals} (Stroops)
           </div>
         </div>
 
         <div className="rounded-lg border border-slate-800/80 bg-slate-950/40 p-3">
-          <div className="text-[11px] text-slate-500 uppercase">Total Supply</div>
+          <div className="text-[11px] text-slate-400 uppercase">Total Supply</div>
           <div className="mt-0.5 font-mono text-xs font-semibold text-slate-200">
             {formatAmount(totalSupply, decimals)} {symbol}
           </div>
         </div>
 
         <div className="rounded-lg border border-slate-800/80 bg-slate-950/40 p-3">
-          <div className="text-[11px] text-slate-500 uppercase">LP Burn Vault</div>
+          <div className="text-[11px] text-slate-400 uppercase">LP Burn Vault</div>
           <div className="mt-0.5 font-mono text-xs text-emerald-400">
             {shortAddress(STELLAR_BURN_ADDRESS)}
           </div>
@@ -238,7 +244,7 @@ export function ContractDetailsCard({
         <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">
           Independent Verification & Raw Data Sources
         </h3>
-        <p className="mt-1 text-xs text-slate-500">
+        <p className="mt-1 text-xs text-slate-400">
           Cross-examine live state, ledgers, and transactions directly against public Stellar node endpoints:
         </p>
 
@@ -247,7 +253,7 @@ export function ContractDetailsCard({
             href={explorerContractUrl(tokenId)}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-1.5 text-xs text-slate-200 hover:border-emerald-500 hover:text-emerald-300"
+            className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-1.5 text-xs text-slate-200 hover:border-emerald-500 hover:text-emerald-300"
           >
             <span>🔍</span> Stellar.Expert Token Contract ↗
           </a>
@@ -257,7 +263,7 @@ export function ContractDetailsCard({
               href={explorerContractUrl(pairId)}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-1.5 text-xs text-slate-200 hover:border-emerald-500 hover:text-emerald-300"
+              className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-1.5 text-xs text-slate-200 hover:border-emerald-500 hover:text-emerald-300"
             >
               <span>🔄</span> Stellar.Expert Pair AMM ↗
             </a>
@@ -268,7 +274,7 @@ export function ContractDetailsCard({
               href={horizonAccountUrl(owner)}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-1.5 text-xs text-slate-200 hover:border-emerald-500 hover:text-emerald-300"
+              className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-1.5 text-xs text-slate-200 hover:border-emerald-500 hover:text-emerald-300"
             >
               <span>🌐</span> Horizon Account Data ↗
             </a>
@@ -278,7 +284,7 @@ export function ContractDetailsCard({
             href="https://soroban-testnet.stellar.org/health"
             target="_blank"
             rel="noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-1.5 text-xs text-slate-200 hover:border-emerald-500 hover:text-emerald-300"
+            className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-1.5 text-xs text-slate-200 hover:border-emerald-500 hover:text-emerald-300"
           >
             <span>⚡</span> Soroban RPC Health ↗
           </a>
@@ -288,7 +294,7 @@ export function ContractDetailsCard({
               href={safeWebsite}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-800 bg-cyan-950/40 px-3 py-1.5 text-xs text-cyan-300 hover:border-cyan-500"
+              className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-cyan-800 bg-cyan-950/40 px-3 py-1.5 text-xs text-cyan-300 hover:border-cyan-500"
             >
               <span>🌐</span> Official Website ↗
             </a>
@@ -299,7 +305,7 @@ export function ContractDetailsCard({
               href={safeTelegram}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-sky-800 bg-sky-950/40 px-3 py-1.5 text-xs text-sky-300 hover:border-sky-500"
+              className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-sky-800 bg-sky-950/40 px-3 py-1.5 text-xs text-sky-300 hover:border-sky-500"
             >
               <span>✈️</span> Telegram Community ↗
             </a>
@@ -310,7 +316,7 @@ export function ContractDetailsCard({
               href={safeTwitter}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-1.5 text-xs text-slate-200 hover:border-slate-500"
+              className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-1.5 text-xs text-slate-200 hover:border-slate-500"
             >
               <span>𝕏</span> Twitter / X ↗
             </a>

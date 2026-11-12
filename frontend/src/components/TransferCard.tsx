@@ -152,7 +152,7 @@ export function TransferCard({ token }: { token: LaunchpadToken }) {
                   key={acc.publicKey}
                   type="button"
                   onClick={() => setTo(acc.publicKey)}
-                  className="rounded-md border border-slate-700 bg-slate-950/60 px-2.5 py-1 text-xs text-emerald-300 hover:border-emerald-500"
+                  className="inline-flex min-h-[36px] items-center rounded-md border border-slate-700 bg-slate-950/60 px-3 py-1.5 text-xs text-emerald-300 hover:border-emerald-500"
                 >
                   Account {acc.label} ({shortAddress(acc.publicKey)})
                 </button>
@@ -174,7 +174,7 @@ export function TransferCard({ token }: { token: LaunchpadToken }) {
         </label>
 
         {publicKey && balance.data !== undefined ? (
-          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
             <span>
               Balance:{' '}
               <span className="font-mono text-slate-300">
@@ -193,7 +193,7 @@ export function TransferCard({ token }: { token: LaunchpadToken }) {
                     onClick={() =>
                       setAmount(formatAmount(slice, token.decimals))
                     }
-                    className="inline-flex min-h-[32px] items-center rounded-md border border-slate-800 bg-slate-950/60 px-2.5 py-1 text-xs font-medium text-emerald-300 hover:border-emerald-500 disabled:opacity-50"
+                    className="inline-flex min-h-[36px] items-center rounded-md border border-slate-800 bg-slate-950/60 px-3 py-1.5 text-xs font-medium text-emerald-300 hover:border-emerald-500 disabled:opacity-50"
                   >
                     {pct === 100 ? 'MAX' : `${pct}%`}
                   </button>

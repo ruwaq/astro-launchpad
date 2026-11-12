@@ -55,9 +55,8 @@ function storageKey(tokenId: string) {
 }
 
 /**
- * Estado vacío y HONESTO: las reacciones-guarda son locales de este navegador
- * (no hay indexer de likes on-chain); las burns sí tienen tx verificable.
- * Nada de datos inventados como "seed" que parezcan comunidad real.
+ * Honest initial empty state: reactions are local to this browser
+ * (there is no on-chain likes indexer); burns have verifiable on-chain tx hashes.
  */
 const EMPTY_HYPE: TokenHypeState = {
   reactions: { rocket: 0, fire: 0, diamond: 0, whale: 0 },
@@ -115,10 +114,9 @@ export function TokenHypeBar({
   const [voted, setVoted] = useState<Record<string, boolean>>({})
   const [chatMode, setChatMode] = useState<'free' | 'burn'>('free')
 
-  // Al navegar entre tokens por la misma ruta (/token/:id no remonta):
-  // se re-carga el hype del token actual o el de A se pinta sobre B.
-  // Estado con `tokenId` incrustado: al cambiar de token, el render ya
-  // muestra el estado nuevo (y si localStorage falla, `null` → vacío).
+  // When navigating between tokens on the same route (/token/:id does not remount):
+  // reload the hype for the current token so Token A state is not rendered on Token B.
+  // State with embedded `tokenId`: on token change, the render displays the new state.
   const [stateForToken, setStateForToken] = useState(tokenId)
 
   if (stateForToken !== tokenId) {
@@ -323,7 +321,7 @@ export function TokenHypeBar({
               key={shout}
               type="button"
               onClick={() => handleQuickShout(shout)}
-              className="rounded-full border border-slate-800 bg-slate-950/60 px-3 py-1 text-xs text-slate-300 hover:border-emerald-500/50 hover:bg-emerald-500/10 hover:text-emerald-200 transition-colors"
+              className="inline-flex min-h-[36px] items-center rounded-full border border-slate-800 bg-slate-950/60 px-3 py-1.5 text-xs text-slate-300 hover:border-emerald-500/50 hover:bg-emerald-500/10 hover:text-emerald-200 transition-colors"
             >
               {shout}
             </button>
@@ -333,11 +331,13 @@ export function TokenHypeBar({
 
       {/* Mode Selector Tabs: Free Shout vs Burn-to-Chat */}
       <div className="mt-5 rounded-xl border border-slate-800 bg-slate-950/80 p-1">
-        <div className="grid grid-cols-2 gap-1">
+        <div role="tablist" aria-label="Shout mode" className="grid grid-cols-2 gap-1">
           <button
             type="button"
+            role="tab"
+            aria-selected={chatMode === 'free'}
             onClick={() => setChatMode('free')}
-            className={`min-h-[38px] rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+            className={`min-h-[44px] rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
               chatMode === 'free'
                 ? 'bg-slate-800 text-slate-100 shadow-sm'
                 : 'text-slate-400 hover:text-slate-200'
@@ -347,8 +347,10 @@ export function TokenHypeBar({
           </button>
           <button
             type="button"
+            role="tab"
+            aria-selected={chatMode === 'burn'}
             onClick={() => setChatMode('burn')}
-            className={`min-h-[38px] rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+            className={`min-h-[44px] rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
               chatMode === 'burn'
                 ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 shadow-md shadow-amber-500/20'
                 : 'text-amber-400/80 hover:text-amber-300'
@@ -366,9 +368,10 @@ export function TokenHypeBar({
             type="text"
             value={commentText}
             onChange={(e) => setCommentText(e.target.value)}
+            aria-label={`Shout something about $${symbol}`}
             placeholder={`Shout something about $${symbol}…`}
             maxLength={160}
-            className="flex-1 rounded-xl border border-slate-800 bg-slate-950 px-3.5 py-2.5 text-sm text-slate-100 outline-none focus:border-emerald-500 placeholder:text-slate-600"
+            className="flex-1 rounded-xl border border-slate-800 bg-slate-950 px-3.5 py-2.5 text-sm text-slate-100 outline-none focus:border-emerald-500 placeholder:text-slate-400"
           />
           <button
             type="submit"
@@ -397,7 +400,7 @@ export function TokenHypeBar({
                 key={p}
                 type="button"
                 onClick={() => setBurnAmount(p)}
-                className={`rounded-lg border px-2.5 py-1 font-mono text-xs font-semibold transition-colors ${
+                className={`inline-flex min-h-[36px] items-center rounded-lg border px-3 py-1 font-mono text-xs font-semibold transition-colors ${
                   burnAmount === p
                     ? 'border-amber-500 bg-amber-500/20 text-amber-300'
                     : 'border-slate-800 bg-slate-950/60 text-slate-400 hover:text-slate-200'
@@ -411,7 +414,8 @@ export function TokenHypeBar({
               min="1"
               value={burnAmount}
               onChange={(e) => setBurnAmount(e.target.value)}
-              className="w-24 rounded-lg border border-slate-800 bg-slate-950 px-2 py-1 font-mono text-xs text-slate-100 outline-none focus:border-amber-500"
+              aria-label="Custom burn amount"
+              className="h-9 w-24 rounded-lg border border-slate-800 bg-slate-950 px-2 py-1 font-mono text-xs text-slate-100 outline-none focus:border-amber-500 placeholder:text-slate-400"
               placeholder="Custom"
             />
           </div>
@@ -420,9 +424,10 @@ export function TokenHypeBar({
             type="text"
             value={burnMessage}
             onChange={(e) => setBurnMessage(e.target.value)}
+            aria-label={`Message stamped on-chain with ${burnAmount} $${symbol} burned`}
             placeholder={`Message stamped on-chain with ${burnAmount} $${symbol} burned…`}
             maxLength={160}
-            className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3.5 py-2.5 text-sm text-slate-100 outline-none focus:border-amber-500 placeholder:text-slate-600"
+            className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3.5 py-2.5 text-sm text-slate-100 outline-none focus:border-amber-500 placeholder:text-slate-400"
           />
 
           {!publicKey ? (
@@ -454,7 +459,7 @@ export function TokenHypeBar({
       {/* Comment Feed with Proof-of-Burn Badges */}
       <div className="mt-4 max-h-72 space-y-2.5 overflow-y-auto pr-1">
         {hype.comments.length === 0 ? (
-          <p className="text-xs text-slate-500 text-center py-4">
+          <p className="text-xs text-slate-400 text-center py-4">
             No shouts yet. Be the first to drop a hype message for ${symbol}!
           </p>
         ) : (
@@ -489,7 +494,7 @@ export function TokenHypeBar({
                     </a>
                   ) : null}
                 </div>
-                <span className="shrink-0 text-[10px] text-slate-500 font-mono">
+                <span className="shrink-0 text-[10px] text-slate-400 font-mono">
                   {timeAgo(comment.at)}
                 </span>
               </div>

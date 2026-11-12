@@ -1,11 +1,12 @@
 # AstroGate Protocol (llms.txt)
 > The Decentralized Fair-Launch & AMM Platform on Stellar/Soroban.
 
-AstroGate is a Web3 token launchpad and automated market maker (AMM) operating directly on Stellar Soroban. It provides 100% on-chain, verifiable token fair-launches ($1.11 USD deploy fee, 0.5% creator max allocation vested after graduation, 99.5% Soroswap AMM pool, mandatory LP burn to dead address, and ownership renunciation).
+AstroGate is a Web3 token launchpad and automated market maker (AMM) operating directly on Stellar Soroban. It provides 100% on-chain, verifiable token fair-launches (0 protocol deploy fee, creator seed XLM, 0.5% creator allocation, 99.5% Soroswap AMM pool, mandatory LP burn to dead address, and ownership renunciation).
 
 ## Core Network & Contracts (Testnet)
 - Network: Stellar Testnet (`Test SDF Network ; September 2015`)
 - RPC Endpoint: https://soroban-testnet.stellar.org
+- Fallback RPC Endpoint: https://rpc-testnet.stellar.org
 - Horizon API: https://horizon-testnet.stellar.org
 - Soroswap Factory: CDP3HMUH6SMS3S7NPGNDJLULCOXXEPSHY4JKUKMBNQMATHDHWXRRJTBY
 - Soroswap Router: CCJUD55AG6W5HAI5LRVNKAE5WDP5XGZBUDS5WNTIVDU7O264UZZE7BRD
@@ -40,6 +41,7 @@ const buyQuote = await quoteSwap({
   direction: 'buy',
   slippagePercent: 2,
 })
+// Returns: { direction, amountIn, amountOutEstimated, amountOutMinimum, priceImpactPercent }
 ```
 
 ### 3. Verify Anti-Rug Status
@@ -65,7 +67,7 @@ const audit = await verifyAntiRug(tokenId)
   },
   {
     "name": "quote_swap",
-    "description": "Calculates exact AMM swap output between XLM and any launchpad token",
+    "description": "Calculates exact AMM swap output and price impact between XLM and any launchpad token",
     "parameters": {
       "type": "object",
       "required": ["tokenId", "amountIn", "direction"],
@@ -94,4 +96,4 @@ const audit = await verifyAntiRug(tokenId)
 ## Security & Architectural Guarantees
 - No Backend Auth: Identity is verified exclusively via ED25519 cryptographic signatures from Stellar wallets.
 - Atomic Settling: Token balances and LP shares are stored in Soroban ledger state with TTL extension.
-- Multi-Oracle Fallback: Real-time USD pricing derived from Coinbase, Binance, and CoinGecko with in-memory caching.
+- High Availability Multi-RPC: Read-only operations and event discovery failover automatically across the RPC pool.

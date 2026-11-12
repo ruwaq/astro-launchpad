@@ -1,11 +1,16 @@
 import { StellarWalletsKit } from '@creit.tech/stellar-wallets-kit'
 import type { Signer } from '@stellar/stellar-sdk/contract'
+import { isValidStellarAddress } from './address'
 
 /**
  * Envoltorio de la wallet (SEP-43) como `Signer` del SDK de Stellar.
  * `StellarWalletsKit` firma con la cuenta activa, por eso fijamos `address`.
  */
 export function walletSigner(address: string): Signer {
+  if (!isValidStellarAddress(address)) {
+    throw new Error(`Invalid Stellar wallet address: ${address}`)
+  }
+
   return {
     address,
     signTransaction: (xdr, opts) =>

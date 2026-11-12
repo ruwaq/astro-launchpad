@@ -1,9 +1,9 @@
 import { create } from 'zustand'
+import { readStorageJson, writeStorageJson } from '../lib/storage'
 
 /**
- * Tokens creados desde este navegador. Es estado local del usuario, no un
- * backend: sirve para que el portfolio y el panel de liquidez sobrevivan a un
- * refresh sin pedirle permiso a ningún servidor.
+ * Tokens created from this browser session. User local state, not a backend:
+ * enables portfolio and liquidity panels to survive refresh without server requests.
  */
 export type CreatedToken = {
   id: string
@@ -12,7 +12,7 @@ export type CreatedToken = {
   createdAt: number
 }
 
-const STORAGE_KEY = 'floodgate.created-tokens.v1'
+const STORAGE_KEY = 'astrogate.created-tokens.v1'
 const MAX_TOKENS = 100
 
 function isCreatedToken(value: unknown): value is CreatedToken {
@@ -28,26 +28,14 @@ function isCreatedToken(value: unknown): value is CreatedToken {
   )
 }
 
-function loadTokens(): CreatedToken[] {
-  if (typeof window === 'undefined') return []
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY)
-    if (!raw) return []
-    const parsed: unknown = JSON.parse(raw)
-    if (!Array.isArray(parsed)) return []
-    return parsed.filter(isCreatedToken).slice(0, MAX_TOKENS)
-  } catch {
-    return []
-  }
+export function loadTokens(): CreatedToken[] {
+  const parsed = readStorageJson<unknown>(STORAGE_KEY)
+  if (!Array.isArray(parsed)) return []
+  return parsed.filter(isCreatedToken).slice(0, MAX_TOKENS)
 }
 
-function persistTokens(tokens: CreatedToken[]) {
-  if (typeof window === 'undefined') return
-  try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(tokens))
-  } catch {
-    // Modo privado o almacenamiento lleno: la app sigue funcionando en memoria.
-  }
+function persistTokens(tokens: CreatedToken[]): void {
+  writeStorageJson(STORAGE_KEY, tokens)
 }
 
 type CreatedTokensState = {
@@ -75,3 +63,11 @@ export const useCreatedTokens = create<CreatedTokensState>((set, get) => ({
     set({ tokens: next })
   },
 }))
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (e) => {
+    if (e.key === STORAGE_KEY || e.key === 'floodgate.created-tokens.v1') {
+      useCreatedTokens.setState({ tokens: loadTokens() })
+    }
+  })
+}

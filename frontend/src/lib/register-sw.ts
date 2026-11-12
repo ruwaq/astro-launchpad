@@ -1,6 +1,6 @@
 /**
- * Registra el service worker solo en producción. En dev no se toca: HMR y
- * Vite necesitan red limpia y un SW cacheando assets solo añadiría ruido.
+ * Registers the service worker in production only. In dev, HMR and Vite
+ * require an unintercepted network and caching assets would add noise.
  */
 export function registerServiceWorker() {
   if (!import.meta.env.PROD) return
@@ -10,7 +10,7 @@ export function registerServiceWorker() {
     'load',
     () => {
       void navigator.serviceWorker.register('/sw.js').catch((error) => {
-        console.warn('No se pudo registrar el service worker', error)
+        console.warn('Failed to register service worker:', error)
       })
     },
     { once: true },

@@ -1,5 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { DEFAULT_XLM_USD_PRICE, fetchXlmBalance, xlmToStroops } from './xlm'
+import {
+  DEFAULT_XLM_USD_PRICE,
+  fetchXlmBalance,
+  fetchXlmBalanceRaw,
+  fetchXlmBalanceStroops,
+  xlmToStroops,
+} from './xlm'
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -9,10 +15,15 @@ afterEach(() => {
 describe('xlmToStroops', () => {
   it('convierte XLM a stroops sin decimales flotantes', () => {
     expect(xlmToStroops(1)).toBe(10_000_000n)
+    expect(xlmToStroops('1')).toBe(10_000_000n)
     expect(xlmToStroops(0.1)).toBe(1_000_000n)
+    expect(xlmToStroops('0.1')).toBe(1_000_000n)
     expect(xlmToStroops(0.29)).toBe(2_900_000n)
+    expect(xlmToStroops('0.29')).toBe(2_900_000n)
     expect(xlmToStroops(0.0000001)).toBe(1n)
+    expect(xlmToStroops('0.0000001')).toBe(1n)
     expect(xlmToStroops(10_000)).toBe(100_000_000_000n)
+    expect(xlmToStroops('10,000')).toBe(100_000_000_000n)
   })
 
   it('devuelve 0 para valores inválidos o no positivos', () => {
@@ -56,6 +67,8 @@ describe('fetchXlmBalance', () => {
       ),
     )
     await expect(fetchXlmBalance('GTEST')).resolves.toBe(42.5)
+    await expect(fetchXlmBalanceRaw('GTEST')).resolves.toBe('42.5')
+    await expect(fetchXlmBalanceStroops('GTEST')).resolves.toBe(425_000_000n)
   })
 })
 

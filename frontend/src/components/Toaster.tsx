@@ -28,7 +28,7 @@ const styles: Record<
   },
 }
 
-/** Región global de notificaciones: accesible y sin dependencias externas. */
+/** Global notification region: accessible and zero external dependencies. */
 export function Toaster() {
   const toasts = useSyncExternalStore(
     subscribeToasts,
@@ -80,7 +80,7 @@ export function Toaster() {
               type="button"
               onClick={() => dismissToast(toast.id)}
               aria-label="Close notification"
-              className="-mr-1 -mt-1 flex min-h-[32px] min-w-[32px] items-center justify-center rounded-lg text-lg leading-none opacity-60 hover:bg-white/10 hover:opacity-100"
+              className="-mr-1 -mt-1 flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg text-lg leading-none opacity-60 hover:bg-white/10 hover:opacity-100"
             >
               ×
             </button>

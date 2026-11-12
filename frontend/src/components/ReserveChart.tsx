@@ -178,19 +178,20 @@ export function ReserveChart({
 
         <div
           className="flex rounded-lg border border-slate-700 p-1 bg-slate-950/60"
-          role="group"
+          role="tablist"
           aria-label="Chart metric"
         >
           <button
             type="button"
-            aria-pressed={metric === 'price'}
+            role="tab"
+            aria-selected={metric === 'price'}
             onClick={() => {
               setMetric('price')
               setSelectedPointIndex(null)
             }}
-            className={`min-h-[38px] rounded-md px-3 py-1 text-xs font-semibold transition ${
+            className={`min-h-[44px] rounded-md px-3.5 py-2 text-xs font-semibold transition ${
               metric === 'price'
-                ? 'bg-emerald-500 text-slate-950 shadow'
+                ? 'bg-emerald-500 text-slate-950 shadow font-bold'
                 : 'text-slate-300 hover:text-slate-100'
             }`}
           >
@@ -198,14 +199,15 @@ export function ReserveChart({
           </button>
           <button
             type="button"
-            aria-pressed={metric === 'liquidity'}
+            role="tab"
+            aria-selected={metric === 'liquidity'}
             onClick={() => {
               setMetric('liquidity')
               setSelectedPointIndex(null)
             }}
-            className={`min-h-[38px] rounded-md px-3 py-1 text-xs font-semibold transition ${
+            className={`min-h-[44px] rounded-md px-3.5 py-2 text-xs font-semibold transition ${
               metric === 'liquidity'
-                ? 'bg-emerald-500 text-slate-950 shadow'
+                ? 'bg-emerald-500 text-slate-950 shadow font-bold'
                 : 'text-slate-300 hover:text-slate-100'
             }`}
           >
@@ -217,7 +219,7 @@ export function ReserveChart({
       {/* FOMO Trade Stats & Sentiment */}
       <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
         <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3">
-          <span className="text-[11px] font-medium uppercase tracking-wider text-slate-500">
+          <span className="text-[11px] font-medium uppercase tracking-wider text-slate-400">
             DEX Graduation
           </span>
           <div className="mt-1 flex items-baseline gap-1.5 font-mono">
@@ -231,14 +233,14 @@ export function ReserveChart({
         </div>
 
         <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3">
-          <span className="text-[11px] font-medium uppercase tracking-wider text-slate-500">
+          <span className="text-[11px] font-medium uppercase tracking-wider text-slate-400">
             Curve Momentum
           </span>
           <div className="mt-1 flex items-baseline gap-1 font-mono">
             <span className="text-base font-bold text-emerald-400">
               {delta !== null ? `${delta >= 0 ? '+' : ''}${delta.toFixed(1)}%` : 'Active'}
             </span>
-            <span className="text-[11px] text-slate-500">since start</span>
+            <span className="text-[11px] text-slate-400">since start</span>
           </div>
         </div>
 
@@ -265,7 +267,7 @@ export function ReserveChart({
         <>
           <div className="mt-4 flex flex-wrap items-end justify-between gap-3 border-t border-slate-800/60 pt-3">
             <div>
-              <p className="text-xs text-slate-500">{metricLabel}</p>
+              <p className="text-xs text-slate-400">{metricLabel}</p>
               <p className="mt-1 font-mono text-2xl font-bold text-emerald-300">
                 {formatMetric(selectedPoint ? (selectedPoint.value ?? latest) : latest)}
               </p>
@@ -284,7 +286,7 @@ export function ReserveChart({
             </div>
           </div>
 
-          <div className="mt-2 flex items-center justify-between font-mono text-[10px] text-slate-500">
+          <div className="mt-2 flex items-center justify-between font-mono text-[10px] text-slate-400">
             <span>Peak: {formatMetric(series.max)}</span>
             <span>Floor: {formatMetric(series.min)}</span>
           </div>
@@ -373,7 +375,7 @@ export function ReserveChart({
             </svg>
           </div>
 
-          <div className="mt-2 flex items-center justify-between font-mono text-[10px] text-slate-500">
+          <div className="mt-2 flex items-center justify-between font-mono text-[10px] text-slate-400">
             <span>{formatTime(activeSnapshots[0]?.t ?? 0)}</span>
             <span>{formatTime(activeSnapshots[activeSnapshots.length - 1]?.t ?? 0)}</span>
           </div>
@@ -383,7 +385,7 @@ export function ReserveChart({
           <p className="text-sm font-semibold text-slate-300">
             Curve awaiting initial buy/sell trades
           </p>
-          <p className="mt-1 text-xs text-slate-500">
+          <p className="mt-1 text-xs text-slate-400">
             Swaps against the Soroswap AMM pool are tracked live and plotted automatically as upward (🟢) and downward (🔴) vectors.
           </p>
         </div>
@@ -395,13 +397,13 @@ export function ReserveChart({
           <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">
             Pre-Graduation Trades ({trades.length})
           </h3>
-          <span className="text-[11px] text-slate-500">
+          <span className="text-[11px] text-slate-400">
             Soroban AMM swaps
           </span>
         </div>
 
         {trades.length === 0 ? (
-          <p className="mt-2 text-xs text-slate-500">
+          <p className="mt-2 text-xs text-slate-400">
             No trades recorded in recent ledger window. Swap on this token to initiate the curve!
           </p>
         ) : (
@@ -427,13 +429,13 @@ export function ReserveChart({
                     <span className="font-mono text-slate-200">
                       {formatAmount(ev.amount, decimals)} {symbol ?? 'TOKEN'}
                     </span>
-                    <span className="text-[11px] text-slate-500">
+                    <span className="text-[11px] text-slate-400">
                       by {shortAddress((isBuy ? ev.to : ev.from) ?? '')}
                     </span>
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <span className="text-[11px] text-slate-500">
+                    <span className="text-[11px] text-slate-400">
                       {tokenEventSummary(ev, pairId)}
                     </span>
                     {ev.txHash ? (

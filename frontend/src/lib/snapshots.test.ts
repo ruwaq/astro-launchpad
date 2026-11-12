@@ -116,6 +116,17 @@ describe('snapshotPrice y liquidez', () => {
   it('devuelve 0 si la reserva del token no es válida', () => {
     expect(snapshotPrice(snap(0, '10000000', '0'), 7)).toBe(0)
     expect(snapshotPrice(snap(0, 'abc', '100000000'), 7)).toBe(0)
+    expect(snapshotPrice(snap(0, '-1000', '100000000'), 7)).toBe(0)
+  })
+
+  it('calculates price accurately for 18-decimal tokens without precision loss', () => {
+    // 100 XLM (100 * 10^7) / 200 Tokens (200 * 10^18) = 0.5 XLM per token
+    const snapshot: ReserveSnapshot = {
+      t: 1000,
+      xlm: (100n * 10n ** 7n).toString(),
+      token: (200n * 10n ** 18n).toString(),
+    }
+    expect(snapshotPrice(snapshot, 18)).toBeCloseTo(0.5, 6)
   })
 })
 

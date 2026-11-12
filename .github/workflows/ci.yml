@@ -82,3 +82,11 @@ jobs:
 
       - name: Tests
         run: cargo test --workspace
+
+      - name: Instalar cargo-audit
+        uses: taiki-e/install-action@cargo-audit
+
+      - name: Auditoría de dependencias (cargo-audit)
+        # RUSTSEC-2026-0387: crypto-bigint en soroban-env-host/elliptic-curve (transitivo upstream)
+        # RUSTSEC-2024-0436: paste sin mantenimiento en wasmi_core/ark-ff (transitivo upstream)
+        run: cargo audit --ignore RUSTSEC-2026-0387 --ignore RUSTSEC-2024-0436

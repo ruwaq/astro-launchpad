@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { shortAddress } from '../lib/format'
+import { readStorageJson, writeStorageJson } from '../lib/storage'
 
 export const ACTIVITY_KINDS = [
   'create',
@@ -137,25 +138,13 @@ function isActivity(value: unknown): value is ActivityEntry {
 }
 
 export function loadActivity(): ActivityEntry[] {
-  if (typeof window === 'undefined') return []
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY)
-    if (!raw) return []
-    const parsed = JSON.parse(raw) as unknown
-    if (!Array.isArray(parsed)) return []
-    return parsed.filter(isActivity).slice(0, MAX_ACTIVITY)
-  } catch {
-    return []
-  }
+  const parsed = readStorageJson<unknown>(STORAGE_KEY)
+  if (!Array.isArray(parsed)) return []
+  return parsed.filter(isActivity).slice(0, MAX_ACTIVITY)
 }
 
 export function saveActivity(entries: ActivityEntry[]): void {
-  if (typeof window === 'undefined') return
-  try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(entries))
-  } catch {
-    // Ignore quota errors
-  }
+  writeStorageJson(STORAGE_KEY, entries)
 }
 
 type ActivityStore = {
@@ -190,6 +179,14 @@ export const useActivity = create<ActivityStore>((set, get) => ({
   },
 }))
 
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (e) => {
+    if (e.key === STORAGE_KEY || e.key === 'floodgate.activity.v1') {
+      useActivity.setState({ entries: loadActivity() })
+    }
+  })
+}
+
 export function recordActivity(input: ActivityInput): ActivityEntry {
   return useActivity.getState().record(input)
 }
@@ -197,6 +194,24 @@ export function recordActivity(input: ActivityInput): ActivityEntry {
 /** Formats local entries as readable, pretty-printed JSON. */
 export function exportActivityAsJson(entries: ActivityEntry[]): string {
   return JSON.stringify(entries, null, 2)
+}
+
+/**
+ * Escapes a single CSV cell according to RFC 4180 and protects against
+ * CSV / Spreadsheet Formula Injection (=, +, -, @, \t, \r).
+ */
+export function escapeCsvCell(raw: unknown): string {
+  if (raw === undefined || raw === null) return ''
+  let val = String(raw)
+  // Prevent spreadsheet formula execution
+  if (/^[=+\-@\t\r]/.test(val)) {
+    val = `'${val}`
+  }
+  // RFC 4180: quote if contains quotes, commas, or newlines
+  if (/[",\n\r]/.test(val)) {
+    return `"${val.replace(/"/g, '""')}"`
+  }
+  return val
 }
 
 /** Exports local entries as a standard CSV spreadsheet for auditing / tax. */
@@ -214,16 +229,16 @@ export function exportActivityAsCsv(entries: ActivityEntry[]): string {
     'Transaction Hash',
   ]
   const rows = entries.map((e) => [
-    new Date(e.at).toISOString(),
-    e.kind,
-    e.status,
-    e.tokenId,
-    e.tokenSymbol ?? '',
-    e.amount ?? '',
-    e.secondaryAmount ?? '',
-    `"${activitySummary(e).replace(/"/g, '""')}"`,
-    e.account ?? '',
-    e.hash ?? '',
+    escapeCsvCell(new Date(e.at).toISOString()),
+    escapeCsvCell(e.kind),
+    escapeCsvCell(e.status),
+    escapeCsvCell(e.tokenId),
+    escapeCsvCell(e.tokenSymbol ?? ''),
+    escapeCsvCell(e.amount ?? ''),
+    escapeCsvCell(e.secondaryAmount ?? ''),
+    escapeCsvCell(activitySummary(e)),
+    escapeCsvCell(e.account ?? ''),
+    escapeCsvCell(e.hash ?? ''),
   ])
 
   return [headers.join(','), ...rows.map((r) => r.join(','))].join('\n')

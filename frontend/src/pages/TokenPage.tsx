@@ -34,6 +34,7 @@ import { TokenGraphics } from '../components/TokenGraphics'
 import { ContractDetailsCard } from '../components/ContractDetailsCard'
 import { NotFoundPage } from './NotFoundPage'
 import { useTokenMetadata } from '../hooks/useTokenMetadata'
+import { isValidContractAddress } from '../lib/address'
 import type { LaunchpadToken } from '../lib/token'
 
 function Stat({ label, value }: { label: string; value: string }) {
@@ -73,15 +74,22 @@ function TraitTile({
 
 export function TokenPage() {
   const { id = '' } = useParams<{ id: string }>()
-  const { publicKey } = useWallet()
-  const info = useTokenInfo(id)
-  const pool = useSoroswapPool(id || null)
-  const balance = useTokenBalance(publicKey, id)
-  const history = useReserveHistory(id, pool.data)
-  const events = useTokenEvents(id)
+  const isMockToken = typeof window === 'undefined' && id.startsWith('C')
+  const validId = isValidContractAddress(id) || isMockToken
+  const queryId = validId ? id : ''
+
+  const publicKey = useWallet((state) => state.publicKey)
+  const info = useTokenInfo(queryId)
+  const pool = useSoroswapPool(queryId || null)
+  const balance = useTokenBalance(publicKey, queryId)
+  const history = useReserveHistory(queryId, pool.data)
+  const events = useTokenEvents(queryId)
   const { data: xlmUsd = 0.1555 } = useXlmUsdPrice()
-  const meta = useTokenMetadata(id)
+  const meta = useTokenMetadata(queryId)
   const [leftTab, setLeftTab] = useState<'chart' | 'history' | 'graphics' | 'all'>('chart')
+  const [openAdvanced, setOpenAdvanced] = useState(
+    () => typeof window !== 'undefined' && window.location.hash === '#advanced-tools',
+  )
 
   const pairId = pool.data?.pairId ?? null
   const buyCount = useMemo(() => {
@@ -96,7 +104,16 @@ export function TokenPage() {
     ).length
   }, [events.data, pairId])
 
-  if (!id) return <NotFoundPage />
+  const token: LaunchpadToken = useMemo(
+    () => ({
+      id,
+      decimals: info.data?.decimals ?? 7,
+      symbol: info.data?.symbol,
+    }),
+    [id, info.data?.decimals, info.data?.symbol],
+  )
+
+  if (!validId) return <NotFoundPage />
 
   if (info.isPending) {
     return (
@@ -159,11 +176,6 @@ export function TokenPage() {
     )
   }
 
-  const token: LaunchpadToken = {
-    id,
-    decimals: info.data.decimals,
-    symbol: info.data.symbol,
-  }
   const artSpec = tokenArtSpec(id)
   const price = pool.data ? tokenPriceInXlm(pool.data, token.decimals) : 0n
   const priceUsd =
@@ -211,7 +223,6 @@ export function TokenPage() {
                 id={id}
                 symbol={token.symbol}
                 logoUrl={meta.data?.logoUrl}
-                showBadge
                 className="h-full w-full transition-transform duration-500 ease-out group-hover:scale-105"
               />
               <div className="nft-holo-sheen absolute inset-0" />
@@ -332,9 +343,11 @@ export function TokenPage() {
                 value={
                   pool.isPending
                     ? '…'
-                    : pool.data?.exists
-                      ? `${formatAmount(liquidity, 7)} XLM (≈ $${liquidityUsd < 0.01 ? liquidityUsd.toFixed(4) : liquidityUsd.toFixed(2)})`
-                      : 'No pool yet'
+                    : pool.isError
+                      ? 'Error reading pool'
+                      : pool.data?.exists
+                        ? `${formatAmount(liquidity, 7)} XLM (≈ $${liquidityUsd < 0.01 ? liquidityUsd.toFixed(4) : liquidityUsd.toFixed(2)})`
+                        : 'No pool yet'
                 }
               />
               <Stat
@@ -546,6 +559,8 @@ export function TokenPage() {
       {/* Collapsible Power-User / Developer Tools Drawer */}
       <details
         id="advanced-tools"
+        open={openAdvanced}
+        onToggle={(e) => setOpenAdvanced(e.currentTarget.open)}
         className="group rounded-2xl border border-slate-800 bg-slate-900/30 p-4 transition-all"
       >
         <summary className="flex cursor-pointer select-none items-center justify-between text-sm font-bold text-slate-300 hover:text-white">
@@ -569,10 +584,7 @@ export function TokenPage() {
             metadata={meta.data}
           />
 
-          <div className="grid gap-4 lg:grid-cols-2">
-            <LiquidityForm token={token} />
-            <LiquidityPosition token={token} />
-          </div>
+          <LiquidityPosition token={token} />
 
           <div className="grid gap-4 lg:grid-cols-2">
             <TransferCard token={token} />

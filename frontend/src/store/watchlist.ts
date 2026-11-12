@@ -1,26 +1,22 @@
 import { create } from 'zustand'
+import { readStorageJson, writeStorageJson } from '../lib/storage'
 
 const STORAGE_KEY = 'astrogate.watchlist.v1'
 
-function loadWatchlist(): string[] {
-  if (typeof window === 'undefined') return []
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY)
-    if (!raw) return []
-    const parsed = JSON.parse(raw)
-    return Array.isArray(parsed) ? parsed.filter((id) => typeof id === 'string') : []
-  } catch {
-    return []
+export function loadWatchlist(): string[] {
+  const parsed = readStorageJson<unknown>(STORAGE_KEY)
+  if (!Array.isArray(parsed)) return []
+  const unique = new Set<string>()
+  for (const id of parsed) {
+    if (typeof id === 'string' && id.startsWith('C') && id.length > 2) {
+      unique.add(id)
+    }
   }
+  return Array.from(unique)
 }
 
 function saveWatchlist(favorites: string[]): void {
-  if (typeof window === 'undefined') return
-  try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(favorites))
-  } catch {
-    // Storage quota errors
-  }
+  writeStorageJson(STORAGE_KEY, favorites)
 }
 
 type WatchlistState = {
@@ -40,3 +36,11 @@ export const useWatchlist = create<WatchlistState>((set, get) => ({
   },
   isFavorite: (id: string) => get().favorites.includes(id),
 }))
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (e) => {
+    if (e.key === STORAGE_KEY || e.key === 'floodgate.watchlist.v1') {
+      useWatchlist.setState({ favorites: loadWatchlist() })
+    }
+  })
+}

@@ -5,6 +5,7 @@
  * - Keys that shipped earlier under `floodgate.` (rebrand leftovers) or with
  *   the `astrogate:` colon variant are migrated once, transparently.
  * - Every read/write is guarded: a full or blocked quota must not break the app.
+ * - In-memory fallback ensures seamless operation in private browsing, SSR, and Node environments.
  */
 
 const APP_KEY_PREFIX = 'astrogate.'
@@ -15,13 +16,17 @@ const LEGACY_RENAMES: Record<string, string> = {
   'astrogate:xlm-usd-v1': 'astrogate.xlm-price.v1',
 }
 
+const memoryFallback = new Map<string, string>()
+
 function storage(): Storage | null {
-  if (typeof window === 'undefined') return null
   try {
-    return window.localStorage
+    if (typeof window !== 'undefined' && window.localStorage) {
+      return window.localStorage
+    }
   } catch {
     return null
   }
+  return null
 }
 
 /** Legacy key names that must be adopted into the new one on first read. */
@@ -38,50 +43,78 @@ function legacyCandidates(key: string): string[] {
 
 /** Moves legacy data under each key's current name once, transparently. */
 function migrateKey(key: string): void {
+  const sources = legacyCandidates(key)
   const s = storage()
-  if (!s) return
-  try {
-    if (s.getItem(key) !== null) return
-    const sources = legacyCandidates(key)
-    const legacyValue = sources
-      .map((legacy) => s.getItem(legacy))
-      .find((entry) => entry !== null)
-    if (legacyValue !== undefined && legacyValue !== null) {
-      s.setItem(key, legacyValue)
-      for (const legacy of sources) s.removeItem(legacy)
+  if (s) {
+    try {
+      if (s.getItem(key) !== null) return
+      const legacyValue = sources
+        .map((legacy) => s.getItem(legacy))
+        .find((entry) => entry !== null)
+      if (legacyValue !== undefined && legacyValue !== null) {
+        s.setItem(key, legacyValue)
+        for (const legacy of sources) s.removeItem(legacy)
+      }
+    } catch {
+      // Storage unavailable or full: keep working in memory.
     }
-  } catch {
-    // Storage unavailable or full: keep working in memory.
+  } else {
+    if (memoryFallback.has(key)) return
+    for (const legacy of sources) {
+      const val = memoryFallback.get(legacy)
+      if (val !== undefined) {
+        memoryFallback.set(key, val)
+        memoryFallback.delete(legacy)
+        break
+      }
+    }
   }
 }
 
 /** Reads a raw string value (migrating legacy keys transparently). */
 export function readStorageString(key: string): string | null {
   migrateKey(key)
-  return storage()?.getItem(key) ?? null
+  const s = storage()
+  if (s) {
+    try {
+      return s.getItem(key) ?? null
+    } catch {
+      return memoryFallback.get(key) ?? null
+    }
+  }
+  return memoryFallback.get(key) ?? null
 }
 
 /** Writes a raw string value; returns true on success. */
 export function writeStorageString(key: string, value: string): boolean {
-  try {
-    storage()?.setItem(key, value)
-    return true
-  } catch {
-    return false
+  const s = storage()
+  if (s) {
+    try {
+      s.setItem(key, value)
+      return true
+    } catch {
+      memoryFallback.set(key, value)
+      return false
+    }
   }
+  memoryFallback.set(key, value)
+  return true
 }
 
 export function removeStorageKey(key: string): void {
-  try {
-    storage()?.removeItem(key)
-  } catch {
-    // Ignore: storage blocked.
+  const s = storage()
+  if (s) {
+    try {
+      s.removeItem(key)
+    } catch {
+      // Ignore
+    }
   }
+  memoryFallback.delete(key)
 }
 
 /** Reads and parses a JSON document, or null when absent/corrupt. */
 export function readStorageJson<T>(key: string): T | null {
-  migrateKey(key)
   const raw = readStorageString(key)
   if (!raw) return null
   try {
@@ -106,23 +139,37 @@ export function clearAppScopedStorage(options?: {
   extraPrefixes?: string[]
 }): void {
   const s = storage()
-  if (!s) return
-  const targets: string[] = []
   const extraPrefixes = options?.extraPrefixes ?? []
-  for (let i = 0; i < s.length; i++) {
-    const key = s.key(i)
-    if (!key) continue
+  if (s) {
+    const targets: string[] = []
+    for (let i = 0; i < s.length; i++) {
+      const key = s.key(i)
+      if (!key) continue
+      const scoped =
+        key.startsWith(APP_KEY_PREFIX) ||
+        key.startsWith(LEGACY_KEYS_PREFIX) ||
+        extraPrefixes.some((p) => key.startsWith(p))
+      if (scoped) targets.push(key)
+    }
+    for (const key of targets) {
+      try {
+        s.removeItem(key)
+      } catch {
+        // Ignore individual failures.
+      }
+    }
+  }
+
+  for (const key of Array.from(memoryFallback.keys())) {
     const scoped =
       key.startsWith(APP_KEY_PREFIX) ||
       key.startsWith(LEGACY_KEYS_PREFIX) ||
       extraPrefixes.some((p) => key.startsWith(p))
-    if (scoped) targets.push(key)
+    if (scoped) memoryFallback.delete(key)
   }
-  for (const key of targets) {
-    try {
-      s.removeItem(key)
-    } catch {
-      // Ignore individual failures.
-    }
-  }
+}
+
+/** Helper for test cleanup. */
+export function clearStorageMemoryFallbackForTests(): void {
+  memoryFallback.clear()
 }

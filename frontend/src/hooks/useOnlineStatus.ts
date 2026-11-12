@@ -10,8 +10,8 @@ function subscribe(onChange: () => void) {
 }
 
 /**
- * Estado de conexión del navegador. En SSR asumimos online para no pintar el
- * aviso durante el primer render.
+ * Browser network connectivity status. Assumes online in SSR to avoid flashing
+ * an offline banner during initial hydration.
  */
 export function useOnlineStatus(): boolean {
   return useSyncExternalStore(

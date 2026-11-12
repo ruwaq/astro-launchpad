@@ -43,15 +43,28 @@ const counts = [
   'low',
 ].map((level) => Number(metadata[level] ?? 0))
 const total = counts.reduce((sum, n) => sum + n, 0)
+const [criticalCount] = counts
 
 console.log(
   `Vulnerabilidades npm audit: ${total} (crit ${counts[0]} · high ${counts[1]} · mod ${counts[2]} · low ${counts[3]}) — baseline ${baseline}`,
 )
+
+if (criticalCount > 0) {
+  console.error(
+    `✗ Fallo crítico de seguridad: se detectaron ${criticalCount} vulnerabilidades críticas en npm audit.`,
+  )
+  process.exit(1)
+}
 
 if (total > baseline) {
   console.error(
     '✗ Se superó el baseline de vulnerabilidades: revisa si una nueva dependencia añadió transitivos.',
   )
   process.exit(1)
+}
+if (total < baseline) {
+  console.log(
+    `ℹ Aviso: las vulnerabilidades bajaron de ${baseline} a ${total}. Se puede reducir el baseline en ci.yml y scripts/npm-audit-ratchet.mjs.`,
+  )
 }
 console.log('✓ npm audit dentro del baseline')

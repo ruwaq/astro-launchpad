@@ -1,6 +1,10 @@
-import { describe, expect, it } from 'vitest'
-import { nativeToScVal } from '@stellar/stellar-sdk'
-import { newestPairPerToken, parseNewPairEvent } from './discovery'
+import { describe, expect, it, vi } from 'vitest'
+import { nativeToScVal, rpc } from '@stellar/stellar-sdk'
+import {
+  discoverPairs,
+  newestPairPerToken,
+  parseNewPairEvent,
+} from './discovery'
 import { XLM_SAC } from './network'
 
 type RawEvent = Parameters<typeof parseNewPairEvent>[0]
@@ -85,5 +89,74 @@ describe('newestPairPerToken', () => {
 
   it('devuelve una lista vacía sin pares', () => {
     expect(newestPairPerToken([])).toEqual([])
+  })
+})
+
+describe('discoverPairs pagination & quiet ledgers', () => {
+  it('continues pagination across quiet ledgers instead of aborting immediately', async () => {
+    const latestSpy = vi
+      .spyOn(rpc.Server.prototype, 'getLatestLedger')
+      .mockResolvedValue({ sequence: 500 } as rpc.Api.GetLatestLedgerResponse)
+
+    // Page 1 has 0 events and a cursor; Page 2 has 1 pair event
+    let call = 0
+    const eventsSpy = vi
+      .spyOn(rpc.Server.prototype, 'getEvents')
+      .mockImplementation(async () => {
+        call++
+        if (call === 1) {
+          return {
+            events: [],
+            cursor: '0000000100000000-0',
+            latestLedger: 500,
+            oldestLedger: 100,
+          } as unknown as rpc.Api.GetEventsResponse
+        }
+        return {
+          events: [pairEvent('CPAIR99', XLM_SAC, 'CTOKEN99', 300)],
+          cursor: '0000000500000000-0',
+          latestLedger: 500,
+          oldestLedger: 100,
+        } as unknown as rpc.Api.GetEventsResponse
+      })
+
+    const discovered = await discoverPairs({ windowLedgers: 400 })
+    expect(discovered.length).toBe(1)
+    expect(discovered[0]?.tokenId).toBe('CTOKEN99')
+
+    latestSpy.mockRestore()
+    eventsSpy.mockRestore()
+  })
+
+  it('clamps startLedger when Soroban RPC throws retention limit -32600', async () => {
+    const latestSpy = vi
+      .spyOn(rpc.Server.prototype, 'getLatestLedger')
+      .mockResolvedValue({ sequence: 5000 } as rpc.Api.GetLatestLedgerResponse)
+
+    let call = 0
+    const eventsSpy = vi
+      .spyOn(rpc.Server.prototype, 'getEvents')
+      .mockImplementation(async (req) => {
+        call++
+        if (call === 1) {
+          throw new Error(
+            'startLedger must be within the ledger range: 4500 - 5000',
+          )
+        }
+        expect(req.startLedger).toBe(4500)
+        return {
+          events: [pairEvent('CPAIR88', XLM_SAC, 'CTOKEN88', 4600)],
+          cursor: '0000000500000000-0',
+          latestLedger: 5000,
+          oldestLedger: 4500,
+        } as unknown as rpc.Api.GetEventsResponse
+      })
+
+    const discovered = await discoverPairs({ windowLedgers: 2000 })
+    expect(discovered.length).toBe(1)
+    expect(discovered[0]?.tokenId).toBe('CTOKEN88')
+
+    latestSpy.mockRestore()
+    eventsSpy.mockRestore()
   })
 })

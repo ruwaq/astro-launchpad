@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { Link } from 'react-router'
+import { useCallback, useMemo, useState } from 'react'
+import { Link, useSearchParams } from 'react-router'
 import { useTokenList } from '../hooks/useTokenList'
 import { formatAmount, shortAddress } from '../lib/format'
 import { isValidContractAddress } from '../lib/address'
@@ -56,7 +56,7 @@ function MarketCard({
   onSelect: (token: LaunchpadToken) => void
 }) {
   const grad = graduationProgress(token.pool.reserveXlm)
-  const isFav = useWatchlist((s) => s.isFavorite(token.id))
+  const isFav = useWatchlist((s) => s.favorites.includes(token.id))
   const toggleFav = useWatchlist((s) => s.toggle)
   const meta = useTokenMetadata(token.id)
   const artSpec = tokenArtSpec(token.id)
@@ -66,6 +66,26 @@ function MarketCard({
 
   return (
     <li
+      tabIndex={0}
+      role="button"
+      aria-label={`Select ${token.name} (${token.symbol})`}
+      onClick={() =>
+        onSelect({
+          id: token.id,
+          decimals: token.decimals,
+          symbol: token.symbol,
+        })
+      }
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onSelect({
+            id: token.id,
+            decimals: token.decimals,
+            symbol: token.symbol,
+          })
+        }
+      }}
       className={`liquid-glass-card group relative flex cursor-pointer flex-col overflow-hidden rounded-3xl ${
         selected ? 'ring-2 ring-sky-400 border-sky-400/50' : ''
       }`}
@@ -149,8 +169,8 @@ function MarketCard({
           )}
         </div>
 
-        {/* OpenSea Slide-Up Quick Collect Action Bar on Hover */}
-        <div className="absolute inset-x-3 bottom-3 translate-y-12 opacity-0 transition-all duration-300 ease-out group-hover:translate-y-0 group-hover:opacity-100">
+        {/* OpenSea Slide-Up Quick Collect Action Bar on Hover & Accessible on Mobile */}
+        <div className="absolute inset-x-3 bottom-3 translate-y-0 opacity-100 sm:translate-y-12 sm:opacity-0 transition-all duration-300 ease-out sm:group-hover:translate-y-0 sm:group-hover:opacity-100">
           <button
             type="button"
             onClick={(e) => {
@@ -254,10 +274,72 @@ export function MarketList({
   showFilters = true,
 }: Props) {
   const list = useTokenList()
-  const [query, setQuery] = useState('')
-  const [sort, setSort] = useState<MarketSortKey>('recent')
-  const [favsOnly, setFavsOnly] = useState(false)
-  const isFavorite = useWatchlist((s) => s.isFavorite)
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  const [localQuery, setLocalQuery] = useState('')
+  const [localSort, setLocalSort] = useState<MarketSortKey>('recent')
+  const [localFavsOnly, setLocalFavsOnly] = useState(false)
+
+  const query = showFilters ? (searchParams.get('q') ?? localQuery) : ''
+  const sort = showFilters ? ((searchParams.get('sort') as MarketSortKey) || localSort) : 'recent'
+  const favsOnly = showFilters ? (searchParams.has('favs') ? searchParams.get('favs') === '1' : localFavsOnly) : false
+
+  const setQuery = useCallback(
+    (newQ: string) => {
+      setLocalQuery(newQ)
+      if (showFilters) {
+        setSearchParams(
+          (prev) => {
+            const next = new URLSearchParams(prev)
+            if (newQ.trim()) next.set('q', newQ)
+            else next.delete('q')
+            return next
+          },
+          { replace: true },
+        )
+      }
+    },
+    [showFilters, setSearchParams],
+  )
+
+  const setSort = useCallback(
+    (newSort: MarketSortKey) => {
+      setLocalSort(newSort)
+      if (showFilters) {
+        setSearchParams(
+          (prev) => {
+            const next = new URLSearchParams(prev)
+            if (newSort !== 'recent') next.set('sort', newSort)
+            else next.delete('sort')
+            return next
+          },
+          { replace: true },
+        )
+      }
+    },
+    [showFilters, setSearchParams],
+  )
+
+  const setFavsOnly = useCallback(
+    (newFavs: boolean) => {
+      setLocalFavsOnly(newFavs)
+      if (showFilters) {
+        setSearchParams(
+          (prev) => {
+            const next = new URLSearchParams(prev)
+            if (newFavs) next.set('favs', '1')
+            else next.delete('favs')
+            return next
+          },
+          { replace: true },
+        )
+      }
+    },
+    [showFilters, setSearchParams],
+  )
+
+  const favorites = useWatchlist((s) => s.favorites)
+  const isFavorite = useCallback((id: string) => favorites.includes(id), [favorites])
 
   const tokens = useMemo(() => {
     let result = filterAndSortTokens(list.data ?? [], query, sort, limit)
@@ -326,6 +408,7 @@ export function MarketList({
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
+              aria-pressed={favsOnly}
               onClick={() => setFavsOnly(!favsOnly)}
               className={`min-h-[44px] rounded-lg border px-3 py-2 text-xs font-medium transition ${
                 favsOnly

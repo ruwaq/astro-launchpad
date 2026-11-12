@@ -1,7 +1,8 @@
 import { nativeToScVal, rpc } from '@stellar/stellar-sdk'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   classifyTokenEvent,
+  fetchTokenEvents,
   parseTokenEvent,
   reconstructSnapshotsFromEvents,
   tokenEventSummary,
@@ -124,6 +125,16 @@ describe('tokenEventSummary y clasificación de trades (buy/sell)', () => {
         ledger: 100,
         at: '2026-11-01T10:00:00Z',
       },
+      // Self-transfer to/from pair contract should be ignored
+      {
+        id: 'self-1',
+        kind: 'transfer',
+        from: 'CPAIR123456',
+        to: 'CPAIR123456',
+        amount: 50_000n,
+        ledger: 101,
+        at: '2026-11-01T10:02:00Z',
+      },
     ]
     const snapshots = reconstructSnapshotsFromEvents(
       events,
@@ -135,5 +146,82 @@ describe('tokenEventSummary y clasificación de trades (buy/sell)', () => {
     expect(snapshots[0]?.xlm).toBe('90000')
     expect(snapshots[snapshots.length - 1]?.token).toBe('900000')
     expect(snapshots[snapshots.length - 1]?.xlm).toBe('100000')
+  })
+})
+
+describe('fetchTokenEvents pagination & quiet ledgers', () => {
+  it('continues pagination across quiet ledgers for tokens', async () => {
+    const latestSpy = vi
+      .spyOn(rpc.Server.prototype, 'getLatestLedger')
+      .mockResolvedValue({ sequence: 1000 } as rpc.Api.GetLatestLedgerResponse)
+
+    let call = 0
+    const eventsSpy = vi
+      .spyOn(rpc.Server.prototype, 'getEvents')
+      .mockImplementation(async () => {
+        call++
+        if (call === 1) {
+          return {
+            events: [],
+            cursor: '0000000100000000-0',
+            latestLedger: 1000,
+            oldestLedger: 100,
+          } as unknown as rpc.Api.GetEventsResponse
+        }
+        return {
+          events: [event(['transfer', FROM, TO], 500n)],
+          cursor: '4294967296000-0',
+          latestLedger: 1000,
+          oldestLedger: 100,
+        } as unknown as rpc.Api.GetEventsResponse
+      })
+
+    const result = await fetchTokenEvents('CTOKEN123')
+    expect(result.length).toBe(1)
+    expect(result[0]?.amount).toBe(500n)
+
+    latestSpy.mockRestore()
+    eventsSpy.mockRestore()
+  })
+
+  it('clamps startLedger and retries on retention limit error', async () => {
+    const latestSpy = vi
+      .spyOn(rpc.Server.prototype, 'getLatestLedger')
+      .mockResolvedValue({ sequence: 8000 } as rpc.Api.GetLatestLedgerResponse)
+
+    let call = 0
+    const eventsSpy = vi
+      .spyOn(rpc.Server.prototype, 'getEvents')
+      .mockImplementation(async (req) => {
+        call++
+        if (call === 1) {
+          throw new Error('startLedger must be within the ledger range: 7500 - 8000')
+        }
+        expect(req.startLedger).toBe(7500)
+        return {
+          events: [event(['mint', TO], 1000n)],
+          cursor: '0000000800000000-0',
+          latestLedger: 8000,
+          oldestLedger: 7500,
+        } as unknown as rpc.Api.GetEventsResponse
+      })
+
+    const result = await fetchTokenEvents('CTOKEN123')
+    expect(result.length).toBe(1)
+    expect(result[0]?.kind).toBe('mint')
+
+    latestSpy.mockRestore()
+    eventsSpy.mockRestore()
+  })
+
+  it('returns empty array when network is unreachable without throwing', async () => {
+    const latestSpy = vi
+      .spyOn(rpc.Server.prototype, 'getLatestLedger')
+      .mockRejectedValue(new Error('Network offline'))
+
+    const result = await fetchTokenEvents('CTOKEN123')
+    expect(result).toEqual([])
+
+    latestSpy.mockRestore()
   })
 })

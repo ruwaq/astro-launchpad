@@ -13,10 +13,10 @@ import type { PoolState } from '../lib/soroswap'
 const EMPTY_SNAPSHOTS: ReserveSnapshot[] = []
 
 /**
- * Historial del par combinando:
- * 1. Reconstrucción on-chain de compras y ventas contra el contrato del par
- *    usando los eventos SEP-41 `transfer` + invariante x * y = k.
- * 2. Snapshots locales guardados en este navegador (`localStorage`).
+ * Pool history combining:
+ * 1. On-chain reconstruction of buys and sells against the pair contract
+ *    using SEP-41 `transfer` events + constant product invariant x * y = k.
+ * 2. Local snapshots stored in browser storage.
  */
 export function useReserveHistory(
   tokenId: string,
@@ -49,11 +49,11 @@ export function useReserveHistory(
       return
     }
 
-    // Registro inmediato al abrir o al cambiar las reservas.
+    // Immediate snapshot upon opening or whenever reserves update.
     recordSnapshot(tokenId, reserveXlm, reserveToken)
 
-    // Y un pulso cada bucket mientras el token siga montado, aunque las
-    // reservas no cambien. Así una línea plana también tiene historia.
+    // Periodic pulse every bucket while the token page is active, even if
+    // reserves remain constant. This ensures flatline periods show historical span.
     const timer = window.setInterval(() => {
       recordSnapshot(tokenId, reserveXlm, reserveToken)
     }, SNAPSHOT_BUCKET_MS)

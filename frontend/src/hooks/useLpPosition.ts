@@ -2,8 +2,8 @@ import { useQuery } from '@tanstack/react-query'
 import { fetchLpPosition } from '../lib/soroswap'
 
 /**
- * Posición de liquidez de la cuenta en el par token/XLM.
- * Se refresca a menudo porque las reservas cambian con cada swap.
+ * Account's liquidity position in the token/XLM pair.
+ * Refreshes frequently because pool reserves shift with every swap.
  */
 export function useLpPosition(tokenId: string | null, account: string | null) {
   return useQuery({

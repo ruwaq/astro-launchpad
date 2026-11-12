@@ -20,6 +20,11 @@ describe('formatAmount', () => {
   it('respeta tokens sin decimales', () => {
     expect(formatAmount(42n, 0)).toBe('42')
   })
+
+  it('formatea cantidades negativas correctamente', () => {
+    expect(formatAmount(-10_000_000n, 7)).toBe('-1')
+    expect(formatAmount(-500_000n, 7)).toBe('-0.05')
+  })
 })
 
 describe('parseAmount', () => {
@@ -29,6 +34,11 @@ describe('parseAmount', () => {
     expect(parseAmount('0.0000001', 7)).toBe(1n)
     expect(parseAmount('0,0000001', 7)).toBe(1n)
     expect(parseAmount('100', 7)).toBe(1_000_000_000n)
+    expect(parseAmount('1,000,000', 7)).toBe(10_000_000_000_000n)
+    expect(parseAmount('1,000.5', 7)).toBe(10_005_000_000n)
+    expect(parseAmount('1.000,5', 7)).toBe(10_005_000_000n)
+    expect(parseAmount('1,000', 7)).toBe(10_000_000_000n)
+    expect(parseAmount('1.000.000', 7)).toBe(10_000_000_000_000n)
   })
 
   it('trunca decimales sobrantes y tolera vacío', () => {
@@ -88,6 +98,12 @@ describe('errorMessage', () => {
     )
     expect(errorMessage(new Error('Transaction failed: txBadSeq'))).toBe(
       'Account sequence currently in use by another pending transaction. Wait 5 seconds and retry.',
+    )
+    expect(errorMessage(new Error('HostError: Error(Contract, #4)'))).toBe(
+      'Invalid token metadata: decimals > 18, or empty/oversized (>32 bytes) name or symbol.',
+    )
+    expect(errorMessage(new Error('PairAlreadySeeded'))).toBe(
+      'Soroswap pair already exists with non-zero liquidity. Tokens cannot be launched over existing pairs.',
     )
   })
 })

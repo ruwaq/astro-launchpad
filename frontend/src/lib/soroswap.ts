@@ -21,10 +21,43 @@ export const SLIPPAGE_OPTIONS = [0.5, 1, 2, 5] as const
 /** Deadline para las operaciones del router: unix timestamp + 5 minutos. */
 const DEADLINE_SECONDS = 300
 
-/** Precio de 1 token en XLM (base units) según las reservas del par. */
+/**
+ * Precio de 1 token en XLM (stroops enteros) según las reservas del par.
+ * NOTA: Para tokens con baja ratio (< 1 stroop por token, típico en fair launch),
+ * este valor trunca a 0n. Para visualización y cálculos precisos, usar `tokenPriceInXlmNumber`.
+ */
 export function tokenPriceInXlm(pool: PoolState, decimals: number): bigint {
-  if (!pool.exists || pool.reserveToken === 0n) return 0n
-  return (pool.reserveXlm * 10n ** BigInt(decimals)) / pool.reserveToken
+  if (!pool.exists || pool.reserveToken <= 0n || pool.reserveXlm <= 0n) return 0n
+  const safeDecimals = Math.max(0, Math.trunc(decimals))
+  return (pool.reserveXlm * 10n ** BigInt(safeDecimals)) / pool.reserveToken
+}
+
+/**
+ * Precio de 1 token en XLM como número de coma flotante de alta precisión.
+ * Permite representar precios fraccionarios (< 1 stroop, e.g. 0.00000001005 XLM).
+ */
+export function tokenPriceInXlmNumber(pool: PoolState, decimals: number): number {
+  if (!pool.exists || pool.reserveToken <= 0n || pool.reserveXlm <= 0n) return 0
+  const safeDecimals = Math.max(0, Math.trunc(decimals))
+  const reserveXlm = Number(pool.reserveXlm) / 1e7
+  const reserveToken = Number(pool.reserveToken) / 10 ** safeDecimals
+  if (!Number.isFinite(reserveXlm) || !Number.isFinite(reserveToken) || reserveToken <= 0) return 0
+  return reserveXlm / reserveToken
+}
+
+/**
+ * Formats a fractional token price in XLM into a human-readable string without scientific notation.
+ * e.g. 0.00000001005 XLM
+ */
+export function formatTokenPrice(priceInXlm: number): string {
+  if (!Number.isFinite(priceInXlm) || priceInXlm <= 0) return '0'
+  if (priceInXlm >= 1) {
+    return priceInXlm.toLocaleString('en-US', { maximumFractionDigits: 4 })
+  }
+  if (priceInXlm >= 0.0001) {
+    return priceInXlm.toFixed(6)
+  }
+  return priceInXlm.toFixed(9).replace(/0+$/, '')
 }
 
 /**
@@ -76,12 +109,13 @@ export type PoolState = {
   reserveXlm: bigint
 }
 
-/** Mínimo de salida tras aplicar el slippage (soporta decimales como 0.5% con basis points). */
+/** Mínimo de salida tras aplicar el slippage (soporta decimales como 0.5% con basis points). Protege contra NaN y valores negativos. */
 export function withSlippage(
   amount: bigint,
   percent: number = SLIPPAGE_PERCENT,
 ): bigint {
-  const safe = Math.max(0, Math.min(100, percent))
+  if (amount <= 0n) return 0n
+  const safe = Number.isFinite(percent) ? Math.max(0, Math.min(100, percent)) : SLIPPAGE_PERCENT
   // Basis points (1% = 100 bps) para evitar operaciones flotantes con BigInt
   const bps = BigInt(Math.round(safe * 100))
   return (amount * (10_000n - bps)) / 10_000n
@@ -102,9 +136,9 @@ export type LpPosition = {
 
 /** Parte del pool que representa `lpAmount` sobre el total, en porcentaje. */
 export function lpSharePercent(lpAmount: bigint, totalSupply: bigint): number {
-  if (totalSupply <= 0n) return 0
+  if (totalSupply <= 0n || lpAmount <= 0n) return 0
   // Basis points enteros: dos decimales sin pasar por coma flotante.
-  return Number((lpAmount * 10_000n) / totalSupply) / 100
+  return Math.min(100, Number((lpAmount * 10_000n) / totalSupply) / 100)
 }
 
 /** Cantidades estimadas al retirar `lpAmount` (proporción de las reservas). */
@@ -112,7 +146,12 @@ export function withdrawPreview(
   position: Pick<LpPosition, 'totalSupply' | 'reserveToken' | 'reserveXlm'>,
   lpAmount: bigint,
 ): { tokenAmount: bigint; xlmAmount: bigint } {
-  if (position.totalSupply <= 0n || lpAmount <= 0n) {
+  if (
+    position.totalSupply <= 0n ||
+    lpAmount <= 0n ||
+    position.reserveToken <= 0n ||
+    position.reserveXlm <= 0n
+  ) {
     return { tokenAmount: 0n, xlmAmount: 0n }
   }
   return {
@@ -345,7 +384,14 @@ export async function quoteTokenForXlm(
   amountIn: bigint,
   pool: PoolState,
 ): Promise<bigint> {
-  if (!pool.exists || amountIn <= 0n) return 0n
+  if (
+    !pool.exists ||
+    amountIn <= 0n ||
+    pool.reserveToken <= 0n ||
+    pool.reserveXlm <= 0n
+  ) {
+    return 0n
+  }
   const { router } = soroswapClients()
   const tx = await router.router_get_amount_out({
     amount_in: amountIn,
@@ -360,7 +406,14 @@ export async function quoteXlmForToken(
   amountIn: bigint,
   pool: PoolState,
 ): Promise<bigint> {
-  if (!pool.exists || amountIn <= 0n) return 0n
+  if (
+    !pool.exists ||
+    amountIn <= 0n ||
+    pool.reserveToken <= 0n ||
+    pool.reserveXlm <= 0n
+  ) {
+    return 0n
+  }
   const { router } = soroswapClients()
   const tx = await router.router_get_amount_out({
     amount_in: amountIn,

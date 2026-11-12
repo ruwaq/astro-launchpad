@@ -3,8 +3,8 @@
  *
  * Anti-Fraud & Rug-Pull Rules:
  * 1. Standard Supply: 1,000,000,000 tokens (7 decimals).
- * 2. Creator Allocation: strictly 0.5% (5,000,000 tokens) across 5 vesting
- *    phases after graduation.
+ * 2. Creator Allocation: strictly 0.5% (5,000,000 tokens) transferred directly
+ *    at launch on testnet (5-phase 15-day post-graduation vesting is planned for mainnet).
  * 3. Liquidity Pool Allocation: 99.5% (995,000,000 tokens) seeded directly
  *    into the Soroswap token/XLM pair at launch.
  * 4. Automatic LP Burn: 100% of the initial LP tokens generated are permanently
@@ -47,13 +47,12 @@ export const STELLAR_BURN_ADDRESS =
 
 /**
  * Protocol Monetization Model (AstroGate Treasury):
- * 1. Fair launch deployment fee anchored to $1.11 USD (`PROTOCOL_DEPLOY_FEE_USD` = 1.11)
- *    calculated dynamically from current real-time XLM spot price.
- * 2. Trading fee on curve: planned 1.00% (0.70% treasury + 0.30% creator) —
- *    NOTE: Soroswap pool swaps only charge the pool LP fee (0.30%); the
- *    treasury/creator cuts are modeled, not enforced on-chain yet.
+ * 1. Fair launch deployment: 0 protocol fee charged on-chain (the launchpad contract only
+ *    pulls the creator's chosen seed XLM). A planned $1.11 protocol deploy fee is modeled for future mainnet.
+ * 2. Trading fee on curve: Soroswap charges the standard 0.30% LP fee; additional
+ *    protocol/creator cuts (0.70% treasury + 0.30% creator) are planned, not enforced on-chain yet.
  * 3. Graduation fee at 2,000 XLM target: modeled 15 XLM protocol + 5 XLM creator
- *    reward (same note as above).
+ *    reward (planned for mainnet).
  */
 export const PROTOCOL_DEPLOY_FEE_USD = 1.11
 export const CREATOR_GRADUATION_REWARD_XLM = 5
@@ -113,7 +112,9 @@ export function whaleThresholdBase(
  */
 export function calculateSupplySharePercent(
   amountTokensBase: bigint,
-  totalBase: bigint = poolAllocationBase(FAIR_LAUNCH_TOTAL_BASIS),
+  totalBase: bigint = poolAllocationBase(
+    FAIR_LAUNCH_TOTAL_BASIS * 10n ** BigInt(FAIR_LAUNCH_DECIMALS),
+  ),
 ): number {
   if (totalBase <= 0n || amountTokensBase <= 0n) return 0
   const bps = (amountTokensBase * 10_000n) / totalBase
@@ -150,9 +151,10 @@ export type GraduationStatus = {
 }
 
 /**
- * Creator allocation anti-dump protection lock:
- * The creator receives their 0.5% allocation across 5 phases over 15 days
- * (20% every 3 days) after graduation to protect buyers from immediate selloffs.
+ * Creator allocation anti-dump protection lock (Planned for Mainnet):
+ * On testnet, the creator receives their 0.5% allocation directly at launch.
+ * The 5-phase 15-day vesting schedule (20% every 3 days post-graduation)
+ * is modeled/planned for mainnet deployment.
  */
 export const CREATOR_GRADUATION_LOCK_DAYS = 15
 export const CREATOR_VESTING_PHASES_COUNT = 5
@@ -251,7 +253,8 @@ export function graduationProgress(
   reserveXlmStroops: bigint,
   targetXlm: number = GRADUATION_TARGET_XLM,
 ): GraduationStatus {
-  const safeTarget = Math.max(1, targetXlm)
+  const safeTarget =
+    Number.isFinite(targetXlm) && targetXlm > 0 ? targetXlm : GRADUATION_TARGET_XLM
   const currentXlm = Number(reserveXlmStroops) / 1e7
   if (!Number.isFinite(currentXlm) || currentXlm <= 0) {
     return {

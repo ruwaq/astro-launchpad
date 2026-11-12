@@ -1,18 +1,21 @@
-/** Formats an on-chain amount (base units) to readable decimal. */
+/** Formats an on-chain amount (base units) to readable decimal. Handles negative amounts cleanly. */
 export function formatAmount(amount: bigint, decimals: number): string {
   if (decimals <= 0) return amount.toString()
+  const isNegative = amount < 0n
+  const abs = isNegative ? -amount : amount
   const base = 10n ** BigInt(decimals)
-  const whole = amount / base
-  const fraction = (amount % base)
+  const whole = abs / base
+  const fraction = (abs % base)
     .toString()
     .padStart(decimals, '0')
     .replace(/0+$/, '')
-  return fraction ? `${whole}.${fraction}` : `${whole}`
+  const formatted = fraction ? `${whole}.${fraction}` : `${whole}`
+  return isNegative ? `-${formatted}` : formatted
 }
 
-/** Converts a readable decimal string to base units (i128). Tolerates dots and commas. */
+/** Converts a readable decimal string to base units (i128). Tolerates dots, commas, and thousands separators. */
 export function parseAmount(value: string, decimals: number): bigint {
-  const trimmed = value.trim().replace(',', '.')
+  const trimmed = normalizeDecimalString(value)
   if (!trimmed || !/^\d*(\.\d*)?$/.test(trimmed)) return 0n
 
   const safeDecimals = Math.max(0, Math.trunc(decimals))
@@ -24,6 +27,39 @@ export function parseAmount(value: string, decimals: number): bigint {
   } catch {
     return 0n
   }
+}
+
+/** Normalizes localized decimal inputs with commas, dots, and thousands separators. */
+function normalizeDecimalString(val: string): string {
+  let s = val.trim()
+  if (!s) return ''
+  const hasComma = s.includes(',')
+  const hasDot = s.includes('.')
+  if (hasComma && hasDot) {
+    if (s.lastIndexOf('.') > s.lastIndexOf(',')) {
+      // e.g. 1,234.56 -> 1234.56
+      s = s.replaceAll(',', '')
+    } else {
+      // e.g. 1.234,56 -> 1234.56
+      s = s.replaceAll('.', '').replace(',', '.')
+    }
+  } else if (hasComma) {
+    const commaCount = (s.match(/,/g) || []).length
+    if (commaCount > 1 || /^\d{1,3}(,\d{3})+$/.test(s)) {
+      // e.g. 1,000,000 or 1,000 -> 1000000 or 1000
+      s = s.replaceAll(',', '')
+    } else {
+      // Single comma decimal e.g. 10,5 -> 10.5
+      s = s.replace(',', '.')
+    }
+  } else if (hasDot) {
+    const dotCount = (s.match(/\./g) || []).length
+    if (dotCount > 1 && /^\d{1,3}(\.\d{3})+$/.test(s)) {
+      // e.g. 1.000.000 -> 1000000
+      s = s.replaceAll('.', '')
+    }
+  }
+  return s
 }
 
 /** Shortens a public key or hash for display: GABC…WXYZ */
@@ -84,6 +120,19 @@ export function errorMessage(error: unknown): string {
     raw.includes('Error(Contract, #303)')
   ) {
     return 'Token and XLM ratio does not match pool reserves. Enable "Maintain pool ratio" and try again.'
+  }
+  if (
+    raw.includes('Error(Contract, #4)') ||
+    lower.includes('invalidmetadata') ||
+    lower.includes('invalid metadata')
+  ) {
+    return 'Invalid token metadata: decimals > 18, or empty/oversized (>32 bytes) name or symbol.'
+  }
+  if (
+    lower.includes('pairalreadyseeded') ||
+    lower.includes('pair already exists')
+  ) {
+    return 'Soroswap pair already exists with non-zero liquidity. Tokens cannot be launched over existing pairs.'
   }
   if (lower.includes('expired') || lower.includes('deadline')) {
     return 'Transaction timed out (deadline expired). Please try again.'

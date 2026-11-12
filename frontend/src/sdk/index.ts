@@ -7,29 +7,41 @@
 import { discoverTokens, type TokenListing } from '../lib/discovery'
 import {
   fetchPoolState,
+  priceImpactPercent,
   quoteTokenForXlm,
   quoteXlmForToken,
   tokenPriceInXlm,
+  unwrapResult,
   withSlippage,
   type PoolState,
 } from '../lib/soroswap'
+import { Client as PairClient } from '../contracts/soroswap-pair'
 import { tokenClient } from '../lib/token'
+import { isValidContractAddress } from '../lib/address'
 import {
   ASTRO_TOKEN_ID,
+  ASTRO_WASM_HASH,
   checkRpcHealth,
+  executeWithRpcFailover,
+  LAUNCHPAD_CONTRACT_ID,
+  LAUNCHPAD_WASM_HASH,
   NETWORK_NAME,
   NETWORK_PASSPHRASE,
+  RPC_POOL,
   RPC_URL,
   SOROSWAP_FACTORY,
   SOROSWAP_ROUTER,
   XLM_SAC,
 } from '../lib/network'
-import {
-  STELLAR_BURN_ADDRESS,
-  PROTOCOL_DEPLOY_FEE_USD,
-  graduationProgress,
-} from '../lib/tokenomics'
+import { STELLAR_BURN_ADDRESS, graduationProgress } from '../lib/tokenomics'
 import { formatAmount } from '../lib/format'
+import {
+  classifyTokenEvent,
+  fetchTokenEvents,
+  parseTokenEvent,
+  type TokenEvent,
+  type TokenTradeRole,
+} from '../lib/token-events'
 
 export interface SdkTokenOverview {
   id: string
@@ -49,7 +61,7 @@ export interface SdkQuoteResult {
   amountIn: string
   amountOutEstimated: string
   amountOutMinimum: string
-  priceImpactPercent?: number
+  priceImpactPercent: number
 }
 
 export interface AntiRugAuditResult {
@@ -57,8 +69,19 @@ export interface AntiRugAuditResult {
   pairId: string | null
   lpBurnAddress: string
   ownershipRenounced: boolean
+  lpBurned: boolean
   isAntiRugVerified: boolean
   auditNotes: string[]
+}
+
+export interface SdkTokenDetails {
+  id: string
+  name: string
+  symbol: string
+  decimals: number
+  pool: PoolState
+  priceXlm: string
+  graduation: ReturnType<typeof graduationProgress>
 }
 
 /**
@@ -90,15 +113,11 @@ export async function getMarketTokens(options?: {
 /**
  * Retrieves complete on-chain status and metadata for a specific token.
  */
-export async function getTokenDetails(tokenId: string): Promise<{
-  id: string
-  name: string
-  symbol: string
-  decimals: number
-  pool: PoolState
-  priceXlm: string
-  graduation: ReturnType<typeof graduationProgress>
-}> {
+export async function getTokenDetails(tokenId: string): Promise<SdkTokenDetails> {
+  if (!isValidContractAddress(tokenId)) {
+    throw new Error(`Invalid Stellar contract address: ${tokenId}`)
+  }
+
   const client = tokenClient(tokenId)
   const [nameTx, symbolTx, decimalsTx, pool] = await Promise.all([
     client.name().catch(() => ({ result: 'Unknown' })),
@@ -107,14 +126,14 @@ export async function getTokenDetails(tokenId: string): Promise<{
     fetchPoolState(tokenId),
   ])
 
-  const decimals = decimalsTx.result
+  const decimals = typeof decimalsTx.result === 'number' ? decimalsTx.result : 7
   const price = tokenPriceInXlm(pool, decimals)
   const graduation = graduationProgress(pool.reserveXlm)
 
   return {
     id: tokenId,
-    name: nameTx.result,
-    symbol: symbolTx.result,
+    name: nameTx.result || 'Unknown',
+    symbol: symbolTx.result || 'UNK',
     decimals,
     pool,
     priceXlm: formatAmount(price, 7),
@@ -132,6 +151,10 @@ export async function quoteSwap(params: {
   direction: 'buy' | 'sell'
   slippagePercent?: number
 }): Promise<SdkQuoteResult> {
+  if (params.amountIn <= 0n) {
+    throw new Error('amountIn must be greater than zero')
+  }
+
   const pool = await fetchPoolState(params.tokenId)
   if (!pool.exists || pool.reserveXlm === 0n || pool.reserveToken === 0n) {
     throw new Error(`No active AMM liquidity pool found for token ${params.tokenId}`)
@@ -141,26 +164,43 @@ export async function quoteSwap(params: {
   if (params.direction === 'buy') {
     const quoted = await quoteXlmForToken(params.amountIn, pool)
     const minOut = withSlippage(quoted, slippage)
+    const impact = priceImpactPercent(
+      params.amountIn,
+      quoted,
+      pool.reserveXlm,
+      pool.reserveToken,
+    )
     return {
       direction: 'buy',
       amountIn: params.amountIn.toString(),
       amountOutEstimated: quoted.toString(),
       amountOutMinimum: minOut.toString(),
+      priceImpactPercent: impact,
     }
   } else {
     const quoted = await quoteTokenForXlm(params.amountIn, pool)
     const minOut = withSlippage(quoted, slippage)
+    const impact = priceImpactPercent(
+      params.amountIn,
+      quoted,
+      pool.reserveToken,
+      pool.reserveXlm,
+    )
     return {
       direction: 'sell',
       amountIn: params.amountIn.toString(),
       amountOutEstimated: quoted.toString(),
       amountOutMinimum: minOut.toString(),
+      priceImpactPercent: impact,
     }
   }
 }
 
 /**
- * Audits a token on-chain to verify 100% Anti-Rug Fair-Launch compliance.
+ * Audits a token on-chain to verify 100% Anti-Rug Fair-Launch compliance:
+ * 1. Active Soroswap AMM liquidity pool exists.
+ * 2. Contract ownership is renounced (zero / dead address).
+ * 3. 100% of Soroswap LP tokens are permanently burned in STELLAR_BURN_ADDRESS.
  */
 export async function verifyAntiRug(tokenId: string): Promise<AntiRugAuditResult> {
   const pool = await fetchPoolState(tokenId)
@@ -172,6 +212,7 @@ export async function verifyAntiRug(tokenId: string): Promise<AntiRugAuditResult
       pairId: null,
       lpBurnAddress: STELLAR_BURN_ADDRESS,
       ownershipRenounced: false,
+      lpBurned: false,
       isAntiRugVerified: false,
       auditNotes: ['No active Soroswap AMM pool found on-chain.'],
     }
@@ -180,17 +221,17 @@ export async function verifyAntiRug(tokenId: string): Promise<AntiRugAuditResult
   notes.push(`Soroswap Pair verified: ${pool.pairId}`)
   notes.push(`Canonical Stellar Burn Address: ${STELLAR_BURN_ADDRESS}`)
 
-  // Verify owner status
+  // 1. Verify owner status: strictly dead or non-existent
   let ownershipRenounced = false
   try {
     const client = tokenClient(tokenId)
-    // In OpenZeppelin Ownable, get_owner() returns string | null
     const ownerTx = await client.get_owner()
-    if (!ownerTx.result || ownerTx.result.toString().includes('GAAAA')) {
+    const owner = ownerTx.result
+    if (!owner || owner === STELLAR_BURN_ADDRESS) {
       ownershipRenounced = true
-      notes.push('Ownership successfully renounced (zero / dead owner).')
+      notes.push('Ownership successfully renounced (zero / canonical burn owner).')
     } else {
-      notes.push(`Active owner address detected: ${ownerTx.result}`)
+      notes.push(`Active owner address detected: ${owner}`)
     }
   } catch {
     // If get_owner() reverts or is absent, minting is either locked or renounced
@@ -198,12 +239,47 @@ export async function verifyAntiRug(tokenId: string): Promise<AntiRugAuditResult
     notes.push('Token contract does not have an active owner (mint disabled).')
   }
 
+  // 2. Verify LP Token Burn
+  let lpBurned = false
+  try {
+    const pair = new PairClient({
+      contractId: pool.pairId,
+      rpcUrl: RPC_URL,
+      networkPassphrase: NETWORK_PASSPHRASE,
+    })
+    const [burnBalanceTx, totalSupplyTx] = await Promise.all([
+      pair.balance({ id: STELLAR_BURN_ADDRESS }),
+      pair.total_supply(),
+    ])
+    const burnBalance = unwrapResult<bigint>(burnBalanceTx.result, 'balance')
+    const totalSupply = unwrapResult<bigint>(totalSupplyTx.result, 'total_supply')
+
+    if (totalSupply > 0n && burnBalance >= totalSupply) {
+      lpBurned = true
+      notes.push(
+        `100% LP tokens verified burned in ${STELLAR_BURN_ADDRESS} (${burnBalance.toString()} / ${totalSupply.toString()}).`,
+      )
+    } else if (burnBalance > 0n && totalSupply > 0n) {
+      const pct = (burnBalance * 100n) / totalSupply
+      notes.push(
+        `Partial LP burn: ${pct.toString()}% held by burn address (${burnBalance.toString()} / ${totalSupply.toString()}).`,
+      )
+    } else {
+      notes.push('No LP tokens detected in canonical burn address.')
+    }
+  } catch (err) {
+    notes.push(
+      `Could not verify LP burn on pair: ${(err as Error)?.message ?? 'contract error'}`,
+    )
+  }
+
   return {
     tokenId,
     pairId: pool.pairId,
     lpBurnAddress: STELLAR_BURN_ADDRESS,
     ownershipRenounced,
-    isAntiRugVerified: ownershipRenounced && pool.reserveXlm > 0n,
+    lpBurned,
+    isAntiRugVerified: ownershipRenounced && lpBurned && pool.reserveXlm > 0n,
     auditNotes: notes,
   }
 }
@@ -212,12 +288,23 @@ export const AstroGateConstants = {
   NETWORK_NAME,
   NETWORK_PASSPHRASE,
   RPC_URL,
+  RPC_POOL,
   SOROSWAP_FACTORY,
   SOROSWAP_ROUTER,
   XLM_SAC,
   ASTRO_TOKEN_ID,
+  ASTRO_WASM_HASH,
+  LAUNCHPAD_CONTRACT_ID,
+  LAUNCHPAD_WASM_HASH,
   STELLAR_BURN_ADDRESS,
-  PROTOCOL_DEPLOY_FEE_USD,
 }
 
-export { checkRpcHealth }
+export {
+  checkRpcHealth,
+  classifyTokenEvent,
+  executeWithRpcFailover,
+  fetchTokenEvents,
+  isValidContractAddress,
+  parseTokenEvent,
+}
+export type { TokenEvent, TokenTradeRole }

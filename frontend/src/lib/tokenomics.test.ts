@@ -51,6 +51,11 @@ describe('graduationProgress', () => {
     expect(grad.stage).toBe('graduated')
     expect(grad.graduated).toBe(true)
     expect(grad.percent).toBe(100)
+
+    // NaN en targetXlm no rompe el cálculo
+    const nanTarget = graduationProgress(500n * stroops, Number.NaN)
+    expect(nanTarget.stage).toBe('rising')
+    expect(nanTarget.percent).toBe(25)
   })
 })
 
@@ -101,6 +106,10 @@ describe('fair seed & supply share math', () => {
     const percent = calculateSupplySharePercent(order10M, poolTokens)
     // 10M / 995M ≈ 1.005% -> 1.00%
     expect(percent).toBeCloseTo(1.0, 1)
+
+    // Usa totalBase por defecto con unidades escaladas a Stroops (10^7)
+    const defaultPercent = calculateSupplySharePercent(order10M)
+    expect(defaultPercent).toBeCloseTo(1.0, 1)
 
     // Si orden es 0 o negativo
     expect(calculateSupplySharePercent(0n, poolTokens)).toBe(0)

@@ -1,8 +1,9 @@
 import { create } from 'zustand'
+import { readStorageJson, writeStorageJson } from '../lib/storage'
 
 /**
- * Progreso local del onboarding. No se sincroniza con ningún backend: es una
- * ayuda de primera visita, no un requisito para operar.
+ * Local onboarding progress. Not synced with any backend: helps first-time
+ * visitors discover key workflows.
  */
 export type ProgressStep = 'liquidity' | 'swapped'
 
@@ -12,33 +13,24 @@ type ProgressState = {
   mark: (step: ProgressStep) => void
 }
 
-const STORAGE_KEY = 'floodgate.progress.v1'
+const STORAGE_KEY = 'astrogate.progress.v1'
 
-function loadProgress(): Pick<ProgressState, 'liquidity' | 'swapped'> {
-  if (typeof window === 'undefined') return { liquidity: false, swapped: false }
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY)
-    if (!raw) return { liquidity: false, swapped: false }
-    const parsed = JSON.parse(raw) as Partial<Record<ProgressStep, unknown>>
-    return {
-      liquidity: parsed.liquidity === true,
-      swapped: parsed.swapped === true,
-    }
-  } catch {
+export function loadProgress(): Pick<ProgressState, 'liquidity' | 'swapped'> {
+  const parsed = readStorageJson<Partial<Record<ProgressStep, unknown>>>(STORAGE_KEY)
+  if (!parsed || typeof parsed !== 'object') {
     return { liquidity: false, swapped: false }
+  }
+  return {
+    liquidity: parsed.liquidity === true,
+    swapped: parsed.swapped === true,
   }
 }
 
-function persistProgress(state: Pick<ProgressState, 'liquidity' | 'swapped'>) {
-  if (typeof window === 'undefined') return
-  try {
-    window.localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({ liquidity: state.liquidity, swapped: state.swapped }),
-    )
-  } catch {
-    // Almacenamiento no disponible: el estado en memoria sigue siendo válido.
-  }
+function persistProgress(state: Pick<ProgressState, 'liquidity' | 'swapped'>): void {
+  writeStorageJson(STORAGE_KEY, {
+    liquidity: state.liquidity,
+    swapped: state.swapped,
+  })
 }
 
 export const useProgress = create<ProgressState>((set, get) => ({
@@ -51,3 +43,11 @@ export const useProgress = create<ProgressState>((set, get) => ({
     set(next)
   },
 }))
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (e) => {
+    if (e.key === STORAGE_KEY || e.key === 'floodgate.progress.v1') {
+      useProgress.setState(loadProgress())
+    }
+  })
+}

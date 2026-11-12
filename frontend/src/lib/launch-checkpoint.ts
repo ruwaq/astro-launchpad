@@ -1,13 +1,40 @@
 /**
  * Transactional Checkpoint Manager for Token Fair Launches.
- * Protects against stranded funds, network dropouts, and browser crashes during multi-step on-chain operations.
+ * Protects against stranded funds, network dropouts, and browser crashes during on-chain operations.
+ *
+ * Features:
+ * - Scoped per wallet public key (prevents cross-account contamination).
+ * - Automatic TTL expiration (24h) to prevent permanent stale nag banners.
+ * - Strict runtime schema validation.
+ * - Resilient storage access via centralized storage abstraction.
  */
 
-export type LaunchStep = 'deploy' | 'liquidity' | 'burn' | 'renounce' | 'dev-buy' | 'completed'
+import { readStorageJson, removeStorageKey, writeStorageJson } from './storage'
+
+export type LaunchStep =
+  | 'deploy'
+  | 'liquidity'
+  | 'burn'
+  | 'renounce'
+  | 'dev-buy'
+  | 'submitting'
+  | 'submitted'
+  | 'completed'
+
+const VALID_STEPS: readonly LaunchStep[] = [
+  'deploy',
+  'liquidity',
+  'burn',
+  'renounce',
+  'dev-buy',
+  'submitting',
+  'submitted',
+  'completed',
+]
 
 export interface LaunchCheckpoint {
   sessionId: string
-  tokenId: string
+  tokenId?: string
   name: string
   symbol: string
   decimals: number
@@ -19,46 +46,106 @@ export interface LaunchCheckpoint {
   pairId?: string
   lpAmount?: string
   txHash?: string
+  saltHex?: string
+  error?: string
   updatedAt: number
 }
 
-const CHECKPOINT_STORAGE_KEY = 'astrogate.launch.checkpoint.v1'
-let memoryCheckpoint: LaunchCheckpoint | null = null
+const CHECKPOINT_STORAGE_PREFIX = 'astrogate.launch.checkpoint.v1'
+export const CHECKPOINT_TTL_MS = 24 * 60 * 60 * 1000 // 24 hours
+
+const memoryCheckpoints = new Map<string, LaunchCheckpoint>()
+
+function checkpointKey(publicKey?: string | null): string {
+  return publicKey ? `${CHECKPOINT_STORAGE_PREFIX}.${publicKey}` : CHECKPOINT_STORAGE_PREFIX
+}
+
+export function isLaunchCheckpoint(value: unknown): value is LaunchCheckpoint {
+  if (typeof value !== 'object' || value === null) return false
+  const cp = value as Partial<LaunchCheckpoint>
+  return (
+    typeof cp.sessionId === 'string' &&
+    cp.sessionId.length > 0 &&
+    typeof cp.publicKey === 'string' &&
+    cp.publicKey.startsWith('G') &&
+    typeof cp.name === 'string' &&
+    typeof cp.symbol === 'string' &&
+    typeof cp.decimals === 'number' &&
+    Number.isFinite(cp.decimals) &&
+    typeof cp.initialSupply === 'string' &&
+    typeof cp.seedXlm === 'string' &&
+    typeof cp.step === 'string' &&
+    VALID_STEPS.includes(cp.step as LaunchStep) &&
+    cp.step !== 'completed' &&
+    typeof cp.updatedAt === 'number' &&
+    Number.isFinite(cp.updatedAt)
+  )
+}
 
 export function saveCheckpoint(checkpoint: LaunchCheckpoint): void {
-  memoryCheckpoint = checkpoint
-  if (typeof window === 'undefined') return
-  try {
-    window.localStorage.setItem(CHECKPOINT_STORAGE_KEY, JSON.stringify(checkpoint))
-  } catch (err) {
-    console.warn('Failed to save launch checkpoint to localStorage:', err)
-  }
+  if (!checkpoint.publicKey) return
+  memoryCheckpoints.set(checkpoint.publicKey, checkpoint)
+  memoryCheckpoints.set('__default__', checkpoint)
+  writeStorageJson(checkpointKey(checkpoint.publicKey), checkpoint)
+  // Also write un-scoped key for backwards compatibility
+  writeStorageJson(CHECKPOINT_STORAGE_PREFIX, checkpoint)
 }
 
-export function getCheckpoint(): LaunchCheckpoint | null {
-  if (typeof window === 'undefined') {
-    return memoryCheckpoint && memoryCheckpoint.step !== 'completed' ? memoryCheckpoint : null
-  }
-  try {
-    const raw = window.localStorage.getItem(CHECKPOINT_STORAGE_KEY)
-    if (!raw) return memoryCheckpoint && memoryCheckpoint.step !== 'completed' ? memoryCheckpoint : null
-    const parsed = JSON.parse(raw) as LaunchCheckpoint
-    if (parsed && parsed.sessionId && parsed.step && parsed.step !== 'completed') {
-      memoryCheckpoint = parsed
-      return parsed
+export function getCheckpoint(publicKey?: string | null): LaunchCheckpoint | null {
+  const now = Date.now()
+
+  // 1. Check scoped key if publicKey provided
+  if (publicKey) {
+    const memory = memoryCheckpoints.get(publicKey)
+    if (memory && isLaunchCheckpoint(memory)) {
+      if (now - memory.updatedAt <= CHECKPOINT_TTL_MS) return memory
+      clearCheckpoint(publicKey)
+      return null
     }
-    return null
-  } catch {
-    return memoryCheckpoint && memoryCheckpoint.step !== 'completed' ? memoryCheckpoint : null
+
+    const stored = readStorageJson<unknown>(checkpointKey(publicKey))
+    if (isLaunchCheckpoint(stored)) {
+      if (now - stored.updatedAt <= CHECKPOINT_TTL_MS) {
+        memoryCheckpoints.set(publicKey, stored)
+        return stored
+      }
+      clearCheckpoint(publicKey)
+      return null
+    }
   }
+
+  // 2. Fall back to un-scoped key / memory
+  const fallbackMemory = memoryCheckpoints.get('__default__')
+  if (fallbackMemory && isLaunchCheckpoint(fallbackMemory)) {
+    if (publicKey && fallbackMemory.publicKey !== publicKey) {
+      return null // Wallet mismatch: prevent account leakage
+    }
+    if (now - fallbackMemory.updatedAt <= CHECKPOINT_TTL_MS) return fallbackMemory
+    clearCheckpoint()
+    return null
+  }
+
+  const fallbackStored = readStorageJson<unknown>(CHECKPOINT_STORAGE_PREFIX)
+  if (isLaunchCheckpoint(fallbackStored)) {
+    if (publicKey && fallbackStored.publicKey !== publicKey) {
+      return null // Wallet mismatch: prevent account leakage
+    }
+    if (now - fallbackStored.updatedAt <= CHECKPOINT_TTL_MS) {
+      memoryCheckpoints.set('__default__', fallbackStored)
+      return fallbackStored
+    }
+    clearCheckpoint()
+    return null
+  }
+
+  return null
 }
 
-export function clearCheckpoint(): void {
-  memoryCheckpoint = null
-  if (typeof window === 'undefined') return
-  try {
-    window.localStorage.removeItem(CHECKPOINT_STORAGE_KEY)
-  } catch {
-    // Ignore storage errors
+export function clearCheckpoint(publicKey?: string | null): void {
+  if (publicKey) {
+    memoryCheckpoints.delete(publicKey)
+    removeStorageKey(checkpointKey(publicKey))
   }
+  memoryCheckpoints.delete('__default__')
+  removeStorageKey(CHECKPOINT_STORAGE_PREFIX)
 }

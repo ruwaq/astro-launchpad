@@ -21,8 +21,10 @@ type PortfolioToken = {
   ledger: number
 }
 
+const MAX_PORTFOLIO_TOKENS = 20
+
 export function PortfolioPage() {
-  const { publicKey } = useWallet()
+  const publicKey = useWallet((state) => state.publicKey)
   const createdTokens = useCreatedTokens((state) => state.tokens)
   const tokenList = useTokenList()
   const { data: xlmUsd = 0.1555 } = useXlmUsdPrice()
@@ -61,16 +63,19 @@ export function PortfolioPage() {
     })
   }, [createdTokens, tokenList.data])
 
+  const queriedTokens = useMemo(() => tokens.slice(0, MAX_PORTFOLIO_TOKENS), [tokens])
+
   const balances = useQueries({
-    queries: tokens.map((token) => ({
+    queries: queriedTokens.map((token) => ({
       queryKey: ['token-balance', token.id, publicKey],
       queryFn: () => fetchTokenBalance(token.id, publicKey as string),
       enabled: Boolean(publicKey),
-      staleTime: 10_000,
+      staleTime: 30_000,
+      retry: 1,
     })),
   })
 
-  const rows = tokens.map((token, index) => ({
+  const rows = queriedTokens.map((token, index) => ({
     token,
     balance: balances[index],
   }))
@@ -171,6 +176,7 @@ export function PortfolioPage() {
                 token={token}
                 balance={balance.data}
                 pending={balance.isPending}
+                isError={balance.isError}
                 hasAccount={Boolean(publicKey)}
               />
             ))}
@@ -180,12 +186,23 @@ export function PortfolioPage() {
 
       <section className="liquid-glass rounded-3xl p-5 sm:p-8 space-y-4">
         <h2 className="text-lg font-semibold text-white">Market Holdings</h2>
-        {tokenList.isPending || balancesPending ? (
+        {!publicKey ? (
           <p className="mt-2 text-sm text-slate-400">
-            {tokenList.isPending
-              ? 'Discovering tokens on testnet…'
-              : 'Reading on-chain balances…'}
+            Connect your wallet to inspect your on-chain token balances.
           </p>
+        ) : tokenList.isPending || balancesPending ? (
+          <ul aria-hidden="true" className="mt-3 divide-y divide-white/[0.08]">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <li key={i} className="flex min-h-[64px] items-center gap-3 py-3 animate-pulse">
+                <div className="h-10 w-10 shrink-0 rounded-lg bg-slate-800" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-4 w-24 rounded bg-slate-800" />
+                  <div className="h-3 w-40 rounded bg-slate-800/60" />
+                </div>
+                <div className="h-4 w-16 rounded bg-slate-800" />
+              </li>
+            ))}
+          </ul>
         ) : tokenList.isError ? (
           <p className="mt-2 text-sm text-rose-300">
             Unable to read market: {tokenList.error.message}
@@ -202,6 +219,7 @@ export function PortfolioPage() {
                 token={token}
                 balance={balance.data}
                 pending={balance.isPending}
+                isError={balance.isError}
                 hasAccount={Boolean(publicKey)}
               />
             ))}
@@ -218,11 +236,13 @@ function HoldingRow({
   token,
   balance,
   pending,
+  isError,
   hasAccount,
 }: {
   token: PortfolioToken
   balance: bigint | undefined
   pending: boolean
+  isError?: boolean
   hasAccount: boolean
 }) {
   const value =
@@ -263,9 +283,11 @@ function HoldingRow({
               ? '—'
               : pending
                 ? '…'
-                : `${formatAmount(balance ?? 0n, token.decimals)} ${token.symbol}`}
+                : isError
+                  ? <span className="text-rose-400 text-xs">Error</span>
+                  : `${formatAmount(balance ?? 0n, token.decimals)} ${token.symbol}`}
           </p>
-          {price > 0n ? (
+          {price > 0n && !isError ? (
             <p className="text-xs text-slate-500">
               {value > 0n ? `${formatAmount(value, 7)} XLM` : 'no liquidity'}
             </p>

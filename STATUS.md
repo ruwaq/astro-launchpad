@@ -1,5 +1,17 @@
 # Estado actual (para continuar en la próxima sesión)
 
+## Handoff rápido (Nov 12 2026, sesión 25 — Auditoría con 10 agentes y remediación)
+Rama `ai/audit-hardening`. Auditoría paralela (contratos, AMM, RPC, storage, trading, páginas, arte, seguridad, UI) + fixes aplicados. *AI-generated; revisión humana pendiente.*
+- **AMM/economía** (`soroswap.ts`, `market.ts`, `tokenomics.ts`, `format.ts`, `xlm.ts`): precio sub-stroop ya no trunca a 0 (`tokenPriceInXlmNumber`, `formatTokenPrice`; orden por precio con multiplicación cruzada), `withSlippage` sin crash por NaN, `calculateSupplySharePercent` con unidades correctas, `formatAmount` con negativos, `parseAmount` con separadores de miles, cotizaciones con reservas 0, pools sin sembrar al final del orden de graduación, saldo XLM de Horizon sin pasar por `Number`.
+- **Arte** (`art.ts`, `TokenArt.tsx`): rasgos desacoplados por bit-slicing (antes solo 24 combinaciones alcanzables), IDs SVG únicos (`useId`), geometría propia de Cyber Horizon, whitelist de `logoUrl`, `overflow-hidden`.
+- **RPC/SDK** (`discovery.ts`, `token-events.ts`, `network.ts`, `sdk/index.ts`): la paginación ya no corta en ventanas sin eventos, clamp ante -32600, health check con timeout, **pool RPC `RPC_POOL`/`executeWithRpcFailover` reintroducido solo para lecturas** (simulaciones, eventos, health) con backoff; el envío de tx sigue fijado a un único nodo. `verifyAntiRug` exige igualdad estricta con la burn address y verifica LP quemado.
+- **Storage**: IndexedDB robusto (onblocked/versionchange/abort, poda por cuota), checkpoints por wallet con TTL de 24 h, claves `floodgate.*` migradas a `astrogate.*`, CSV sin inyección de fórmulas, sync entre pestañas.
+- **Trading/UX**: desglose de lanzamiento corregido, **sin tarifa de protocolo (el contrato solo cobra el seed)**, creador recibe su 0,5 % inmediato (sin vesting en testnet), chequeos previos de saldo XLM, cancelación de wallet ya no cuenta como fallo, `deployHash` capturado, ErrorBoundary por ruta, favoritos reactivos, filtros de mercado en la URL, accesibilidad (roles ARIA, contraste, touch targets).
+- **Contratos**: token con TTL de instancia ~90 días + `extend_ttl` pública; launchpad con constantes con nombre y `LaunchpadError::InvalidMetadata = 4`. **Estos cambios NO están desplegados** (wasm nuevo → nuevo hash: token `c121d216…`).
+- **Infra**: cabeceras de seguridad en todas las `location` de nginx, paridad CSP/cabeceras comprobada en CI, `fonts.reown.com` en CSP, ratchet de auditoría falla con críticas, Docker sin root (puerto 8080), `cargo audit` en CI.
+- **Pendiente (decisión humana)**: (1) **rotar** la credencial de `scripts/opencode-env/service.json` (sigue en el historial git); (2) bump de `follow-redirects` (dependencia); (3) tope anti-ballena 1,5 % NO está aplicado on-chain, solo aviso; (4) vesting del creador no implementado; (5) re-deploy de contratos y frontend; (6) el puerto del contenedor cambió a 8080: ajustar el despliegue si se usa Docker.
+- Gates: `cargo test --workspace` 26/26 (19 token + 7 launchpad), `cargo fmt` + `clippy -D warnings` limpios, `npm run check` verde (153 tests).
+
 ## Handoff rápido (Nov 12 2026, sesión 24 — Hardening de Contratos, UI/UX Liquid Glass macOS y Motor de Arte SVG determinista)
 - **Hardening de seguridad de contratos ([contract.rs](file:///home/dev/projects/astro-launchpad/contracts/launchpad/src/contract.rs))**:
   - `contracts/launchpad/src/contract.rs`:

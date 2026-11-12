@@ -84,12 +84,72 @@ function LaunchItem({
 
 export function NewLaunchesFeed({
   tokens,
+  isLoading,
   onSelect,
 }: {
   tokens: TokenListing[]
+  isLoading?: boolean
   onSelect?: (token: LaunchpadToken) => void
 }) {
-  if (!tokens || tokens.length === 0) return null
+  if (isLoading) {
+    return (
+      <section className="space-y-3 w-full max-w-full overflow-hidden">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-emerald-400/20 text-xs">
+              ⚡
+            </span>
+            <h2 className="text-lg font-bold text-slate-100">
+              Fresh Token Launches
+            </h2>
+          </div>
+        </div>
+        <div className="space-y-2">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="flex items-center justify-between gap-3 rounded-xl border border-slate-800/80 bg-slate-900/50 p-3 animate-pulse">
+              <div className="flex items-center gap-2.5">
+                <div className="h-10 w-10 rounded-xl bg-slate-800" />
+                <div className="space-y-1.5">
+                  <div className="h-3.5 w-20 rounded bg-slate-800" />
+                  <div className="h-2.5 w-28 rounded bg-slate-800/60" />
+                </div>
+              </div>
+              <div className="h-6 w-16 rounded bg-slate-800" />
+            </div>
+          ))}
+        </div>
+      </section>
+    )
+  }
+
+  if (!tokens || tokens.length === 0) {
+    return (
+      <section className="space-y-3 w-full max-w-full overflow-hidden">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-emerald-400/20 text-xs">
+              ⚡
+            </span>
+            <h2 className="text-lg font-bold text-slate-100">
+              Fresh Token Launches
+            </h2>
+          </div>
+          <Link
+            to="/create"
+            className="text-xs font-semibold text-emerald-400 hover:text-emerald-300"
+          >
+            + Launch Yours ($1.11 USD)
+          </Link>
+        </div>
+        <div className="rounded-2xl border border-dashed border-slate-800 bg-slate-950/40 p-6 text-center space-y-2">
+          <p className="text-sm font-semibold text-slate-300">No new launches discovered in recent ledgers</p>
+          <p className="text-xs text-slate-500">
+            Be the first to launch an on-chain Generative Collectible with Soroswap AMM liquidity.
+          </p>
+        </div>
+      </section>
+    )
+  }
 
   // Sort by ledger descending (newest first)
   const newTokens = [...tokens]

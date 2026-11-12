@@ -6,13 +6,23 @@ export const XLM_FEE_BUFFER = 10_000_000n
 
 import { HORIZON_URL } from './network'
 import { readStorageJson, writeStorageJson } from './storage'
+import { parseAmount } from './format'
 
 /** Horizon account not yet funded/created resolves to zero balance (not an error). */
 export async function fetchXlmBalance(publicKey: string): Promise<number> {
+  const raw = await fetchXlmBalanceRaw(publicKey)
+  return Number(raw)
+}
+
+/**
+ * Fetches the lossless raw string balance from Horizon.
+ * Resolves to "0" for 404 unfunded accounts.
+ */
+export async function fetchXlmBalanceRaw(publicKey: string): Promise<string> {
   const response = await fetch(
     `${HORIZON_URL}/accounts/${encodeURIComponent(publicKey)}`,
   )
-  if (response.status === 404) return 0
+  if (response.status === 404) return '0'
   if (!response.ok) {
     throw new Error(`Horizon responded ${response.status} for ${publicKey}`)
   }
@@ -22,15 +32,27 @@ export async function fetchXlmBalance(publicKey: string): Promise<number> {
   const native = data.balances?.find(
     (balance) => balance.asset_type === 'native',
   )
-  return native?.balance ? Number(native.balance) : 0
+  return native?.balance ?? '0'
 }
 
 /**
- * Converts a Horizon XLM balance (number) to stroops.
+ * Fetches the native XLM balance directly in Stroops without passing through Number float.
  */
-export function xlmToStroops(value: number): bigint {
+export async function fetchXlmBalanceStroops(publicKey: string): Promise<bigint> {
+  const raw = await fetchXlmBalanceRaw(publicKey)
+  return parseAmount(raw, XLM_DECIMALS)
+}
+
+/**
+ * Converts a Horizon XLM balance (number or string) to stroops.
+ * Uses integer string parsing without floating point inaccuracies.
+ */
+export function xlmToStroops(value: number | string): bigint {
+  if (typeof value === 'string') {
+    return parseAmount(value, XLM_DECIMALS)
+  }
   if (!Number.isFinite(value) || value <= 0) return 0n
-  return BigInt(Math.round(value * 10 ** XLM_DECIMALS))
+  return parseAmount(value.toFixed(XLM_DECIMALS), XLM_DECIMALS)
 }
 
 /** Spot reference price of 1 XLM in USD if all live oracle queries fail. */

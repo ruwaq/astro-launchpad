@@ -179,7 +179,7 @@ export function MintCard({ token }: { token: LaunchpadToken }) {
             <button
               type="button"
               onClick={() => setTo(publicKey)}
-              className="rounded-md border border-slate-700 bg-slate-950/60 px-2.5 py-1 text-emerald-300 hover:border-emerald-500"
+              className="inline-flex min-h-[36px] items-center rounded-md border border-slate-700 bg-slate-950/60 px-3 py-1.5 text-emerald-300 hover:border-emerald-500"
             >
               Use My Account
             </button>
@@ -190,7 +190,7 @@ export function MintCard({ token }: { token: LaunchpadToken }) {
                   key={acc.publicKey}
                   type="button"
                   onClick={() => setTo(acc.publicKey)}
-                  className="rounded-md border border-slate-700 bg-slate-950/60 px-2.5 py-1 text-slate-300 hover:border-emerald-500 hover:text-emerald-300"
+                  className="inline-flex min-h-[36px] items-center rounded-md border border-slate-700 bg-slate-950/60 px-3 py-1.5 text-slate-300 hover:border-emerald-500 hover:text-emerald-300"
                 >
                   Account {acc.label} ({shortAddress(acc.publicKey)})
                 </button>

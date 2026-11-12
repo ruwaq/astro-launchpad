@@ -3,6 +3,7 @@ import {
   activityLabel,
   activitySummary,
   appendActivity,
+  escapeCsvCell,
   exportActivityAsCsv,
   exportActivityAsJson,
   type ActivityEntry,
@@ -137,5 +138,27 @@ describe('exportActivity', () => {
     expect(csv).toContain('swap')
     expect(csv).toContain('ASTRO')
     expect(csv).toContain('GDQJMSA5...')
+  })
+
+  it('escapes CSV formula injection and special characters', () => {
+    // Formula triggers
+    expect(escapeCsvCell('=1+1')).toBe("'=1+1")
+    expect(escapeCsvCell('+50')).toBe("'+50")
+    expect(escapeCsvCell('-20')).toBe("'-20")
+    expect(escapeCsvCell('@SUM(A1:A10)')).toBe("'@SUM(A1:A10)")
+
+    // RFC 4180 commas and quotes
+    expect(escapeCsvCell('hello, world')).toBe('"hello, world"')
+    expect(escapeCsvCell('hello "world"')).toBe('"hello ""world"""')
+
+    // Export with malicious payload
+    const malicious = entry({
+      id: 'tx-evil',
+      tokenSymbol: '=cmd|calc',
+      detail: 'test, with comma',
+    })
+    const csv = exportActivityAsCsv([malicious])
+    expect(csv).toContain("'=cmd|calc")
+    expect(csv).toContain('test, with comma')
   })
 })

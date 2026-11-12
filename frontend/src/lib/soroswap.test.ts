@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
+  formatTokenPrice,
   lpSharePercent,
   priceImpactPercent,
   spotAmountOut,
   tokenPriceInXlm,
+  tokenPriceInXlmNumber,
   unwrapResult,
   withSlippage,
   withdrawPreview,
@@ -26,9 +28,24 @@ describe('tokenPriceInXlm', () => {
     expect(tokenPriceInXlm(pool(), 7)).toBe(5_000_000n)
   })
 
-  it('devuelve 0 si el par no existe o no hay reserva de token', () => {
+  it('devuelve 0 si el par no existe o no hay reserva de token o xlm', () => {
     expect(tokenPriceInXlm(pool({ exists: false }), 7)).toBe(0n)
     expect(tokenPriceInXlm(pool({ reserveToken: 0n }), 7)).toBe(0n)
+    expect(tokenPriceInXlm(pool({ reserveXlm: 0n }), 7)).toBe(0n)
+  })
+
+  it('calcula el precio flotante con tokenPriceInXlmNumber para fair launches de baja ratio', () => {
+    // Fair launch: 10 XLM y 995M tokens
+    const fairPool = pool({
+      reserveToken: 995_000_000n * 10_000_000n,
+      reserveXlm: 10n * 10_000_000n,
+    })
+    // Integer stroops trunca a 0n
+    expect(tokenPriceInXlm(fairPool, 7)).toBe(0n)
+    // Float representation mantiene la precisión
+    const priceFloat = tokenPriceInXlmNumber(fairPool, 7)
+    expect(priceFloat).toBeCloseTo(10 / 995_000_000, 12)
+    expect(formatTokenPrice(priceFloat)).toBe('0.00000001')
   })
 })
 
@@ -64,6 +81,12 @@ describe('withSlippage', () => {
     expect(withSlippage(1_000n, 5)).toBe(950n)
     expect(withSlippage(1_000n, 0)).toBe(1_000n)
     expect(withSlippage(1_000n, 100)).toBe(0n)
+  })
+
+  it('protege contra NaN y valores negativos sin lanzar excepción', () => {
+    expect(withSlippage(1_000n, Number.NaN)).toBe(980n) // Cae a default SLIPPAGE_PERCENT
+    expect(withSlippage(0n, 1)).toBe(0n)
+    expect(withSlippage(-500n, 1)).toBe(0n)
   })
 })
 

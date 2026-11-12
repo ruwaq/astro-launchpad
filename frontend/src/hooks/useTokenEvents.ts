@@ -2,8 +2,8 @@ import { useQuery } from '@tanstack/react-query'
 import { fetchTokenEvents, type TokenEvent } from '../lib/token-events'
 
 /**
- * Movimientos recientes del contrato del token. Es una lectura directa del
- * RPC con ventana limitada; no hay backend ni indexer.
+ * Recent movements of the token contract. Direct read from
+ * RPC with a limited window; no backend or indexer required.
  */
 export function useTokenEvents(tokenId: string | null) {
   return useQuery({
