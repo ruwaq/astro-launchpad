@@ -1,5 +1,6 @@
 import { nativeToScVal, rpc } from '@stellar/stellar-sdk'
 import { describe, expect, it, vi } from 'vitest'
+import { LAUNCHPAD_CONTRACT_ID } from './network'
 import {
   classifyTokenEvent,
   fetchTokenEvents,
@@ -106,6 +107,20 @@ describe('tokenEventSummary y clasificación de trades (buy/sell)', () => {
     expect(classifyTokenEvent(sellEvent, 'CPAIR123456')).toBe('sell')
     expect(tokenEventSummary(buyEvent, 'CPAIR123456')).toContain('Buyer')
     expect(tokenEventSummary(sellEvent, 'CPAIR123456')).toContain('Seller')
+
+    const launchSeedEvent: TokenEvent = {
+      id: '3',
+      kind: 'transfer',
+      from: LAUNCHPAD_CONTRACT_ID,
+      to: 'CPAIR123456',
+      amount: 9_950_000_000_000_000n,
+      ledger: 12,
+      at: '2026-11-01T10:06:00Z',
+    }
+    expect(classifyTokenEvent(launchSeedEvent, 'CPAIR123456')).toBe('transfer')
+    expect(tokenEventSummary(launchSeedEvent, 'CPAIR123456')).toBe(
+      'Launchpad Seed → Soroswap Pool',
+    )
   })
 
   it('reconstruye la curva histórica de reservas y precios a partir de trades on-chain', () => {

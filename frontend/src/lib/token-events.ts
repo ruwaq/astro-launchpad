@@ -10,7 +10,11 @@
  * emit swap events directly; trades are detected by tracking pair transfers.
  */
 import { rpc, scValToNative } from '@stellar/stellar-sdk'
-import { EVENT_WINDOW_LEDGERS, executeWithRpcFailover } from './network'
+import {
+  EVENT_WINDOW_LEDGERS,
+  LAUNCHPAD_CONTRACT_ID,
+  executeWithRpcFailover,
+} from './network'
 import { shortAddress } from './format'
 import type { PoolState } from './soroswap'
 import { dedupeSnapshots, type ReserveSnapshot } from './snapshots'
@@ -114,6 +118,9 @@ export function tokenEventSummary(
       return `Buyer ${shortAddress(event.to ?? '')} ← Soroswap Pool`
     }
     if (pairId && event.to === pairId) {
+      if (event.from === LAUNCHPAD_CONTRACT_ID) {
+        return 'Launchpad Seed → Soroswap Pool'
+      }
       return `Seller / LP ${shortAddress(event.from ?? '')} → Soroswap Pool`
     }
     return `${shortAddress(event.from ?? '')} → ${shortAddress(event.to ?? '')}`
@@ -129,7 +136,8 @@ export type TokenTradeRole = 'buy' | 'sell' | 'transfer' | 'mint' | 'burn'
 /**
  * Classifies SEP-41 event relative to pairId:
  * - If tokens move out of pair (`from === pairId`), it's a BUY (`buy`).
- * - If tokens move into pair (`to === pairId`), it's a SELL / LP deposit (`sell`).
+ * - If tokens move into pair (`to === pairId`), it's a SELL / LP deposit (`sell`),
+ *   except the atomic Fair Launch initial seed from LAUNCHPAD_CONTRACT_ID (`transfer`).
  */
 export function classifyTokenEvent(
   event: TokenEvent,
@@ -137,7 +145,10 @@ export function classifyTokenEvent(
 ): TokenTradeRole {
   if (event.kind === 'transfer' && pairId) {
     if (event.from === pairId) return 'buy'
-    if (event.to === pairId) return 'sell'
+    if (event.to === pairId) {
+      if (event.from === LAUNCHPAD_CONTRACT_ID) return 'transfer'
+      return 'sell'
+    }
   }
   return event.kind
 }
@@ -176,6 +187,7 @@ export function reconstructSnapshotsFromEvents(
       e.kind === 'transfer' &&
       e.amount > 0n &&
       e.from !== e.to &&
+      e.from !== LAUNCHPAD_CONTRACT_ID &&
       (e.from === pairId || e.to === pairId),
   )
 

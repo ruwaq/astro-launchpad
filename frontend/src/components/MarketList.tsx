@@ -321,6 +321,44 @@ export function MarketList({
     [showFilters, setSearchParams],
   )
 
+  const applyQuickSort = useCallback(
+    (nextSort: MarketSortKey) => {
+      setLocalSort(nextSort)
+      setLocalFavsOnly(false)
+      if (showFilters) {
+        setSearchParams(
+          (prev) => {
+            const next = new URLSearchParams(prev)
+            if (nextSort !== 'recent') next.set('sort', nextSort)
+            else next.delete('sort')
+            next.delete('favs')
+            return next
+          },
+          { replace: true },
+        )
+      }
+    },
+    [showFilters, setSearchParams],
+  )
+
+  const resetFilters = useCallback(() => {
+    setLocalQuery('')
+    setLocalFavsOnly(false)
+    setLocalVerifiedOnly(false)
+    if (showFilters) {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev)
+          next.delete('q')
+          next.delete('favs')
+          next.delete('fair')
+          return next
+        },
+        { replace: true },
+      )
+    }
+  }, [showFilters, setSearchParams])
+
   const favorites = useWatchlist((s) => s.favorites)
   const isFavorite = useCallback((id: string) => favorites.includes(id), [favorites])
 
@@ -436,10 +474,7 @@ export function MarketList({
           <div className="flex flex-wrap items-center gap-1.5 sm:col-span-2">
             <button
               type="button"
-              onClick={() => {
-                setSort('graduation')
-                setFavsOnly(false)
-              }}
+              onClick={() => applyQuickSort('graduation')}
               className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
                 sort === 'graduation' && !favsOnly
                   ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
@@ -450,10 +485,7 @@ export function MarketList({
             </button>
             <button
               type="button"
-              onClick={() => {
-                setSort('recent')
-                setFavsOnly(false)
-              }}
+              onClick={() => applyQuickSort('recent')}
               className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
                 sort === 'recent' && !favsOnly
                   ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
@@ -464,10 +496,7 @@ export function MarketList({
             </button>
             <button
               type="button"
-              onClick={() => {
-                setSort('liquidity')
-                setFavsOnly(false)
-              }}
+              onClick={() => applyQuickSort('liquidity')}
               className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
                 sort === 'liquidity' && !favsOnly
                   ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40'
@@ -559,11 +588,7 @@ export function MarketList({
           {(query || favsOnly || verifiedOnly) ? (
             <button
               type="button"
-              onClick={() => {
-                setQuery('')
-                setFavsOnly(false)
-                setVerifiedOnly(false)
-              }}
+              onClick={resetFilters}
               className="ml-2 text-emerald-400 underline underline-offset-2"
             >
               Clear filters
