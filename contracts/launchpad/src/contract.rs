@@ -11,9 +11,9 @@ use soroban_sdk::{
 pub enum LaunchpadError {
     NotInitialized = 1,
     InvalidAmount = 2,
-    /// El par token/XLM ya existía y tiene reservas: no se va a añadir
-    /// liquidez encima de un par ajeno (el LP acuñado sería colateral de
-    /// una posición que este launchpad no controla).
+    /// The token/XLM pair already existed with non-zero reserves: liquidity will
+    /// not be added on top of an external pair (minted LP would back a position
+    /// not controlled by this launchpad).
     PairAlreadySeeded = 3,
 }
 
@@ -86,6 +86,13 @@ pub trait OwnableInterface {
     fn renounce_ownership(e: &Env);
 }
 
+const INSTANCE_LIFETIME_THRESHOLD: u32 = 100_000;
+const INSTANCE_BUMP_AMOUNT: u32 = 200_000;
+/// Minimum 1 XLM (10^7 stroops) initial liquidity to prevent Soroswap MINIMUM_LIQUIDITY (1000) trap
+const MIN_XLM_LP_STROOPS: i128 = 10_000_000;
+/// Maximum initial supply (1 trillion tokens with 7 decimals = 10^19 stroops) to prevent AMM reserve overflow
+const MAX_INITIAL_SUPPLY: i128 = 10_000_000_000_000_000_000;
+
 #[contract]
 pub struct Launchpad;
 
@@ -107,7 +114,7 @@ impl Launchpad {
         e.storage()
             .instance()
             .set(&DataKey::BurnAddress, &burn_address);
-        e.storage().instance().extend_ttl(100_000, 200_000);
+        e.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
     }
 
     /// Single-transaction atomic fair launch:
@@ -121,9 +128,20 @@ impl Launchpad {
     pub fn launch_token(e: &Env, params: LaunchParams) -> Result<LaunchResult, LaunchpadError> {
         params.creator.require_auth();
 
-        if params.xlm_lp_amount <= 0
+        if params.decimals > 18
+            || params.name.is_empty()
+            || params.name.len() > 32
+            || params.symbol.is_empty()
+            || params.symbol.len() > 32
+        {
+            return Err(LaunchpadError::InvalidAmount);
+        }
+
+        if params.initial_supply <= 1_000
+            || params.initial_supply > MAX_INITIAL_SUPPLY
             || params.token_lp_amount <= 0
-            || params.initial_supply < params.token_lp_amount
+            || params.xlm_lp_amount < MIN_XLM_LP_STROOPS
+            || params.token_lp_amount > params.initial_supply
         {
             return Err(LaunchpadError::InvalidAmount);
         }
@@ -141,7 +159,7 @@ impl Launchpad {
             return Err(LaunchpadError::InvalidAmount);
         }
 
-        e.storage().instance().extend_ttl(100_000, 200_000);
+        e.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
         let this = e.current_contract_address();
         let factory = e

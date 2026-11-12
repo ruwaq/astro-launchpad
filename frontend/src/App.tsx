@@ -15,10 +15,10 @@ import { ASTRO_TOKEN_ID, RPC_URL } from './lib/network'
 import { BRAND } from './lib/brand'
 
 function navClass({ isActive }: { isActive: boolean }) {
-  return `inline-flex min-h-[44px] items-center whitespace-nowrap rounded-lg px-3 text-sm ${
+  return `inline-flex min-h-[36px] items-center whitespace-nowrap rounded-xl px-3 text-xs sm:text-sm font-semibold transition-all ${
     isActive
-      ? 'bg-emerald-500/10 font-medium text-emerald-300'
-      : 'text-slate-400 hover:bg-slate-900 hover:text-slate-200'
+      ? 'bg-sky-500/20 text-sky-300 shadow-sm shadow-sky-500/10 border border-sky-400/30'
+      : 'text-slate-400 hover:text-slate-100 hover:bg-white/[0.04]'
   }`
 }
 
@@ -26,33 +26,55 @@ export default function App() {
   const publicKey = useWallet((state) => state.publicKey)
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 w-full max-w-full overflow-x-hidden">
+    <div className="min-h-screen text-slate-100 w-full max-w-full overflow-x-hidden">
       <a
         href="#main"
-        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[110] focus:rounded-lg focus:bg-emerald-500 focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-slate-950"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[110] focus:rounded-lg focus:bg-sky-500 focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-slate-950"
       >
         Skip to content
       </a>
 
       <OfflineBanner />
 
-      <header className="sticky top-0 z-40 border-b border-slate-900 bg-slate-950/90 backdrop-blur-md">
-        <div className="mx-auto max-w-5xl px-4">
-          <div className="flex items-center justify-between gap-3 py-3 sm:py-4">
+      <header className="sticky top-2 z-40 mx-auto max-w-5xl px-3 sm:px-4">
+        <div className="liquid-glass-pill rounded-3xl px-4 py-2.5 sm:px-6">
+          <div className="flex items-center justify-between gap-3">
             <Link
               to="/"
               aria-label={`${BRAND.name} — Home`}
-              className="flex min-w-0 items-center gap-2 text-lg font-semibold tracking-tight"
+              className="flex min-w-0 items-center gap-2 text-base sm:text-lg font-bold tracking-tight text-white hover:text-sky-300 transition-colors"
             >
-              <span aria-hidden="true">{BRAND.emoji}</span>
+              <span aria-hidden="true" className="text-xl">{BRAND.emoji}</span>
               <span className="truncate">{BRAND.name}</span>
             </Link>
-            <WalletButton />
+
+            <nav
+              aria-label="Main navigation"
+              className="hidden sm:flex items-center gap-1 rounded-2xl bg-white/[0.04] p-1 border border-white/[0.06]"
+            >
+              <NavLink to="/" end className={navClass}>
+                Home
+              </NavLink>
+              <NavLink to="/market" className={navClass}>
+                Market & Art
+              </NavLink>
+              <NavLink to="/portfolio" className={navClass}>
+                Portfolio
+              </NavLink>
+              <NavLink to="/create" className={navClass}>
+                Launch
+              </NavLink>
+            </nav>
+
+            <div className="flex items-center gap-2">
+              <WalletButton />
+            </div>
           </div>
 
+          {/* Mobile navigation row */}
           <nav
-            aria-label="Main navigation"
-            className="flex gap-1 overflow-x-auto pb-2"
+            aria-label="Mobile navigation"
+            className="flex sm:hidden gap-1 overflow-x-auto pt-2 border-t border-white/[0.06] mt-2 no-scrollbar"
           >
             <NavLink to="/" end className={navClass}>
               Home
@@ -68,7 +90,9 @@ export default function App() {
             </NavLink>
           </nav>
         </div>
-        <LiveTickerBar />
+        <div className="mt-2 overflow-hidden rounded-2xl">
+          <LiveTickerBar />
+        </div>
       </header>
 
       <main

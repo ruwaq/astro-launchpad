@@ -113,6 +113,11 @@ export function sanitizeHttpUrl(url?: string | null): string | null {
   try {
     const parsed = new URL(trimmed)
     if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+      // Reject userinfo (username / password) to defeat credential-spoofing phishing attacks
+      // (e.g. https://astrogate.io@malicious-drainer.xyz)
+      if (parsed.username || parsed.password) {
+        return null
+      }
       return parsed.href
     }
     return null

@@ -10,15 +10,25 @@ export function MarketPage() {
   }
 
   return (
-    <>
-      <div>
-        <h1 className="text-2xl font-bold sm:text-3xl">Live Market</h1>
-        <p className="mt-1 max-w-2xl text-slate-400">
-          Token/XLM pairs discovered on-chain directly from Soroswap. Search, sort,
-          and select any token to trade, provide liquidity, or transfer.
-        </p>
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="liquid-glass-pill rounded-full px-3 py-1 text-xs font-semibold text-sky-300">
+              ✦ OpenSea Art Gallery & AMM
+            </span>
+            <span className="text-xs font-mono text-slate-500">Soroswap Testnet</span>
+          </div>
+          <h1 className="mt-2 text-2xl font-black sm:text-4xl text-white tracking-tight">
+            NFT Art Showcase & Market
+          </h1>
+          <p className="mt-1 max-w-2xl text-sm sm:text-base text-slate-300">
+            Explore 1-of-1 Generative Collectibles and decentralized liquidity pools on Stellar.
+            Every token features deterministic on-chain visual identity, burned LP, and renounced ownership.
+          </p>
+        </div>
       </div>
       <MarketList selectedId={null} onSelect={openToken} />
-    </>
+    </div>
   )
 }

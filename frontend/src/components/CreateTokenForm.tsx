@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { useQueryClient } from '@tanstack/react-query'
-import { deployToken, tokenClient } from '../lib/token'
+import { launchTokenAtomic } from '../lib/token'
 import {
   allocationOfBps,
   calculateDeployFeeInXlm,
@@ -10,12 +10,10 @@ import {
   FAIR_LAUNCH_TOTAL_BASIS,
   poolAllocationBase,
   PROTOCOL_DEPLOY_FEE_USD,
-  STELLAR_BURN_ADDRESS,
   CREATOR_GRADUATION_LOCK_DAYS,
   DEFAULT_OPTIMIZED_SEED_XLM,
   SEED_LIQUIDITY_PRESETS,
 } from '../lib/tokenomics'
-import { addLiquidity } from '../lib/soroswap'
 import { DEFAULT_XLM_USD_PRICE, XLM_DECIMALS } from '../lib/xlm'
 import { useXlmUsdPrice } from '../hooks/useXlmUsdPrice'
 import { explorerContractUrl } from '../lib/explorer'
@@ -30,7 +28,6 @@ import { saveLocalTokenMetadata } from '../lib/token-metadata'
 import {
   clearCheckpoint,
   getCheckpoint,
-  saveCheckpoint,
   type LaunchCheckpoint,
 } from '../lib/launch-checkpoint'
 import {
@@ -131,47 +128,28 @@ export function CreateTokenForm({
     ) // 1 Billion
     // Fair Launch Pool: 99.5% of supply, única fuente en lib/tokenomics.ts
     const poolTokens = poolAllocationBase(initialSupply)
-    // Initial XLM seed (optimized, default 0.5 XLM)
+    // Initial XLM seed (default 10 XLM)
     const seedXlm = parseAmount(seedXlmAmount.toString(), XLM_DECIMALS)
-
-    const checkpointBase: LaunchCheckpoint = {
-      sessionId: `${publicKey}:${cleanSymbol}:${Date.now()}`,
-      tokenId: '',
-      name: cleanName,
-      symbol: cleanSymbol,
-      decimals: targetDecimals,
-      initialSupply: initialSupply.toString(),
-      seedXlm: seedXlm.toString(),
-      publicKey,
-      step: 'deploy',
-      updatedAt: Date.now(),
-    }
 
     setBusy(true)
     setStep('deploy')
     let deployHash: string | undefined
-    let poolHash: string | undefined
     try {
-      // 1. Deploy token SEP-41 contract on Stellar testnet
-      const newId = await deployToken({
+      // 1. Single-transaction fair launch via Atomic Launchpad contract
+      const atomicResult = await launchTokenAtomic({
         name: cleanName,
         symbol: cleanSymbol,
         decimals: targetDecimals,
         initialSupply,
+        tokenLpAmount: poolTokens,
+        xlmLpAmount: seedXlm,
         signer,
         onHash: (value) => {
           deployHash = value
         },
       })
+      const newId = atomicResult.token
       const ticker = cleanSymbol
-
-      saveCheckpoint({
-        ...checkpointBase,
-        tokenId: newId,
-        step: 'deploy',
-        txHash: deployHash,
-        updatedAt: Date.now(),
-      })
 
       // 2. Save enriched metadata (Logo, Telegram, Description, Website, Twitter)
       saveLocalTokenMetadata({
@@ -183,34 +161,6 @@ export function CreateTokenForm({
         twitter: twitter.trim() || undefined,
       })
 
-      // 3. Auto-Seed Pool: Create Soroswap Pair, Deposit 99.5% Tokens + seed XLM, and Burn LP!
-      setStep('pool')
-      const liquidity = await addLiquidity({
-        tokenId: newId,
-        amountToken: poolTokens,
-        amountXlm: seedXlm,
-        signer,
-        to: STELLAR_BURN_ADDRESS,
-        onHash: (value) => {
-          poolHash = value
-        },
-      })
-
-      saveCheckpoint({
-        ...checkpointBase,
-        tokenId: newId,
-        step: 'liquidity',
-        txHash: poolHash ?? deployHash,
-        lpAmount: liquidity.lpAmount.toString(),
-        updatedAt: Date.now(),
-      })
-
-      // 4. Renounce ownership on-chain (Immutable supply, zero inflation)
-      setStep('renounce')
-      const renounceTx = await tokenClient(newId, signer).renounce_ownership()
-      const sentRenounce = await renounceTx.signAndSend()
-
-      // Lanzamiento completo: el checkpoint ya no es necesario.
       clearCheckpoint()
       setCheckpointNote(null)
 
@@ -223,17 +173,13 @@ export function CreateTokenForm({
         secondaryAmount: formatAmount(seedXlm, XLM_DECIMALS),
         secondarySymbol: 'XLM',
         account: publicKey,
-        hash: poolHash || deployHash,
+        hash: deployHash,
       })
 
       setCreatedId(newId)
       toast.success('Token & Pool Created Successfully!', {
-        message: `$${ticker} is live with Soroswap AMM pool, LP burned, and ownership renounced.`,
-        hash:
-          (sentRenounce as { sendTransactionResponse?: { hash?: string } | undefined })
-            ?.sendTransactionResponse?.hash ??
-          poolHash ??
-          deployHash,
+        message: `$${ticker} is live with Soroswap AMM pool, LP burned, and ownership renounced in 1 atomic transaction.`,
+        hash: deployHash,
       })
 
       await Promise.all([
@@ -244,19 +190,7 @@ export function CreateTokenForm({
     } catch (err) {
       const message = errorMessage(err)
       setError(message)
-      // Partial success: if the token is already deployed, notify user:
-      const partial = getCheckpoint()
-      if (partial?.tokenId) {
-        setCheckpointNote(partial)
-        setCreatedId(null)
-        toast.info('Token deployed, launch incomplete', {
-          message:
-            'The contract already exists on-chain: review the recovery note and token page before retrying.',
-          hash: poolHash ?? deployHash,
-        })
-      } else {
-        toast.error('Failed to create token', { message })
-      }
+      toast.error('Failed to create token', { message })
     } finally {
       setBusy(false)
       setStep(null)
@@ -264,7 +198,7 @@ export function CreateTokenForm({
   }
 
   return (
-    <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-4 sm:p-6 w-full max-w-full overflow-hidden">
+    <section className="liquid-glass rounded-3xl p-5 sm:p-8 w-full max-w-full overflow-hidden">
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-lg font-semibold">Launch Your Token</h2>
         <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/40 bg-emerald-950/40 px-2.5 py-0.5 text-xs font-semibold text-emerald-300">
@@ -363,7 +297,7 @@ export function CreateTokenForm({
               }}
               className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs text-slate-300 hover:border-slate-500"
             >
-              Descartar aviso
+              Dismiss notice
             </button>
           </div>
         </div>

@@ -548,7 +548,7 @@ export function SwapCard({
                 </div>
                 <div className="flex flex-wrap justify-between gap-2">
                   <span className="text-slate-500">
-                    Price impact (excluye la fee del pool)
+                    Price impact (excludes pool fee)
                   </span>
                   <span className={`font-mono ${impactClass(impact)}`}>
                     {impact.toFixed(2)}%

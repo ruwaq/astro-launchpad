@@ -49,18 +49,18 @@ export function CreatePage() {
         {LAUNCH_STEPS.map((step, index) => (
           <li
             key={step.title}
-            className="rounded-xl border border-slate-800 bg-slate-900/50 p-3.5 shadow-sm"
+            className="liquid-glass rounded-2xl p-4 shadow-sm"
           >
             <div className="flex items-center gap-2">
-              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-500/20 text-xs font-bold text-emerald-300">
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-sky-500/20 text-xs font-bold text-sky-300">
                 {index + 1}
               </span>
               <span className="text-base">{step.icon}</span>
-              <p className="text-sm font-bold text-slate-200">
+              <p className="text-sm font-bold text-slate-100">
                 {step.title}
               </p>
             </div>
-            <p className="mt-2 text-xs text-slate-400 leading-relaxed">{step.hint}</p>
+            <p className="mt-2 text-xs text-slate-300 leading-relaxed">{step.hint}</p>
           </li>
         ))}
       </ol>

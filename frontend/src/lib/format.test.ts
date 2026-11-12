@@ -101,6 +101,9 @@ describe('url sanitizers', () => {
     expect(sanitizeHttpUrl('data:text/html,bad')).toBeNull()
     expect(sanitizeHttpUrl('')).toBeNull()
     expect(sanitizeHttpUrl(null)).toBeNull()
+    // Anti-phishing: rechaza URLs con credenciales/userinfo engañoso
+    expect(sanitizeHttpUrl('https://stellar.org@attacker.com/drainer')).toBeNull()
+    expect(sanitizeHttpUrl('https://admin:pass@attacker.com')).toBeNull()
   })
 
   it('sanitizeTelegramUrl convierte handles o valida URLs de t.me', () => {
@@ -109,6 +112,8 @@ describe('url sanitizers', () => {
     expect(sanitizeTelegramUrl('https://t.me/mygroup')).toBe('https://t.me/mygroup')
     expect(sanitizeTelegramUrl('javascript:alert(1)')).toBeNull()
     expect(sanitizeTelegramUrl('')).toBeNull()
+    // Anti-phishing: rechaza URLs que intentan redirigir fuera de Telegram usando userinfo
+    expect(sanitizeTelegramUrl('https://t.me@evil.com/scam')).toBeNull()
   })
 
   it('sanitizeTwitterUrl convierte handles o valida URLs de twitter/x', () => {
@@ -118,5 +123,7 @@ describe('url sanitizers', () => {
     expect(sanitizeTwitterUrl('https://twitter.com/astro_hq')).toBe('https://twitter.com/astro_hq')
     expect(sanitizeTwitterUrl('javascript:alert(1)')).toBeNull()
     expect(sanitizeTwitterUrl('')).toBeNull()
+    // Anti-phishing: rechaza URLs que intentan redirigir fuera de X usando userinfo
+    expect(sanitizeTwitterUrl('https://x.com@evil.com/scam')).toBeNull()
   })
 })

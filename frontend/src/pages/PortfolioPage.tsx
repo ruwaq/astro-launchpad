@@ -150,21 +150,21 @@ export function PortfolioPage() {
         </section>
       )}
 
-      <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-4 sm:p-6">
-        <h2 className="text-lg font-semibold">Your Launches</h2>
+      <section className="liquid-glass rounded-3xl p-5 sm:p-8 space-y-4">
+        <h2 className="text-lg font-semibold text-white">Your Launches</h2>
         {createdRows.length === 0 ? (
-          <p className="mt-2 text-sm text-slate-400">
+          <p className="mt-2 text-sm text-slate-300">
             You have not launched any tokens in this browser yet.{' '}
             <Link
               to="/create"
-              className="text-emerald-400 underline underline-offset-2"
+              className="text-sky-400 underline underline-offset-2 hover:text-sky-300"
             >
               Launch your first token
             </Link>
             .
           </p>
         ) : (
-          <ul className="mt-3 divide-y divide-slate-800">
+          <ul className="mt-3 divide-y divide-white/[0.08]">
             {createdRows.map(({ token, balance }) => (
               <HoldingRow
                 key={token.id}
@@ -178,8 +178,8 @@ export function PortfolioPage() {
         )}
       </section>
 
-      <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-4 sm:p-6">
-        <h2 className="text-lg font-semibold">Market Holdings</h2>
+      <section className="liquid-glass rounded-3xl p-5 sm:p-8 space-y-4">
+        <h2 className="text-lg font-semibold text-white">Market Holdings</h2>
         {tokenList.isPending || balancesPending ? (
           <p className="mt-2 text-sm text-slate-400">
             {tokenList.isPending
@@ -191,11 +191,11 @@ export function PortfolioPage() {
             Unable to read market: {tokenList.error.message}
           </p>
         ) : holdingRows.length === 0 ? (
-          <p className="mt-2 text-sm text-slate-400">
+          <p className="mt-2 text-sm text-slate-300">
             You don't hold any tokens from discovered pairs yet. Receive a transfer or trade on market.
           </p>
         ) : (
-          <ul className="mt-3 divide-y divide-slate-800">
+          <ul className="mt-3 divide-y divide-white/[0.08]">
             {holdingRows.map(({ token, balance }) => (
               <HoldingRow
                 key={token.id}

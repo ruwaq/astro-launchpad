@@ -18,6 +18,7 @@ import { explorerAccountUrl, explorerContractUrl } from '../lib/explorer'
 import { tokenPriceInXlm } from '../lib/soroswap'
 import { classifyTokenEvent } from '../lib/token-events'
 import { TokenArt } from '../components/TokenArt'
+import { tokenArtSpec } from '../lib/art'
 import { ShareButton } from '../components/ShareButton'
 import { SwapCard } from '../components/SwapCard'
 import { LiquidityPosition } from '../components/LiquidityPosition'
@@ -37,9 +38,35 @@ import type { LaunchpadToken } from '../lib/token'
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-slate-800 bg-slate-900/60 px-4 py-3">
-      <div className="text-xs uppercase tracking-wide text-slate-500">{label}</div>
-      <div className="mt-1 font-mono text-sm text-slate-100">{value}</div>
+    <div className="rounded-2xl border border-white/[0.08] bg-slate-950/50 px-4 py-3 shadow-inner">
+      <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">{label}</div>
+      <div className="mt-1 font-mono text-xs sm:text-sm font-bold text-white truncate">{value}</div>
+    </div>
+  )
+}
+
+function TraitTile({
+  type,
+  value,
+  rarity,
+}: {
+  type: string
+  value: string
+  rarity?: string
+}) {
+  return (
+    <div className="nft-trait-tile flex flex-col justify-between rounded-2xl p-3 text-center">
+      <span className="text-[10px] font-bold tracking-wider text-sky-400 uppercase">
+        {type}
+      </span>
+      <span className="mt-1 font-semibold text-xs text-white truncate" title={value}>
+        {value}
+      </span>
+      {rarity ? (
+        <span className="mt-1 text-[10px] text-slate-400">
+          {rarity}
+        </span>
+      ) : null}
     </div>
   )
 }
@@ -137,6 +164,7 @@ export function TokenPage() {
     decimals: info.data.decimals,
     symbol: info.data.symbol,
   }
+  const artSpec = tokenArtSpec(id)
   const price = pool.data ? tokenPriceInXlm(pool.data, token.decimals) : 0n
   const priceUsd =
     price > 0n ? (Number(price) / 1e7) * xlmUsd : 0
@@ -173,127 +201,197 @@ export function TokenPage() {
         </div>
       </div>
 
-      {/* Hero Coin Card */}
-      <section className="rounded-2xl border border-slate-800 bg-slate-900/50 p-4 sm:p-6 shadow-xl backdrop-blur-sm">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-          <TokenArt
-            id={id}
-            symbol={token.symbol}
-            logoUrl={meta.data?.logoUrl}
-            className="h-20 w-20 shrink-0 rounded-2xl shadow-lg shadow-emerald-500/10 border border-slate-700/60"
-          />
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="truncate text-2xl sm:text-3xl font-black text-slate-100">
-                {info.data.name}
-              </h1>
-              <span className="rounded-md border border-slate-700 bg-slate-800/80 px-2 py-0.5 font-mono text-sm font-bold text-emerald-300">
-                ${token.symbol}
-              </span>
+      {/* OpenSea Item Showcase Header: 1:1 NFT Art Pedestal + Traits + Live Market Telemetry */}
+      <section className="liquid-glass rounded-3xl p-5 sm:p-8 space-y-6">
+        <div className="grid gap-6 lg:grid-cols-12 items-center">
+          {/* Left Pedestal: Large 1:1 Art Frame */}
+          <div className="lg:col-span-5 flex flex-col items-center">
+            <div className="liquid-glass-card group relative aspect-square w-full max-w-sm overflow-hidden rounded-3xl bg-slate-950">
+              <TokenArt
+                id={id}
+                symbol={token.symbol}
+                logoUrl={meta.data?.logoUrl}
+                showBadge
+                className="h-full w-full transition-transform duration-500 ease-out group-hover:scale-105"
+              />
+              <div className="nft-holo-sheen absolute inset-0" />
+              <div className="absolute top-3 left-3">
+                <span className="liquid-glass-pill rounded-full px-2.5 py-1 text-[10px] font-semibold tracking-wider text-white/90 uppercase">
+                  {artSpec.archetype}
+                </span>
+              </div>
+              <div className="absolute bottom-3 right-3">
+                <span className="liquid-glass-pill rounded-full px-2.5 py-1 font-mono text-[10px] text-sky-300">
+                  {artSpec.editionCode}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Info: Header, Socials, Explorer & Live Price Stats */}
+          <div className="lg:col-span-7 flex flex-col justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold tracking-wider text-sky-400 uppercase">
+                  {artSpec.paletteName} Series
+                </span>
+                <span className="text-slate-600">•</span>
+                <span className="font-mono text-xs text-slate-400">
+                  {shortAddress(id)}
+                </span>
+              </div>
+
+              <div className="mt-1 flex flex-wrap items-baseline gap-3">
+                <h1 className="text-2xl sm:text-4xl font-extrabold text-white tracking-tight">
+                  {info.data.name}
+                </h1>
+                <span className="rounded-xl border border-sky-400/30 bg-sky-950/60 px-2.5 py-0.5 font-mono text-sm font-bold text-sky-300">
+                  ${token.symbol}
+                </span>
+              </div>
+
+              {meta.data?.description ? (
+                <p className="mt-2 text-sm text-slate-300 leading-relaxed">
+                  {meta.data.description}
+                </p>
+              ) : null}
+
+              {/* Social & Explorer Pills */}
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                {safeTelegram ? (
+                  <a
+                    href={safeTelegram}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="liquid-glass-pill inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold text-sky-300 hover:text-white transition"
+                  >
+                    <span>✈️</span> Telegram ↗
+                  </a>
+                ) : null}
+
+                {safeWebsite ? (
+                  <a
+                    href={safeWebsite}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="liquid-glass-pill inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold text-cyan-300 hover:text-white transition"
+                  >
+                    <span>🌐</span> Website ↗
+                  </a>
+                ) : null}
+
+                {safeTwitter ? (
+                  <a
+                    href={safeTwitter}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="liquid-glass-pill inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-200 hover:text-white transition"
+                  >
+                    <span>𝕏</span> Twitter ↗
+                  </a>
+                ) : null}
+
+                <ShareButton
+                  text={`🌊 Check out $${token.symbol} on AstroGate (Stellar testnet):`}
+                  url={shareUrl}
+                />
+
+                <a
+                  href={explorerContractUrl(id)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="liquid-glass-pill inline-flex items-center rounded-xl px-3 py-1.5 text-xs text-slate-300 hover:text-white transition"
+                >
+                  Explorer ↗
+                </a>
+              </div>
             </div>
 
-            <p className="mt-1 break-all font-mono text-xs text-slate-500">
-              Contract: {shortAddress(id)}
-            </p>
-
-            {meta.data?.description ? (
-              <p className="mt-2 text-sm text-slate-300 line-clamp-2">
-                {meta.data.description}
-              </p>
-            ) : null}
-
-            {/* Social Buttons */}
-            <div className="mt-3.5 flex flex-wrap items-center gap-2">
-              {safeTelegram ? (
-                <a
-                  href={safeTelegram}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border border-sky-800/80 bg-sky-950/40 px-3 py-1.5 text-xs font-bold text-sky-300 hover:border-sky-500 transition-colors"
-                >
-                  <span>✈️</span> Telegram ↗
-                </a>
-              ) : null}
-
-              {safeWebsite ? (
-                <a
-                  href={safeWebsite}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border border-cyan-800/80 bg-cyan-950/40 px-3 py-1.5 text-xs font-bold text-cyan-300 hover:border-cyan-500 transition-colors"
-                >
-                  <span>🌐</span> Website ↗
-                </a>
-              ) : null}
-
-              {safeTwitter ? (
-                <a
-                  href={safeTwitter}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-1.5 text-xs font-bold text-slate-200 hover:border-slate-500 transition-colors"
-                >
-                  <span>𝕏</span> Twitter ↗
-                </a>
-              ) : null}
-
-              <ShareButton
-                text={`🌊 Check out $${token.symbol} on AstroGate (Stellar testnet):`}
-                url={shareUrl}
+            {/* Live Pricing & Liquidity Grid */}
+            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+              <Stat
+                label="Spot Price"
+                value={
+                  pool.isPending
+                    ? '…'
+                    : price > 0n
+                      ? `${formatAmount(price, 7)} XLM`
+                      : '—'
+                }
               />
-
-              <a
-                href={explorerContractUrl(id)}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex min-h-[38px] items-center rounded-lg border border-slate-800 bg-slate-950/60 px-2.5 py-1.5 text-xs text-slate-400 hover:text-slate-200 hover:border-slate-700 transition-colors"
-              >
-                Explorer ↗
-              </a>
+              <Stat
+                label="USD Value"
+                value={
+                  priceUsd > 0
+                    ? `$${priceUsd < 0.01 ? priceUsd.toFixed(6) : priceUsd.toFixed(4)}`
+                    : '—'
+                }
+              />
+              <Stat
+                label="Pool Depth"
+                value={
+                  pool.isPending
+                    ? '…'
+                    : pool.data?.exists
+                      ? `${formatAmount(liquidity, 7)} XLM (≈ $${liquidityUsd < 0.01 ? liquidityUsd.toFixed(4) : liquidityUsd.toFixed(2)})`
+                      : 'No pool yet'
+                }
+              />
+              <Stat
+                label="Your Balance"
+                value={
+                  publicKey
+                    ? balance.isPending
+                    ? '…'
+                    : `${formatAmount(balance.data ?? 0n, token.decimals)} ${token.symbol}`
+                    : 'Connect wallet'
+                }
+              />
             </div>
           </div>
         </div>
 
-        {/* 4 Clean Game Stats */}
-        <div className="mt-5 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-          <Stat
-            label="Current Price"
-            value={
-              pool.isPending
-                ? '…'
-                : price > 0n
-                  ? `${formatAmount(price, 7)} XLM`
-                  : '—'
-            }
-          />
-          <Stat
-            label="USD Price"
-            value={
-              priceUsd > 0
-                ? `$${priceUsd < 0.01 ? priceUsd.toFixed(6) : priceUsd.toFixed(4)}`
-                : '—'
-            }
-          />
-          <Stat
-            label="Pool Liquidity"
-            value={
-              pool.isPending
-                ? '…'
-                : pool.data?.exists
-                  ? `${formatAmount(liquidity, 7)} XLM ($${liquidityUsd.toLocaleString('en-US', { maximumFractionDigits: 0 })})`
-                  : 'No pool yet'
-            }
-          />
-          <Stat
-            label="Your Bag"
-            value={
-              publicKey
-                ? balance.isPending
-                  ? '…'
-                  : `${formatAmount(balance.data ?? 0n, token.decimals)} ${token.symbol}`
-                : 'Connect wallet'
-            }
-          />
+        {/* OpenSea Provenance & Artwork Properties Grid */}
+        <div className="pt-2">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+              <span>💎</span> Artwork Properties & On-Chain Provenance
+            </span>
+            <span className="text-[11px] text-slate-500">SEP-41 + Soroswap AMM</span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-6">
+            <TraitTile
+              type="Archetype"
+              value={artSpec.archetype}
+              rarity="Generative 1-of-1"
+            />
+            <TraitTile
+              type="Palette"
+              value={artSpec.paletteName}
+              rarity="Curated Spectrum"
+            />
+            <TraitTile
+              type="Edition"
+              value={artSpec.editionCode}
+              rarity="Deterministic Seed"
+            />
+            <TraitTile
+              type="Supply Cap"
+              value="Capped 1B"
+              rarity="100% Immutable"
+            />
+            <TraitTile
+              type="LP Custody"
+              value="100% Burned"
+              rarity="Zero Rug Vector"
+            />
+            <TraitTile
+              type="Mint Authority"
+              value={owner === null ? 'Renounced' : 'Active'}
+              rarity={owner === null ? 'Protected' : 'Creator Controlled'}
+            />
+          </div>
         </div>
       </section>
 

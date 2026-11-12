@@ -1,30 +1,68 @@
 /**
- * Arte generativo determinista para cada token: el hash del contrato
- * elige una paleta curada y la posición de las formas. Mismo contrato →
- * misma identidad visual en cualquier dispositivo. SVG puro: cero red,
- * cero imágenes, cero andamiaje externo (el estilo OpenSea, honesto).
+ * Deterministic generative NFT art engine for each token on AstroGate.
+ *
+ * Derives curated color palettes, generative archetypes, geometric harmonics,
+ * and edition codes directly from the contract address hash.
+ * 100% SVG & pure math: zero external asset dependencies, zero network requests,
+ * and identical visual identity across every device (OpenSea / Foundation art style).
  */
 
-const PALETTES = [
-  { from: '#8b5cf6', to: '#22d3ee' }, // violet → cyan
-  { from: '#ec4899', to: '#fb923c' }, // fuchsia → orange
-  { from: '#38bdf8', to: '#4ade80' }, // blue → mint green
-  { from: '#f43f5e', to: '#a78bfa' }, // red → lavender
-  { from: '#2dd4bf', to: '#0f4c5c' }, // deep turquoise
-  { from: '#facc15', to: '#f97316' }, // gold → amber
-  { from: '#94a3b8', to: '#334155' }, // slate night
-  { from: '#a3e635', to: '#0e7490' }, // lime → teal
-] as const
+export type ArtArchetype =
+  | 'Cosmic Nebula'
+  | 'Sacred Geometry'
+  | 'Chromatic Rings'
+  | 'Cyber Horizon'
+  | 'Solar Prism'
 
-export type TokenArtSpec = {
-  /** Hash de origen (garantiza ids únicos de gradientes SVG). */
-  seed: number
+export type ArtPalette = {
+  name: string
   from: string
+  via: string
   to: string
-  shapes: Array<{ cx: number; cy: number; r: number; light: boolean }>
+  accent: string
 }
 
-/** FNV-1a 32 bits: velocidad + distribución suficiente para arte. */
+export type ArtShape = {
+  cx: number
+  cy: number
+  r: number
+  light: boolean
+}
+
+export type TokenArtSpec = {
+  seed: number
+  editionCode: string
+  archetype: ArtArchetype
+  paletteName: string
+  from: string
+  via: string
+  to: string
+  accent: string
+  rotation: number
+  ringCount: number
+  shapes: [ArtShape, ArtShape, ArtShape]
+}
+
+export const PALETTES: readonly ArtPalette[] = [
+  { name: 'Hyperion Cyan', from: '#0ea5e9', via: '#2563eb', to: '#0f172a', accent: '#38bdf8' },
+  { name: 'Nebula Violet', from: '#8b5cf6', via: '#ec4899', to: '#0f172a', accent: '#f472b6' },
+  { name: 'Emerald Aurora', from: '#10b981', via: '#059669', to: '#022c22', accent: '#34d399' },
+  { name: 'Solar Flare', from: '#f59e0b', via: '#ea580c', to: '#1c1917', accent: '#fbbf24' },
+  { name: 'Supernova Rose', from: '#f43f5e', via: '#9333ea', to: '#090d16', accent: '#fb7185' },
+  { name: 'Quantum Indigo', from: '#6366f1', via: '#06b6d4', to: '#020617', accent: '#22d3ee' },
+  { name: 'Cyber Mint', from: '#14b8a6', via: '#3b82f6', to: '#0f172a', accent: '#2dd4bf' },
+  { name: 'Crimson Horizon', from: '#ef4444', via: '#f97316', to: '#18181b', accent: '#f87171' },
+]
+
+export const ARCHETYPES: readonly ArtArchetype[] = [
+  'Cosmic Nebula',
+  'Sacred Geometry',
+  'Chromatic Rings',
+  'Cyber Horizon',
+  'Solar Prism',
+]
+
+/** FNV-1a 32-bit: fast + uniform distribution for art hashing. */
 export function artSeed(id: string): number {
   let hash = 0x811c9dc5
   for (let i = 0; i < id.length; i++) {
@@ -34,21 +72,39 @@ export function artSeed(id: string): number {
   return hash >>> 0
 }
 
-function salted(seed: number, salt: number): number {
-  return Math.imul(seed ^ salt, 0x9e3779b1) >>> 0
+function byte(hash: number, index: number): number {
+  return (hash >>> ((index % 4) * 8)) & 0xff
 }
 
 export function tokenArtSpec(id: string): TokenArtSpec {
   const seed = artSeed(id)
+  const secondary = artSeed(`${id}:art`)
   const palette = PALETTES[seed % PALETTES.length]
-  const shapes = [1, 2, 3].map((salt, index) => {
-    const mix = salted(seed, salt)
+  const archetype = ARCHETYPES[(seed >>> 3) % ARCHETYPES.length]
+
+  const shape = (i: number): ArtShape => {
+    const b1 = byte(seed, i)
+    const b2 = byte(secondary, i + 1)
+    const b3 = byte(seed ^ secondary, i + 2)
     return {
-      cx: 10 + (mix % 77), // 10..86 dentro del lienzo 96
-      cy: 10 + ((mix >>> 7) % 77),
-      r: 10 + ((mix >>> 14) % 18) + index * 7, // anillos de tamas variados
-      light: (mix >>> 20) % 2 === 0,
+      cx: 16 + (b1 % 64),
+      cy: 16 + (b2 % 64),
+      r: 14 + (b3 % 28),
+      light: (b1 & 1) === 0,
     }
-  })
-  return { seed, from: palette.from, to: palette.to, shapes }
+  }
+
+  return {
+    seed,
+    editionCode: `#${((seed % 9000) + 1000).toString(10)}`,
+    archetype,
+    paletteName: palette.name,
+    from: palette.from,
+    via: palette.via,
+    to: palette.to,
+    accent: palette.accent,
+    rotation: (seed % 12) * 30,
+    ringCount: 2 + (seed % 4),
+    shapes: [shape(0), shape(1), shape(2)],
+  }
 }

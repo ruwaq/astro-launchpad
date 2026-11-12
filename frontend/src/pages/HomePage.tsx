@@ -8,13 +8,13 @@ import { SwapCard } from '../components/SwapCard'
 import { TokenInfoCard } from '../components/TokenInfoCard'
 import { GraduationRadar } from '../components/GraduationRadar'
 import { NewLaunchesFeed } from '../components/NewLaunchesFeed'
+import { TokenArt } from '../components/TokenArt'
 import { useTokenList } from '../hooks/useTokenList'
 import { useCreatedTokens } from '../store/creations'
 import { useProgress } from '../store/progress'
 import { useWallet } from '../store/wallet'
 import { ASTRO_TOKEN_ID } from '../lib/network'
 import { BRAND } from '../lib/brand'
-import { PROTOCOL_DEPLOY_FEE_USD } from '../lib/tokenomics'
 import type { LaunchpadToken } from '../lib/token'
 
 /** Genesis token: already deployed and paired on Soroswap testnet. */
@@ -33,49 +33,81 @@ export function HomePage() {
 
   return (
     <div className="flex flex-col gap-6 w-full max-w-full overflow-hidden">
-      {/* Welcome & Value Proposition Hero */}
-      <section className="relative overflow-hidden rounded-2xl border border-slate-800 bg-gradient-to-br from-slate-900/90 via-slate-950 to-emerald-950/20 p-5 sm:p-8 shadow-sm">
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/40 bg-emerald-950/40 px-3 py-1 text-xs font-semibold text-emerald-300">
-              <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
-              {BRAND.taglineEn} · Stellar Soroban Testnet
-            </span>
-            <span className="rounded-full border border-slate-800 bg-slate-900/60 px-3 py-1 text-xs text-slate-400 font-mono">
-              SEP-41 Standard
-            </span>
+      {/* Welcome & Value Proposition Hero: macOS Liquid Glass + NFT Spotlight */}
+      <section className="liquid-glass relative overflow-hidden rounded-3xl p-5 sm:p-8">
+        <div className="grid gap-6 lg:grid-cols-12 items-center">
+          <div className="lg:col-span-8 flex flex-col gap-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-400/40 bg-sky-950/50 px-3 py-1 text-xs font-semibold text-sky-300">
+                <span className="h-2 w-2 animate-pulse rounded-full bg-sky-400" />
+                {BRAND.taglineEn} · Stellar Soroban Testnet
+              </span>
+              <span className="liquid-glass-pill rounded-full px-3 py-1 text-xs text-slate-300 font-mono">
+                OpenSea-Grade Generative Art + AMM
+              </span>
+            </div>
+
+            <h1 className="text-2xl font-black sm:text-4xl lg:text-5xl tracking-tight text-white">
+              Fair Launchpad & Generative NFT Art Studio on Stellar 🌊🚀
+            </h1>
+
+            <p className="max-w-2xl text-sm sm:text-base text-slate-300 leading-relaxed">
+              Premiere your project as an on-chain Generative Collectible & Soroswap AMM pool.
+              Fixed 1B supply, 100% LP burned to the Stellar burn address, and ownership renounced on-chain.
+              Zero rug-pulls, museum-grade visual identities, and instant permissionless liquidity.
+            </p>
+
+            <div className="mt-2 flex flex-wrap items-center gap-3">
+              <Link
+                to="/create"
+                className="liquid-glass-pill inline-flex min-h-[44px] items-center rounded-2xl border-sky-400/40 bg-sky-500/90 px-6 py-2.5 text-sm font-bold text-slate-950 hover:bg-sky-400 shadow-lg shadow-sky-500/20 transition-all hover:scale-[1.02]"
+              >
+                🚀 Launch Token
+              </Link>
+              <Link
+                to="/market"
+                className="liquid-glass-pill inline-flex min-h-[44px] items-center rounded-2xl px-6 py-2.5 text-sm font-semibold text-slate-200 hover:text-white transition-all hover:scale-[1.02]"
+              >
+                🎨 Browse Gallery →
+              </Link>
+            </div>
+
+            <WalletInstallHint />
           </div>
 
-          <h1 className="text-2xl font-extrabold sm:text-4xl tracking-tight text-slate-100">
-            The Safest & Most Fun Memecoin Launchpad on Stellar 🌊🚀
-          </h1>
-
-          <p className="max-w-2xl text-sm sm:text-base text-slate-300 leading-relaxed">
-            Launch your memecoin for just{' '}
-            <strong className="text-emerald-300">${PROTOCOL_DEPLOY_FEE_USD.toFixed(2)} USD</strong>{' '}
-            in XLM. Standard <strong>Fair Launch</strong> with 0.5% developer cut (locked 15 days post-graduation), 99.5% in pool,
-            renounced ownership, and 100% LP burned to the Stellar dead address.{' '}
-            <span className="text-slate-400">
-              Zero team dumps, zero rug-pulls, and instant AMM trading on Soroswap DEX.
-            </span>
-          </p>
-
-          <div className="mt-2 flex flex-wrap items-center gap-3">
+          {/* Right Spotlight: Genesis $ASTRO NFT Artwork Pedestal */}
+          <div className="lg:col-span-4 flex justify-center">
             <Link
-              to="/create"
-              className="inline-flex min-h-[44px] items-center rounded-xl bg-emerald-500 px-5 py-2.5 text-sm font-bold text-slate-950 hover:bg-emerald-400 shadow-md shadow-emerald-500/20 transition-all hover:scale-[1.02]"
+              to={`/token/${ASTRO_TOKEN_ID}`}
+              className="liquid-glass-card group relative aspect-square w-full max-w-[260px] overflow-hidden rounded-3xl bg-slate-950 p-2.5 block"
             >
-              🚀 Launch Token (${PROTOCOL_DEPLOY_FEE_USD.toFixed(2)} USD)
-            </Link>
-            <Link
-              to="/market"
-              className="inline-flex min-h-[44px] items-center rounded-xl border border-slate-700 bg-slate-900/60 px-5 py-2.5 text-sm font-semibold text-slate-200 hover:border-slate-500 transition-all"
-            >
-              👑 View Full Market →
+              <div className="relative aspect-square w-full overflow-hidden rounded-2xl">
+                <TokenArt
+                  id={ASTRO_TOKEN_ID}
+                  symbol="ASTRO"
+                  showBadge
+                  className="h-full w-full transition-transform duration-500 group-hover:scale-105"
+                />
+                <div className="nft-holo-sheen absolute inset-0" />
+                <div className="absolute top-2 left-2">
+                  <span className="liquid-glass-pill rounded-full px-2 py-0.5 text-[9px] font-bold tracking-wider text-sky-300 uppercase">
+                    Genesis #001
+                  </span>
+                </div>
+              </div>
+              <div className="mt-2 px-1 flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-bold text-white group-hover:text-sky-300 transition-colors">
+                    $ASTRO Flagship
+                  </p>
+                  <p className="text-[10px] text-slate-400">Cosmic Nebula Series</p>
+                </div>
+                <span className="liquid-glass-pill rounded-lg px-2 py-1 text-[10px] font-mono font-semibold text-emerald-300">
+                  Live Pool ↗
+                </span>
+              </div>
             </Link>
           </div>
-
-          <WalletInstallHint />
         </div>
       </section>
 

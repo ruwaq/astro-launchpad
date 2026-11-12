@@ -14,6 +14,7 @@ import {
   type MarketSortKey,
 } from '../lib/market'
 import { TokenArt } from './TokenArt'
+import { tokenArtSpec } from '../lib/art'
 import { KingOfTheHill } from './KingOfTheHill'
 import { useTokenMetadata } from '../hooks/useTokenMetadata'
 import type { LaunchpadToken } from '../lib/token'
@@ -58,23 +59,47 @@ function MarketCard({
   const isFav = useWatchlist((s) => s.isFavorite(token.id))
   const toggleFav = useWatchlist((s) => s.toggle)
   const meta = useTokenMetadata(token.id)
+  const artSpec = tokenArtSpec(token.id)
+
+  const isGraduated = grad.graduated
+  const ageLabel = token.ledger > 0 ? `#${token.ledger}` : null
 
   return (
     <li
-      className={`relative flex flex-col overflow-hidden rounded-2xl border bg-slate-900/40 transition-colors ${
-        selected
-          ? 'border-emerald-500 ring-1 ring-emerald-500/40'
-          : 'border-slate-800 hover:border-slate-600'
+      className={`liquid-glass-card group relative flex cursor-pointer flex-col overflow-hidden rounded-3xl ${
+        selected ? 'ring-2 ring-sky-400 border-sky-400/50' : ''
       }`}
     >
-      <div className="relative">
+      {/* 1:1 OpenSea Square Artwork Showcase Frame */}
+      <div className="relative aspect-square w-full overflow-hidden bg-slate-950">
         <TokenArt
           id={token.id}
           symbol={token.symbol}
           logoUrl={meta.data?.logoUrl}
-          className="aspect-square w-full"
+          showBadge
+          className="h-full w-full transition-transform duration-500 ease-out group-hover:scale-105"
         />
-        <div className="absolute right-2 top-2 flex items-center gap-1">
+
+        {/* Holographic Foil Sheen */}
+        <div className="nft-holo-sheen absolute inset-0" />
+
+        {/* Subtle Bottom Vignette for Floating Glass Controls */}
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-slate-950/90 via-slate-950/35 to-transparent" />
+
+        {/* Top-Left: Generative Archetype & Edition Glass Pill */}
+        <div className="absolute top-3 left-3 flex items-center gap-1.5">
+          <span className="liquid-glass-pill rounded-full px-2.5 py-1 text-[10px] font-semibold tracking-wider text-white/90 uppercase">
+            {artSpec.archetype}
+          </span>
+          {ageLabel ? (
+            <span className="liquid-glass-pill rounded-full px-2 py-1 font-mono text-[10px] text-slate-300">
+              {ageLabel}
+            </span>
+          ) : null}
+        </div>
+
+        {/* Top-Right: Collector Favorite & Explorer Glass Buttons */}
+        <div className="absolute top-3 right-3 flex items-center gap-1.5">
           <button
             type="button"
             onClick={(e) => {
@@ -82,14 +107,11 @@ function MarketCard({
               toggleFav(token.id)
             }}
             aria-label={
-              isFav
-                ? `Remove ${token.symbol} from favorites`
-                : `Add ${token.symbol} to favorites`
+              isFav ? `Remove ${token.symbol} from favorites` : `Add ${token.symbol} to favorites`
             }
-            className={`flex h-9 w-9 items-center justify-center rounded-full text-sm backdrop-blur transition ${
-              isFav
-                ? 'border border-amber-500/40 bg-amber-500/20 text-amber-400'
-                : 'bg-slate-950/70 text-slate-400 hover:text-amber-300'
+            aria-pressed={isFav}
+            className={`liquid-glass-pill flex h-8 w-8 items-center justify-center rounded-full transition-transform hover:scale-110 ${
+              isFav ? 'border-amber-400/50 text-amber-300' : 'text-white/80 hover:text-white'
             }`}
           >
             {isFav ? '★' : '☆'}
@@ -98,105 +120,128 @@ function MarketCard({
             href={explorerContractUrl(token.pool.pairId ?? token.id)}
             target="_blank"
             rel="noreferrer"
+            onClick={(e) => e.stopPropagation()}
             aria-label={`View ${token.symbol} in explorer`}
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-950/70 text-slate-300 backdrop-blur hover:text-emerald-300"
+            className="liquid-glass-pill flex h-8 w-8 items-center justify-center rounded-full text-white/80 hover:text-sky-300 transition-transform hover:scale-110"
           >
             ↗
           </a>
         </div>
-        {selected ? (
-          <span className="absolute left-2 top-2 rounded-full bg-emerald-500 px-2 py-0.5 text-[10px] font-semibold text-slate-950">
-            in swap
-          </span>
-        ) : grad.graduated ? (
-          <span className="absolute left-2 top-2 rounded-full bg-emerald-500 px-2 py-0.5 text-[10px] font-semibold text-slate-950">
-            🎓 graduated
-          </span>
-        ) : grad.percent >= 50 ? (
-          <span className="absolute left-2 top-2 rounded-full bg-amber-400 px-2 py-0.5 text-[10px] font-bold text-slate-950">
-            🔥 King
-          </span>
-        ) : (
-          <span className="absolute left-2 top-2 rounded-full border border-slate-700 bg-slate-950/80 px-2 py-0.5 text-[10px] font-medium text-emerald-300">
-            ⚡ curve
-          </span>
-        )}
+
+        {/* Bottom-Left of Art Frame: Graduation Status Pill */}
+        <div className="absolute bottom-3 left-3 flex items-center gap-1.5">
+          {selected ? (
+            <span className="liquid-glass-pill rounded-full border-sky-400/50 bg-sky-950/80 px-2.5 py-1 text-[10px] font-bold tracking-wider text-sky-300 uppercase">
+              ✦ in swap
+            </span>
+          ) : isGraduated ? (
+            <span className="liquid-glass-pill rounded-full border-emerald-400/40 bg-emerald-950/60 px-2.5 py-1 text-[10px] font-bold tracking-wider text-emerald-300 uppercase">
+              ✦ Graduated
+            </span>
+          ) : grad.percent >= 50 ? (
+            <span className="liquid-glass-pill rounded-full border-amber-400/40 bg-amber-950/60 px-2.5 py-1 text-[10px] font-bold tracking-wider text-amber-300 uppercase">
+              👑 King ({grad.percent.toFixed(0)}%)
+            </span>
+          ) : (
+            <span className="liquid-glass-pill rounded-full px-2.5 py-1 text-[10px] font-medium text-sky-300">
+              Curve {grad.percent.toFixed(0)}%
+            </span>
+          )}
+        </div>
+
+        {/* OpenSea Slide-Up Quick Collect Action Bar on Hover */}
+        <div className="absolute inset-x-3 bottom-3 translate-y-12 opacity-0 transition-all duration-300 ease-out group-hover:translate-y-0 group-hover:opacity-100">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              onSelect({
+                id: token.id,
+                decimals: token.decimals,
+                symbol: token.symbol,
+              })
+              if (typeof document !== 'undefined') {
+                const el = document.getElementById('sec-swap')
+                if (el) el.scrollIntoView({ behavior: 'smooth' })
+              }
+            }}
+            className="liquid-glass-pill flex w-full items-center justify-center gap-2 rounded-2xl border-sky-400/40 bg-sky-500/85 py-2.5 text-xs font-bold text-slate-950 shadow-lg backdrop-blur-xl hover:bg-sky-400"
+          >
+            <span>Quick Swap ${token.symbol}</span>
+            <span aria-hidden="true">⚡</span>
+          </button>
+        </div>
       </div>
 
-      <div className="flex flex-1 flex-col p-3">
-        <button
-          type="button"
-          onClick={() =>
-            onSelect({
-              id: token.id,
-              decimals: token.decimals,
-              symbol: token.symbol,
-            })
-          }
-          className="min-h-[44px] text-left"
-        >
-          <p className="truncate text-sm font-semibold text-slate-100">
-            {token.symbol}
-          </p>
-          <p className="truncate text-xs text-slate-500">{token.name}</p>
+      {/* Collector Metadata & Price Pedestal */}
+      <div className="flex flex-1 flex-col justify-between gap-3 p-4">
+        <div>
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[11px] font-medium tracking-wider text-sky-400/90 uppercase">
+              {artSpec.paletteName} Collection
+            </span>
+            <span className="font-mono text-[11px] text-slate-500">
+              {shortAddress(token.id)}
+            </span>
+          </div>
+          <div className="mt-0.5 flex items-baseline justify-between gap-2">
+            <h3 className="truncate text-base font-bold text-white group-hover:text-sky-300">
+              {token.name}
+            </h3>
+            <span className="shrink-0 rounded-md bg-white/[0.06] px-1.5 py-0.5 font-mono text-xs font-semibold text-slate-200">
+              ${token.symbol}
+            </span>
+          </div>
           {meta.data?.description ? (
-            <p className="mt-0.5 line-clamp-1 text-[11px] text-slate-400">
+            <p className="mt-1 line-clamp-1 text-xs text-slate-400">
               {meta.data.description}
             </p>
           ) : null}
-        </button>
-        <div className="mt-auto pt-2">
-          <div className="flex items-baseline justify-between gap-2">
-            <span className="text-[11px] text-slate-500">Price</span>
-            <Price token={token} />
-          </div>
-          <p className="mt-1 flex items-baseline justify-between gap-2">
-            <span className="text-[11px] text-slate-500">Liquidity</span>
-            <span className="font-mono text-xs text-slate-300">
-              {formatAmount(token.pool.reserveXlm, 7)} XLM
-            </span>
-          </p>
-          <div className="mt-2">
-            <div className="flex items-center justify-between text-[10px] text-slate-400">
-              <span>DEX Curve</span>
-              <span className="font-mono text-emerald-300">
-                {grad.percent.toFixed(0)}%
-              </span>
-            </div>
-            <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-950">
-              <div
-                className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-300"
-                style={{ width: `${Math.min(100, Math.max(4, grad.percent))}%` }}
-              />
-            </div>
-          </div>
+        </div>
 
-          <div className="mt-2.5 grid grid-cols-2 gap-1.5">
-            <button
-              type="button"
-              onClick={() => {
-                onSelect({
-                  id: token.id,
-                  decimals: token.decimals,
-                  symbol: token.symbol,
-                })
-                if (typeof document !== 'undefined') {
-                  const el = document.getElementById('sec-swap')
-                  if (el) el.scrollIntoView({ behavior: 'smooth' })
-                }
-              }}
-              className="rounded-lg bg-emerald-500/20 px-2 py-1.5 text-[11px] font-bold text-emerald-300 transition hover:bg-emerald-500/30"
-            >
-              ⚡ Quick Buy
-            </button>
-            <Link
-              to={`/token/${token.id}`}
-              className="rounded-lg border border-slate-800 bg-slate-950/60 px-2 py-1.5 text-center text-[11px] font-medium text-slate-300 hover:border-slate-600"
-            >
-              📈 Curve & Audit
-            </Link>
+        {/* OpenSea-Style Floor / Spot Price & Pool Reserve Split */}
+        <div className="grid grid-cols-2 gap-2 rounded-2xl border border-white/[0.07] bg-slate-950/45 p-2.5">
+          <div>
+            <p className="text-[10px] font-medium tracking-wider text-slate-400 uppercase">
+              Spot Price
+            </p>
+            <div className="mt-0.5">
+              <Price token={token} />
+            </div>
+          </div>
+          <div className="text-right">
+            <p className="text-[10px] font-medium tracking-wider text-slate-400 uppercase">
+              Pool Depth
+            </p>
+            <p className="mt-0.5 font-mono text-xs font-semibold text-emerald-300">
+              {token.pool.reserveXlm === 0n ? 'Empty' : `${formatAmount(token.pool.reserveXlm, 7)} XLM`}
+            </p>
           </div>
         </div>
+
+        {/* Graduation Progress Hairline Bar */}
+        <div className="space-y-1">
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-900/90">
+            <div
+              className={`h-full rounded-full transition-all duration-500 ${
+                isGraduated
+                  ? 'bg-gradient-to-r from-emerald-400 to-teal-300'
+                  : 'bg-gradient-to-r from-sky-500 via-indigo-400 to-emerald-400'
+              }`}
+              style={{ width: `${Math.max(3, Math.min(100, grad.percent))}%` }}
+            />
+          </div>
+        </div>
+
+        {/* Action Link to Full Token Studio */}
+        <Link
+          to={`/token/${token.id}`}
+          onClick={(e) => e.stopPropagation()}
+          className="liquid-glass-pill flex items-center justify-center gap-1.5 rounded-xl py-2 text-center text-xs font-medium text-slate-200 hover:text-sky-300 transition"
+        >
+          <span>View Art & Provenance Studio</span>
+          <span aria-hidden="true">→</span>
+        </Link>
       </div>
     </li>
   )
@@ -226,7 +271,7 @@ export function MarketList({
   const exactMatchInList = tokens.some((t) => t.id === trimmedQuery)
 
   return (
-    <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-4 sm:p-6">
+    <section className="liquid-glass rounded-3xl p-5 sm:p-8 space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold">Live Market</h2>
@@ -443,7 +488,7 @@ export function MarketList({
       ) : null}
 
       {tokens.length > 0 ? (
-        <ul className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+        <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
           {tokens.map((token) => (
             <MarketCard
               key={token.id}

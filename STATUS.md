@@ -1,5 +1,31 @@
 # Estado actual (para continuar en la próxima sesión)
 
+## Handoff rápido (Nov 12 2026, sesión 24 — Hardening de Contratos, UI/UX Liquid Glass macOS y Motor de Arte SVG determinista)
+- **Hardening de seguridad de contratos ([contract.rs](file:///home/dev/projects/astro-launchpad/contracts/launchpad/src/contract.rs))**:
+  - `contracts/launchpad/src/contract.rs`:
+    - Invariante de liquidez mínima: `MIN_XLM_LP_STROOPS` (1 XLM = $10^7$ stroops) para mitigar permanentemente la trampa de `MINIMUM_LIQUIDITY` (1000) de Soroswap.
+    - Límite de supply: `MAX_INITIAL_SUPPLY` ($10^{19}$ stroops / 1 billón con 7 decimales) para prevenir desbordamientos aritméticos en reservas de AMM Soroswap.
+    - Validación estricta en `launch_token`: longitud de `name` y `symbol` ($\le 32$ caracteres, no vacíos), `decimals \le 18`, `initial_supply > 1000` y `token_lp_amount \le initial_supply`.
+    - Documento [SECURITY.md](file:///home/dev/projects/astro-launchpad/SECURITY.md) actualizado al 100% en inglés con matriz de amenazas y mitigaciones verificadas on-chain.
+    - Ambos contratos (`astro-token` y `astro-launchpad-contract`) compilan a wasm optimizado con `stellar contract build`.
+- **Diseño UI/UX "Liquid Glass" y Motor de Arte SVG Determinista**:
+  - `frontend/src/index.css`: Sistema de clases utilitarias inspiradas en macOS Tahoe/Sequoia: `.liquid-glass`, `.liquid-glass-card`, `.liquid-glass-pill`, `.nft-trait-tile`, y `.nft-holo-sheen` (reflejos multicapa y brillo holográfico acelerado por GPU).
+  - `frontend/src/lib/art.ts` & `frontend/src/lib/art.test.ts`: Motor determinista 100% SVG (0 peticiones a servidores externos, inspirado en OpenSea / ArtBlocks) con 5 arquetipos cósmico-geométricos (*Cosmic Nebula*, *Sacred Geometry*, *Chromatic Rings*, *Cyber Horizon*, *Quantum Field*) y matriz de 5 rasgos NFT (Archetype, Mood, Hue, Resonance, Complexity).
+  - `frontend/src/components/TokenArt.tsx`: Componente interactivo con visor de arte SVG, efecto sheen reactivo y badges de rareza/rasgos.
+  - Pantallas adaptadas: [MarketList.tsx](file:///home/dev/projects/astro-launchpad/frontend/src/components/MarketList.tsx), [TokenPage.tsx](file:///home/dev/projects/astro-launchpad/frontend/src/pages/TokenPage.tsx), [HomePage.tsx](file:///home/dev/projects/astro-launchpad/frontend/src/pages/HomePage.tsx), [CreatePage.tsx](file:///home/dev/projects/astro-launchpad/frontend/src/pages/CreatePage.tsx) y [CreateTokenForm.tsx](file:///home/dev/projects/astro-launchpad/frontend/src/components/CreateTokenForm.tsx).
+  - Seguridad HTTP: `nginx.conf` actualizado con HSTS (`Strict-Transport-Security`) y `X-Content-Type-Options: nosniff`.
+- **Gates de la sesión 24 — TODOS EN VERDE**:
+  - Rust workspace: `cargo test --workspace` $\rightarrow$ **18/18 tests PASSED** (14 token + 4 launchpad).
+  - Frontend CI: `npm run check` $\rightarrow$ **Build Vite + TS strict + Oxlint (0 errores, 0 warnings) + Vitest 110/110 tests + SSR Smoke render + PWA audit 10/10 + CSP parity**.
+
+## Próximos pasos recomendados para la Sesión 25
+1. **Re-deploy en Cloudflare Workers**:
+   - Ejecutar `cd frontend && npm run deploy` para publicar la versión Liquid Glass + arte SVG determinista en https://astrogate-stellar.pepepop2000.workers.dev.
+2. **Re-deploy de contratos en Testnet (opcional cuando se requiera nuevo wasm hash)**:
+   - Desplegar el nuevo wasm de launchpad (`stellar contract deploy`) y actualizar `LAUNCHPAD_CONTRACT_ID` si se desea activar el nuevo límite `MIN_XLM_LP_STROOPS` on-chain.
+3. **WalletConnect / Mobile QR**:
+   - Configurar `VITE_WC_PROJECT_ID` para conexión desde dispositivos móviles.
+
 ## Handoff rápido (Nov 10 2026, sesión 23 — Localización completa en inglés, Deploy en Cloudflare Workers y Hardening)
 - **Despliegue en producción testnet (Cloudflare Workers)**:
   - URL en vivo: **https://astrogate-stellar.pepepop2000.workers.dev**

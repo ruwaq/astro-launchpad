@@ -232,7 +232,7 @@ async function fetchTokenMetadata(
 
   const client = tokenClient(tokenId)
   const fallback = {
-    name: 'Token sin metadata',
+    name: 'Unnamed Token',
     symbol: shortAddress(tokenId),
     decimals: 7,
   }
