@@ -2,12 +2,12 @@
 
 AstroGate is a decentralized, zero-backend Fair Launchpad and automated market maker (AMM) built natively on Stellar/Soroban. It introduces fair, anti-rug memecoin launch mechanics to the Stellar ecosystem:
 
-- **$1.11 USD Fixed Launch Fee**: Mint fair tokens with low fees pegged via live multi-source price oracles.
-- **0.5% Creator · 99.5% Pool Allocation**: 5M tokens max to the creator (vested after graduation); 995M tokens seeded directly into the Soroswap AMM pair.
-- **Mandatory Anti-Rug LP Burn**: 100% of initial LP tokens are irrevocably transferred on launch to Stellar's canonical dead address (`GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF`). Initial pool liquidity cannot be drained.
-- **Permanent Mint Freezing**: Contract ownership is renounced immediately on launch (`renounce_ownership`), disabling all future minting.
-- **Real-Time Live Pricing**: Multi-source oracle waterfall (Coinbase, Binance, CoinGecko) combined with real-time on-chain Soroswap AMM reserve calculations. Zero mock data.
-- **Zero-Backend Architecture**: Identity = non-custodial wallet (`@creit.tech/stellar-wallets-kit`). Data = Stellar Horizon + Soroban RPC.
+- **Zero Protocol Deploy Fee**: Deploy a fair launch for only your XLM seed liquidity + standard Stellar network gas (~0.05 XLM).
+- **0.5% Creator · 99.5% Pool Allocation**: 5M tokens immediate to creator; 995M tokens seeded directly into the Soroswap AMM pair (`launch_fair`).
+- **Mandatory Anti-Rug LP Burn & On-Chain Registry**: 100% of initial LP tokens are irrevocably transferred on launch to Stellar's canonical dead address (`GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF`) and recorded in the Launchpad v2 registry (`get_launches`, `get_launch`).
+- **Permanent Mint Freezing & On-Chain Burn-to-Chat**: Contract ownership is renounced immediately on launch (`renounce_ownership`), token supply is sealed via OpenZeppelin `Capped`, and traders can burn tokens on-chain to post live shouts (`burn_shout`, `get_shouts`).
+- **Real-Time Live Pricing & 0ms Quotes**: Multi-source XLM oracle waterfall combined with instant deterministic `997/1000` constant-product AMM math and RPC failover across testnet nodes. Zero mock data.
+- **Zero-Backend Architecture**: Identity = non-custodial wallet (`@creit.tech/stellar-wallets-kit`) or 1-click Testnet Demo keypair. Data = Stellar Horizon + Soroban RPC.
 
 ---
 
@@ -34,9 +34,9 @@ flowchart TD
 | **RPC Endpoint** | `https://soroban-testnet.stellar.org` |
 | **Horizon Endpoint** | `https://horizon-testnet.stellar.org` |
 | **Flagship Token ($ASTRO)** | `CAI637WCEILQF3ZYOV6BRUCX532XQIVOOJ4CRWFPWHQRJHOH5OKHSXRE` |
-| **Token WASM Bytecode Hash** | `5930d6c69894f5cd6924e1a7d8d10282448c7c18de0143dce76e92884c39786b` |
-| **Atomic Launchpad Contract** | `CASO42JQGKYLATUDXHUZFBBHC2XKZ5XI732MVRLQC4MT664X7JVJGS52` |
-| **Launchpad WASM Bytecode Hash** | `321e7a9e32c31699832272e8c7c3da1a8291d82776eada9ef1104f27264d5c18` |
+| **Token WASM Bytecode Hash** | `a47dc064f7a072476fbbd612be98ce13d691b178b81a40ebdf4b2ec78f65c9f7` |
+| **Atomic Launchpad Contract (v2)** | `CB5LMSJ2Y2KEZEO2BXTRNA2OPFALVU6AVIOASVPZTQ66GRT3UEKOQ3O4` |
+| **Launchpad WASM Bytecode Hash (v2)** | `379575a09e323cd3244780ac7f2441a38cb85cd34ebcce84736802e081956125` |
 | **Soroswap Factory** | `CDP3HMUH6SMS3S7NPGNDJLULCOXXEPSHY4JKUKMBNQMATHDHWXRRJTBY` |
 | **Soroswap Router** | `CCJUD55AG6W5HAI5LRVNKAE5WDP5XGZBUDS5WNTIVDU7O264UZZE7BRD` |
 | **XLM SAC (Stellar Asset Contract)** | `CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC` |
@@ -47,25 +47,19 @@ flowchart TD
 ## Key Features
 
 1. **Fair Launch Form (`/create`)**:
-   - Deploys custom SEP-41 token via existing wasm hash in a single transaction.
-   - Automatically pools 99% supply with chosen seed XLM.
-   - Permanently burns 100% of received LP tokens to `GAAAA...WHF`.
-   - Renounces contract ownership to permanently freeze total supply.
-2. **Instant AMM Trading & Swap (`/`, `/market`, `/token/:id`)**:
-   - Buy tokens with XLM or sell tokens for XLM.
-   - Live quotes via `router_get_amount_out` with real on-chain reserve detection.
-   - Slippage protection (0.5%, 1%, 2%, 5%) and dynamic price impact alerts.
-   - Extreme price impact (>15%) warnings to protect traders from illiquid pool slippage.
-3. **Live Discovery & King of the Hill (`/market`)**:
-   - Discovers active pairs from Soroswap factory events without an external database.
-   - Real-time King of the Hill progress indicator based on liquidity thresholds.
-   - Instant filtering, search, sorting, and personal token watchlist/favorites.
+   - Minimalist launchpad (`launch_fair`): Name, Ticker, Seed XLM, live SVG preview, and optional collapsed off-chain links encoded in on-chain `meta` (`≤ 512` bytes).
+   - Fixed 1B supply (7 decimals): seeds 995M tokens (99.5%) + seed XLM directly into Soroswap, sends 5M (0.5%) to creator, burns 100% LP to `GAAAA...WHF`, and renounces mint authority atomically in one transaction.
+2. **Instant AMM Trading, Burn-to-Chat & Audit (`/token/:id`)**:
+   - Buy/sell against Soroswap pools with instant local `997/1000` quotes (0ms lag) and dynamic price-impact / slippage guards.
+   - Real on-chain Burn-to-Chat (`burn_shout` + `get_shouts`), live ledger activity feed, and dedicated **Audit & Contract** tab with 90-day TTL refresh (`extendTokenTtl`).
+3. **Live Pump-Style Market Feed (`/`, `/market`)**:
+   - Discovers tokens directly from the Launchpad v2 on-chain registry (`get_launches`) merged with Soroswap factory events (no external DB needed).
+   - Features King of the Hill spotlight, Fair Launchpad verified filter (`✓ Fair`), instant search, and watchlist.
 4. **Local Portfolio & Data Export (`/portfolio`)**:
    - View created tokens, user holdings, and local transaction activity.
    - Export full transaction history as CSV or JSON for personal records / auditing.
-5. **No-Wallet Testnet Demo Mode**:
-   - Instantly generate and fund 3 disposable testnet accounts via Friendbot.
-   - Test the entire multi-user lifecycle (create token, seed liquidity, cross-account transfer, buy/sell swap, burn).
+5. **1-Click Testnet Demo Wallet**:
+   - Click `Testnet Demo` directly in the top wallet menu to generate and Friendbot-fund a disposable testnet account in one click.
 
 ---
 

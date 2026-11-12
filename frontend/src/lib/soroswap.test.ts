@@ -1,8 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import {
   formatTokenPrice,
+  formatUsdPrice,
+  isLpFullyBurned,
+  localAmountOut,
+  localQuoteTokenForXlm,
+  localQuoteXlmForToken,
   lpSharePercent,
   priceImpactPercent,
+  SOROSWAP_MINIMUM_LIQUIDITY,
   spotAmountOut,
   tokenPriceInXlm,
   tokenPriceInXlmNumber,
@@ -45,7 +51,41 @@ describe('tokenPriceInXlm', () => {
     // Float representation mantiene la precisión
     const priceFloat = tokenPriceInXlmNumber(fairPool, 7)
     expect(priceFloat).toBeCloseTo(10 / 995_000_000, 12)
-    expect(formatTokenPrice(priceFloat)).toBe('0.00000001')
+    expect(formatTokenPrice(priceFloat)).toBe('0.0000000101')
+  })
+})
+
+describe('formato de precios sub-stroop', () => {
+  it('mantiene ~3 cifras significativas sin notación científica', () => {
+    expect(formatTokenPrice(5 / 995_000_000)).toBe('0.00000000503')
+    expect(formatTokenPrice(1e-11)).toBe('0.00000000001')
+    expect(formatTokenPrice(0.5)).toBe('0.500000')
+    expect(formatTokenPrice(0)).toBe('0')
+    expect(formatTokenPrice(Number.NaN)).toBe('0')
+  })
+
+  it('formatea USD sin colapsar a 0.000000 los precios de fair launch', () => {
+    // 1.005e-8 XLM * 0.1555 USD ≈ 1.56e-9 USD
+    expect(formatUsdPrice((10 / 995_000_000) * 0.1555)).toBe('0.00000000156')
+    expect(formatUsdPrice(0.5)).toBe('0.5000')
+    expect(formatUsdPrice(-1)).toBe('0')
+  })
+})
+
+describe('quema de LP con MINIMUM_LIQUIDITY', () => {
+  it('acepta como 100% quemado el total menos los 1000 LP bloqueados por el par', () => {
+    const total = 99_498_743_710n
+    expect(SOROSWAP_MINIMUM_LIQUIDITY).toBe(1_000n)
+    expect(isLpFullyBurned(total - 1_000n, total)).toBe(true)
+    expect(isLpFullyBurned(total, total)).toBe(true)
+  })
+
+  it('rechaza cualquier LP retirable fuera de la burn address', () => {
+    const total = 99_498_743_710n
+    expect(isLpFullyBurned(total - 1_001n, total)).toBe(false)
+    expect(isLpFullyBurned(total / 2n, total)).toBe(false)
+    expect(isLpFullyBurned(0n, total)).toBe(false)
+    expect(isLpFullyBurned(0n, 0n)).toBe(false)
   })
 })
 
@@ -151,5 +191,33 @@ describe('unwrapResult', () => {
 
   it('acepta valores ya desenvueltos por el SDK', () => {
     expect(unwrapResult<string>('directo', 'x')).toBe('directo')
+  })
+})
+
+describe('local 0ms AMM quote formula', () => {
+  it('matches Soroswap 997/1000 constant-product output exactly', () => {
+    const p = pool({
+      reserveToken: 9_950_000_000_000_000n,
+      reserveXlm: 200_000_000n,
+    })
+    // 10 XLM (100_000_000 stroops) into 200M XLM / 9.95e15 tokens
+    const buy = localQuoteXlmForToken(100_000_000n, p)
+    const expected =
+      (100_000_000n * 997n * 9_950_000_000_000_000n) /
+      (200_000_000n * 1000n + 100_000_000n * 997n)
+    expect(buy).toBe(expected)
+
+    const sell = localQuoteTokenForXlm(10_000_000_000n, p)
+    const expectedSell =
+      (10_000_000_000n * 997n * 200_000_000n) /
+      (9_950_000_000_000_000n * 1000n + 10_000_000_000n * 997n)
+    expect(sell).toBe(expectedSell)
+  })
+
+  it('returns 0n on missing pool or non-positive amounts/reserves', () => {
+    expect(localAmountOut(0n, 100n, 100n)).toBe(0n)
+    expect(localAmountOut(10n, 0n, 100n)).toBe(0n)
+    expect(localQuoteXlmForToken(10n, pool({ exists: false }))).toBe(0n)
+    expect(localQuoteTokenForXlm(-1n, pool())).toBe(0n)
   })
 })

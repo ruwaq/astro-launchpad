@@ -10,10 +10,11 @@
  * emit swap events directly; trades are detected by tracking pair transfers.
  */
 import { rpc, scValToNative } from '@stellar/stellar-sdk'
-import { RPC_URL, EVENT_WINDOW_LEDGERS } from './network'
+import { EVENT_WINDOW_LEDGERS, executeWithRpcFailover } from './network'
 import { shortAddress } from './format'
 import type { PoolState } from './soroswap'
 import { dedupeSnapshots, type ReserveSnapshot } from './snapshots'
+import { launchpadClient } from './token'
 
 /**
  * Ventana por defecto compartida con discovery.ts (misma constante en network.ts).
@@ -241,11 +242,12 @@ export async function fetchTokenEvents(
 
   const windowLedgers = options?.windowLedgers ?? TOKEN_EVENT_WINDOW_LEDGERS
   const maxEvents = Math.max(1, options?.maxEvents ?? TOKEN_EVENT_LIMIT)
-  const server = new rpc.Server(RPC_URL)
 
   let latestLedgerSeq: number
   try {
-    const latest = await server.getLatestLedger()
+    const latest = await executeWithRpcFailover((rpcUrl) =>
+      new rpc.Server(rpcUrl).getLatestLedger(),
+    )
     latestLedgerSeq = latest.sequence
   } catch {
     return []
@@ -268,11 +270,13 @@ export async function fetchTokenEvents(
   ) {
     let page: rpc.Api.GetEventsResponse
     try {
-      page = await server.getEvents({
-        filters,
-        ...(cursor ? { cursor } : { startLedger }),
-        limit: PAGE_LIMIT,
-      })
+      page = await executeWithRpcFailover((rpcUrl) =>
+        new rpc.Server(rpcUrl).getEvents({
+          filters,
+          ...(cursor ? { cursor } : { startLedger }),
+          limit: PAGE_LIMIT,
+        }),
+      )
     } catch (err: unknown) {
       const errMsg = (err as Error)?.message || String(err)
       const match = errMsg.match(/ledger range:\s*(\d+)\s*-\s*(\d+)/i)
@@ -328,4 +332,42 @@ export async function fetchTokenEvents(
   }
 
   return collected.slice(-maxEvents).reverse()
+}
+
+export interface TokenShout {
+  sender: string
+  amount: bigint
+  message: string
+  ledger: number
+  timestamp: bigint
+}
+
+/**
+ * Fetches newest-first on-chain Burn-to-Chat shouts from Launchpad's
+ * persistent `TokenShouts` log (immune to Soroban RPC's 24h event retention).
+ */
+export async function fetchTokenShouts(
+  tokenId: string,
+): Promise<TokenShout[]> {
+  if (!tokenId) return []
+  try {
+    const records = await executeWithRpcFailover(async (rpcUrl) => {
+      const tx = await launchpadClient(undefined, rpcUrl).get_shouts({
+        token: tokenId,
+      })
+      return tx.result
+    })
+    if (!Array.isArray(records)) return []
+    return records
+      .map((item) => ({
+        sender: item.sender,
+        amount: item.amount,
+        message: item.message,
+        ledger: item.ledger,
+        timestamp: item.timestamp,
+      }))
+      .reverse()
+  } catch {
+    return []
+  }
 }

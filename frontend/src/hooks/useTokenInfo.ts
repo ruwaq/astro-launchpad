@@ -1,9 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
 import {
+  fetchLaunchpadRecord,
   getCachedTokenMetadata,
   setCachedTokenMetadata,
 } from '../lib/discovery'
-import { ASTRO_TOKEN_ID } from '../lib/network'
+import { ASTRO_TOKEN_ID, executeWithRpcFailover } from '../lib/network'
 import { tokenClient } from '../lib/token'
 
 export type TokenInfo = {
@@ -12,6 +13,34 @@ export type TokenInfo = {
   decimals: number
   totalSupply: bigint
   owner: string | null
+  /**
+   * `false` cuando el contrato no expone `get_owner()` (SEP-41 estándar de
+   * terceros, p. ej. pares descubiertos en la factory de Soroswap). En ese
+   * caso `owner === null` NO significa "renunciado", sino "desconocido".
+   */
+  ownerSupported: boolean
+  creator?: string
+  verifiedLaunchpad?: boolean
+  launchIndex?: number
+  launchLedger?: number
+}
+
+type TokenReader = ReturnType<typeof tokenClient>
+
+/**
+ * Lee el owner sin tumbar la página: un token SEP-41 que no implementa
+ * `get_owner()` se marca como `ownerSupported: false` (fail-closed: la UI
+ * no puede presumir que la propiedad está renunciada).
+ */
+async function readOwner(
+  client: TokenReader,
+): Promise<{ owner: string | null; ownerSupported: boolean }> {
+  try {
+    const tx = await client.get_owner()
+    return { owner: tx.result ?? null, ownerSupported: true }
+  } catch {
+    return { owner: null, ownerSupported: false }
+  }
 }
 
 /**
@@ -24,38 +53,54 @@ export function useTokenInfo(contractId: string = ASTRO_TOKEN_ID) {
     queryKey: ['token-info', contractId],
     enabled: Boolean(contractId),
     queryFn: async (): Promise<TokenInfo> => {
-      const client = tokenClient(contractId)
       const cachedMeta = getCachedTokenMetadata(contractId)
+      const [tokenMeta, launch] = await Promise.all([
+        executeWithRpcFailover(async (rpcUrl) => {
+          const client = tokenClient(contractId, undefined, rpcUrl)
+          if (cachedMeta) {
+            const [totalSupply, ownerInfo] = await Promise.all([
+              client.total_supply(),
+              readOwner(client),
+            ])
+            return {
+              ...cachedMeta,
+              totalSupply: totalSupply.result,
+              ...ownerInfo,
+            }
+          }
 
-      if (cachedMeta) {
-        const [totalSupply, owner] = await Promise.all([
-          client.total_supply(),
-          client.get_owner(),
-        ])
-        return {
-          ...cachedMeta,
-          totalSupply: totalSupply.result,
-          owner: owner.result,
-        }
-      }
-
-      const [name, symbol, decimals, totalSupply, owner] = await Promise.all([
-        client.name(),
-        client.symbol(),
-        client.decimals(),
-        client.total_supply(),
-        client.get_owner(),
+          const [name, symbol, decimals, totalSupply, ownerInfo] =
+            await Promise.all([
+              client.name(),
+              client.symbol(),
+              client.decimals(),
+              client.total_supply(),
+              readOwner(client),
+            ])
+          const meta = {
+            name: name.result,
+            symbol: symbol.result,
+            decimals: decimals.result,
+          }
+          setCachedTokenMetadata(contractId, meta)
+          return {
+            ...meta,
+            totalSupply: totalSupply.result,
+            ...ownerInfo,
+          }
+        }),
+        fetchLaunchpadRecord(contractId),
       ])
-      const meta = {
-        name: name.result,
-        symbol: symbol.result,
-        decimals: decimals.result,
-      }
-      setCachedTokenMetadata(contractId, meta)
+
       return {
-        ...meta,
-        totalSupply: totalSupply.result,
-        owner: owner.result,
+        ...tokenMeta,
+        ...(launch
+          ? {
+              creator: launch.creator,
+              verifiedLaunchpad: true,
+              launchLedger: launch.ledger,
+            }
+          : {}),
       }
     },
     staleTime: 15_000,

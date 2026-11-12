@@ -15,7 +15,7 @@ use stellar_tokens::fungible::{
     burnable::FungibleBurnable,
     capped::{Capped, FungibleCapped},
     total_supply::{FungibleTotalSupply, TotalSupply},
-    Base, Compose, FungibleToken,
+    Base, Compose, ContractOverrides, FungibleToken,
 };
 
 // MuxedAddress se importa aunque no se use directamente: la expansión de
@@ -84,6 +84,7 @@ impl Token {
     #[only_owner]
     pub fn mint(e: &Env, to: Address, amount: i128) {
         <Self as FungibleToken>::ContractType::mint(e, &to, amount);
+        Self::extend_ttl(e);
     }
 
     /// Extiende el TTL de la instancia del contrato (metadata, cap y owner).
@@ -95,15 +96,36 @@ impl Token {
     }
 }
 
-/// SEP-41 completo, generado por el macro (`ContractType = Capped`).
+/// SEP-41 completo, generado por el macro (`ContractType = Compose<(Capped, TotalSupply)>`).
+/// Extiende automáticamente el TTL de la instancia en cada mutación activa.
 #[contractimpl(contracttrait)]
 impl FungibleToken for Token {
     type ContractType = Compose<(Capped, TotalSupply)>;
+
+    fn transfer(e: &Env, from: Address, to: MuxedAddress, amount: i128) {
+        Self::ContractType::transfer(e, &from, &to, amount);
+        Self::extend_ttl(e);
+    }
+
+    fn transfer_from(e: &Env, spender: Address, from: Address, to: Address, amount: i128) {
+        Self::ContractType::transfer_from(e, &spender, &from, &to, amount);
+        Self::extend_ttl(e);
+    }
 }
 
-/// Burn/transfer-from estándar para el holder.
+/// Burn/transfer-from estándar para el holder (con extensión automática de TTL).
 #[contractimpl(contracttrait)]
-impl FungibleBurnable for Token {}
+impl FungibleBurnable for Token {
+    fn burn(e: &Env, from: Address, amount: i128) {
+        Capped::burn(e, &from, amount);
+        Self::extend_ttl(e);
+    }
+
+    fn burn_from(e: &Env, spender: Address, from: Address, amount: i128) {
+        Capped::burn_from(e, &spender, &from, amount);
+        Self::extend_ttl(e);
+    }
+}
 
 /// Supply total legible on-chain (para prerender UI y Soroswap).
 #[contractimpl(contracttrait)]

@@ -5,8 +5,10 @@ import { useTokenList } from '../hooks/useTokenList'
 import { useWallet } from '../store/wallet'
 import { useCreatedTokens } from '../store/creations'
 import { fetchTokenBalance } from '../lib/token'
-import { formatAmount, shortAddress } from '../lib/format'
-import { tokenPriceInXlm, type PoolState } from '../lib/soroswap'
+import { errorMessage, formatAmount, shortAddress } from '../lib/format'
+import type { PoolState } from '../lib/soroswap'
+import { DEFAULT_XLM_USD_PRICE } from '../lib/xlm'
+import { toast } from '../lib/toast'
 import { useXlmUsdPrice } from '../hooks/useXlmUsdPrice'
 import { TokenArt } from '../components/TokenArt'
 import { ActivityFeed } from '../components/ActivityFeed'
@@ -24,10 +26,10 @@ type PortfolioToken = {
 const MAX_PORTFOLIO_TOKENS = 20
 
 export function PortfolioPage() {
-  const publicKey = useWallet((state) => state.publicKey)
+  const { publicKey, connect, startDemo, demoPending, pending } = useWallet()
   const createdTokens = useCreatedTokens((state) => state.tokens)
   const tokenList = useTokenList()
-  const { data: xlmUsd = 0.1555 } = useXlmUsdPrice()
+  const { data: xlmUsd = DEFAULT_XLM_USD_PRICE } = useXlmUsdPrice()
 
   const tokens = useMemo<PortfolioToken[]>(() => {
     const map = new Map<string, PortfolioToken>()
@@ -46,12 +48,13 @@ export function PortfolioPage() {
 
     for (const token of tokenList.data ?? []) {
       const existing = map.get(token.id)
+      const isOnChainCreator = Boolean(publicKey && token.creator === publicKey)
       map.set(token.id, {
         id: token.id,
         symbol: token.symbol,
         name: token.name,
         decimals: token.decimals,
-        created: existing?.created ?? false,
+        created: Boolean(existing?.created || isOnChainCreator),
         pool: token.pool,
         ledger: token.ledger,
       })
@@ -61,7 +64,7 @@ export function PortfolioPage() {
       if (a.created !== b.created) return a.created ? -1 : 1
       return b.ledger - a.ledger
     })
-  }, [createdTokens, tokenList.data])
+  }, [createdTokens, tokenList.data, publicKey])
 
   const queriedTokens = useMemo(() => tokens.slice(0, MAX_PORTFOLIO_TOKENS), [tokens])
 
@@ -100,23 +103,33 @@ export function PortfolioPage() {
       <div>
         <h1 className="text-2xl font-bold sm:text-3xl">Your Portfolio</h1>
         <p className="mt-1 max-w-2xl text-slate-400">
-          Tokens you created in this browser and holdings from discovered pools.
-          Everything is queried on-chain; no centralized account or backend.
+          On-chain launches created by your wallet and holdings from discovered pools.
+          Everything is queried directly from Stellar Soroban without a backend.
         </p>
       </div>
 
       {!publicKey ? (
         <section className="rounded-xl border border-amber-900 bg-amber-950/20 p-4 text-sm text-amber-200 sm:p-6">
-          Connect your wallet or enter demo mode to inspect your portfolio balances.
+          Connect your wallet or start a 1-click Testnet demo wallet to inspect your launches and balances.
           <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={demoPending || pending}
+              onClick={() => void startDemo().catch((err) => toast.error('Failed to start demo', { message: errorMessage(err) }))}
+              className="inline-flex min-h-[44px] items-center rounded-lg bg-amber-400 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-amber-300 disabled:opacity-60"
+            >
+              {demoPending ? 'Funding Demo…' : 'Testnet Demo (10k XLM)'}
+            </button>
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => void connect().catch((err) => toast.error('Failed to connect wallet', { message: errorMessage(err) }))}
+              className="inline-flex min-h-[44px] items-center rounded-lg border border-amber-700 bg-slate-950/40 px-4 py-2 text-sm font-medium text-amber-100 hover:border-amber-500 disabled:opacity-60"
+            >
+              {pending ? 'Connecting…' : 'Connect Wallet'}
+            </button>
             <Link
               to="/"
-              className="inline-flex min-h-[44px] items-center rounded-lg bg-amber-400 px-4 py-2 text-sm font-medium text-slate-950 hover:bg-amber-300"
-            >
-              Go to Demo Mode
-            </Link>
-            <Link
-              to="/market"
               className="inline-flex min-h-[44px] items-center rounded-lg border border-amber-800 px-4 py-2 text-sm hover:border-amber-600"
             >
               Explore Market
@@ -143,7 +156,7 @@ export function PortfolioPage() {
               Created Tokens
             </p>
             <p className="mt-1 font-mono text-2xl font-semibold text-slate-100">
-              {createdTokens.length}
+              {createdRows.length}
             </p>
             <Link
               to="/create"
@@ -245,13 +258,15 @@ function HoldingRow({
   isError?: boolean
   hasAccount: boolean
 }) {
+  // Valor de la tenencia en stroops: balance * reserveXlm / reserveToken.
+  // No depende del precio unitario, que en un fair launch es < 1 stroop.
   const value =
     balance && token.pool && token.pool.reserveToken > 0n
       ? (balance * token.pool.reserveXlm) / token.pool.reserveToken
       : 0n
-  const price = token.pool
-    ? tokenPriceInXlm(token.pool, token.decimals)
-    : 0n
+  const hasLiquidity = Boolean(
+    token.pool?.exists && token.pool.reserveToken > 0n && token.pool.reserveXlm > 0n,
+  )
 
   return (
     <li>
@@ -287,9 +302,15 @@ function HoldingRow({
                   ? <span className="text-rose-400 text-xs">Error</span>
                   : `${formatAmount(balance ?? 0n, token.decimals)} ${token.symbol}`}
           </p>
-          {price > 0n && !isError ? (
+          {hasAccount && !pending && !isError && token.pool ? (
             <p className="text-xs text-slate-500">
-              {value > 0n ? `${formatAmount(value, 7)} XLM` : 'no liquidity'}
+              {!hasLiquidity
+                ? 'no liquidity'
+                : value > 0n
+                  ? `≈ ${formatAmount(value, 7)} XLM`
+                  : (balance ?? 0n) > 0n
+                    ? '< 0.0000001 XLM'
+                    : null}
             </p>
           ) : null}
         </div>

@@ -1,5 +1,21 @@
 # Estado actual (para continuar en la próxima sesión)
 
+## Handoff rápido (Nov 12 2026, sesión 26 — Launchpad v2 on-chain + Rediseño Minimalista Pump.fun)
+Upgrade full-stack (Soroban v2 + Frontend/SDK minimalista sin backend). *AI-generated; revisión humana pendiente.*
+- **Contratos desplegados y verificados en Testnet**:
+  - `astro_token.wasm`: hash `a47dc064f7a072476fbbd612be98ce13d691b178b81a40ebdf4b2ec78f65c9f7` (fixes `FungibleBurnable` `Capped::burn`/`burn_from` + extensión automática de TTL a 90 días).
+  - `astro_launchpad_contract.wasm` v2: hash `379575a09e323cd3244780ac7f2441a38cb85cd34ebcce84736802e081956125`, desplegado e inicializado en `CB5LMSJ2Y2KEZEO2BXTRNA2OPFALVU6AVIOASVPZTQ66GRT3UEKOQ3O4`.
+  - Nuevos endpoints v2: `launch_fair` (supply fijo 1B, 7 decimales, 99.5% LP quemado, `meta` ≤ 512 bytes), registro persistente on-chain (`LaunchRecord`, `get_launch_count`, `get_launches`, `get_launch`), Burn-to-Chat real on-chain (`burn_shout`, `get_shouts`, `ShoutEvent`, tope 15 por token) y TTL unificado a 90 días (`extend_ttl`, `extend_launch_ttl`).
+  - Smoke test live en Testnet exitoso (`Orbital Spark` / `ORBIT` en `CDCTN4CE3FZ7MIGXUVA6MHDGIRNOMA7XWPLGZSCT7DC6C6CVN2BOI4TN`, par `CCF65IMFNAO3SEWPARZ6AYZI6ACWNJL44ELC2S36KCLVHOVHBKNEEUDB`, `burn_shout` + `get_launches` + `get_shouts` verificados on-chain).
+- **Backend-client & SDK (`network.ts`, `soroswap.ts`, `discovery.ts`, `token-metadata.ts`, `token.ts`, `token-events.ts`, `sdk/index.ts`, `format.ts`)**:
+  - Cotización instantánea determinista `997/1000` (0ms lag: `localAmountOut`, `localQuoteXlmForToken`, `localQuoteTokenForXlm`).
+  - Failover multi-RPC (`executeWithRpcFailover`) propagando inmediatamente errores no reintentables (p. ej. rango de retención de ledgers) sin reintentar nodos con cursor sin ajustar.
+  - Codec `encodeOnChainMeta`/`decodeOnChainMeta` (JSON compacto ≤ 512 UTF-8 bytes) y `verifyAntiRug` ampliado con `verifiedLaunchpad`.
+- **Frontend UX/UI Minimalista**:
+  - `/` directamente es el Market feed + CTA Launch (`/market` comparte `HomePage`), eliminado doble header/ticker (`LiveTickerBar`), eliminados 11 componentes huérfanos/redundantes (`DemoMode`, `WalletInstallHint`, `ContractDetailsCard`, `CosmicLauncherGame`, `GraduationCard`, `GraduationRadar`, `NewLaunchesFeed`, `Onboarding`, `TokenActivity`, `TokenGraphics`, `TokenInfoCard`) y `store/progress.ts`.
+  - Wallet menu (`WalletButton.tsx`) integra botón 1-click `Testnet Demo`.
+  - `/create` minimalista (`Name`, `Ticker`, `Seed XLM`, preview SVG en vivo + sección opcional colapsada); `/token/:id` con Swap instantáneo, Burn-to-Chat real on-chain y tabs `Thread | Live Trades | Audit & Contract`.
+
 ## Handoff rápido (Nov 12 2026, sesión 25 — Auditoría con 10 agentes y remediación)
 Rama `ai/audit-hardening`. Auditoría paralela (contratos, AMM, RPC, storage, trading, páginas, arte, seguridad, UI) + fixes aplicados. *AI-generated; revisión humana pendiente.*
 - **AMM/economía** (`soroswap.ts`, `market.ts`, `tokenomics.ts`, `format.ts`, `xlm.ts`): precio sub-stroop ya no trunca a 0 (`tokenPriceInXlmNumber`, `formatTokenPrice`; orden por precio con multiplicación cruzada), `withSlippage` sin crash por NaN, `calculateSupplySharePercent` con unidades correctas, `formatAmount` con negativos, `parseAmount` con separadores de miles, cotizaciones con reservas 0, pools sin sembrar al final del orden de graduación, saldo XLM de Horizon sin pasar por `Number`.

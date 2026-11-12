@@ -14,7 +14,7 @@ AstroGate publica una especificación estandarizada en `/llms.txt` accesible tan
   * Router: `CCJUD55AG6W5HAI5LRVNKAE5WDP5XGZBUDS5WNTIVDU7O264UZZE7BRD`
   * SAC XLM: `CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC`
   * Token Base ASTRO: `CAI637WCEILQF3ZYOV6BRUCX532XQIVOOJ4CRWFPWHQRJHOH5OKHSXRE`
-  * Launchpad Atómico: `CASO42JQGKYLATUDXHUZFBBHC2XKZ5XI732MVRLQC4MT664X7JVJGS52`
+  * Launchpad Atómico (v2): `CB5LMSJ2Y2KEZEO2BXTRNA2OPFALVU6AVIOASVPZTQ66GRT3UEKOQ3O4`
 
 ---
 
@@ -28,6 +28,10 @@ import {
   getTokenDetails,
   quoteSwap,
   verifyAntiRug,
+  launchFair,
+  burnShout,
+  getTokenShouts,
+  localQuoteXlmForToken,
   checkRpcHealth,
   executeWithRpcFailover,
   fetchTokenEvents,

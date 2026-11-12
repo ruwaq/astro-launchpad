@@ -18,9 +18,17 @@ import {
   unwrapResult,
   type PoolState,
 } from './soroswap'
-import { tokenClient } from './token'
-import { ASTRO_TOKEN_ID, EVENT_WINDOW_LEDGERS, RPC_URL, SOROSWAP_FACTORY, XLM_SAC } from './network'
+import { launchpadClient, tokenClient } from './token'
+import {
+  ASTRO_TOKEN_ID,
+  EVENT_WINDOW_LEDGERS,
+  executeWithRpcFailover,
+  SOROSWAP_FACTORY,
+  XLM_SAC,
+} from './network'
+import { isValidContractAddress } from './address'
 import { shortAddress } from './format'
+import { decodeOnChainMeta, saveLocalTokenMetadata } from './token-metadata'
 import {
   FACTORY_SYNC_META_KEY,
   getAllStoredTokens,
@@ -57,6 +65,10 @@ export type TokenListing = {
   /** Ledger en el que se creó el par (para ordenar por novedad). */
   ledger: number
   pool: PoolState
+  /** Set when indexed inside AstroGate Launchpad's persistent on-chain registry. */
+  verifiedLaunchpad?: boolean
+  creator?: string
+  onChainMeta?: string
 }
 
 /** Convierte un evento crudo en par token/XLM; `null` si no lo es. */
@@ -118,10 +130,11 @@ export async function discoverPairs(options?: {
   const windowLedgers = options?.windowLedgers ?? DEFAULT_WINDOW_LEDGERS
   const maxEvents = options?.maxEvents ?? 600
 
-  const server = new rpc.Server(RPC_URL)
   let latestLedgerSeq: number
   try {
-    const latest = await server.getLatestLedger()
+    const latest = await executeWithRpcFailover((rpcUrl) =>
+      new rpc.Server(rpcUrl).getLatestLedger(),
+    )
     latestLedgerSeq = latest.sequence
   } catch {
     return []
@@ -140,11 +153,13 @@ export async function discoverPairs(options?: {
   while (pairs.length < maxEvents && emptyPagesCount < MAX_EMPTY_PAGES) {
     let page: rpc.Api.GetEventsResponse
     try {
-      page = await server.getEvents({
-        filters,
-        ...(cursor ? { cursor } : { startLedger }),
-        limit: 200,
-      })
+      page = await executeWithRpcFailover((rpcUrl) =>
+        new rpc.Server(rpcUrl).getEvents({
+          filters,
+          ...(cursor ? { cursor } : { startLedger }),
+          limit: 200,
+        }),
+      )
     } catch (err: unknown) {
       const errMsg = (err as Error)?.message || String(err)
       const match = errMsg.match(/ledger range:\s*(\d+)\s*-\s*(\d+)/i)
@@ -365,6 +380,8 @@ export function recordToListing(record: StoredTokenRecord): TokenListing {
     symbol: record.symbol,
     decimals: record.decimals,
     ledger: record.ledger,
+    verifiedLaunchpad: record.isAntiRugVerified,
+    creator: record.creator,
     pool: {
       exists: true,
       pairId: record.pairId,
@@ -385,7 +402,118 @@ export function listingToRecord(listing: TokenListing): StoredTokenRecord {
     reserveToken: listing.pool.reserveToken.toString(),
     reserveXlm: listing.pool.reserveXlm.toString(),
     ledger: listing.ledger,
+    creator: listing.creator,
+    isAntiRugVerified: listing.verifiedLaunchpad,
     updatedAt: Date.now(),
+  }
+}
+
+/**
+ * Fetches a single token's canonical registry entry from AstroGate Launchpad.
+ * Also hydrates on-chain JSON metadata locally so all visitors see creator notes/socials.
+ */
+export async function fetchLaunchpadRecord(tokenId: string): Promise<{
+  creator: string
+  pair: string
+  name: string
+  symbol: string
+  decimals: number
+  initialSupply: bigint
+  tokenLpAmount: bigint
+  xlmLpAmount: bigint
+  lpMinted: bigint
+  meta: string
+  ledger: number
+} | null> {
+  if (!isValidContractAddress(tokenId)) return null
+  try {
+    const record = await executeWithRpcFailover(async (rpcUrl) => {
+      const tx = await launchpadClient(undefined, rpcUrl).get_launch({
+        token: tokenId,
+      })
+      return tx.result
+    })
+    if (!record) return null
+
+    cachePairId(record.token, record.pair)
+    setCachedTokenMetadata(record.token, {
+      name: record.name,
+      symbol: record.symbol,
+      decimals: record.decimals,
+    })
+    const enriched = decodeOnChainMeta(record.token, record.meta)
+    if (enriched) saveLocalTokenMetadata(enriched)
+
+    return {
+      creator: record.creator,
+      pair: record.pair,
+      name: record.name,
+      symbol: record.symbol,
+      decimals: record.decimals,
+      initialSupply: record.initial_supply,
+      tokenLpAmount: record.token_lp_amount,
+      xlmLpAmount: record.xlm_lp_amount,
+      lpMinted: record.lp_minted,
+      meta: record.meta,
+      ledger: record.ledger,
+    }
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Primary discovery source: reads newest launches directly from Launchpad's
+ * persistent 90-day registry (immune to Soroban RPC's 24h `getEvents` limit).
+ */
+export async function fetchLaunchpadRegistryListings(
+  limit = 20,
+): Promise<TokenListing[]> {
+  try {
+    const records = await executeWithRpcFailover(async (rpcUrl) => {
+      const tx = await launchpadClient(undefined, rpcUrl).get_launches({
+        offset: 0,
+        limit,
+      })
+      return tx.result
+    })
+    if (!Array.isArray(records) || records.length === 0) return []
+
+    const listings = await mapLimit(records, 3, async (rec) => {
+      try {
+        cachePairId(rec.token, rec.pair)
+        setCachedTokenMetadata(rec.token, {
+          name: rec.name,
+          symbol: rec.symbol,
+          decimals: rec.decimals,
+        })
+        const enriched = decodeOnChainMeta(rec.token, rec.meta)
+        if (enriched) saveLocalTokenMetadata(enriched)
+
+        const pool = await fetchPoolStateByPair(rec.pair)
+        return {
+          id: rec.token,
+          name: rec.name,
+          symbol: rec.symbol,
+          decimals: rec.decimals,
+          ledger: rec.ledger,
+          verifiedLaunchpad: true,
+          creator: rec.creator,
+          onChainMeta: rec.meta,
+          pool: {
+            exists: pool?.exists ?? true,
+            pairId: rec.pair,
+            reserveToken: pool?.reserveToken ?? rec.token_lp_amount,
+            reserveXlm: pool?.reserveXlm ?? rec.xlm_lp_amount,
+          },
+        } as TokenListing
+      } catch {
+        return null
+      }
+    })
+    return listings.filter((item): item is TokenListing => item !== null)
+  } catch {
+    return []
   }
 }
 
@@ -397,9 +525,11 @@ export async function syncFactoryPairs(options?: {
   maxScan?: number
 }): Promise<TokenListing[]> {
   try {
-    const { factory } = soroswapClients()
-    const lengthTx = await factory.all_pairs_length()
-    const totalPairs = unwrapResult<number>(lengthTx.result, 'all_pairs_length')
+    const totalPairs = await executeWithRpcFailover(async (rpcUrl) => {
+      const { factory } = soroswapClients(undefined, rpcUrl)
+      const lengthTx = await factory.all_pairs_length()
+      return unwrapResult<number>(lengthTx.result, 'all_pairs_length')
+    })
     if (typeof totalPairs !== 'number' || totalPairs <= 0) return []
 
     const maxScan = options?.maxScan ?? 5
@@ -412,8 +542,11 @@ export async function syncFactoryPairs(options?: {
     const discoveredListings = (
       await mapLimit(indices, 3, async (i) => {
         try {
-          const pairTx = await factory.all_pairs({ n: i })
-          const pairId = unwrapResult<string>(pairTx.result, 'all_pairs')
+          const pairId = await executeWithRpcFailover(async (rpcUrl) => {
+            const { factory } = soroswapClients(undefined, rpcUrl)
+            const pairTx = await factory.all_pairs({ n: i })
+            return unwrapResult<string>(pairTx.result, 'all_pairs')
+          })
           if (!pairId) return null
 
           const pool = await fetchPoolStateByPair(pairId)
@@ -484,18 +617,26 @@ export async function discoverTokens(options?: {
     }
   }
 
-  // 2. Traer pares de eventos en vivo
+  // 2. Primary on-chain registry + recent Soroswap pair events + pinned ASTRO
   try {
-    const pairs = await discoverPairs(options)
-    const discovered = pairs.filter((pair) => !pinned.includes(pair.tokenId))
-    const pinnedPairs: DiscoveredPair[] = pinned.map(
-      (tokenId) =>
-        pairs.find((pair) => pair.tokenId === tokenId) ?? {
-          tokenId,
-          pairId: '',
-          ledger: 0,
-        },
+    const [registryListings, pairs] = await Promise.all([
+      fetchLaunchpadRegistryListings(20),
+      discoverPairs(options),
+    ])
+    const registryIds = new Set(registryListings.map((r) => r.id))
+    const discovered = pairs.filter(
+      (pair) => !pinned.includes(pair.tokenId) && !registryIds.has(pair.tokenId),
     )
+    const pinnedPairs: DiscoveredPair[] = pinned
+      .filter((tokenId) => !registryIds.has(tokenId))
+      .map(
+        (tokenId) =>
+          pairs.find((pair) => pair.tokenId === tokenId) ?? {
+            tokenId,
+            pairId: '',
+            ledger: 0,
+          },
+      )
     const selected = [...pinnedPairs, ...discovered].slice(0, maxTokens)
 
     // Concurrencia acotada a 3 para no saturar RPC
@@ -503,11 +644,12 @@ export async function discoverTokens(options?: {
       (listing): listing is TokenListing => listing !== null,
     )
 
-    if (freshEventListings.length > 0) {
-      await putStoredTokens(freshEventListings.map(listingToRecord))
+    const allFresh = [...freshEventListings, ...registryListings]
+    if (allFresh.length > 0) {
+      await putStoredTokens(allFresh.map(listingToRecord))
     }
 
-    // Si no había registros almacenados, lanzamos sync de factory sin bloquear (singleton)
+    // Fallback scan only if both cache & live discovery returned no external pairs
     if (storedListings.length === 0 && typeof window !== 'undefined') {
       if (!syncFactoryPromise) {
         syncFactoryPromise = syncFactoryPairs({ maxScan: 10 }).finally(() => {
@@ -516,10 +658,14 @@ export async function discoverTokens(options?: {
       }
     }
 
-    // Fusión por id de token
+    // Merge by token id: registry entries preserve verifiedLaunchpad=true
     const map = new Map<string, TokenListing>()
     for (const item of storedListings) map.set(item.id, item)
-    for (const item of freshEventListings) map.set(item.id, item)
+    for (const item of freshEventListings) {
+      const prev = map.get(item.id)
+      map.set(item.id, prev?.verifiedLaunchpad ? { ...item, verifiedLaunchpad: true, creator: prev.creator } : item)
+    }
+    for (const item of registryListings) map.set(item.id, item)
 
     const merged = Array.from(map.values())
     merged.sort((a, b) => {
@@ -527,6 +673,9 @@ export async function discoverTokens(options?: {
       const bPinned = pinned.includes(b.id)
       if (aPinned && !bPinned) return -1
       if (!aPinned && bPinned) return 1
+      if (Boolean(a.verifiedLaunchpad) !== Boolean(b.verifiedLaunchpad)) {
+        return a.verifiedLaunchpad ? -1 : 1
+      }
       return b.ledger - a.ledger
     })
 

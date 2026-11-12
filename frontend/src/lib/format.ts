@@ -122,17 +122,32 @@ export function errorMessage(error: unknown): string {
     return 'Token and XLM ratio does not match pool reserves. Enable "Maintain pool ratio" and try again.'
   }
   if (
-    raw.includes('Error(Contract, #4)') ||
-    lower.includes('invalidmetadata') ||
-    lower.includes('invalid metadata')
+    raw.includes('Error(Contract, #1)') ||
+    lower.includes('notinitialized') ||
+    lower.includes('not initialized')
   ) {
-    return 'Invalid token metadata: decimals > 18, or empty/oversized (>32 bytes) name or symbol.'
+    return 'Launchpad contract is not initialized on this network.'
   }
   if (
+    raw.includes('Error(Contract, #2)') ||
+    lower.includes('invalidamount') ||
+    lower.includes('invalid amount')
+  ) {
+    return 'Invalid amount: check minimum XLM LP (1 XLM), supply, or burn shout amount.'
+  }
+  if (
+    raw.includes('Error(Contract, #3)') ||
     lower.includes('pairalreadyseeded') ||
     lower.includes('pair already exists')
   ) {
     return 'Soroswap pair already exists with non-zero liquidity. Tokens cannot be launched over existing pairs.'
+  }
+  if (
+    raw.includes('Error(Contract, #4)') ||
+    lower.includes('invalidmetadata') ||
+    lower.includes('invalid metadata')
+  ) {
+    return 'Invalid metadata: name/symbol must be 1–32 bytes, message 1–160 bytes, and off-chain metadata ≤ 512 bytes.'
   }
   if (lower.includes('expired') || lower.includes('deadline')) {
     return 'Transaction timed out (deadline expired). Please try again.'

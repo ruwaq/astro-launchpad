@@ -99,6 +99,27 @@ describe('network configuration', () => {
     expect(isRetryableRpcError(new Error('503 Service Unavailable'))).toBe(true)
     expect(isRetryableRpcError(new Error('fetch failed'))).toBe(true)
     expect(isRetryableRpcError(new Error('Contract Error #100'))).toBe(false)
+    expect(
+      isRetryableRpcError(
+        new Error('startLedger must be within the ledger range: 4500 - 5000'),
+      ),
+    ).toBe(false)
+  })
+
+  it('propagates non-retryable errors immediately without failover retries', async () => {
+    const pool = ['https://rpc1.stellar.org', 'https://rpc2.stellar.org']
+    let calls = 0
+    await expect(
+      executeWithRpcFailover(
+        async () => {
+          calls++
+          throw new Error('startLedger must be within the ledger range: 4500 - 5000')
+        },
+        pool,
+        { maxRetries: 2, initialDelayMs: 1 },
+      ),
+    ).rejects.toThrow(/ledger range/)
+    expect(calls).toBe(1)
   })
 
   it('executes action with failover across the pool on error', async () => {

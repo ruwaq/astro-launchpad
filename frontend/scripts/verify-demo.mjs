@@ -1,12 +1,16 @@
 /**
- * Verificación del modo prueba: crea las 3 cuentas demo con Friendbot,
- * comprueba firmantes y saldos, paga A -> B y ejecuta el flujo multi-usuario:
- * A crea token + liquidez, transfiere tokens a B y B swapea a XLM.
+ * End-to-end verification of AstroGate Demo Mode & Launchpad v2 on Stellar Testnet:
+ * 1. Creates & funds 3 disposable accounts (A, B, C) via Friendbot.
+ * 2. Sends Horizon payment A -> B.
+ * 3. Account A runs single-tx Fair Launch (`launch_fair`) with compact on-chain JSON meta.
+ * 4. Verifies `LaunchRecord`, `verifyAntiRug` (ownership renounced + LP burned), and local metadata.
+ * 5. Transfers tokens A -> B; B buys via Soroswap using 0ms `localQuoteXlmForToken`.
+ * 6. A adds & atomically removes community LP (`LiquidityForm` / `LiquidityPosition` path).
+ * 7. B sells tokens via `swapTokenForXlm`, then runs Burn-to-Chat (`burn_shout` + `get_shouts`).
+ * 8. B refreshes 90-day TTL via `extendTokenTtl`.
  *
- * No necesita STELLAR_SECRET: las cuentas son nuevas y desechables. No imprime
- * semillas. Crea cuentas reales en testnet (gratis).
- *
- * Uso: npm run verify:demo
+ * Requires NO STELLAR_SECRET (uses disposable Friendbot accounts).
+ * Usage: npm run verify:demo
  */
 import { createServer } from 'vite'
 import {
@@ -30,18 +34,23 @@ let failed = false
 
 try {
   const demo = await vite.ssrLoadModule('/src/lib/demo.ts')
+  const soroswap = await vite.ssrLoadModule('/src/lib/soroswap.ts')
+  const tokenLib = await vite.ssrLoadModule('/src/lib/token.ts')
+  const metadataLib = await vite.ssrLoadModule('/src/lib/token-metadata.ts')
+  const discoveryLib = await vite.ssrLoadModule('/src/lib/discovery.ts')
+  const eventsLib = await vite.ssrLoadModule('/src/lib/token-events.ts')
+  const sdkLib = await vite.ssrLoadModule('/src/sdk/index.ts')
   const horizon = new Horizon.Server(HORIZON_URL)
 
   console.log('creando 3 cuentas demo con Friendbot (secuencial)…')
-  const accounts = await demo.createDemoAccounts(
+  const { accounts, failed: fundFailed } = await demo.createDemoAccounts(
     ({ index, status }) => {
-      // Solo etiqueta y estado: las semillas nunca se imprimen.
-      console.log(`  cuenta ${demo.DEMO_LABELS[index]}: ${status}`)
+      console.log(`  cuenta ${demo.demoLabelForIndex(index)}: ${status}`)
     },
   )
 
-  if (accounts.length !== demo.DEMO_ACCOUNT_COUNT) {
-    throw new Error(`esperaba ${demo.DEMO_ACCOUNT_COUNT} cuentas, hay ${accounts.length}`)
+  if (fundFailed > 0 || accounts.length !== demo.DEMO_ACCOUNT_COUNT) {
+    throw new Error(`esperaba ${demo.DEMO_ACCOUNT_COUNT} cuentas, hay ${accounts.length} (failed=${fundFailed})`)
   }
 
   for (const account of accounts) {
@@ -63,11 +72,9 @@ try {
     throw new Error('alguna cuenta demo no tiene XLM')
   }
 
-  // Pago real A -> B con la semilla de la cuenta demo: el mismo camino que firma
-  // la UI (KeypairSigner) pero con la SDK clásica de Horizon.
-  const [sender, receiver] = accounts
+  const [sender, receiver, bystander] = accounts
   const source = await horizon.loadAccount(sender.publicKey)
-  const tx = new TransactionBuilder(source, {
+  const paymentTx = new TransactionBuilder(source, {
     fee: '100000',
     networkPassphrase: Networks.TESTNET,
   })
@@ -81,8 +88,8 @@ try {
     .setTimeout(30)
     .build()
 
-  tx.sign(Keypair.fromSecret(sender.secret))
-  await horizon.submitTransaction(tx)
+  paymentTx.sign(Keypair.fromSecret(sender.secret))
+  await horizon.submitTransaction(paymentTx)
 
   const receiverBalance = await demo.fetchXlmBalance(receiver.publicKey)
   console.log('pago A -> B de 1 XLM enviado; saldo de B:', receiverBalance)
@@ -90,135 +97,142 @@ try {
     throw new Error('el pago A -> B no se reflejó en el saldo de B')
   }
 
-  // Flujo multi-usuario real: A crea token + liquidez, pasa tokens a B y B
-  // swapea. Es el mismo código que usan los componentes de la UI.
-  const soroswap = await vite.ssrLoadModule('/src/lib/soroswap.ts')
-  const tokenLib = await vite.ssrLoadModule('/src/lib/token.ts')
   const signerA = demo.demoSigner(sender)
   const signerB = demo.demoSigner(receiver)
+  const signerC = demo.demoSigner(bystander)
   const decimals = 7
   const unit = 10n ** BigInt(decimals)
 
-  const token = await tokenLib.deployToken({
+  // 1. Atomic Launchpad v2 Fair Launch (1 tx: 1B supply, 99.5% LP burned, ownership renounced)
+  const fairMeta = metadataLib.encodeOnChainMeta({
+    description: 'Automated Launchpad v2 E2E Fair Launch',
+  })
+  const launch = await tokenLib.launchFairAtomic({
     name: `Demo ${Date.now()}`,
     symbol: 'DEMO',
-    decimals,
-    initialSupply: 1000n * unit,
+    xlmLpAmount: 5n * unit,
+    meta: fairMeta,
     signer: signerA,
   })
-  console.log('token creado por A:', token)
+  const token = launch.token
+  console.log('Launchpad v2 token creado por A:', token, '| par:', launch.pair)
 
-  const lp = await soroswap.addLiquidity({
-    tokenId: token,
-    amountToken: 100n * unit,
-    amountXlm: 10n * unit,
-    signer: signerA,
-  })
-  console.log('liquidez de A: LP', lp.lpAmount.toString(), '| par', lp.pair)
-
-  const transfer = await tokenLib
-    .tokenClient(token, signerA)
-    .transfer({
-      from: sender.publicKey,
-      to: receiver.publicKey,
-      amount: 10n * unit,
-    })
-  await transfer.signAndSend()
-  const balanceB = await tokenLib
-    .tokenClient(token)
-    .balance({ account: receiver.publicKey })
-  console.log('B recibio', balanceB.result.toString(), 'base units del token de A')
-  if (balanceB.result !== 10n * unit) {
-    throw new Error('la transferencia A -> B no llego completa')
-  }
-
-  const pool = await soroswap.fetchPoolState(token)
-  const quote = await soroswap.quoteTokenForXlm(5n * unit, pool)
-  const swap = await soroswap.swapTokenForXlm({
-    tokenId: token,
-    amountIn: 5n * unit,
-    amountOutMin: soroswap.withSlippage(quote),
-    signer: signerB,
-  })
-  console.log('B swapeo 5 DEMO ->', swap[1]?.toString(), 'XLM (base units)')
-  if (!swap[1] || swap[1] <= 0n) {
-    throw new Error('el swap de B no devolvio XLM')
-  }
-
-  const balanceBAfterSwap = await tokenLib
-    .tokenClient(token)
-    .balance({ account: receiver.publicKey })
-  if (balanceBAfterSwap.result !== 5n * unit) {
-    throw new Error('el balance de B tras el swap no es el esperado')
-  }
-
-  // Emisión: solo el owner A puede mintear; C recibe 1 token.
-  const mintTx = await tokenLib.tokenClient(token, signerA).mint({
-    to: accounts[2].publicKey,
-    amount: 1n * unit,
-  })
-  await mintTx.signAndSend()
-  const balanceC = await tokenLib
-    .tokenClient(token)
-    .balance({ account: accounts[2].publicKey })
-  console.log('C recibio', balanceC.result.toString(), 'base units (mint del owner)')
-  if (balanceC.result !== 1n * unit) {
-    throw new Error('el mint del owner no llego a C')
-  }
-
-  // Quema: B destruye 1 token propio y el supply baja exactamente.
-  const supplyBeforeBurn = await tokenLib.tokenClient(token).total_supply()
-  const burnTx = await tokenLib.tokenClient(token, signerB).burn({
-    from: receiver.publicKey,
-    amount: 1n * unit,
-  })
-  await burnTx.signAndSend()
-  const [balanceBAfterBurn, supplyAfterBurn] = await Promise.all([
-    tokenLib.tokenClient(token).balance({ account: receiver.publicKey }),
+  const [record, audit, supplyInitial, creatorBalInitial] = await Promise.all([
+    discoveryLib.fetchLaunchpadRecord(token),
+    sdkLib.verifyAntiRug(token),
     tokenLib.tokenClient(token).total_supply(),
+    tokenLib.fetchTokenBalance(token, sender.publicKey),
   ])
-  console.log(
-    'B quemo 1 DEMO; balance',
-    balanceBAfterBurn.result.toString(),
-    '| supply',
-    supplyAfterBurn.result.toString(),
-  )
-  if (balanceBAfterBurn.result !== balanceBAfterSwap.result - 1n * unit) {
-    throw new Error('el burn no desconto el balance de B')
+  if (!record || record.creator !== sender.publicKey) {
+    throw new Error('LaunchRecord no encontrado o creator no coincide')
   }
-  if (supplyAfterBurn.result !== supplyBeforeBurn.result - 1n * unit) {
-    throw new Error('el burn no desconto el supply total')
+  if (!audit.isAntiRugVerified || !audit.verifiedLaunchpad || !audit.lpBurned || !audit.ownershipRenounced) {
+    throw new Error(`verifyAntiRug fallo: ${JSON.stringify(audit)}`)
+  }
+  if (supplyInitial.result !== 1_000_000_000n * unit) {
+    throw new Error(`supply inicial inesperado: ${supplyInitial.result.toString()}`)
+  }
+  if (creatorBalInitial !== 5_000_000n * unit) {
+    throw new Error(`asignacion 0.5% creador inesperada: ${creatorBalInitial.toString()}`)
+  }
+  console.log('verifyAntiRug + registro v2 OK (5M creator, 995M pool, LP quemado, owner renunciado)')
+
+  // 2. Transfer A -> B + B compra via Soroswap con cotizacion local 0ms
+  const transfer = await tokenLib.tokenClient(token, signerA).transfer({
+    from: sender.publicKey,
+    to: receiver.publicKey,
+    amount: 100n * unit,
+  })
+  await transfer.signAndSend()
+  const balBAfterXfer = await tokenLib.fetchTokenBalance(token, receiver.publicKey)
+  if (balBAfterXfer !== 100n * unit) {
+    throw new Error('transfer A -> B no llego completo')
   }
 
-  // Compra: B paga 1 XLM y recibe tokens del par. Es la dirección inversa del
-  // primer swap y usa la misma ruta del router con el XLM SAC como input.
-  const poolAfterBurn = await soroswap.fetchPoolState(token)
-  const buyQuote = await soroswap.quoteXlmForToken(1n * unit, poolAfterBurn)
-  if (buyQuote <= 0n) {
-    throw new Error('la cotización XLM -> token devolvió 0')
+  const poolBeforeBuy = await soroswap.fetchPoolState(token)
+  const buyQuoteLocal = soroswap.localQuoteXlmForToken(1n * unit, poolBeforeBuy)
+  if (buyQuoteLocal <= 0n) {
+    throw new Error('localQuoteXlmForToken devolvio 0')
   }
-  const buy = await soroswap.swapXlmForToken({
+  const buySwap = await soroswap.swapXlmForToken({
     tokenId: token,
     amountIn: 1n * unit,
-    amountOutMin: soroswap.withSlippage(buyQuote),
+    amountOutMin: soroswap.withSlippage(buyQuoteLocal, 2),
     signer: signerB,
   })
-  const bought = buy[1] ?? 0n
+  const bought = buySwap[1] ?? 0n
   if (bought <= 0n) {
-    throw new Error('la compra no devolvió tokens')
+    throw new Error('swapXlmForToken no devolvio tokens')
   }
-  const balanceBAfterBuy = await tokenLib
-    .tokenClient(token)
-    .balance({ account: receiver.publicKey })
-  console.log('B compro con 1 XLM y recibio', bought.toString(), 'base units')
-  if (balanceBAfterBuy.result !== balanceBAfterBurn.result + bought) {
-    throw new Error('el balance de B tras la compra no cuadra')
+  const balBAfterBuy = await tokenLib.fetchTokenBalance(token, receiver.publicKey)
+  if (balBAfterBuy !== balBAfterXfer + bought) {
+    throw new Error('balance de B tras compra no cuadra')
   }
+  console.log('A transfirio 100 DEMO a B; B compro', bought.toString(), 'base units con 1 XLM')
 
-  console.log('\nOK: 3 cuentas demo fondeadas, firmantes válidos y pago entre cuentas')
-  console.log('OK: A crea token + liquidez -> transfiere a B -> B swapea')
-  console.log('OK: owner A mintea a C -> B quema su token y baja el supply')
-  console.log('OK: B compra tokens pagando XLM por el router')
+  // 3. A anade y retira liquidez comunitaria (remove_liquidity atomico)
+  const poolForLp = await soroswap.fetchPoolState(token)
+  const lpTokenIn = 2_000_000n * unit
+  const matchedXlm = (lpTokenIn * poolForLp.reserveXlm) / poolForLp.reserveToken
+  const addedLp = await soroswap.addLiquidity({
+    tokenId: token,
+    amountToken: lpTokenIn,
+    amountXlm: matchedXlm > 0n ? matchedXlm : 1n * unit,
+    signer: signerA,
+  })
+  if (addedLp.lpAmount <= 0n) {
+    throw new Error('addLiquidity comunitario devolvio 0 LP')
+  }
+  const removedLp = await soroswap.withdrawLiquidity({
+    tokenId: token,
+    lpAmount: addedLp.lpAmount,
+    signer: signerA,
+  })
+  if (removedLp.xlmAmount <= 0n || removedLp.tokenAmount <= 0n) {
+    throw new Error('withdrawLiquidity devolvio 0')
+  }
+  console.log('A proveyo y retiro liquidez comunitaria LP:', addedLp.lpAmount.toString())
+
+  // 4. B vende parte de sus tokens por XLM + Burn-to-Chat on-chain + Extend TTL
+  const poolBeforeSell = await soroswap.fetchPoolState(token)
+  const sellAmount = 50n * unit
+  const sellQuoteLocal = soroswap.localQuoteTokenForXlm(sellAmount, poolBeforeSell)
+  const sellSwap = await soroswap.swapTokenForXlm({
+    tokenId: token,
+    amountIn: sellAmount,
+    amountOutMin: soroswap.withSlippage(sellQuoteLocal, 2),
+    signer: signerB,
+  })
+  if (!sellSwap[1] || sellSwap[1] <= 0n) {
+    throw new Error('swapTokenForXlm no devolvio XLM')
+  }
+  console.log('B vendio 50 DEMO ->', sellSwap[1].toString(), 'stroops XLM')
+
+  const shoutText = `Live E2E shout ${Date.now()}`
+  const supplyBeforeShout = (await tokenLib.tokenClient(token).total_supply()).result
+  await tokenLib.burnAndShout({
+    tokenId: token,
+    amount: 10n * unit,
+    message: shoutText,
+    signer: signerB,
+  })
+  const [shouts, supplyAfterShout] = await Promise.all([
+    eventsLib.fetchTokenShouts(token),
+    tokenLib.tokenClient(token).total_supply(),
+  ])
+  if (!shouts.some((s) => s.sender === receiver.publicKey && s.message === shoutText)) {
+    throw new Error('burn_shout no aparecio en get_shouts on-chain')
+  }
+  if (supplyAfterShout.result !== supplyBeforeShout - 10n * unit) {
+    throw new Error('burn_shout no redujo total_supply exactamente')
+  }
+  console.log('Burn-to-Chat on-chain OK y total_supply reducido tras quema')
+
+  // 5. C ejecuta extendTokenTtl sin permisos especiales
+  await tokenLib.extendTokenTtl({ tokenId: token, signer: signerC })
+  console.log('extendTokenTtl (90 dias) OK desde cuenta C')
+
+  console.log('\nOK: E2E completo Launchpad v2 + Soroswap AMM + Burn-to-Chat + TTL verificado en Testnet')
 } catch (err) {
   failed = true
   console.error('\nFALLO:', err?.message ?? err)

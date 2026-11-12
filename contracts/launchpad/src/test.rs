@@ -8,7 +8,7 @@ use soroban_sdk::{
     token, Address, BytesN, Env, String,
 };
 
-use crate::contract::{LaunchParams, Launchpad, LaunchpadClient, LaunchpadError};
+use crate::contract::{FairLaunchParams, LaunchParams, Launchpad, LaunchpadClient, LaunchpadError};
 
 // Cliente real del token (el wasm de dev-deps también se usa en el
 // launch success) para verificar invariantes de fair launch.
@@ -522,4 +522,218 @@ fn test_full_100_percent_lp_launch() {
     assert_eq!(deployed_token_client.balance(&creator), 0);
     // Pair receives 100% of tokens
     assert_eq!(deployed_token_client.balance(&result.pair), supply);
+}
+
+#[test]
+fn test_launch_fair_and_registry() {
+    let e = Env::default();
+    e.mock_all_auths();
+
+    let wasm_hash = e.deployer().upload_contract_wasm(TOKEN_WASM);
+    let pair_addr = e.register(MockSoroswapPair, ((0_i128, 0_i128),));
+    let factory_addr = e.register(MockSoroswapFactory, (pair_addr.clone(), false));
+    let xlm_sac_addr = e.register(MockToken, ());
+    let burn_addr = Address::generate(&e);
+
+    let launchpad_addr = e.register(
+        Launchpad,
+        (factory_addr, xlm_sac_addr, wasm_hash, burn_addr.clone()),
+    );
+    let client = LaunchpadClient::new(&e, &launchpad_addr);
+    let creator = Address::generate(&e);
+
+    assert_eq!(client.get_launch_count(), 0);
+    assert!(client.get_launches(&0, &10).is_empty());
+
+    let meta_one = String::from_str(&e, r#"{"d":"First fair coin","x":"@firstcoin"}"#);
+    let res_one = client.launch_fair(&FairLaunchParams {
+        creator: creator.clone(),
+        name: String::from_str(&e, "Moon Cat"),
+        symbol: String::from_str(&e, "MCAT"),
+        xlm_lp_amount: 50_000_000_i128,
+        meta: meta_one.clone(),
+        salt: BytesN::from_array(&e, &[21u8; 32]),
+    });
+
+    let tok_one = AstroTokenClient::new(&e, &res_one.token);
+    assert_eq!(tok_one.decimals(), 7);
+    assert_eq!(tok_one.total_supply(), 10_000_000_000_000_000_i128);
+    assert_eq!(tok_one.balance(&creator), 50_000_000_000_000_i128);
+    assert_eq!(tok_one.balance(&res_one.pair), 9_950_000_000_000_000_i128);
+    assert_eq!(tok_one.get_owner(), None);
+    assert_eq!(
+        MockSoroswapPairClient::new(&e, &res_one.pair).lp_recipient(),
+        burn_addr
+    );
+
+    let res_two = client.launch_fair(&FairLaunchParams {
+        creator: creator.clone(),
+        name: String::from_str(&e, "Solar Pup"),
+        symbol: String::from_str(&e, "SPUP"),
+        xlm_lp_amount: 100_000_000_i128,
+        meta: String::from_str(&e, ""),
+        salt: BytesN::from_array(&e, &[22u8; 32]),
+    });
+
+    assert_eq!(client.get_launch_count(), 2);
+
+    // `get_launches` returns newest-first records
+    let page = client.get_launches(&0, &10);
+    assert_eq!(page.len(), 2);
+    let newest = page.get(0).unwrap();
+    let oldest = page.get(1).unwrap();
+    assert_eq!(newest.index, 1);
+    assert_eq!(newest.token, res_two.token);
+    assert_eq!(newest.symbol, String::from_str(&e, "SPUP"));
+    assert_eq!(oldest.index, 0);
+    assert_eq!(oldest.token, res_one.token);
+    assert_eq!(oldest.meta, meta_one);
+
+    // Offset pagination works cleanly
+    let page_two = client.get_launches(&1, &10);
+    assert_eq!(page_two.len(), 1);
+    assert_eq!(page_two.get(0).unwrap().token, res_one.token);
+
+    // Direct lookup by token address
+    let fetched = client.get_launch(&res_one.token).unwrap();
+    assert_eq!(fetched.creator, creator);
+    assert_eq!(fetched.lp_minted, res_one.lp_minted);
+    assert!(client.get_launch(&Address::generate(&e)).is_none());
+
+    // Permissionless TTL refresh endpoints succeed
+    client.extend_ttl();
+    client.extend_launch_ttl(&res_one.token);
+}
+
+#[test]
+fn test_launch_fair_validation_errors() {
+    let e = Env::default();
+    e.mock_all_auths();
+
+    let wasm_hash = e.deployer().upload_contract_wasm(TOKEN_WASM);
+    let pair_addr = e.register(MockSoroswapPair, ((0_i128, 0_i128),));
+    let factory_addr = e.register(MockSoroswapFactory, (pair_addr, false));
+    let xlm_sac_addr = e.register(MockToken, ());
+    let burn_addr = Address::generate(&e);
+
+    let launchpad_addr = e.register(
+        Launchpad,
+        (factory_addr, xlm_sac_addr, wasm_hash, burn_addr),
+    );
+    let client = LaunchpadClient::new(&e, &launchpad_addr);
+    let creator = Address::generate(&e);
+
+    // Oversized off-chain meta (>512 bytes) -> InvalidMetadata
+    let huge_meta = std::string::String::from_utf8(std::vec![b'a'; 513]).unwrap();
+    let err_meta = client
+        .try_launch_fair(&FairLaunchParams {
+            creator: creator.clone(),
+            name: String::from_str(&e, "Meta Fail"),
+            symbol: String::from_str(&e, "META"),
+            xlm_lp_amount: 50_000_000_i128,
+            meta: String::from_str(&e, &huge_meta),
+            salt: BytesN::from_array(&e, &[23u8; 32]),
+        })
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err_meta, LaunchpadError::InvalidMetadata);
+
+    // Below minimum XLM LP (<1 XLM) -> InvalidAmount
+    let err_amt = client
+        .try_launch_fair(&FairLaunchParams {
+            creator,
+            name: String::from_str(&e, "Low XLM"),
+            symbol: String::from_str(&e, "LOWX"),
+            xlm_lp_amount: 9_999_999_i128,
+            meta: String::from_str(&e, ""),
+            salt: BytesN::from_array(&e, &[24u8; 32]),
+        })
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err_amt, LaunchpadError::InvalidAmount);
+}
+
+#[test]
+fn test_burn_shout_burns_tokens_and_caps_history() {
+    let e = Env::default();
+    e.mock_all_auths();
+
+    let wasm_hash = e.deployer().upload_contract_wasm(TOKEN_WASM);
+    let pair_addr = e.register(MockSoroswapPair, ((0_i128, 0_i128),));
+    let factory_addr = e.register(MockSoroswapFactory, (pair_addr, false));
+    let xlm_sac_addr = e.register(MockToken, ());
+    let burn_addr = Address::generate(&e);
+
+    let launchpad_addr = e.register(
+        Launchpad,
+        (factory_addr, xlm_sac_addr, wasm_hash, burn_addr),
+    );
+    let client = LaunchpadClient::new(&e, &launchpad_addr);
+    let creator = Address::generate(&e);
+
+    let res = client.launch_fair(&FairLaunchParams {
+        creator: creator.clone(),
+        name: String::from_str(&e, "Chat Coin"),
+        symbol: String::from_str(&e, "CHAT"),
+        xlm_lp_amount: 50_000_000_i128,
+        meta: String::from_str(&e, ""),
+        salt: BytesN::from_array(&e, &[25u8; 32]),
+    });
+
+    // Validation failures
+    let err_empty = client
+        .try_burn_shout(&creator, &res.token, &100_i128, &String::from_str(&e, ""))
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err_empty, LaunchpadError::InvalidMetadata);
+
+    let err_zero = client
+        .try_burn_shout(&creator, &res.token, &0_i128, &String::from_str(&e, "gm"))
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err_zero, LaunchpadError::InvalidAmount);
+
+    let long_msg = std::string::String::from_utf8(std::vec![b'x'; 161]).unwrap();
+    let err_long = client
+        .try_burn_shout(
+            &creator,
+            &res.token,
+            &100_i128,
+            &String::from_str(&e, &long_msg),
+        )
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err_long, LaunchpadError::InvalidMetadata);
+
+    // Post 18 shouts (burning 1_000_000 stroops each) -> capped to latest 15
+    let tok = AstroTokenClient::new(&e, &res.token);
+    let starting_balance = tok.balance(&creator);
+    let starting_supply = tok.total_supply();
+
+    for i in 1..=18_i128 {
+        let msg = std::format!("shout #{i}");
+        client.burn_shout(
+            &creator,
+            &res.token,
+            &1_000_000_i128,
+            &String::from_str(&e, &msg),
+        );
+        // `e.events().all()` only returns events from the most recent invocation
+        assert!(!e.events().all().events().is_empty());
+    }
+
+    assert_eq!(tok.balance(&creator), starting_balance - 18_000_000_i128);
+    assert_eq!(tok.total_supply(), starting_supply - 18_000_000_i128);
+
+    let shouts = client.get_shouts(&res.token);
+    assert_eq!(shouts.len(), 15);
+    assert_eq!(
+        shouts.get(0).unwrap().message,
+        String::from_str(&e, "shout #4")
+    );
+    assert_eq!(
+        shouts.get(14).unwrap().message,
+        String::from_str(&e, "shout #18")
+    );
+    assert_eq!(shouts.get(14).unwrap().amount, 1_000_000_i128);
 }

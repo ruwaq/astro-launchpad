@@ -1,11 +1,11 @@
 import { useCallback, useMemo, useState } from 'react'
-import { Link, useSearchParams } from 'react-router'
+import { useSearchParams } from 'react-router'
 import { useTokenList } from '../hooks/useTokenList'
 import { formatAmount, shortAddress } from '../lib/format'
 import { isValidContractAddress } from '../lib/address'
-import { explorerContractUrl } from '../lib/explorer'
 import { graduationProgress } from '../lib/tokenomics'
-import { tokenPriceInXlm } from '../lib/soroswap'
+import { DEFAULT_XLM_USD_PRICE } from '../lib/xlm'
+import { formatTokenPrice, formatUsdPrice, tokenPriceInXlmNumber } from '../lib/soroswap'
 import { useXlmUsdPrice } from '../hooks/useXlmUsdPrice'
 import { useWatchlist } from '../store/watchlist'
 import {
@@ -29,17 +29,19 @@ type Props = {
 }
 
 function Price({ token }: { token: TokenListing }) {
-  const { data: xlmUsd = 0.1555 } = useXlmUsdPrice()
-  const price = tokenPriceInXlm(token.pool, token.decimals)
-  if (price === 0n) return <span className="text-slate-500">—</span>
-  const priceUsd = (Number(price) / 1e7) * xlmUsd
+  const { data: xlmUsd = DEFAULT_XLM_USD_PRICE } = useXlmUsdPrice()
+  // Número en coma flotante: los fair launch cotizan por debajo de 1 stroop
+  // (995M tokens contra < 99.5 XLM) y la versión bigint truncaría a 0.
+  const price = tokenPriceInXlmNumber(token.pool, token.decimals)
+  if (price <= 0) return <span className="text-slate-500">—</span>
+  const priceUsd = price * xlmUsd
   return (
     <div className="flex flex-col items-end">
       <span className="font-mono text-sm text-emerald-400">
-        {formatAmount(price, 7)} XLM
+        {formatTokenPrice(price)} XLM
       </span>
       <span className="font-mono text-[10px] text-slate-400">
-        ≈ ${priceUsd < 0.01 ? priceUsd.toFixed(6) : priceUsd.toFixed(4)}
+        ≈ ${formatUsdPrice(priceUsd)}
       </span>
     </div>
   )
@@ -103,20 +105,24 @@ function MarketCard({
         {/* Subtle Bottom Vignette for Floating Glass Controls */}
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-slate-950/90 via-slate-950/35 to-transparent" />
 
-        {/* Top-Left: Ticker & Ledger Glass Pill */}
-        <div className="absolute top-3 left-3 flex items-center gap-1.5">
+        {/* Top-Left: Ticker & Launchpad Verified Badge */}
+        <div className="absolute top-3 left-3 flex flex-wrap items-center gap-1.5">
           <span className="liquid-glass-pill rounded-full px-2.5 py-1 text-[10px] font-bold tracking-wider text-sky-300 font-mono">
             ${token.symbol}
           </span>
-          {ageLabel ? (
+          {token.verifiedLaunchpad ? (
+            <span className="liquid-glass-pill rounded-full border-emerald-400/50 bg-emerald-950/75 px-2 py-1 text-[10px] font-semibold text-emerald-300">
+              ✓ Fair
+            </span>
+          ) : ageLabel ? (
             <span className="liquid-glass-pill rounded-full px-2 py-1 font-mono text-[10px] text-slate-300">
               {ageLabel}
             </span>
           ) : null}
         </div>
 
-        {/* Top-Right: Collector Favorite & Explorer Glass Buttons */}
-        <div className="absolute top-3 right-3 flex items-center gap-1.5">
+        {/* Top-Right: Collector Favorite Toggle */}
+        <div className="absolute top-3 right-3">
           <button
             type="button"
             onClick={(e) => {
@@ -133,16 +139,6 @@ function MarketCard({
           >
             {isFav ? '★' : '☆'}
           </button>
-          <a
-            href={explorerContractUrl(token.pool.pairId ?? token.id)}
-            target="_blank"
-            rel="noreferrer"
-            onClick={(e) => e.stopPropagation()}
-            aria-label={`View ${token.symbol} in explorer`}
-            className="liquid-glass-pill flex h-8 w-8 items-center justify-center rounded-full text-white/80 hover:text-sky-300 transition-transform hover:scale-110"
-          >
-            ↗
-          </a>
         </div>
 
         {/* Bottom-Left of Art Frame: Graduation Status Pill */}
@@ -164,29 +160,6 @@ function MarketCard({
               Curve {grad.percent.toFixed(0)}%
             </span>
           )}
-        </div>
-
-        {/* OpenSea Slide-Up Quick Collect Action Bar on Hover & Accessible on Mobile */}
-        <div className="absolute inset-x-3 bottom-3 translate-y-0 opacity-100 sm:translate-y-12 sm:opacity-0 transition-all duration-300 ease-out sm:group-hover:translate-y-0 sm:group-hover:opacity-100">
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation()
-              onSelect({
-                id: token.id,
-                decimals: token.decimals,
-                symbol: token.symbol,
-              })
-              if (typeof document !== 'undefined') {
-                const el = document.getElementById('sec-swap')
-                if (el) el.scrollIntoView({ behavior: 'smooth' })
-              }
-            }}
-            className="liquid-glass-pill flex w-full items-center justify-center gap-2 rounded-2xl border-sky-400/40 bg-sky-500/85 py-2.5 text-xs font-bold text-slate-950 shadow-lg backdrop-blur-xl hover:bg-sky-400"
-          >
-            <span>Quick Swap ${token.symbol}</span>
-            <span aria-hidden="true">⚡</span>
-          </button>
         </div>
       </div>
 
@@ -247,15 +220,11 @@ function MarketCard({
           </div>
         </div>
 
-        {/* Action Link to Full Token Trading */}
-        <Link
-          to={`/token/${token.id}`}
-          onClick={(e) => e.stopPropagation()}
-          className="liquid-glass-pill flex items-center justify-center gap-1.5 rounded-xl py-2 text-center text-xs font-semibold text-slate-200 hover:text-sky-300 transition"
-        >
+        {/* Open Terminal Indicator */}
+        <div className="liquid-glass-pill flex items-center justify-center gap-1.5 rounded-xl py-2 text-center text-xs font-semibold text-slate-200 group-hover:text-sky-300 transition">
           <span>Trade & Chart</span>
           <span aria-hidden="true">→</span>
-        </Link>
+        </div>
       </div>
     </li>
   )
@@ -273,10 +242,12 @@ export function MarketList({
   const [localQuery, setLocalQuery] = useState('')
   const [localSort, setLocalSort] = useState<MarketSortKey>('recent')
   const [localFavsOnly, setLocalFavsOnly] = useState(false)
+  const [localVerifiedOnly, setLocalVerifiedOnly] = useState(false)
 
   const query = showFilters ? (searchParams.get('q') ?? localQuery) : ''
   const sort = showFilters ? ((searchParams.get('sort') as MarketSortKey) || localSort) : 'recent'
   const favsOnly = showFilters ? (searchParams.has('favs') ? searchParams.get('favs') === '1' : localFavsOnly) : false
+  const verifiedOnly = showFilters ? (searchParams.has('fair') ? searchParams.get('fair') === '1' : localVerifiedOnly) : false
 
   const setQuery = useCallback(
     (newQ: string) => {
@@ -332,16 +303,37 @@ export function MarketList({
     [showFilters, setSearchParams],
   )
 
+  const setVerifiedOnly = useCallback(
+    (next: boolean) => {
+      setLocalVerifiedOnly(next)
+      if (showFilters) {
+        setSearchParams(
+          (prev) => {
+            const params = new URLSearchParams(prev)
+            if (next) params.set('fair', '1')
+            else params.delete('fair')
+            return params
+          },
+          { replace: true },
+        )
+      }
+    },
+    [showFilters, setSearchParams],
+  )
+
   const favorites = useWatchlist((s) => s.favorites)
   const isFavorite = useCallback((id: string) => favorites.includes(id), [favorites])
 
   const tokens = useMemo(() => {
-    let result = filterAndSortTokens(list.data ?? [], query, sort, limit)
+    let result = filterAndSortTokens(list.data ?? [], query, sort)
     if (favsOnly) {
       result = result.filter((t) => isFavorite(t.id))
     }
-    return result
-  }, [list.data, query, sort, limit, favsOnly, isFavorite])
+    if (verifiedOnly) {
+      result = result.filter((t) => Boolean(t.verifiedLaunchpad))
+    }
+    return typeof limit === 'number' ? result.slice(0, limit) : result
+  }, [list.data, query, sort, limit, favsOnly, verifiedOnly, isFavorite])
   const trimmedQuery = query.trim()
   const isDirectContract = isValidContractAddress(trimmedQuery)
   const exactMatchInList = tokens.some((t) => t.id === trimmedQuery)
@@ -352,10 +344,7 @@ export function MarketList({
         <div>
           <h2 className="text-lg font-semibold">Live Market</h2>
           <p className="mt-1 text-sm text-slate-400">
-            Token/XLM pairs discovered directly from Soroswap factory events.
-            {showFilters
-              ? ' Search, sort, and select any token to trade.'
-              : ' Tap any card to swap below ⤵'}
+            On-chain fair launches & Soroswap Token/XLM pairs.
           </p>
         </div>
         <button
@@ -400,6 +389,19 @@ export function MarketList({
           </label>
 
           <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              aria-pressed={verifiedOnly}
+              onClick={() => setVerifiedOnly(!verifiedOnly)}
+              className={`min-h-[44px] rounded-lg border px-3 py-2 text-xs font-medium transition ${
+                verifiedOnly
+                  ? 'border-emerald-500/60 bg-emerald-950/40 text-emerald-300'
+                  : 'border-slate-800 bg-slate-950 text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              {verifiedOnly ? '✓ Fair Launches Only' : '✓ Fair Only'}
+            </button>
+
             <button
               type="button"
               aria-pressed={favsOnly}
@@ -553,14 +555,20 @@ export function MarketList({
 
       {list.data && list.data.length > 0 && tokens.length === 0 ? (
         <div className="mt-4 rounded-lg border border-slate-800 bg-slate-950/50 px-3 py-4 text-sm text-slate-400">
-          No tokens match your search.
-          <button
-            type="button"
-            onClick={() => setQuery('')}
-            className="ml-2 text-emerald-400 underline underline-offset-2"
-          >
-            Clear
-          </button>
+          No tokens match the current search or filters.
+          {(query || favsOnly || verifiedOnly) ? (
+            <button
+              type="button"
+              onClick={() => {
+                setQuery('')
+                setFavsOnly(false)
+                setVerifiedOnly(false)
+              }}
+              className="ml-2 text-emerald-400 underline underline-offset-2"
+            >
+              Clear filters
+            </button>
+          ) : null}
         </div>
       ) : null}
 

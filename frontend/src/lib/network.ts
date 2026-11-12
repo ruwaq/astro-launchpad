@@ -51,19 +51,19 @@ export const ASTRO_TOKEN_ID = 'CAI637WCEILQF3ZYOV6BRUCX532XQIVOOJ4CRWFPWHQRJHOH5
  * The launchpad deploys new instances with this hash without re-uploading the binary.
  */
 export const ASTRO_WASM_HASH =
-  '5930d6c69894f5cd6924e1a7d8d10282448c7c18de0143dce76e92884c39786b'
+  'a47dc064f7a072476fbbd612be98ce13d691b178b81a40ebdf4b2ec78f65c9f7'
 
 /**
  * Atomic Launchpad contract deployed on testnet.
  */
 export const LAUNCHPAD_CONTRACT_ID =
-  'CASO42JQGKYLATUDXHUZFBBHC2XKZ5XI732MVRLQC4MT664X7JVJGS52'
+  'CB5LMSJ2Y2KEZEO2BXTRNA2OPFALVU6AVIOASVPZTQ66GRT3UEKOQ3O4'
 
 /**
  * SHA-256 hash of the launchpad contract bytecode deployed on testnet.
  */
 export const LAUNCHPAD_WASM_HASH =
-  '321e7a9e32c31699832272e8c7c3da1a8291d82776eada9ef1104f27264d5c18'
+  '379575a09e323cd3244780ac7f2441a38cb85cd34ebcce84736802e081956125'
 
 /**
  * Standard event polling ledger window (~14h on testnet, 5s ledgers).
@@ -180,7 +180,10 @@ export async function executeWithRpcFailover<T>(
         return await action(url)
       } catch (err) {
         lastError = err
-        if (!isRetryableRpcError(err) || attempt === maxRetries) {
+        if (!isRetryableRpcError(err)) {
+          throw err
+        }
+        if (attempt === maxRetries) {
           break
         }
         // Exponential backoff with jitter

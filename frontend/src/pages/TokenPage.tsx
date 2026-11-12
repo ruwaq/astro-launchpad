@@ -16,21 +16,67 @@ import {
 } from '../lib/format'
 import { explorerContractUrl, explorerAccountUrl, explorerTxUrl } from '../lib/explorer'
 import { classifyTokenEvent } from '../lib/token-events'
-import { tokenPriceInXlmNumber, formatTokenPrice } from '../lib/soroswap'
+import { tokenPriceInXlmNumber, formatTokenPrice, formatUsdPrice } from '../lib/soroswap'
 import { TokenArt } from '../components/TokenArt'
 import { SwapCard } from '../components/SwapCard'
 import { ReserveChart } from '../components/ReserveChart'
 import { TokenHypeBar } from '../components/TokenHypeBar'
 import { LiquidityForm } from '../components/LiquidityForm'
+import { LiquidityPosition } from '../components/LiquidityPosition'
 import { TransferCard } from '../components/TransferCard'
 import { BurnCard } from '../components/BurnCard'
 import { MintCard } from '../components/MintCard'
 import { NotFoundPage } from './NotFoundPage'
 import { useTokenMetadata } from '../hooks/useTokenMetadata'
+import { useLpBurnInfo } from '../hooks/useLpBurnInfo'
+import { useTokenShouts } from '../hooks/useTokenShouts'
 import { isValidContractAddress } from '../lib/address'
-import type { LaunchpadToken } from '../lib/token'
+import {
+  GRADUATION_TARGET_XLM,
+  graduationProgress,
+  rugProofStatus,
+  STELLAR_BURN_ADDRESS,
+  type RugProofStatus,
+} from '../lib/tokenomics'
+import { extendTokenTtl, type LaunchpadToken } from '../lib/token'
+import { DEFAULT_XLM_USD_PRICE } from '../lib/xlm'
+import { errorMessage } from '../lib/format'
+import { toast } from '../lib/toast'
 
-const GRADUATION_TARGET_STROOPS = 2000n * 10_000_000n // 2,000 XLM
+/** Badge honesto: solo "Rug-Proof" cuando la quema de LP está verificada. */
+function SecurityBadge({ status }: { status: RugProofStatus }) {
+  switch (status) {
+    case 'verified':
+      return (
+        <span
+          className="rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-semibold text-emerald-300 flex items-center gap-1"
+          title="Verified on-chain: ownership renounced and 100% of withdrawable LP held by the burn address"
+        >
+          <span>🛡️</span> Rug-Proof
+        </span>
+      )
+    case 'lp-not-burned':
+      return (
+        <span
+          className="rounded-full bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 text-[10px] font-semibold text-amber-300"
+          title="Minting is renounced, but LP tokens exist outside the burn address: their holders can withdraw liquidity"
+        >
+          ⚠️ LP not burned
+        </span>
+      )
+    case 'unknown':
+      return (
+        <span
+          className="rounded-full bg-slate-500/15 border border-slate-500/30 px-2 py-0.5 text-[10px] font-semibold text-slate-300"
+          title="External SEP-41 token (no get_owner): anti-rug guarantees cannot be verified"
+        >
+          External token
+        </span>
+      )
+    default:
+      return null
+  }
+}
 
 export function TokenPage() {
   const { id = '' } = useParams<{ id: string }>()
@@ -39,17 +85,43 @@ export function TokenPage() {
   const queryId = validId ? id : ''
 
   const publicKey = useWallet((state) => state.publicKey)
+  const getSigner = useWallet((state) => state.getSigner)
+  const connect = useWallet((state) => state.connect)
   const info = useTokenInfo(queryId)
   const pool = useSoroswapPool(queryId || null)
   const history = useReserveHistory(queryId, pool.data)
   const events = useTokenEvents(queryId)
-  const { data: xlmUsd = 0.1555 } = useXlmUsdPrice()
+  const shouts = useTokenShouts(queryId)
+  const { data: xlmUsd = DEFAULT_XLM_USD_PRICE } = useXlmUsdPrice()
   const meta = useTokenMetadata(queryId)
+  const lpBurn = useLpBurnInfo(pool.data?.pairId)
   const { copied, copy } = useCopy()
   const [openAdvanced, setOpenAdvanced] = useState(
     () => typeof window !== 'undefined' && window.location.hash === '#advanced-tools',
   )
-  const [activeTab, setActiveTab] = useState<'thread' | 'trades'>('thread')
+  const [activeTab, setActiveTab] = useState<'thread' | 'trades' | 'audit'>('thread')
+  const [extendingTtl, setExtendingTtl] = useState(false)
+
+  async function onExtendTtl() {
+    if (!publicKey) {
+      void connect()
+      return
+    }
+    const signer = getSigner()
+    if (!signer) {
+      toast.error('Active wallet does not support signing')
+      return
+    }
+    setExtendingTtl(true)
+    try {
+      const { hash } = await extendTokenTtl({ tokenId: id, signer })
+      toast.success('90-day TTL refreshed on-chain', { hash })
+    } catch (err) {
+      toast.error('Could not extend TTL', { message: errorMessage(err) })
+    } finally {
+      setExtendingTtl(false)
+    }
+  }
 
   const token: LaunchpadToken = useMemo(
     () => ({
@@ -122,11 +194,15 @@ export function TokenPage() {
   const liquidity = pool.data?.reserveXlm ?? 0n
   const owner = info.data.owner
   const isOwner = Boolean(publicKey && owner === publicKey)
+  const security = rugProofStatus({
+    owner,
+    ownerSupported: info.data.ownerSupported,
+    pool: pool.data,
+    lpFullyBurned: lpBurn.data?.fullyBurned,
+  })
 
-  const graduationPercent = Math.min(
-    100,
-    Math.round((Number(liquidity) / Number(GRADUATION_TARGET_STROOPS)) * 100),
-  )
+  const grad = graduationProgress(liquidity)
+  const graduationPercent = Math.min(100, Math.round(grad.percent))
 
   const safeTelegram = sanitizeTelegramUrl(meta.data?.telegram)
   const safeWebsite = sanitizeHttpUrl(meta.data?.website)
@@ -155,14 +231,8 @@ export function TokenPage() {
               <span className="rounded-lg bg-sky-500/20 border border-sky-500/30 px-2 py-0.5 font-mono text-xs font-bold text-sky-300">
                 ${token.symbol}
               </span>
-              {owner === null ? (
-                <span
-                  className="rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-semibold text-emerald-300 flex items-center gap-1"
-                  title="100% LP burned & ownership renounced on-chain"
-                >
-                  <span>🛡️</span> 100% Rug-Proof
-                </span>
-              ) : isOwner ? (
+              <SecurityBadge status={security} />
+              {isOwner ? (
                 <span className="rounded-full bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 text-[10px] font-semibold text-amber-300">
                   Creator
                 </span>
@@ -220,6 +290,11 @@ export function TokenPage() {
                 Explorer ↗
               </a>
             </div>
+            {meta.data?.description ? (
+              <p className="mt-2 max-w-xl text-xs text-slate-300 leading-relaxed">
+                {meta.data.description}
+              </p>
+            ) : null}
           </div>
         </div>
 
@@ -231,7 +306,7 @@ export function TokenPage() {
             </span>
             {priceUsd > 0 ? (
               <span className="text-xs text-slate-400">
-                ≈ ${priceUsd < 0.01 ? priceUsd.toFixed(6) : priceUsd.toFixed(4)}
+                ≈ ${formatUsdPrice(priceUsd)}
               </span>
             ) : null}
           </div>
@@ -239,7 +314,9 @@ export function TokenPage() {
           <div className="w-full sm:w-52 space-y-1">
             <div className="flex justify-between text-[10px] text-slate-400">
               <span>Graduation Progress</span>
-              <span className="font-bold text-amber-300">{graduationPercent}% (2,000 XLM)</span>
+              <span className="font-bold text-amber-300">
+                {graduationPercent}% ({GRADUATION_TARGET_XLM.toLocaleString('en-US')} XLM)
+              </span>
             </div>
             <div className="h-1.5 w-full bg-slate-900 rounded-full overflow-hidden border border-slate-800">
               <div
@@ -264,24 +341,29 @@ export function TokenPage() {
             pool={pool.data}
           />
 
-          {/* Tabbed Interactive Section: Thread vs Live Trades */}
+          {/* Tabbed Interactive Section: Thread | Live Trades | Audit & Contract */}
           <div className="space-y-3">
-            <div className="flex items-center gap-2 border-b border-slate-800/80 pb-2">
+            <div className="flex flex-wrap items-center gap-2 border-b border-slate-800/80 pb-2">
               <button
                 type="button"
                 onClick={() => setActiveTab('thread')}
-                className={`rounded-xl px-4 py-1.5 text-xs font-bold transition flex items-center gap-1.5 ${
+                className={`rounded-xl px-3.5 py-1.5 text-xs font-bold transition flex items-center gap-1.5 ${
                   activeTab === 'thread'
                     ? 'bg-sky-500/20 text-sky-300 border border-sky-400/30 shadow-sm'
                     : 'text-slate-400 hover:text-white'
                 }`}
               >
                 <span>💬 Thread</span>
+                {shouts.data && shouts.data.length > 0 ? (
+                  <span className="rounded-full bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-mono text-amber-300">
+                    {shouts.data.length}
+                  </span>
+                ) : null}
               </button>
               <button
                 type="button"
                 onClick={() => setActiveTab('trades')}
-                className={`rounded-xl px-4 py-1.5 text-xs font-bold transition flex items-center gap-1.5 ${
+                className={`rounded-xl px-3.5 py-1.5 text-xs font-bold transition flex items-center gap-1.5 ${
                   activeTab === 'trades'
                     ? 'bg-sky-500/20 text-sky-300 border border-sky-400/30 shadow-sm'
                     : 'text-slate-400 hover:text-white'
@@ -292,6 +374,17 @@ export function TokenPage() {
                   {trades.length}
                 </span>
               </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('audit')}
+                className={`rounded-xl px-3.5 py-1.5 text-xs font-bold transition flex items-center gap-1.5 ${
+                  activeTab === 'audit'
+                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 shadow-sm'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <span>🛡️ Audit & Contract</span>
+              </button>
             </div>
 
             {activeTab === 'thread' ? (
@@ -301,6 +394,85 @@ export function TokenPage() {
                 pairId={pool.data?.pairId}
                 decimals={token.decimals}
               />
+            ) : activeTab === 'audit' ? (
+              <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4 shadow-sm space-y-3 text-xs">
+                <div className="grid gap-2.5 sm:grid-cols-2">
+                  <div className="rounded-xl border border-slate-800/80 bg-slate-950/50 p-3">
+                    <p className="text-slate-400">Launchpad Registry</p>
+                    <p className="mt-1 font-semibold text-white">
+                      {info.data.verifiedLaunchpad
+                        ? '✓ AstroGate Fair Launch (On-Chain)'
+                        : 'Soroswap External Discovery'}
+                    </p>
+                    {info.data.creator ? (
+                      <a
+                        href={explorerAccountUrl(info.data.creator)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-1 inline-block font-mono text-[11px] text-sky-400 hover:underline"
+                      >
+                        Creator {shortAddress(info.data.creator)} ↗
+                      </a>
+                    ) : null}
+                  </div>
+
+                  <div className="rounded-xl border border-slate-800/80 bg-slate-950/50 p-3">
+                    <p className="text-slate-400">Mint Ownership</p>
+                    <p className="mt-1 font-semibold text-white">
+                      {!info.data.ownerSupported
+                        ? 'Unknown (no get_owner)'
+                        : info.data.owner === null ||
+                            info.data.owner === STELLAR_BURN_ADDRESS
+                          ? '✓ Renounced Forever (0 supply inflation)'
+                          : `⚠️ Active: ${shortAddress(info.data.owner)}`}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl border border-slate-800/80 bg-slate-950/50 p-3">
+                    <p className="text-slate-400">Soroswap LP Lock</p>
+                    <p className="mt-1 font-semibold text-white">
+                      {lpBurn.isPending
+                        ? 'Verifying LP burn…'
+                        : lpBurn.data?.fullyBurned
+                          ? '✓ 100% Withdrawable LP Burned'
+                          : lpBurn.data
+                            ? `${lpBurn.data.burnedPercent.toFixed(1)}% in burn address`
+                            : 'No AMM pair'}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl border border-slate-800/80 bg-slate-950/50 p-3">
+                    <p className="text-slate-400">Circulating Supply</p>
+                    <p className="mt-1 font-mono font-semibold text-white">
+                      {formatAmount(info.data.totalSupply, info.data.decimals)} ${token.symbol}
+                    </p>
+                    {pool.data?.pairId ? (
+                      <a
+                        href={explorerContractUrl(pool.data.pairId)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-1 inline-block font-mono text-[11px] text-sky-400 hover:underline"
+                      >
+                        Pair {shortAddress(pool.data.pairId)} ↗
+                      </a>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800/80">
+                  <span className="text-[11px] text-slate-400">
+                    Keep Soroban token & registry state alive for 90 days.
+                  </span>
+                  <button
+                    type="button"
+                    disabled={extendingTtl}
+                    onClick={() => void onExtendTtl()}
+                    className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:border-sky-500 hover:text-sky-300 disabled:opacity-50"
+                  >
+                    {extendingTtl ? 'Extending TTL…' : '⏳ Refresh 90-Day TTL'}
+                  </button>
+                </div>
+              </div>
             ) : (
               <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4 shadow-sm space-y-2">
                 <div className="flex items-center justify-between pb-2 border-b border-slate-800/80 text-[11px] font-mono text-slate-400">
@@ -359,7 +531,13 @@ export function TokenPage() {
 
         {/* Right Column: Comprar y Vender (SwapCard) Sticky */}
         <div className="min-w-0 space-y-4 lg:col-span-5 lg:sticky lg:top-20">
-          <SwapCard token={token} />
+          <SwapCard
+            token={token}
+            onOpenLiquidityTools={() => setOpenAdvanced(true)}
+          />
+          {/* Posición LP del usuario + retirada atómica (remove_liquidity).
+              Fuera del acordeón: solo se pinta si la wallet tiene LP. */}
+          <LiquidityPosition token={token} />
 
           {/* Collapsed Advanced Developer Tools */}
           <details

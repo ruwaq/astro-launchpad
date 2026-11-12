@@ -1,69 +1,90 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createElement } from 'react'
+import { createElement, type ReactElement } from 'react'
 import { renderToString } from 'react-dom/server'
 import { MemoryRouter } from 'react-router'
-import { GraduationRadar } from '../components/GraduationRadar'
-import { NewLaunchesFeed } from '../components/NewLaunchesFeed'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ErrorBoundary, PageErrorFallback } from '../components/ErrorBoundary'
 import { ScrollToTop } from '../components/ScrollToTop'
 
-describe('Page Components and Lifecycle', () => {
-  describe('GraduationRadar', () => {
-    it('renders loading skeleton when isLoading is true', () => {
-      const html = renderToString(
-        createElement(GraduationRadar, {
-          tokens: [],
-          isLoading: true,
-        }),
-      )
-      expect(html).toContain('Graduating Soon')
-      expect(html).toContain('animate-pulse')
-    })
+vi.mock('../store/wallet', () => ({
+  useWallet: (selector?: (s: Record<string, unknown>) => unknown) => {
+    const state = {
+      publicKey: null,
+      pending: false,
+      mode: 'wallet',
+      demoAccounts: [],
+      demoActive: 0,
+      demoPending: false,
+      selectDemo: vi.fn(),
+      addDemoAccount: vi.fn(),
+      startDemo: vi.fn(),
+      connect: vi.fn(),
+      disconnect: vi.fn(),
+      getSigner: () => null,
+    }
+    return selector ? selector(state) : state
+  },
+}))
 
-    it('renders empty state when tokens is empty and not loading', () => {
-      const html = renderToString(
-        createElement(GraduationRadar, {
-          tokens: [],
-          isLoading: false,
-        }),
-      )
-      expect(html).toContain('No tokens approaching graduation yet')
-    })
+import { CreateTokenForm } from '../components/CreateTokenForm'
+import { WalletButton } from '../components/WalletButton'
+import { HomePage } from './HomePage'
+import { PortfolioPage } from './PortfolioPage'
+
+function renderWithProviders(element: ReactElement, initialEntry = '/') {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false, enabled: false } },
   })
+  return renderToString(
+    createElement(
+      QueryClientProvider,
+      { client },
+      createElement(
+        MemoryRouter,
+        { initialEntries: [initialEntry] },
+        element,
+      ),
+    ),
+  )
+}
 
-  describe('NewLaunchesFeed', () => {
-    it('renders loading skeleton when isLoading is true', () => {
-      const html = renderToString(
-        createElement(NewLaunchesFeed, {
-          tokens: [],
-          isLoading: true,
-        }),
-      )
-      expect(html).toContain('Fresh Token Launches')
-      expect(html).toContain('animate-pulse')
+describe('Page Components and Lifecycle', () => {
+  describe('Minimalist Market, Launch & Portfolio Flows', () => {
+    it('renders Pump.fun-style market view and Launch Coin CTA', () => {
+      const html = renderWithProviders(createElement(HomePage))
+      expect(html).toContain('Memecoin Market')
+      expect(html).toContain('Launch Coin')
+      expect(html).toContain('Search by name')
+      expect(html).toContain('Fair')
     })
 
-    it('renders empty state when tokens is empty and not loading', () => {
-      const html = renderToString(
-        createElement(
-          MemoryRouter,
-          null,
-          createElement(NewLaunchesFeed, {
-            tokens: [],
-            isLoading: false,
-          }),
-        ),
-      )
-      expect(html).toContain('No new launches discovered in recent ledgers')
+    it('renders PortfolioPage with 1-click Testnet Demo & Connect Wallet CTAs when disconnected', () => {
+      const html = renderWithProviders(createElement(PortfolioPage), '/portfolio')
+      expect(html).toContain('Your Portfolio')
+      expect(html).toContain('Testnet Demo (10k XLM)')
+      expect(html).toContain('Connect Wallet')
+      expect(html).not.toContain('Go to Demo Mode')
+    })
+
+    it('renders CreateTokenForm with Testnet Demo option and on-chain Launchpad copy', () => {
+      const html = renderWithProviders(createElement(CreateTokenForm), '/create')
+      expect(html).toContain('Create &amp; Launch')
+      expect(html).toContain('Testnet Demo')
+      expect(html).toContain('Connect Wallet')
+    })
+
+    it('renders WalletButton with Testnet Demo and Connect Wallet buttons', () => {
+      const html = renderWithProviders(createElement(WalletButton))
+      expect(html).toContain('Testnet Demo')
+      expect(html).toContain('Connect Wallet')
     })
   })
 
   describe('ErrorBoundary and Fallbacks', () => {
     it('renders PageErrorFallback with retry and error message', () => {
-      const error = new Error('Test RPC failure')
       const html = renderToString(
         createElement(PageErrorFallback, {
-          error,
+          error: new Error('Test RPC failure'),
           onRetry: vi.fn(),
         }),
       )
@@ -89,7 +110,7 @@ describe('Page Components and Lifecycle', () => {
       const html = renderToString(
         createElement(
           MemoryRouter,
-          { initialEntries: ['/market#sec-swap'] },
+          { initialEntries: ['/market'] },
           createElement(ScrollToTop),
         ),
       )

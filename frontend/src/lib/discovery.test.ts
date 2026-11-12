@@ -2,8 +2,11 @@ import { describe, expect, it, vi } from 'vitest'
 import { nativeToScVal, rpc } from '@stellar/stellar-sdk'
 import {
   discoverPairs,
+  fetchLaunchpadRecord,
+  listingToRecord,
   newestPairPerToken,
   parseNewPairEvent,
+  recordToListing,
 } from './discovery'
 import { XLM_SAC } from './network'
 
@@ -158,5 +161,35 @@ describe('discoverPairs pagination & quiet ledgers', () => {
 
     latestSpy.mockRestore()
     eventsSpy.mockRestore()
+  })
+
+  it('preserves verifiedLaunchpad and creator across IndexedDB record conversions', () => {
+    const listing = {
+      id: 'CAI637WCEILQF3ZYOV6BRUCX532XQIVOOJ4CRWFPWHQRJHOH5OKHSXRE',
+      name: 'Orbit',
+      symbol: 'ORB',
+      decimals: 7,
+      ledger: 5500,
+      verifiedLaunchpad: true,
+      creator: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF',
+      pool: {
+        exists: true,
+        pairId: 'CPAIR99',
+        reserveToken: 1_000_000_000n,
+        reserveXlm: 500_000_000n,
+      },
+    }
+    const stored = listingToRecord(listing)
+    expect(stored.isAntiRugVerified).toBe(true)
+    expect(stored.creator).toBe(listing.creator)
+
+    const roundTrip = recordToListing(stored)
+    expect(roundTrip.verifiedLaunchpad).toBe(true)
+    expect(roundTrip.creator).toBe(listing.creator)
+    expect(roundTrip.pool.reserveXlm).toBe(500_000_000n)
+  })
+
+  it('returns null from fetchLaunchpadRecord when tokenId is invalid', async () => {
+    await expect(fetchLaunchpadRecord('bad-contract-id')).resolves.toBeNull()
   })
 })

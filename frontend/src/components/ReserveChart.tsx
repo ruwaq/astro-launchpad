@@ -10,7 +10,7 @@ import {
   classifyTokenEvent,
   type TokenEvent,
 } from '../lib/token-events'
-import type { PoolState } from '../lib/soroswap'
+import { formatTokenPrice, type PoolState } from '../lib/soroswap'
 
 const WIDTH = 400
 const HEIGHT = 160
@@ -20,8 +20,9 @@ const EMPTY_EVENTS: TokenEvent[] = []
 
 type Metric = 'price' | 'liquidity'
 
-function formatMetric(value: number): string {
+function formatMetric(value: number, metric: Metric = 'price'): string {
   if (!Number.isFinite(value)) return '—'
+  if (metric === 'price') return formatTokenPrice(value)
   const abs = Math.abs(value)
   const digits = abs > 0 && abs < 0.01 ? 8 : 4
   return value.toLocaleString('en-US', { maximumFractionDigits: digits })
@@ -163,7 +164,7 @@ export function ReserveChart({
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800/80 pb-3">
         <div className="flex items-baseline gap-2.5">
           <span className="font-mono text-2xl font-black text-white">
-            {formatMetric(selectedPoint ? (selectedPoint.value ?? latest) : latest)}
+            {formatMetric(selectedPoint ? (selectedPoint.value ?? latest) : latest, metric)}
           </span>
           <span className="text-xs font-mono text-slate-400">
             {metric === 'price' ? `XLM / $${symbol ?? 'TOKEN'}` : 'XLM Liquidity'}
@@ -222,8 +223,8 @@ export function ReserveChart({
       {values.length >= 2 ? (
         <>
           <div className="flex items-center justify-between font-mono text-[10px] text-slate-400">
-            <span>Peak: {formatMetric(series.max)}</span>
-            <span>Floor: {formatMetric(series.min)}</span>
+            <span>Peak: {formatMetric(series.max, metric)}</span>
+            <span>Floor: {formatMetric(series.min, metric)}</span>
           </div>
 
           <div
@@ -235,8 +236,10 @@ export function ReserveChart({
               role="img"
               aria-label={`${metricLabel}: min ${formatMetric(
                 series.min,
-              )}, max ${formatMetric(series.max)}, latest ${formatMetric(
+                metric,
+              )}, max ${formatMetric(series.max, metric)}, latest ${formatMetric(
                 latest,
+                metric,
               )}`}
               className="h-44 w-full max-w-full block overflow-hidden"
             >

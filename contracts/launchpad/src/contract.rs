@@ -1,8 +1,11 @@
-//! Implementation of the AstroGate Atomic Launchpad Contract.
+//! Implementation of the AstroGate Atomic Launchpad Contract (v2).
+//!
+//! Guarantees 100% atomic fair launches on Soroban + on-chain discovery registry
+//! + Burn-to-Chat community engagement with unified 90-day TTL preservation.
 
 use soroban_sdk::{
     contract, contracterror, contractevent, contractimpl, contracttype, token, xdr::ToXdr, Address,
-    Bytes, BytesN, ContractExecutable, Env, String,
+    Bytes, BytesN, ContractExecutable, Env, String, Vec,
 };
 
 #[contracterror]
@@ -10,15 +13,13 @@ use soroban_sdk::{
 #[repr(u32)]
 pub enum LaunchpadError {
     /// Instance configuration missing from contract storage.
-    /// Note: Unreachable on valid deployments as `__constructor` enforces and sets
-    /// all keys at deployment time; retained for ABI stability and defensive handling.
     NotInitialized = 1,
+    /// Invalid supply, LP seed amount, or burn shout amount.
     InvalidAmount = 2,
     /// The token/XLM pair already existed with non-zero reserves: liquidity will
-    /// not be added on top of an external pair (minted LP would back a position
-    /// not controlled by this launchpad).
+    /// not be added on top of an external pair.
     PairAlreadySeeded = 3,
-    /// Token metadata validation failure: decimals > 18, or empty/oversized (>32 bytes) name/symbol.
+    /// Token metadata, shout message, or off-chain JSON metadata violates bounds.
     InvalidMetadata = 4,
 }
 
@@ -41,11 +42,48 @@ pub struct LaunchParams {
     pub token_lp_amount: i128,
     pub xlm_lp_amount: i128,
     pub salt: BytesN<32>,
-    // NOTA: renounce y burn_lp se QUITARON del ABI a propósito. Son
-    // invariantes de fair launch, no opciones: el launchpad SIEMPRE quema
-    // 100% de los LP en la burn address y SIEMPRE renuncia a ownership
-    // (ver pasos 4 y 7). Un parámetro opcional permitiría inventar un
-    // "fair launch" con LP retirables o capacidad de mint encubierta.
+}
+
+/// Minimalist fair-launch parameters: supply (1B), decimals (7), and 99.5% LP
+/// allocation are enforced on-chain, reducing user input to identity + seed XLM.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FairLaunchParams {
+    pub creator: Address,
+    pub name: String,
+    pub symbol: String,
+    pub xlm_lp_amount: i128,
+    pub meta: String,
+    pub salt: BytesN<32>,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LaunchRecord {
+    pub index: u32,
+    pub creator: Address,
+    pub token: Address,
+    pub pair: Address,
+    pub name: String,
+    pub symbol: String,
+    pub decimals: u32,
+    pub initial_supply: i128,
+    pub token_lp_amount: i128,
+    pub xlm_lp_amount: i128,
+    pub lp_minted: i128,
+    pub meta: String,
+    pub ledger: u32,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ShoutRecord {
+    pub sender: Address,
+    pub amount: i128,
+    pub message: String,
+    pub ledger: u32,
+    pub timestamp: u64,
 }
 
 #[contractevent]
@@ -61,6 +99,17 @@ pub struct TokenLaunchedEvent {
     pub lp_minted: i128,
 }
 
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ShoutEvent {
+    #[topic]
+    pub token: Address,
+    pub sender: Address,
+    pub amount: i128,
+    pub message: String,
+    pub ledger: u32,
+}
+
 #[contracttype]
 #[derive(Clone)]
 enum DataKey {
@@ -68,6 +117,10 @@ enum DataKey {
     XlmSac,
     TokenWasmHash,
     BurnAddress,
+    LaunchCount,
+    LaunchByIndex(u32),
+    TokenIndex(Address),
+    TokenShouts(Address),
 }
 
 #[allow(dead_code)]
@@ -91,18 +144,33 @@ pub trait OwnableInterface {
     fn renounce_ownership(e: &Env);
 }
 
-const INSTANCE_LIFETIME_THRESHOLD: u32 = 100_000;
-const INSTANCE_BUMP_AMOUNT: u32 = 200_000;
-/// Minimum initial supply (1,000 stroops) to prevent Soroswap MINIMUM_LIQUIDITY (1000) underflow
+/// 1 day ≈ 17,280 ledgers (~5s per ledger on Stellar).
+const DAY_IN_LEDGERS: u32 = 17_280;
+/// Unified 90-day TTL across instance and persistent registry entries.
+const TTL_BUMP_AMOUNT: u32 = 90 * DAY_IN_LEDGERS;
+const TTL_THRESHOLD: u32 = TTL_BUMP_AMOUNT - (7 * DAY_IN_LEDGERS);
+
+/// Minimum initial supply (1,000 stroops) to prevent Soroswap MINIMUM_LIQUIDITY (1000) underflow.
 const MIN_INITIAL_SUPPLY: i128 = 1_000;
-/// Minimum 1 XLM (10^7 stroops) initial liquidity to prevent Soroswap MINIMUM_LIQUIDITY (1000) trap
+/// Minimum 1 XLM (10^7 stroops) initial liquidity to prevent Soroswap MINIMUM_LIQUIDITY (1000) trap.
 const MIN_XLM_LP_STROOPS: i128 = 10_000_000;
-/// Maximum initial supply (1 trillion tokens with 7 decimals = 10^19 stroops) to prevent AMM reserve overflow
+/// Maximum initial supply (1 trillion tokens with 7 decimals = 10^19 stroops) to prevent AMM overflow.
 const MAX_INITIAL_SUPPLY: i128 = 10_000_000_000_000_000_000;
-/// Minimum fair launch pool allocation: 99.5% (9,950 bps)
+/// Minimum fair launch pool allocation: 99.5% (9,950 bps).
 const MIN_LP_ALLOCATION_BPS: i128 = 9_950;
-/// Basis points denominator (100% = 10,000 bps)
+/// Basis points denominator (100% = 10,000 bps).
 const BPS_DENOMINATOR: i128 = 10_000;
+
+/// Fixed fair-launch defaults used by `launch_fair`: 1B supply, 7 decimals, 99.5% LP.
+const FAIR_DECIMALS: u32 = 7;
+const FAIR_INITIAL_SUPPLY: i128 = 10_000_000_000_000_000;
+const FAIR_TOKEN_LP_AMOUNT: i128 = 9_950_000_000_000_000;
+
+const MAX_OFFCHAIN_META_BYTES: u32 = 512;
+const MAX_SHOUT_BYTES: u32 = 160;
+const MAX_SHOUTS_PER_TOKEN: u32 = 15;
+/// Bounded pagination size to stay safely within Soroban default read footprint (~40 entries).
+const MAX_LAUNCH_PAGE_SIZE: u32 = 20;
 
 #[contract]
 pub struct Launchpad;
@@ -125,19 +193,43 @@ impl Launchpad {
         e.storage()
             .instance()
             .set(&DataKey::BurnAddress, &burn_address);
-        e.storage()
-            .instance()
-            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+        e.storage().instance().set(&DataKey::LaunchCount, &0u32);
+        Self::extend_ttl(e);
     }
 
-    /// Single-transaction atomic fair launch:
-    /// 1. Pulls XLM from creator.
-    /// 2. Deploys token contract and mints initial supply to launchpad.
-    /// 3. Sends remaining creator share (`initial_supply - token_lp_amount`).
-    /// 4. ALWAYS renounces token ownership (minting locked forever).
-    /// 5. Creates pair on Soroswap (or reuses an EMPTY existing pair).
-    /// 6. Deposits liquidity directly into pair.
-    /// 7. ALWAYS mints 100% of LP tokens to the burn address.
+    /// Minimalist fair launch: enforces fixed 1B supply (7 decimals) and 99.5%
+    /// burned LP while storing optional compact metadata on-chain for discovery.
+    pub fn launch_fair(e: &Env, params: FairLaunchParams) -> Result<LaunchResult, LaunchpadError> {
+        params.creator.require_auth();
+
+        if params.name.is_empty()
+            || params.name.len() > 32
+            || params.symbol.is_empty()
+            || params.symbol.len() > 32
+            || params.meta.len() > MAX_OFFCHAIN_META_BYTES
+        {
+            return Err(LaunchpadError::InvalidMetadata);
+        }
+
+        if params.xlm_lp_amount < MIN_XLM_LP_STROOPS {
+            return Err(LaunchpadError::InvalidAmount);
+        }
+
+        Self::execute_launch(
+            e,
+            params.creator,
+            params.name,
+            params.symbol,
+            FAIR_DECIMALS,
+            FAIR_INITIAL_SUPPLY,
+            FAIR_TOKEN_LP_AMOUNT,
+            params.xlm_lp_amount,
+            params.meta,
+            params.salt,
+        )
+    }
+
+    /// Legacy-compatible single-transaction atomic fair launch with explicit supply/decimals.
     pub fn launch_token(e: &Env, params: LaunchParams) -> Result<LaunchResult, LaunchpadError> {
         params.creator.require_auth();
 
@@ -172,9 +264,190 @@ impl Launchpad {
             return Err(LaunchpadError::InvalidAmount);
         }
 
+        Self::execute_launch(
+            e,
+            params.creator,
+            params.name,
+            params.symbol,
+            params.decimals,
+            params.initial_supply,
+            params.token_lp_amount,
+            params.xlm_lp_amount,
+            String::from_str(e, ""),
+            params.salt,
+        )
+    }
+
+    /// Real on-chain Burn-to-Chat: permanently burns holder tokens via SEP-41
+    /// and records the message in bounded persistent storage + emits `ShoutEvent`.
+    pub fn burn_shout(
+        e: &Env,
+        sender: Address,
+        token: Address,
+        amount: i128,
+        message: String,
+    ) -> Result<(), LaunchpadError> {
+        sender.require_auth();
+
+        if amount <= 0 {
+            return Err(LaunchpadError::InvalidAmount);
+        }
+        if message.is_empty() || message.len() > MAX_SHOUT_BYTES {
+            return Err(LaunchpadError::InvalidMetadata);
+        }
+
+        token::Client::new(e, &token).burn(&sender, &amount);
+
+        let key = DataKey::TokenShouts(token.clone());
+        let existing: Vec<ShoutRecord> = e.storage().persistent().get(&key).unwrap_or(Vec::new(e));
+        let mut updated = Vec::new(e);
+        let len = existing.len();
+        let start = if len >= MAX_SHOUTS_PER_TOKEN {
+            len + 1 - MAX_SHOUTS_PER_TOKEN
+        } else {
+            0
+        };
+        for i in start..len {
+            if let Some(item) = existing.get(i) {
+                updated.push_back(item);
+            }
+        }
+
+        let ledger = e.ledger().sequence();
+        updated.push_back(ShoutRecord {
+            sender: sender.clone(),
+            amount,
+            message: message.clone(),
+            ledger,
+            timestamp: e.ledger().timestamp(),
+        });
+
+        e.storage().persistent().set(&key, &updated);
+        Self::bump_persistent(e, &key);
+        Self::extend_launch_ttl(e, token.clone());
+
+        ShoutEvent {
+            token,
+            sender,
+            amount,
+            message,
+            ledger,
+        }
+        .publish(e);
+
+        Ok(())
+    }
+
+    /// Returns newest-first launches from the persistent on-chain registry.
+    pub fn get_launches(e: &Env, offset: u32, limit: u32) -> Vec<LaunchRecord> {
+        let total = Self::get_launch_count(e);
+        if offset >= total || limit == 0 {
+            return Vec::new(e);
+        }
+
+        let count = limit.min(MAX_LAUNCH_PAGE_SIZE).min(total - offset);
+        let mut out = Vec::new(e);
+        for i in 0..count {
+            let idx = total - 1 - offset - i;
+            let key = DataKey::LaunchByIndex(idx);
+            if let Some(record) = e.storage().persistent().get::<DataKey, LaunchRecord>(&key) {
+                Self::bump_persistent(e, &key);
+                out.push_back(record);
+            }
+        }
+        out
+    }
+
+    /// Looks up a launch record by token contract address.
+    pub fn get_launch(e: &Env, token: Address) -> Option<LaunchRecord> {
+        let idx_key = DataKey::TokenIndex(token);
+        let idx: u32 = e.storage().persistent().get(&idx_key)?;
+        Self::bump_persistent(e, &idx_key);
+
+        let rec_key = DataKey::LaunchByIndex(idx);
+        let record: LaunchRecord = e.storage().persistent().get(&rec_key)?;
+        Self::bump_persistent(e, &rec_key);
+        Some(record)
+    }
+
+    /// Returns total number of tokens launched and indexed through this launchpad.
+    pub fn get_launch_count(e: &Env) -> u32 {
         e.storage()
             .instance()
-            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+            .get(&DataKey::LaunchCount)
+            .unwrap_or(0)
+    }
+
+    /// Returns recent on-chain Burn-to-Chat shouts for a token (oldest to newest, max 15).
+    pub fn get_shouts(e: &Env, token: Address) -> Vec<ShoutRecord> {
+        let key = DataKey::TokenShouts(token);
+        if let Some(shouts) = e.storage().persistent().get(&key) {
+            Self::bump_persistent(e, &key);
+            shouts
+        } else {
+            Vec::new(e)
+        }
+    }
+
+    /// Permissionlessly refreshes the launchpad instance TTL for 90 days.
+    pub fn extend_ttl(e: &Env) {
+        e.storage()
+            .instance()
+            .extend_ttl(TTL_THRESHOLD, TTL_BUMP_AMOUNT);
+    }
+
+    /// Permissionlessly refreshes TTL for a specific token's registry & shouts entries.
+    pub fn extend_launch_ttl(e: &Env, token: Address) {
+        Self::extend_ttl(e);
+
+        let idx_key = DataKey::TokenIndex(token.clone());
+        if let Some(idx) = e.storage().persistent().get::<DataKey, u32>(&idx_key) {
+            Self::bump_persistent(e, &idx_key);
+            let rec_key = DataKey::LaunchByIndex(idx);
+            if e.storage().persistent().has(&rec_key) {
+                Self::bump_persistent(e, &rec_key);
+            }
+        }
+
+        let shout_key = DataKey::TokenShouts(token);
+        if e.storage().persistent().has(&shout_key) {
+            Self::bump_persistent(e, &shout_key);
+        }
+    }
+
+    /// Read configuration methods
+    pub fn get_factory(e: &Env) -> Option<Address> {
+        e.storage().instance().get(&DataKey::Factory)
+    }
+
+    pub fn get_xlm_sac(e: &Env) -> Option<Address> {
+        e.storage().instance().get(&DataKey::XlmSac)
+    }
+
+    pub fn get_burn_address(e: &Env) -> Option<Address> {
+        e.storage().instance().get(&DataKey::BurnAddress)
+    }
+
+    pub fn get_token_wasm_hash(e: &Env) -> Option<BytesN<32>> {
+        e.storage().instance().get(&DataKey::TokenWasmHash)
+    }
+}
+
+impl Launchpad {
+    #[allow(clippy::too_many_arguments)]
+    fn execute_launch(
+        e: &Env,
+        creator: Address,
+        name: String,
+        symbol: String,
+        decimals: u32,
+        initial_supply: i128,
+        token_lp_amount: i128,
+        xlm_lp_amount: i128,
+        meta: String,
+        salt: BytesN<32>,
+    ) -> Result<LaunchResult, LaunchpadError> {
+        Self::extend_ttl(e);
 
         let this = e.current_contract_address();
         let factory = e
@@ -199,20 +472,20 @@ impl Launchpad {
             .ok_or(LaunchpadError::NotInitialized)?;
 
         // 1. Pull XLM from creator to launchpad contract
-        token::Client::new(e, &xlm_sac).transfer(&params.creator, &this, &params.xlm_lp_amount);
+        token::Client::new(e, &xlm_sac).transfer(&creator, &this, &xlm_lp_amount);
 
-        // 2. Determinísticamente deriva el salt vinculando creator para evitar front-running global
+        // 2. Deterministically bind salt to creator to prevent front-running
         let mut salt_payload = Bytes::new(e);
-        salt_payload.append(&params.creator.clone().to_xdr(e));
-        salt_payload.append(&params.salt.clone().into());
+        salt_payload.append(&creator.clone().to_xdr(e));
+        salt_payload.append(&salt.into());
         let derived_salt = e.crypto().sha256(&salt_payload);
 
         let ctor_args = (
-            params.name,
-            params.symbol,
-            params.decimals,
+            name.clone(),
+            symbol.clone(),
+            decimals,
             this.clone(),
-            params.initial_supply,
+            initial_supply,
         );
         let token_addr = e
             .deployer()
@@ -222,20 +495,15 @@ impl Launchpad {
         let token_client = token::Client::new(e, &token_addr);
 
         // 3. Send creator share if initial_supply > token_lp_amount
-        let creator_tokens = params.initial_supply - params.token_lp_amount;
+        let creator_tokens = initial_supply - token_lp_amount;
         if creator_tokens > 0 {
-            token_client.transfer(&this, &params.creator, &creator_tokens);
+            token_client.transfer(&this, &creator, &creator_tokens);
         }
 
         // 4. Invariante de fair launch: renuncia SIEMPRE (mint bloqueado).
         OwnableClient::new(e, &token_addr).renounce_ownership();
 
-        // 5. Create or retrieve Soroswap Pair. Un par pre-existente solo se
-        // puede reutilizar si está VACÍO: si otro usuario lo hubiera sembrado
-        // con una ratio arbitraria, los LP acuñados por `deposit` serían
-        // colateral de una posición ajena (y la quema "integrada" sería
-        // estafaria). Con reservas > 0 se aborta sin tocar nada; el error
-        // revierte la tx completa (XLM incluido).
+        // 5. Create or retrieve EMPTY Soroswap Pair
         let factory_client = SoroswapFactoryClient::new(e, &factory);
         let pair_addr = if factory_client.pair_exists(&token_addr, &xlm_sac) {
             let existing = factory_client.get_pair(&token_addr, &xlm_sac);
@@ -249,22 +517,50 @@ impl Launchpad {
         };
 
         // 6. Transfer tokens & XLM to Pair
-        token_client.transfer(&this, &pair_addr, &params.token_lp_amount);
-        token::Client::new(e, &xlm_sac).transfer(&this, &pair_addr, &params.xlm_lp_amount);
+        token_client.transfer(&this, &pair_addr, &token_lp_amount);
+        token::Client::new(e, &xlm_sac).transfer(&this, &pair_addr, &xlm_lp_amount);
 
-        // 7. Invariante de fair launch: 100% de los LP NUNCA salen de la burn
-        // address (liquidez no retirable).
+        // 7. Invariante de fair launch: 100% de los LP NUNCA salen de la burn address
         let pair_client = SoroswapPairClient::new(e, &pair_addr);
         let lp_minted = pair_client.deposit(&burn_address);
 
-        // 8. Publish event
-        TokenLaunchedEvent {
-            creator: params.creator,
+        // 8. Index token in persistent on-chain registry
+        let index: u32 = Self::get_launch_count(e);
+        let record = LaunchRecord {
+            index,
+            creator: creator.clone(),
             token: token_addr.clone(),
             pair: pair_addr.clone(),
-            initial_supply: params.initial_supply,
-            token_lp_amount: params.token_lp_amount,
-            xlm_lp_amount: params.xlm_lp_amount,
+            name,
+            symbol,
+            decimals,
+            initial_supply,
+            token_lp_amount,
+            xlm_lp_amount,
+            lp_minted,
+            meta,
+            ledger: e.ledger().sequence(),
+            timestamp: e.ledger().timestamp(),
+        };
+
+        e.storage()
+            .instance()
+            .set(&DataKey::LaunchCount, &(index + 1));
+        let idx_rec_key = DataKey::LaunchByIndex(index);
+        let tok_idx_key = DataKey::TokenIndex(token_addr.clone());
+        e.storage().persistent().set(&idx_rec_key, &record);
+        Self::bump_persistent(e, &idx_rec_key);
+        e.storage().persistent().set(&tok_idx_key, &index);
+        Self::bump_persistent(e, &tok_idx_key);
+
+        // 9. Publish typed event for real-time indexers
+        TokenLaunchedEvent {
+            creator,
+            token: token_addr.clone(),
+            pair: pair_addr.clone(),
+            initial_supply,
+            token_lp_amount,
+            xlm_lp_amount,
             lp_minted,
         }
         .publish(e);
@@ -276,20 +572,9 @@ impl Launchpad {
         })
     }
 
-    /// Read configuration methods
-    pub fn get_factory(e: &Env) -> Option<Address> {
-        e.storage().instance().get(&DataKey::Factory)
-    }
-
-    pub fn get_xlm_sac(e: &Env) -> Option<Address> {
-        e.storage().instance().get(&DataKey::XlmSac)
-    }
-
-    pub fn get_burn_address(e: &Env) -> Option<Address> {
-        e.storage().instance().get(&DataKey::BurnAddress)
-    }
-
-    pub fn get_token_wasm_hash(e: &Env) -> Option<BytesN<32>> {
-        e.storage().instance().get(&DataKey::TokenWasmHash)
+    fn bump_persistent(e: &Env, key: &DataKey) {
+        e.storage()
+            .persistent()
+            .extend_ttl(key, TTL_THRESHOLD, TTL_BUMP_AMOUNT);
     }
 }

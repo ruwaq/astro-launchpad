@@ -14,7 +14,8 @@ import { Keypair } from '@stellar/stellar-sdk'
 
 const RPC_URL = 'https://soroban-testnet.stellar.org'
 const PASSPHRASE = 'Test SDF Network ; September 2015'
-const WASM_HASH = '5930d6c69894f5cd6924e1a7d8d10282448c7c18de0143dce76e92884c39786b'
+const WASM_HASH = 'a47dc064f7a072476fbbd612be98ce13d691b178b81a40ebdf4b2ec78f65c9f7'
+const LAUNCHPAD_CONTRACT_ID = 'CB5LMSJ2Y2KEZEO2BXTRNA2OPFALVU6AVIOASVPZTQ66GRT3UEKOQ3O4'
 
 const secret = process.env.STELLAR_SECRET
 if (!secret) {
@@ -103,4 +104,27 @@ console.log('balance :', readBalance.toString())
 const ok =
   readName === name && readSymbol === 'SMOKE' && readDecimals === 7 && readSupply === 1000000n
 console.log(ok ? 'OK: token creado y legible on-chain' : 'FALLO: datos inesperados')
-process.exit(ok ? 0 : 1)
+
+// 5. Spec & lectura en vivo del contrato Launchpad v2
+const lpClient = await Client.from({
+  contractId: LAUNCHPAD_CONTRACT_ID,
+  rpcUrl: RPC_URL,
+  networkPassphrase: PASSPHRASE,
+  publicKey,
+})
+const lpOnChainSpec = JSON.stringify(lpClient.spec.funcs().map((f) => f.name.toString()))
+const lpGenerated = readFileSync(new URL('../src/contracts/launchpad/client.ts', import.meta.url), 'utf8')
+const lpSpecLiteral = lpGenerated.match(/new Spec\((\[[\s\S]*?\])\)/)
+if (!lpSpecLiteral) {
+  console.error('No se encontró el spec embebido en src/contracts/launchpad/client.ts')
+  process.exit(1)
+}
+const lpEmbeddedSpec = new Spec(new Function(`return ${lpSpecLiteral[1]}`)())
+const lpEmbeddedFns = JSON.stringify(lpEmbeddedSpec.funcs().map((f) => f.name.toString()))
+const lpSpecMatch = lpOnChainSpec === lpEmbeddedFns
+console.log('launchpad spec  :', lpSpecMatch ? 'OK (igual al embebido)' : 'DIFIERE')
+const launchCount = (await lpClient.get_launch_count()).result
+console.log('launch count    :', launchCount)
+
+const allOk = ok && lpSpecMatch && typeof launchCount === 'number'
+process.exit(allOk ? 0 : 1)

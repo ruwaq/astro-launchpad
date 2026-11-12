@@ -11,9 +11,6 @@ export const AMOUNT_PERCENTS = [25, 50, 75, 100] as const
 export const UNSUPPORTED_SIGNER_MESSAGE =
   'Unable to prepare signer for the active account.'
 
-/** Tamaño máximo aceptado para el logo de un token (bytes). */
-export const LOGO_MAX_BYTES = 500_000
-
 /** Clase base de inputs de formulario (design token de las cards). */
 export const FORM_INPUT_CLASS =
   'w-full rounded-lg border border-slate-800 bg-slate-950 px-3.5 py-3 text-base text-slate-100 outline-none focus:border-emerald-500'

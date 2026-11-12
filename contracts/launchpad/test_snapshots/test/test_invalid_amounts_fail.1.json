@@ -72,6 +72,18 @@
                       "key": {
                         "vec": [
                           {
+                            "symbol": "LaunchCount"
+                          }
+                        ]
+                      },
+                      "val": {
+                        "u32": 0
+                      }
+                    },
+                    {
+                      "key": {
+                        "vec": [
+                          {
                             "symbol": "TokenWasmHash"
                           }
                         ]
@@ -99,7 +111,7 @@
           },
           "ext": "v0"
         },
-        "live_until": 200000
+        "live_until": 1555200
       },
       {
         "entry": {
@@ -113,7 +125,7 @@
           },
           "ext": "v0"
         },
-        "live_until": 200000
+        "live_until": 1555200
       }
     ]
   },

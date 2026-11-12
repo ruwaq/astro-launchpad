@@ -4,19 +4,33 @@
  * and external developers building on Stellar/Soroban.
  */
 
-import { discoverTokens, type TokenListing } from '../lib/discovery'
 import {
+  discoverTokens,
+  fetchLaunchpadRecord,
+  type TokenListing,
+} from '../lib/discovery'
+import {
+  fetchBurnedLpInfo,
   fetchPoolState,
+  formatTokenPrice,
+  localQuoteTokenForXlm,
+  localQuoteXlmForToken,
   priceImpactPercent,
   quoteTokenForXlm,
   quoteXlmForToken,
-  tokenPriceInXlm,
-  unwrapResult,
+  SOROSWAP_MINIMUM_LIQUIDITY,
+  tokenPriceInXlmNumber,
   withSlippage,
   type PoolState,
 } from '../lib/soroswap'
-import { Client as PairClient } from '../contracts/soroswap-pair'
-import { tokenClient } from '../lib/token'
+import {
+  burnAndShout,
+  extendTokenTtl,
+  launchFairAtomic,
+  tokenClient,
+} from '../lib/token'
+import { decodeOnChainMeta, encodeOnChainMeta } from '../lib/token-metadata'
+import type { Signer } from '@stellar/stellar-sdk/contract'
 import { isValidContractAddress } from '../lib/address'
 import {
   ASTRO_TOKEN_ID,
@@ -38,8 +52,10 @@ import { formatAmount } from '../lib/format'
 import {
   classifyTokenEvent,
   fetchTokenEvents,
+  fetchTokenShouts,
   parseTokenEvent,
   type TokenEvent,
+  type TokenShout,
   type TokenTradeRole,
 } from '../lib/token-events'
 
@@ -70,6 +86,7 @@ export interface AntiRugAuditResult {
   lpBurnAddress: string
   ownershipRenounced: boolean
   lpBurned: boolean
+  verifiedLaunchpad: boolean
   isAntiRugVerified: boolean
   auditNotes: string[]
 }
@@ -93,7 +110,6 @@ export async function getMarketTokens(options?: {
 }): Promise<SdkTokenOverview[]> {
   const listings = await discoverTokens(options)
   return listings.map((token: TokenListing) => {
-    const price = tokenPriceInXlm(token.pool, token.decimals)
     const grad = graduationProgress(token.pool.reserveXlm)
     return {
       id: token.id,
@@ -101,7 +117,7 @@ export async function getMarketTokens(options?: {
       symbol: token.symbol,
       decimals: token.decimals,
       pairId: token.pool.pairId,
-      priceXlm: formatAmount(price, 7),
+      priceXlm: formatTokenPrice(tokenPriceInXlmNumber(token.pool, token.decimals)),
       reserveToken: formatAmount(token.pool.reserveToken, token.decimals),
       reserveXlm: formatAmount(token.pool.reserveXlm, 7),
       graduationPercent: grad.percent,
@@ -118,25 +134,32 @@ export async function getTokenDetails(tokenId: string): Promise<SdkTokenDetails>
     throw new Error(`Invalid Stellar contract address: ${tokenId}`)
   }
 
-  const client = tokenClient(tokenId)
-  const [nameTx, symbolTx, decimalsTx, pool] = await Promise.all([
-    client.name().catch(() => ({ result: 'Unknown' })),
-    client.symbol().catch(() => ({ result: 'UNK' })),
-    client.decimals().catch(() => ({ result: 7 })),
+  const [meta, pool] = await Promise.all([
+    executeWithRpcFailover(async (rpcUrl) => {
+      const client = tokenClient(tokenId, undefined, rpcUrl)
+      const [nameTx, symbolTx, decimalsTx] = await Promise.all([
+        client.name().catch(() => ({ result: 'Unknown' })),
+        client.symbol().catch(() => ({ result: 'UNK' })),
+        client.decimals().catch(() => ({ result: 7 })),
+      ])
+      return {
+        name: nameTx.result || 'Unknown',
+        symbol: symbolTx.result || 'UNK',
+        decimals: typeof decimalsTx.result === 'number' ? decimalsTx.result : 7,
+      }
+    }),
     fetchPoolState(tokenId),
   ])
 
-  const decimals = typeof decimalsTx.result === 'number' ? decimalsTx.result : 7
-  const price = tokenPriceInXlm(pool, decimals)
   const graduation = graduationProgress(pool.reserveXlm)
 
   return {
     id: tokenId,
-    name: nameTx.result || 'Unknown',
-    symbol: symbolTx.result || 'UNK',
-    decimals,
+    name: meta.name,
+    symbol: meta.symbol,
+    decimals: meta.decimals,
     pool,
-    priceXlm: formatAmount(price, 7),
+    priceXlm: formatTokenPrice(tokenPriceInXlmNumber(pool, meta.decimals)),
     graduation,
   }
 }
@@ -203,8 +226,28 @@ export async function quoteSwap(params: {
  * 3. 100% of Soroswap LP tokens are permanently burned in STELLAR_BURN_ADDRESS.
  */
 export async function verifyAntiRug(tokenId: string): Promise<AntiRugAuditResult> {
-  const pool = await fetchPoolState(tokenId)
+  if (!isValidContractAddress(tokenId)) {
+    return {
+      tokenId,
+      pairId: null,
+      lpBurnAddress: STELLAR_BURN_ADDRESS,
+      ownershipRenounced: false,
+      lpBurned: false,
+      verifiedLaunchpad: false,
+      isAntiRugVerified: false,
+      auditNotes: ['Invalid Stellar contract address.'],
+    }
+  }
+
+  const [pool, launchRecord] = await Promise.all([
+    fetchPoolState(tokenId),
+    fetchLaunchpadRecord(tokenId),
+  ])
+  const verifiedLaunchpad = Boolean(launchRecord)
   const notes: string[] = []
+  if (verifiedLaunchpad) {
+    notes.push('Verified in AstroGate Launchpad on-chain registry.')
+  }
 
   if (!pool.exists || !pool.pairId) {
     return {
@@ -213,51 +256,48 @@ export async function verifyAntiRug(tokenId: string): Promise<AntiRugAuditResult
       lpBurnAddress: STELLAR_BURN_ADDRESS,
       ownershipRenounced: false,
       lpBurned: false,
+      verifiedLaunchpad,
       isAntiRugVerified: false,
-      auditNotes: ['No active Soroswap AMM pool found on-chain.'],
+      auditNotes: [...notes, 'No active Soroswap AMM pool found on-chain.'],
     }
   }
 
   notes.push(`Soroswap Pair verified: ${pool.pairId}`)
   notes.push(`Canonical Stellar Burn Address: ${STELLAR_BURN_ADDRESS}`)
 
-  // 1. Verify owner status: strictly dead or non-existent
+  // 1. Verify owner status with RPC failover. Fail-closed: un error de red / RPC
+  // NUNCA cuenta como "renunciado". Solo `get_owner() -> None` (o burn address) lo es.
   let ownershipRenounced = false
   try {
-    const client = tokenClient(tokenId)
-    const ownerTx = await client.get_owner()
-    const owner = ownerTx.result
+    const owner = await executeWithRpcFailover(async (rpcUrl) => {
+      const client = tokenClient(tokenId, undefined, rpcUrl)
+      const ownerTx = await client.get_owner()
+      return ownerTx.result
+    })
     if (!owner || owner === STELLAR_BURN_ADDRESS) {
       ownershipRenounced = true
       notes.push('Ownership successfully renounced (zero / canonical burn owner).')
     } else {
       notes.push(`Active owner address detected: ${owner}`)
     }
-  } catch {
-    // If get_owner() reverts or is absent, minting is either locked or renounced
-    ownershipRenounced = true
-    notes.push('Token contract does not have an active owner (mint disabled).')
+  } catch (err) {
+    notes.push(
+      `Could not verify ownership (get_owner unavailable or RPC error): ${
+        (err as Error)?.message ?? 'contract error'
+      }. Treated as NOT renounced.`,
+    )
   }
 
-  // 2. Verify LP Token Burn
+  // 2. Verify LP Token Burn (descontando MINIMUM_LIQUIDITY bloqueado por el par)
   let lpBurned = false
   try {
-    const pair = new PairClient({
-      contractId: pool.pairId,
-      rpcUrl: RPC_URL,
-      networkPassphrase: NETWORK_PASSPHRASE,
-    })
-    const [burnBalanceTx, totalSupplyTx] = await Promise.all([
-      pair.balance({ id: STELLAR_BURN_ADDRESS }),
-      pair.total_supply(),
-    ])
-    const burnBalance = unwrapResult<bigint>(burnBalanceTx.result, 'balance')
-    const totalSupply = unwrapResult<bigint>(totalSupplyTx.result, 'total_supply')
+    const { burnedLp: burnBalance, totalSupply, fullyBurned } =
+      await fetchBurnedLpInfo(pool.pairId)
 
-    if (totalSupply > 0n && burnBalance >= totalSupply) {
+    if (fullyBurned) {
       lpBurned = true
       notes.push(
-        `100% LP tokens verified burned in ${STELLAR_BURN_ADDRESS} (${burnBalance.toString()} / ${totalSupply.toString()}).`,
+        `100% of withdrawable LP verified burned in ${STELLAR_BURN_ADDRESS} (${burnBalance.toString()} / ${totalSupply.toString()}; ${SOROSWAP_MINIMUM_LIQUIDITY.toString()} LP permanently locked by the pair).`,
       )
     } else if (burnBalance > 0n && totalSupply > 0n) {
       const pct = (burnBalance * 100n) / totalSupply
@@ -279,9 +319,50 @@ export async function verifyAntiRug(tokenId: string): Promise<AntiRugAuditResult
     lpBurnAddress: STELLAR_BURN_ADDRESS,
     ownershipRenounced,
     lpBurned,
+    verifiedLaunchpad,
     isAntiRugVerified: ownershipRenounced && lpBurned && pool.reserveXlm > 0n,
     auditNotes: notes,
   }
+}
+
+/** Minimalist 1B fair-launch wrapper for programmatic AI agents and apps. */
+export async function launchFair(params: {
+  name: string
+  symbol: string
+  xlmLpAmount: bigint
+  description?: string
+  logoUrl?: string
+  website?: string
+  telegram?: string
+  twitter?: string
+  signer: Signer
+  onHash?: (hash: string) => void
+}) {
+  const meta = encodeOnChainMeta(params)
+  return launchFairAtomic({
+    name: params.name,
+    symbol: params.symbol,
+    xlmLpAmount: params.xlmLpAmount,
+    meta,
+    signer: params.signer,
+    onHash: params.onHash,
+  })
+}
+
+/** Posts a real on-chain Burn-to-Chat shout by permanently burning holder tokens. */
+export async function burnShout(params: {
+  tokenId: string
+  amount: bigint
+  message: string
+  signer: Signer
+  onHash?: (hash: string) => void
+}) {
+  return burnAndShout(params)
+}
+
+/** Fetches the latest persistent Burn-to-Chat shouts for a token (newest first). */
+export async function getTokenShouts(tokenId: string): Promise<TokenShout[]> {
+  return fetchTokenShouts(tokenId)
 }
 
 export const AstroGateConstants = {
@@ -302,9 +383,15 @@ export const AstroGateConstants = {
 export {
   checkRpcHealth,
   classifyTokenEvent,
+  decodeOnChainMeta,
+  encodeOnChainMeta,
   executeWithRpcFailover,
+  extendTokenTtl,
   fetchTokenEvents,
+  fetchTokenShouts,
   isValidContractAddress,
+  localQuoteTokenForXlm,
+  localQuoteXlmForToken,
   parseTokenEvent,
 }
-export type { TokenEvent, TokenTradeRole }
+export type { TokenEvent, TokenShout, TokenTradeRole }

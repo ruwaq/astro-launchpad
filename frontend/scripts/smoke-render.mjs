@@ -62,9 +62,10 @@ try {
   const html = renderApp('/')
   const checks = [
     'AstroGate',
-    'Market',
-    'Launch Token',
-    'Single-Tx Atomic Deploy',
+    'Memecoin Market',
+    'Launch Coin',
+    'Testnet Demo',
+    'Connect Wallet',
   ]
   for (const text of checks) {
     if (!html.includes(text)) {
@@ -73,8 +74,11 @@ try {
   }
 
   const createHtml = renderApp('/create')
-  if (!createHtml.includes('Launch Your Token')) {
-    throw new Error('la ruta /create no muestra el formulario de creación')
+  if (
+    !createHtml.includes('Launch Your Token') ||
+    !createHtml.includes('1B fixed supply')
+  ) {
+    throw new Error('la ruta /create no muestra el formulario simplificado')
   }
 
   const marketHtml = renderApp('/market')
@@ -131,51 +135,26 @@ try {
     throw new Error('el render de SwapCard no contiene los controles de swap')
   }
 
-  // Detección de wallet: ambas ramas (detectada / por instalar), con datos
-  // deterministas porque los effects no corren en SSR.
-  const { WalletInstallHint } = await vite.ssrLoadModule(
-    '/src/components/WalletInstallHint.tsx',
+  // On-Chain Burn-to-Chat render check
+  const { TokenHypeBar } = await vite.ssrLoadModule(
+    '/src/components/TokenHypeBar.tsx',
   )
-  const walletFound = renderToString(
-    createElement(WalletInstallHint, { preview: 'found' }),
-  )
-  if (!walletFound.includes('Wallet detected')) {
-    throw new Error('el hint de wallet no muestra la detección')
-  }
-  const walletMissing = renderToString(
-    createElement(WalletInstallHint, { preview: 'missing' }),
-  )
-  if (!walletMissing.includes('Download') || !walletMissing.includes('Freighter')) {
-    throw new Error('el hint de wallet no muestra las tarjetas de descarga')
-  }
-
-  // Guía paso a paso: expandida (bienvenida) y tira compacta, con estados
-  // de preview porque localStorage no existe en SSR.
-  const { Onboarding } = await vite.ssrLoadModule('/src/components/Onboarding.tsx')
-  const stepsProps = { created: false, liquidity: false, swapped: false }
-  const guideOpen = renderToString(
+  const hypeHtml = renderToString(
     createElement(
-      MemoryRouter,
-      null,
-      createElement(Onboarding, { ...stepsProps, preview: 'open' }),
+      QueryClientProvider,
+      { client: queryClient },
+      createElement(TokenHypeBar, {
+        tokenId: 'CTOKEN',
+        symbol: 'TEST',
+        decimals: 7,
+      }),
     ),
   )
   if (
-    !guideOpen.includes('Welcome to') ||
-    !guideOpen.includes('AstroGate') ||
-    !guideOpen.includes('Connect Wallet')
+    !hypeHtml.includes('On-Chain Burn-to-Chat') ||
+    !hypeHtml.includes('Burn &amp; Shout') && !hypeHtml.includes('Connect to Shout')
   ) {
-    throw new Error('la guía no muestra la bienvenida con los pasos')
-  }
-  const guideMini = renderToString(
-    createElement(
-      MemoryRouter,
-      null,
-      createElement(Onboarding, { ...stepsProps, preview: 'collapsed' }),
-    ),
-  )
-  if (!guideMini.includes('Next:')) {
-    throw new Error('la guía no muestra la tira de progreso')
+    throw new Error('el componente TokenHypeBar no renderiza Burn-to-Chat')
   }
 
   // Arte generativo: spec variado por contrato + SVG renderizado.
@@ -257,41 +236,8 @@ try {
     throw new Error('el gráfico de reservas no renderiza')
   }
 
-  // Actividad on-chain: se renderiza en estado de carga con QueryClient.
-  const { TokenActivity } = await vite.ssrLoadModule(
-    '/src/components/TokenActivity.tsx',
-  )
-  const tokenActivityHtml = renderToString(
-    createElement(
-      QueryClientProvider,
-      { client: new QueryClient() },
-      createElement(TokenActivity, {
-        token: { id: 'CTOKEN', decimals: 7, symbol: 'MOON' },
-      }),
-    ),
-  )
-  if (!tokenActivityHtml.includes('Recent On-Chain Activity')) {
-    throw new Error('la actividad on-chain no renderiza su sección')
-  }
-
-  // Modo prueba: estado inicial sin cuentas, invita a crearlas.
-  const { DemoMode } = await vite.ssrLoadModule('/src/components/DemoMode.tsx')
-  const demoHtml = renderToString(
-    createElement(
-      QueryClientProvider,
-      { client: queryClient },
-      createElement(DemoMode, { token: { id: 'CTOKEN', decimals: 7 } }),
-    ),
-  )
-  if (
-    !demoHtml.includes('Demo Mode') ||
-    !demoHtml.includes('Create 3 Test Accounts')
-  ) {
-    throw new Error('el modo prueba no muestra el estado inicial')
-  }
-
   console.log(
-    `render OK (${html.length} + ${createHtml.length} + ${marketHtml.length} + ${portfolioHtml.length} + ${tokenHtml.length} + ${liquidityHtml.length} + ${walletFound.length} + ${walletMissing.length} + ${guideOpen.length} + ${guideMini.length} + ${artHtml.length} + ${chartHtml.length} + ${tokenActivityHtml.length} + ${demoHtml.length} chars) · rutas y componentes`,
+    `render OK (${html.length} + ${createHtml.length} + ${marketHtml.length} + ${portfolioHtml.length} + ${tokenHtml.length} + ${liquidityHtml.length} + ${hypeHtml.length} + ${artHtml.length} + ${chartHtml.length} chars) · rutas y componentes`,
   )
 } catch (err) {
   failed = true

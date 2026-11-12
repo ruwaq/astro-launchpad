@@ -99,8 +99,14 @@ describe('errorMessage', () => {
     expect(errorMessage(new Error('Transaction failed: txBadSeq'))).toBe(
       'Account sequence currently in use by another pending transaction. Wait 5 seconds and retry.',
     )
+    expect(errorMessage(new Error('HostError: Error(Contract, #1)'))).toBe(
+      'Launchpad contract is not initialized on this network.',
+    )
+    expect(errorMessage(new Error('HostError: Error(Contract, #2)'))).toBe(
+      'Invalid amount: check minimum XLM LP (1 XLM), supply, or burn shout amount.',
+    )
     expect(errorMessage(new Error('HostError: Error(Contract, #4)'))).toBe(
-      'Invalid token metadata: decimals > 18, or empty/oversized (>32 bytes) name or symbol.',
+      'Invalid metadata: name/symbol must be 1–32 bytes, message 1–160 bytes, and off-chain metadata ≤ 512 bytes.',
     )
     expect(errorMessage(new Error('PairAlreadySeeded'))).toBe(
       'Soroswap pair already exists with non-zero liquidity. Tokens cannot be launched over existing pairs.',

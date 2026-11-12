@@ -1,9 +1,8 @@
-import { Link, NavLink, Route, Routes } from 'react-router'
+import { Link, NavLink, Route, Routes, useLocation } from 'react-router'
 import { WalletButton } from './components/WalletButton'
 import { ScrollToTop } from './components/ScrollToTop'
 import { OfflineBanner } from './components/OfflineBanner'
 import { PwaInstallPrompt } from './components/PwaInstallPrompt'
-import { LiveTickerBar } from './components/LiveTickerBar'
 import { ErrorBoundary, PageErrorFallback } from './components/ErrorBoundary'
 import { HomePage } from './pages/HomePage'
 import { MarketPage } from './pages/MarketPage'
@@ -13,12 +12,40 @@ import { CreatePage } from './pages/CreatePage'
 import { NotFoundPage } from './pages/NotFoundPage'
 import { BRAND } from './lib/brand'
 
-function navClass({ isActive }: { isActive: boolean }) {
+const NAV_ITEMS = [
+  { to: '/', label: 'Market' },
+  { to: '/create', label: 'Launch' },
+  { to: '/portfolio', label: 'Portfolio' },
+] as const
+
+function navLinkClass(active: boolean) {
   return `inline-flex min-h-[36px] items-center whitespace-nowrap rounded-xl px-3 text-xs sm:text-sm font-semibold transition-all ${
-    isActive
+    active
       ? 'bg-sky-500/20 text-sky-300 shadow-sm shadow-sky-500/10 border border-sky-400/30'
       : 'text-slate-400 hover:text-slate-100 hover:bg-white/[0.04]'
   }`
+}
+
+function NavItems() {
+  const { pathname } = useLocation()
+  return (
+    <>
+      {NAV_ITEMS.map((item) => (
+        <NavLink
+          key={item.to}
+          to={item.to}
+          end={item.to === '/'}
+          className={({ isActive }) =>
+            navLinkClass(
+              isActive || (item.to === '/' && pathname === '/market'),
+            )
+          }
+        >
+          {item.label}
+        </NavLink>
+      ))}
+    </>
+  )
 }
 
 export default function App() {
@@ -38,7 +65,7 @@ export default function App() {
           <div className="flex items-center justify-between gap-3">
             <Link
               to="/"
-              aria-label={`${BRAND.name} — Home`}
+              aria-label={`${BRAND.name} — Market`}
               className="flex min-w-0 items-center gap-2 text-base sm:text-lg font-bold tracking-tight text-white hover:text-sky-300 transition-colors"
             >
               <span aria-hidden="true" className="text-xl">{BRAND.emoji}</span>
@@ -49,18 +76,7 @@ export default function App() {
               aria-label="Main navigation"
               className="hidden sm:flex items-center gap-1 rounded-2xl bg-white/[0.04] p-1 border border-white/[0.06]"
             >
-              <NavLink to="/" end className={navClass}>
-                Home
-              </NavLink>
-              <NavLink to="/market" className={navClass}>
-                Market
-              </NavLink>
-              <NavLink to="/portfolio" className={navClass}>
-                Portfolio
-              </NavLink>
-              <NavLink to="/create" className={navClass}>
-                Launch
-              </NavLink>
+              <NavItems />
             </nav>
 
             <div className="flex items-center gap-2">
@@ -73,22 +89,8 @@ export default function App() {
             aria-label="Mobile navigation"
             className="flex sm:hidden gap-1 overflow-x-auto pt-2 border-t border-white/[0.06] mt-2 no-scrollbar"
           >
-            <NavLink to="/" end className={navClass}>
-              Home
-            </NavLink>
-            <NavLink to="/market" className={navClass}>
-              Market
-            </NavLink>
-            <NavLink to="/portfolio" className={navClass}>
-              Portfolio
-            </NavLink>
-            <NavLink to="/create" className={navClass}>
-              Launch
-            </NavLink>
+            <NavItems />
           </nav>
-        </div>
-        <div className="mt-2 overflow-hidden rounded-2xl">
-          <LiveTickerBar />
         </div>
       </header>
 

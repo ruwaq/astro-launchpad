@@ -311,35 +311,36 @@ export function graduationProgress(
   }
 }
 
-export type SecurityAudit = {
-  /** Has creator renounced minting permissions (`owner === null`)? */
-  ownershipRenounced: boolean
-  /** Percentage of total supply locked in liquidity pool. */
-  poolSupplyPercent: number
-  /** Is fair launch safe (no owner + active liquidity)? */
-  isFairLaunchSafe: boolean
-}
-
 /**
- * Audits on-chain anti-rug security guarantees.
+ * Veredicto anti-rug que la UI puede mostrar sin mentir:
+ * - `verified`: owner renunciado (contrato con `get_owner`) + pool con XLM +
+ *   100% de los LP retirables en la burn address.
+ * - `lp-not-burned`: mint renunciado, pero hay LP fuera de la burn address
+ *   (quien los tenga puede retirar la liquidez).
+ * - `owner-active`: el creador aún puede acuñar.
+ * - `unknown`: token externo sin `get_owner()`; no hay garantías verificables.
+ * - `no-pool`: no hay liquidez que proteger.
+ * - `checking`: lectura de LP en curso (no se muestra nada definitivo).
  */
-export function auditTokenSecurity(params: {
-  owner: string | null
-  totalSupply: bigint
-  pool: PoolState | undefined
-}): SecurityAudit {
-  const { owner, totalSupply, pool } = params
-  const ownershipRenounced = owner === null
-  const reserveToken = pool?.exists ? pool.reserveToken : 0n
-  const poolSupplyPercent =
-    totalSupply > 0n && reserveToken > 0n
-      ? Math.min(100, Number((reserveToken * 10_000n) / totalSupply) / 100)
-      : 0
+export type RugProofStatus =
+  | 'verified'
+  | 'lp-not-burned'
+  | 'owner-active'
+  | 'unknown'
+  | 'no-pool'
+  | 'checking'
 
-  return {
-    ownershipRenounced,
-    poolSupplyPercent,
-    isFairLaunchSafe:
-      ownershipRenounced && Boolean(pool?.exists && pool.reserveXlm > 0n),
-  }
+export function rugProofStatus(params: {
+  owner: string | null
+  ownerSupported: boolean
+  pool: PoolState | undefined
+  /** `undefined` mientras se lee `fetchBurnedLpInfo`. */
+  lpFullyBurned: boolean | undefined
+}): RugProofStatus {
+  const { owner, ownerSupported, pool, lpFullyBurned } = params
+  if (!ownerSupported) return 'unknown'
+  if (owner !== null) return 'owner-active'
+  if (!pool?.exists || pool.reserveXlm <= 0n) return 'no-pool'
+  if (lpFullyBurned === undefined) return 'checking'
+  return lpFullyBurned ? 'verified' : 'lp-not-burned'
 }

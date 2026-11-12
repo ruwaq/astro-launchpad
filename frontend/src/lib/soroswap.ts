@@ -4,6 +4,7 @@ import { Client as PairClient } from '../contracts/soroswap-pair'
 import { Client as RouterClient } from '../contracts/soroswap-router'
 import { isValidContractAddress } from './address'
 import {
+  executeWithRpcFailover,
   NETWORK_PASSPHRASE,
   RPC_URL,
   SOROSWAP_FACTORY,
@@ -23,8 +24,10 @@ const DEADLINE_SECONDS = 300
 
 /**
  * Precio de 1 token en XLM (stroops enteros) según las reservas del par.
- * NOTA: Para tokens con baja ratio (< 1 stroop por token, típico en fair launch),
- * este valor trunca a 0n. Para visualización y cálculos precisos, usar `tokenPriceInXlmNumber`.
+ *
+ * @deprecated Trunca a `0n` cualquier precio < 1 stroop, que es el caso de
+ * TODO fair launch estándar (995M tokens contra < 99.5 XLM). Para mostrar o
+ * comparar precios usar `tokenPriceInXlmNumber` + `formatTokenPrice`.
  */
 export function tokenPriceInXlm(pool: PoolState, decimals: number): bigint {
   if (!pool.exists || pool.reserveToken <= 0n || pool.reserveXlm <= 0n) return 0n
@@ -46,8 +49,19 @@ export function tokenPriceInXlmNumber(pool: PoolState, decimals: number): number
 }
 
 /**
+ * Fija un número muy pequeño con ~3 cifras significativas y sin notación
+ * científica (`toFixed` admite como máximo 100 decimales; con 20 basta para
+ * cualquier precio realista de un token de 7 decimales).
+ */
+function formatTinyNumber(value: number): string {
+  const decimals = Math.min(20, Math.max(6, Math.ceil(-Math.log10(value)) + 2))
+  const fixed = value.toFixed(decimals).replace(/0+$/, '').replace(/\.$/, '')
+  return fixed === '0' ? `<0.${'0'.repeat(19)}1` : fixed
+}
+
+/**
  * Formats a fractional token price in XLM into a human-readable string without scientific notation.
- * e.g. 0.00000001005 XLM
+ * e.g. 0.0000000101 XLM (precio inicial de un fair launch de 10 XLM / 995M tokens)
  */
 export function formatTokenPrice(priceInXlm: number): string {
   if (!Number.isFinite(priceInXlm) || priceInXlm <= 0) return '0'
@@ -57,7 +71,14 @@ export function formatTokenPrice(priceInXlm: number): string {
   if (priceInXlm >= 0.0001) {
     return priceInXlm.toFixed(6)
   }
-  return priceInXlm.toFixed(9).replace(/0+$/, '')
+  return formatTinyNumber(priceInXlm)
+}
+
+/** Precio en USD legible: 4 decimales desde 1 centavo; debajo, 3 cifras significativas. */
+export function formatUsdPrice(priceUsd: number): string {
+  if (!Number.isFinite(priceUsd) || priceUsd <= 0) return '0'
+  if (priceUsd >= 0.01) return priceUsd.toFixed(4)
+  return formatTinyNumber(priceUsd)
 }
 
 /**
@@ -202,9 +223,9 @@ export function unwrapResult<T>(
  * Clientes de la factory y el router de Soroswap.
  * Sin `signer` son de solo lectura (simulación).
  */
-export function soroswapClients(signer?: Signer) {
+export function soroswapClients(signer?: Signer, rpcUrl: string = RPC_URL) {
   const options = {
-    rpcUrl: RPC_URL,
+    rpcUrl,
     networkPassphrase: NETWORK_PASSPHRASE,
     publicKey: signer?.address,
     signTransaction: signer,
@@ -242,34 +263,40 @@ export async function fetchPoolState(tokenId: string): Promise<PoolState> {
   if (!isValidContractAddress(tokenId)) {
     return { exists: false, pairId: null, reserveToken: 0n, reserveXlm: 0n }
   }
-  let pairId = pairIdCache.get(tokenId) ?? null
 
-  if (!pairId) {
-    const { factory } = soroswapClients()
-    const existsTx = await factory.pair_exists({
-      token_a: tokenId,
-      token_b: XLM_SAC,
-    })
-    if (!unwrapResult<boolean>(existsTx.result, 'pair_exists')) {
-      return { exists: false, pairId: null, reserveToken: 0n, reserveXlm: 0n }
+  return executeWithRpcFailover(async (rpcUrl) => {
+    let pairId = pairIdCache.get(tokenId) ?? null
+
+    if (!pairId) {
+      const { factory } = soroswapClients(undefined, rpcUrl)
+      const existsTx = await factory.pair_exists({
+        token_a: tokenId,
+        token_b: XLM_SAC,
+      })
+      if (!unwrapResult<boolean>(existsTx.result, 'pair_exists')) {
+        return { exists: false, pairId: null, reserveToken: 0n, reserveXlm: 0n }
+      }
+
+      const pairTx = await factory.get_pair({
+        token_a: tokenId,
+        token_b: XLM_SAC,
+      })
+      pairId = unwrapResult<string>(pairTx.result, 'get_pair')
+      pairIdCache.set(tokenId, pairId)
     }
 
-    const pairTx = await factory.get_pair({ token_a: tokenId, token_b: XLM_SAC })
-    pairId = unwrapResult<string>(pairTx.result, 'get_pair')
-    pairIdCache.set(tokenId, pairId)
-  }
+    // La única verdad sobre el orden y las reservas es el contrato del par:
+    // `sort_tokens` del router puede no coincidir con `token_0`/`token_1`.
+    const { token0, reserves } = await pairLayout(pairId, undefined, rpcUrl)
 
-  // La única verdad sobre el orden y las reservas es el contrato del par:
-  // `sort_tokens` del router puede no coincidir con `token_0`/`token_1`.
-  const { token0, reserves } = await pairLayout(pairId)
-
-  const tokenIsFirst = token0 === tokenId
-  return {
-    exists: true,
-    pairId,
-    reserveToken: tokenIsFirst ? reserves[0] : reserves[1],
-    reserveXlm: tokenIsFirst ? reserves[1] : reserves[0],
-  }
+    const tokenIsFirst = token0 === tokenId
+    return {
+      exists: true,
+      pairId,
+      reserveToken: tokenIsFirst ? reserves[0] : reserves[1],
+      reserveXlm: tokenIsFirst ? reserves[1] : reserves[0],
+    }
+  })
 }
 
 /**
@@ -282,26 +309,33 @@ export async function fetchLpPosition(
 ): Promise<LpPosition | null> {
   const pool = await fetchPoolState(tokenId)
   if (!pool.exists || !pool.pairId) return null
+  const pairId = pool.pairId
 
-  const pair = pairClientFor(pool.pairId)
-  const [balanceTx, supplyTx] = await Promise.all([
-    pair.balance({ id: account }),
-    pair.total_supply(),
-  ])
-  return {
-    pairId: pool.pairId,
-    lpBalance: unwrapResult<bigint>(balanceTx.result, 'balance'),
-    totalSupply: unwrapResult<bigint>(supplyTx.result, 'total_supply'),
-    reserveToken: pool.reserveToken,
-    reserveXlm: pool.reserveXlm,
-  }
+  return executeWithRpcFailover(async (rpcUrl) => {
+    const pair = pairClientFor(pairId, undefined, rpcUrl)
+    const [balanceTx, supplyTx] = await Promise.all([
+      pair.balance({ id: account }),
+      pair.total_supply(),
+    ])
+    return {
+      pairId,
+      lpBalance: unwrapResult<bigint>(balanceTx.result, 'balance'),
+      totalSupply: unwrapResult<bigint>(supplyTx.result, 'total_supply'),
+      reserveToken: pool.reserveToken,
+      reserveXlm: pool.reserveXlm,
+    }
+  })
 }
 
 /** Cliente del contrato del par (fuente de verdad de orden y reservas). */
-function pairClientFor(pairId: string, signer?: Signer): PairClient {
+function pairClientFor(
+  pairId: string,
+  signer?: Signer,
+  rpcUrl: string = RPC_URL,
+): PairClient {
   return new PairClient({
     contractId: pairId,
-    rpcUrl: RPC_URL,
+    rpcUrl,
     networkPassphrase: NETWORK_PASSPHRASE,
     publicKey: signer?.address,
     signTransaction: signer,
@@ -313,8 +347,9 @@ function pairClientFor(pairId: string, signer?: Signer): PairClient {
 async function pairLayout(
   pairId: string,
   signer?: Signer,
+  rpcUrl: string = RPC_URL,
 ): Promise<{ token0: string; token1: string; reserves: [bigint, bigint] }> {
-  const pair = pairClientFor(pairId, signer)
+  const pair = pairClientFor(pairId, signer, rpcUrl)
   const cachedTokens = pairTokensCache.get(pairId)
 
   if (cachedTokens) {
@@ -349,7 +384,9 @@ export async function fetchPoolStateByPair(pairId: string): Promise<{
   reserveXlm: bigint
 } | null> {
   try {
-    const layout = await pairLayout(pairId)
+    const layout = await executeWithRpcFailover((rpcUrl) =>
+      pairLayout(pairId, undefined, rpcUrl),
+    )
     const { token0, token1, reserves } = layout
     if (token0 === XLM_SAC) {
       return {
@@ -374,7 +411,35 @@ export async function fetchPoolStateByPair(pairId: string): Promise<{
 }
 
 /**
- * Cotiza cuánto XLM sale por una cantidad de token.
+ * Exact 0ms local constant-product AMM quote matching Soroswap Router's
+ * `router_get_amount_out` (30 bps / 0.3% fee, floor division).
+ */
+export function localAmountOut(
+  amountIn: bigint,
+  reserveIn: bigint,
+  reserveOut: bigint,
+): bigint {
+  if (amountIn <= 0n || reserveIn <= 0n || reserveOut <= 0n) return 0n
+  const amountInWithFee = amountIn * 997n
+  const numerator = amountInWithFee * reserveOut
+  const denominator = reserveIn * 1000n + amountInWithFee
+  return numerator / denominator
+}
+
+/** Synchronous 0ms XLM → Token quote from cached pool reserves. */
+export function localQuoteXlmForToken(amountIn: bigint, pool: PoolState): bigint {
+  if (!pool.exists) return 0n
+  return localAmountOut(amountIn, pool.reserveXlm, pool.reserveToken)
+}
+
+/** Synchronous 0ms Token → XLM quote from cached pool reserves. */
+export function localQuoteTokenForXlm(amountIn: bigint, pool: PoolState): bigint {
+  if (!pool.exists) return 0n
+  return localAmountOut(amountIn, pool.reserveToken, pool.reserveXlm)
+}
+
+/**
+ * Cotiza cuánto XLM sale por una cantidad de token via RPC (with failover).
  *
  * Ojo: `router_get_amounts_out` de este despliegue de Soroswap devuelve el
  * input sin cotizar; la cotización real es `router_get_amount_out` con las
@@ -392,16 +457,18 @@ export async function quoteTokenForXlm(
   ) {
     return 0n
   }
-  const { router } = soroswapClients()
-  const tx = await router.router_get_amount_out({
-    amount_in: amountIn,
-    reserve_in: pool.reserveToken,
-    reserve_out: pool.reserveXlm,
+  return executeWithRpcFailover(async (rpcUrl) => {
+    const { router } = soroswapClients(undefined, rpcUrl)
+    const tx = await router.router_get_amount_out({
+      amount_in: amountIn,
+      reserve_in: pool.reserveToken,
+      reserve_out: pool.reserveXlm,
+    })
+    return unwrapResult(tx.result, 'router_get_amount_out')
   })
-  return unwrapResult(tx.result, 'router_get_amount_out')
 }
 
-/** Cotiza cuántos tokens salen por una cantidad de XLM. */
+/** Cotiza cuántos tokens salen por una cantidad de XLM via RPC (with failover). */
 export async function quoteXlmForToken(
   amountIn: bigint,
   pool: PoolState,
@@ -414,13 +481,15 @@ export async function quoteXlmForToken(
   ) {
     return 0n
   }
-  const { router } = soroswapClients()
-  const tx = await router.router_get_amount_out({
-    amount_in: amountIn,
-    reserve_in: pool.reserveXlm,
-    reserve_out: pool.reserveToken,
+  return executeWithRpcFailover(async (rpcUrl) => {
+    const { router } = soroswapClients(undefined, rpcUrl)
+    const tx = await router.router_get_amount_out({
+      amount_in: amountIn,
+      reserve_in: pool.reserveXlm,
+      reserve_out: pool.reserveToken,
+    })
+    return unwrapResult(tx.result, 'router_get_amount_out')
   })
-  return unwrapResult(tx.result, 'router_get_amount_out')
 }
 
 /**
@@ -662,26 +731,51 @@ export async function swapTokenForXlm(params: {
 }
 
 /**
- * Lee on-chain cuántos LP tokens están quemados permanentemente en la dirección
- * blackhole de Stellar (`STELLAR_BURN_ADDRESS`), impidiendo cualquier rug-pull.
+ * LP que el par de Soroswap (arquitectura Uniswap V2) bloquea para siempre en
+ * el primer `deposit`. Nunca llegan a la burn address, así que una quema del
+ * 100% de los LP acuñados deja `burned = totalSupply - MINIMUM_LIQUIDITY`.
  */
-export async function fetchBurnedLpInfo(pairId: string): Promise<{
+export const SOROSWAP_MINIMUM_LIQUIDITY = 1_000n
+
+/**
+ * ¿Están quemados todos los LP retirables? Tolera los `MINIMUM_LIQUIDITY`
+ * bloqueados por el propio par; cualquier LP adicional fuera de la burn
+ * address (p. ej. en la wallet del creador) hace que devuelva `false`.
+ */
+export function isLpFullyBurned(burnedLp: bigint, totalSupply: bigint): boolean {
+  if (totalSupply <= 0n || burnedLp <= 0n) return false
+  return burnedLp + SOROSWAP_MINIMUM_LIQUIDITY >= totalSupply
+}
+
+export type BurnedLpInfo = {
   burnedLp: bigint
   totalSupply: bigint
   burnedPercent: number
-}> {
-  const pair = pairClientFor(pairId)
-  const [burnedTx, supplyTx] = await Promise.all([
-    pair.balance({ id: STELLAR_BURN_ADDRESS }),
-    pair.total_supply(),
-  ])
-  const burnedLp = unwrapResult<bigint>(burnedTx.result, 'balance')
-  const totalSupply = unwrapResult<bigint>(supplyTx.result, 'total_supply')
-  return {
-    burnedLp,
-    totalSupply,
-    burnedPercent: lpSharePercent(burnedLp, totalSupply),
-  }
+  /** 100% de los LP retirables en la burn address (ver `isLpFullyBurned`). */
+  fullyBurned: boolean
+}
+
+/**
+ * Lee on-chain cuántos LP tokens están quemados permanentemente en la dirección
+ * blackhole de Stellar (`STELLAR_BURN_ADDRESS`), impidiendo cualquier rug-pull.
+ */
+export async function fetchBurnedLpInfo(pairId: string): Promise<BurnedLpInfo> {
+  return executeWithRpcFailover(async (rpcUrl) => {
+    const pair = pairClientFor(pairId, undefined, rpcUrl)
+    const [burnedTx, supplyTx] = await Promise.all([
+      pair.balance({ id: STELLAR_BURN_ADDRESS }),
+      pair.total_supply(),
+    ])
+    const burnedLp = unwrapResult<bigint>(burnedTx.result, 'balance')
+    const totalSupply = unwrapResult<bigint>(supplyTx.result, 'total_supply')
+    const fullyBurned = isLpFullyBurned(burnedLp, totalSupply)
+    return {
+      burnedLp,
+      totalSupply,
+      burnedPercent: fullyBurned ? 100 : lpSharePercent(burnedLp, totalSupply),
+      fullyBurned,
+    }
+  })
 }
 
 /** Deadline del router: unix timestamp + 5 minutos. */

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQueryClient } from '@tanstack/react-query'
 import { useSoroswapPool } from '../hooks/useSoroswapPool'
 import { useTokenBalance } from '../hooks/useTokenBalance'
 import { useXlmBalance } from '../hooks/useXlmBalance'
@@ -9,29 +9,20 @@ import {
   parseAmount,
 } from '../lib/format'
 import {
-  addLiquidity,
+  localQuoteTokenForXlm,
+  localQuoteXlmForToken,
   priceImpactPercent,
-  quoteTokenForXlm,
-  quoteXlmForToken,
   SLIPPAGE_OPTIONS,
   SLIPPAGE_PERCENT,
   swapTokenForXlm,
   swapXlmForToken,
   withSlippage,
-  type PoolState,
 } from '../lib/soroswap'
-import {
-  FAIR_LAUNCH_TOTAL_BASIS,
-  poolAllocationBase,
-  STELLAR_BURN_ADDRESS,
-  DEFAULT_OPTIMIZED_SEED_XLM,
-} from '../lib/tokenomics'
 import { AMOUNT_PERCENTS, FORM_INPUT_CLASS, UNSUPPORTED_SIGNER_MESSAGE } from '../lib/constants'
 import { explorerTxUrl } from '../lib/explorer'
 import { XLM_DECIMALS, XLM_FEE_BUFFER, xlmToStroops } from '../lib/xlm'
 import type { LaunchpadToken } from '../lib/token'
 import { useWallet } from '../store/wallet'
-import { useProgress } from '../store/progress'
 import { recordActivity } from '../store/activity'
 import { toast } from '../lib/toast'
 import { TxProgress } from './TxProgress'
@@ -49,13 +40,6 @@ type SwapDone = {
 
 const QUICK_XLM_AMOUNTS = ['5', '10', '25', '100'] as const
 
-/** 99.5% del supply estándar, derivado de lib/tokenomics (única fuente). */
-function expectedPoolSizeBase(decimals: number): bigint {
-  return poolAllocationBase(
-    parseAmount(String(FAIR_LAUNCH_TOTAL_BASIS), decimals),
-  )
-}
-
 function impactClass(impact: number): string {
   if (impact >= 5) return 'text-rose-300'
   if (impact >= 2) return 'text-amber-300'
@@ -68,18 +52,18 @@ function impactClass(impact: number): string {
 export function SwapCard({
   token,
   onSwapped,
+  onOpenLiquidityTools,
 }: {
   token: LaunchpadToken
   onSwapped?: () => void
+  onOpenLiquidityTools?: () => void
 }) {
-  const { publicKey, getSigner, connect } = useWallet()
+  const { publicKey, getSigner, connect, startDemo, demoPending, pending } = useWallet()
   const queryClient = useQueryClient()
-  const markProgress = useProgress((state) => state.mark)
   const [direction, setDirection] = useState<Direction>('buy')
   const [amount, setAmount] = useState('10')
   const [slippage, setSlippage] = useState<number>(SLIPPAGE_PERCENT)
   const [busy, setBusy] = useState(false)
-  const [activatingPool, setActivatingPool] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [swapped, setSwapped] = useState<SwapDone | null>(null)
 
@@ -93,72 +77,6 @@ export function SwapCard({
   const pool = useSoroswapPool(token.id)
   const tokenBalance = useTokenBalance(publicKey, token.id)
   const xlmBalance = useXlmBalance(publicKey)
-
-  async function handleActivatePool() {
-    if (!publicKey) {
-      void connect()
-      return
-    }
-    const signer = getSigner()
-    if (!signer) {
-      setError(UNSUPPORTED_SIGNER_MESSAGE)
-      return
-    }
-
-    const currentXlm =
-      xlmBalance.data !== undefined ? xlmToStroops(xlmBalance.data) : undefined
-    const seedXlm = parseAmount(
-      String(DEFAULT_OPTIMIZED_SEED_XLM),
-      XLM_DECIMALS,
-    )
-    if (currentXlm !== undefined && currentXlm < seedXlm + XLM_FEE_BUFFER) {
-      setError(
-        `Insufficient XLM balance to activate pool. You need at least ${formatAmount(seedXlm + XLM_FEE_BUFFER, XLM_DECIMALS)} XLM (${DEFAULT_OPTIMIZED_SEED_XLM} XLM seed + 1 XLM fee buffer).`,
-      )
-      return
-    }
-
-    const expectedPool = expectedPoolSizeBase(token.decimals)
-    const currentTokenBal = tokenBalance.data ?? 0n
-    if (currentTokenBal < expectedPool) {
-      setError(
-        `You need ${formatAmount(expectedPool, token.decimals)} ${tokenSymbol} in your wallet to seed the initial pool.`,
-      )
-      return
-    }
-
-    setActivatingPool(true)
-    setError(null)
-    try {
-      const tokenDesired = currentTokenBal
-
-      await addLiquidity({
-        tokenId: token.id,
-        amountToken: tokenDesired,
-        amountXlm: seedXlm,
-        signer,
-        to: STELLAR_BURN_ADDRESS,
-      })
-
-      toast.success('Pool Activated Successfully!', {
-        message:
-          'The trading curve is live on Soroswap. You can now buy and sell!',
-      })
-
-      await Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: ['soroswap-pool', token.id],
-        }),
-        queryClient.invalidateQueries({
-          queryKey: ['token-balance', token.id],
-        }),
-      ])
-    } catch (err) {
-      setError(errorMessage(err))
-    } finally {
-      setActivatingPool(false)
-    }
-  }
 
   const xlmBase =
     xlmBalance.data !== undefined
@@ -174,27 +92,13 @@ export function SwapCard({
 
   const amountIn = parseAmount(amount, inputDecimals)
 
-  // La cotización es válida SOLO para estas reservas: si el pool cambia
-  // (refetch 60 s, otro swap on-chain), el key fuerza refetch y evita firmar
-  // con una salida vieja.
-  const quote = useQuery({
-    queryKey: [
-      'soroswap-quote',
-      token.id,
-      direction,
-      amountIn.toString(),
-      pool.data?.exists ? pool.data.reserveToken.toString() : 'x',
-      pool.data?.exists ? pool.data.reserveXlm.toString() : 'x',
-    ],
-    queryFn: () =>
-      isBuy
-        ? quoteXlmForToken(amountIn, pool.data as PoolState)
-        : quoteTokenForXlm(amountIn, pool.data as PoolState),
-    enabled: amountIn > 0n && Boolean(pool.data?.exists),
-    staleTime: 5_000,
-  })
-
-  const quoted = quote.data
+  // Instant deterministic 0ms AMM quote matching Soroswap router (997/1000 fee).
+  const quoted =
+    amountIn > 0n && pool.data?.exists
+      ? isBuy
+        ? localQuoteXlmForToken(amountIn, pool.data)
+        : localQuoteTokenForXlm(amountIn, pool.data)
+      : undefined
   const minimum = quoted !== undefined ? withSlippage(quoted, slippage) : null
   const impact =
     pool.data?.exists && quoted !== undefined && amountIn > 0n
@@ -258,11 +162,11 @@ export function SwapCard({
       return
     }
 
-    const quotedAmount = quote.data ?? 0n
+    const quotedAmount = quoted ?? 0n
     if (quotedAmount <= 0n) {
       setError(
-        quote.isPending
-          ? 'Quote is being calculated; please wait a moment and try again.'
+        pool.isPending
+          ? 'Loading pool reserves; please wait a moment.'
           : 'No quote available for that amount (pool may lack sufficient liquidity).',
       )
       return
@@ -296,7 +200,6 @@ export function SwapCard({
       const outFormatted = formatAmount(received, outputDecimals)
       setSwapped({ direction, in: amountIn, out: received, hash })
       setAmount('')
-      markProgress('swapped')
       recordActivity({
         kind: 'swap',
         tokenId: token.id,
@@ -404,16 +307,21 @@ export function SwapCard({
             {formatAmount(pool.data.reserveXlm, 7)} XLM
           </span>
         </p>
+      ) : pool.isPending ? (
+        <p className="mt-3 text-xs text-slate-400 animate-pulse">
+          Checking Soroswap pool reserves…
+        </p>
       ) : (
         <div className="mt-3 rounded-xl border border-amber-500/30 bg-amber-950/20 p-3 text-center">
           <p className="text-xs font-semibold text-amber-200">
             This token has no pair with XLM yet: seed liquidity first.
           </p>
           <p className="mt-1 text-[11px] text-slate-400">
-            Be the first player to start the trading game!
+            Be the first participant to initialize the AMM pool.
           </p>
           <a
             href="#advanced-tools"
+            onClick={() => onOpenLiquidityTools?.()}
             className="mt-2 inline-flex min-h-[36px] items-center gap-1.5 rounded-lg bg-amber-400 px-3.5 py-1 text-xs font-bold text-slate-950 hover:bg-amber-300"
           >
             ⚡ Open Seed Liquidity Tool
@@ -559,39 +467,27 @@ export function SwapCard({
           </div>
         ) : null}
 
-        {quote.isError ? (
-          <p role="alert" className="text-xs text-rose-300">
-            Failed to quote: {errorMessage(quote.error)}
-          </p>
-        ) : null}
-
         <div>
           {!publicKey ? (
-            <button
-              type="button"
-              onClick={() => void connect()}
-              className="min-h-[48px] w-full rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 px-6 py-3.5 text-base font-black text-slate-950 shadow-lg shadow-amber-500/25 transition-all active:scale-[0.99]"
-            >
-              🔌 Connect Wallet to Trade
-            </button>
-          ) : !pool.data?.exists ? (
-            <div className="space-y-2">
+            <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
               <button
                 type="button"
-                onClick={handleActivatePool}
-                disabled={activatingPool}
-                className="min-h-[48px] w-full rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 px-6 py-3.5 text-base font-black text-white shadow-lg shadow-cyan-500/25 transition-all active:scale-[0.99] disabled:opacity-50"
+                disabled={pending}
+                onClick={() => void connect().catch((err) => toast.error('Failed to connect wallet', { message: errorMessage(err) }))}
+                className="min-h-[48px] w-full rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 px-6 py-3.5 text-base font-black text-slate-950 shadow-lg shadow-amber-500/25 transition-all active:scale-[0.99] disabled:opacity-60"
               >
-                {activatingPool
-                  ? '⏳ Activating Pool on Soroswap…'
-                  : `⚡ Activate Pool on Soroswap (${DEFAULT_OPTIMIZED_SEED_XLM} XLM)`}
+                {pending ? 'Connecting…' : '🔌 Connect Wallet to Trade'}
               </button>
-              <p className="text-center text-xs text-slate-400">
-                This token has no initial pool yet. Click to deposit{' '}
-                {DEFAULT_OPTIMIZED_SEED_XLM} XLM seed and permanently burn LP to enable trading.
-              </p>
+              <button
+                type="button"
+                disabled={demoPending || pending}
+                onClick={() => void startDemo().catch((err) => toast.error('Failed to start demo', { message: errorMessage(err) }))}
+                className="min-h-[48px] rounded-xl border border-sky-500/40 bg-sky-500/10 px-4 py-3 text-xs font-bold text-sky-200 hover:bg-sky-500/20 disabled:opacity-60"
+              >
+                {demoPending ? 'Funding…' : 'Testnet Demo'}
+              </button>
             </div>
-          ) : (
+          ) : !pool.data?.exists ? null : (
             <button
               type="submit"
               disabled={busy || amountIn <= 0n}

@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
-  auditTokenSecurity,
   calculateSupplySharePercent,
   DEFAULT_OPTIMIZED_SEED_XLM,
   graduationProgress,
   poolAllocationBase,
+  rugProofStatus,
   SEED_LIQUIDITY_PRESETS,
   STELLAR_BURN_ADDRESS,
   WHALE_TRADE_SHARE_BPS,
@@ -59,36 +59,44 @@ describe('graduationProgress', () => {
   })
 })
 
-describe('auditTokenSecurity', () => {
-  it('certifica fair launch cuando ownership está renunciado y hay pool', () => {
-    const audit = auditTokenSecurity({
-      owner: null,
-      totalSupply: 1_000n,
-      pool: {
-        exists: true,
-        pairId: 'CPAIR',
-        reserveToken: 990n,
-        reserveXlm: 100n,
-      },
-    })
-    expect(audit.ownershipRenounced).toBe(true)
-    expect(audit.poolSupplyPercent).toBe(99)
-    expect(audit.isFairLaunchSafe).toBe(true)
+describe('rugProofStatus (fail-closed)', () => {
+  const pool = {
+    exists: true,
+    pairId: 'CPAIR',
+    reserveToken: 990n,
+    reserveXlm: 100n,
+  }
+
+  it('solo verifica con owner renunciado + pool + 100% LP quemado', () => {
+    expect(
+      rugProofStatus({ owner: null, ownerSupported: true, pool, lpFullyBurned: true }),
+    ).toBe('verified')
   })
 
-  it('marca no seguro si el owner sigue activo o no hay liquidez', () => {
-    const withOwner = auditTokenSecurity({
-      owner: 'GOWNER',
-      totalSupply: 1_000n,
-      pool: {
-        exists: true,
-        pairId: 'CPAIR',
-        reserveToken: 990n,
-        reserveXlm: 100n,
-      },
-    })
-    expect(withOwner.ownershipRenounced).toBe(false)
-    expect(withOwner.isFairLaunchSafe).toBe(false)
+  it('no certifica si los LP no están quemados aunque el owner esté renunciado', () => {
+    expect(
+      rugProofStatus({ owner: null, ownerSupported: true, pool, lpFullyBurned: false }),
+    ).toBe('lp-not-burned')
+    expect(
+      rugProofStatus({ owner: null, ownerSupported: true, pool, lpFullyBurned: undefined }),
+    ).toBe('checking')
+  })
+
+  it('distingue owner activo, token externo y ausencia de pool', () => {
+    expect(
+      rugProofStatus({ owner: 'GOWNER', ownerSupported: true, pool, lpFullyBurned: true }),
+    ).toBe('owner-active')
+    expect(
+      rugProofStatus({ owner: null, ownerSupported: false, pool, lpFullyBurned: true }),
+    ).toBe('unknown')
+    expect(
+      rugProofStatus({
+        owner: null,
+        ownerSupported: true,
+        pool: { ...pool, exists: false, reserveXlm: 0n },
+        lpFullyBurned: true,
+      }),
+    ).toBe('no-pool')
   })
 })
 

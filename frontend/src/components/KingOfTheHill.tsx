@@ -4,8 +4,23 @@ import type { LaunchpadToken } from '../lib/token'
 import { formatAmount } from '../lib/format'
 import { tokenPriceInXlmNumber } from '../lib/soroswap'
 import { graduationProgress } from '../lib/tokenomics'
+import { DEFAULT_XLM_USD_PRICE } from '../lib/xlm'
 import { useXlmUsdPrice } from '../hooks/useXlmUsdPrice'
+import { useTokenInfo } from '../hooks/useTokenInfo'
+import { useTokenMetadata } from '../hooks/useTokenMetadata'
 import { TokenArt } from './TokenArt'
+
+/** King of the Hill: el par con más XLM acumulado en la curva. */
+function pickKing(tokens: TokenListing[]): TokenListing | null {
+  const king = [...tokens].sort((a, b) =>
+    b.pool.reserveXlm > a.pool.reserveXlm
+      ? 1
+      : b.pool.reserveXlm < a.pool.reserveXlm
+        ? -1
+        : 0,
+  )[0]
+  return king && king.pool.reserveXlm > 0n ? king : null
+}
 
 export function KingOfTheHill({
   tokens,
@@ -14,27 +29,22 @@ export function KingOfTheHill({
   tokens: TokenListing[]
   onSelect?: (token: LaunchpadToken) => void
 }) {
-  const { data: xlmUsd = 0.1555 } = useXlmUsdPrice()
+  const { data: xlmUsd = DEFAULT_XLM_USD_PRICE } = useXlmUsdPrice()
+  const king = tokens && tokens.length > 0 ? pickKing(tokens) : null
+  // Supply real on-chain: no todos los pares descubiertos son fair launch de 1B.
+  const kingInfo = useTokenInfo(king?.id ?? '')
+  const kingMeta = useTokenMetadata(king?.id ?? '')
 
-  if (!tokens || tokens.length === 0) return null
-
-  // King of the Hill is the pair with highest accumulated XLM liquidity in the curve
-  const king = [...tokens].sort((a, b) =>
-    b.pool.reserveXlm > a.pool.reserveXlm
-      ? 1
-      : b.pool.reserveXlm < a.pool.reserveXlm
-        ? -1
-        : 0,
-  )[0]
-
-  if (!king || king.pool.reserveXlm <= 0n) return null
+  if (!king) return null
 
   const grad = graduationProgress(king.pool.reserveXlm)
   const priceXlm = tokenPriceInXlmNumber(king.pool, king.decimals)
   const reserveXlmNum = Number(king.pool.reserveXlm) / 1e7
   const liquidityUsd = reserveXlmNum * xlmUsd
-  // Market cap estimated on standard 1B supply
-  const marketCapXlm = priceXlm * 1_000_000_000
+  const totalSupply = kingInfo.data
+    ? Number(kingInfo.data.totalSupply) / 10 ** kingInfo.data.decimals
+    : 0
+  const marketCapXlm = priceXlm * totalSupply
   const marketCapUsd = marketCapXlm * xlmUsd
 
   return (
@@ -45,6 +55,7 @@ export function KingOfTheHill({
             <TokenArt
               id={king.id}
               symbol={king.symbol}
+              logoUrl={kingMeta.data?.logoUrl}
               className="h-full w-full"
             />
             <span
@@ -112,8 +123,8 @@ export function KingOfTheHill({
 
           <div className="mt-1 flex flex-wrap gap-2">
             {onSelect ? (
-              <a
-                href="#sec-swap"
+              <button
+                type="button"
                 onClick={() =>
                   onSelect({
                     id: king.id,
@@ -121,17 +132,18 @@ export function KingOfTheHill({
                     symbol: king.symbol,
                   })
                 }
-                className="inline-flex min-h-[38px] items-center rounded-xl bg-amber-400 px-3.5 py-1.5 text-xs font-bold text-slate-950 hover:bg-amber-300"
+                className="inline-flex min-h-[38px] items-center rounded-xl bg-amber-400 px-4 py-1.5 text-xs font-bold text-slate-950 hover:bg-amber-300"
               >
-                ⚡ Ape In ${king.symbol}
-              </a>
-            ) : null}
-            <Link
-              to={`/token/${king.id}`}
-              className="inline-flex min-h-[38px] items-center rounded-xl border border-emerald-500/50 bg-emerald-500/15 px-3.5 py-1.5 text-xs font-semibold text-emerald-200 hover:bg-emerald-500/25"
-            >
-              📈 Chart & Info →
-            </Link>
+                👑 Trade ${king.symbol} →
+              </button>
+            ) : (
+              <Link
+                to={`/token/${king.id}`}
+                className="inline-flex min-h-[38px] items-center rounded-xl bg-amber-400 px-4 py-1.5 text-xs font-bold text-slate-950 hover:bg-amber-300"
+              >
+                👑 Trade ${king.symbol} →
+              </Link>
+            )}
           </div>
         </div>
       </div>

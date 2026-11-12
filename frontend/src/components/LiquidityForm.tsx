@@ -10,7 +10,6 @@ import { XLM_DECIMALS, XLM_FEE_BUFFER, xlmToStroops } from '../lib/xlm'
 import { ShareButton } from './ShareButton'
 import type { LaunchpadToken } from '../lib/token'
 import { useWallet } from '../store/wallet'
-import { useProgress } from '../store/progress'
 import { recordActivity } from '../store/activity'
 import { toast } from '../lib/toast'
 import { TxProgress } from './TxProgress'
@@ -32,7 +31,6 @@ export function LiquidityForm({
 }) {
   const { publicKey, getSigner } = useWallet()
   const queryClient = useQueryClient()
-  const markProgress = useProgress((state) => state.mark)
   const balance = useTokenBalance(publicKey, token.id)
   const pool = useSoroswapPool(token.id)
   const xlmBalance = useXlmBalance(publicKey)
@@ -138,7 +136,6 @@ export function LiquidityForm({
       setLp(result)
       setAmountToken('')
       setAmountXlm('')
-      markProgress('liquidity')
       recordActivity({
         kind: 'add-liquidity',
         tokenId: token.id,
