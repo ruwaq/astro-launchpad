@@ -2,7 +2,6 @@ import { Link } from 'react-router'
 import { WalletInstallHint } from '../components/WalletInstallHint'
 import { DemoMode } from '../components/DemoMode'
 import { TokenArt } from '../components/TokenArt'
-import { CosmicLauncherGame } from '../components/CosmicLauncherGame'
 import { useWallet } from '../store/wallet'
 import { ASTRO_TOKEN_ID } from '../lib/network'
 import { BRAND } from '../lib/brand'
@@ -93,12 +92,7 @@ export function HomePage() {
         </div>
       </section>
 
-      {/* 2. Interactive Cosmic Launcher Game Simulator */}
-      <section id="sec-game" className="scroll-mt-20">
-        <CosmicLauncherGame />
-      </section>
-
-      {/* 3. Three Pillars: Minimalist Feature Overview */}
+      {/* 2. Three Pillars: Minimalist Feature Overview */}
       <section className="grid gap-4 sm:grid-cols-3">
         <div className="liquid-glass rounded-2xl p-5 border border-white/[0.07] space-y-2">
           <div className="flex items-center gap-2">

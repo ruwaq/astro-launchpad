@@ -3,13 +3,10 @@ import { Link } from 'react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { launchTokenAtomic } from '../lib/token'
 import {
-  allocationOfBps,
-  CREATOR_ALLOCATION_BPS,
   FAIR_LAUNCH_DECIMALS,
   FAIR_LAUNCH_TOTAL_BASIS,
   poolAllocationBase,
   DEFAULT_OPTIMIZED_SEED_XLM,
-  SEED_LIQUIDITY_PRESETS,
 } from '../lib/tokenomics'
 import { DEFAULT_XLM_USD_PRICE, XLM_DECIMALS, XLM_FEE_BUFFER, xlmToStroops } from '../lib/xlm'
 import { useXlmUsdPrice } from '../hooks/useXlmUsdPrice'
@@ -43,13 +40,6 @@ type LaunchStep = 'launching' | null
 function incompleteMessageFor(cp: LaunchCheckpoint): string {
   return `Previous launch attempt recorded for ${cp.symbol} (${cp.tokenId || 'pending broadcast'}). Check transaction status on Stellar Explorer.`
 }
-
-// Cifras estándar del desglose, derivadas de la única fuente de tokenomics:
-const STANDARD_POOL_UNITS = poolAllocationBase(FAIR_LAUNCH_TOTAL_BASIS)
-const STANDARD_CREATOR_UNITS = allocationOfBps(
-  FAIR_LAUNCH_TOTAL_BASIS,
-  CREATOR_ALLOCATION_BPS,
-)
 
 export function CreateTokenForm({
   onCreated,
@@ -247,18 +237,17 @@ export function CreateTokenForm({
 
   return (
     <section className="liquid-glass rounded-3xl p-5 sm:p-8 w-full max-w-full overflow-hidden">
-      <div className="flex items-center justify-between gap-2">
-        <h2 className="text-lg font-semibold">Launch Your Token</h2>
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/40 bg-emerald-950/40 px-2.5 py-0.5 text-xs font-semibold text-emerald-300">
-          <span>⚡</span> Protocol Fee: 0 XLM (Free Testnet Launch)
+      <div className="flex items-center justify-between gap-2 border-b border-white/[0.06] pb-3">
+        <div>
+          <h2 className="text-xl font-bold text-white">Create & Launch Token</h2>
+          <p className="mt-0.5 text-xs text-slate-400">
+            Fair Launch on Stellar · 1B supply · 100% LP burned & ownership renounced
+          </p>
+        </div>
+        <span className="rounded-full border border-emerald-500/30 bg-emerald-950/40 px-2.5 py-1 text-[11px] font-semibold text-emerald-300 shrink-0">
+          ⚡ 0 XLM Fee
         </span>
       </div>
-
-      <p className="mt-1 text-sm text-slate-400">
-        Standard <strong>Fair Launch</strong>: 1,000,000,000 supply ·{' '}
-        <span className="text-emerald-300">100% LP burned & ownership renounced</span>.
-        Token is created and paired on Soroswap in a single transaction.
-      </p>
 
       {/* Success View */}
       {createdId ? (
@@ -474,65 +463,6 @@ export function CreateTokenForm({
           ) : null}
         </div>
 
-        {/* Live Token Preview Card */}
-        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3.5 sm:col-span-2 min-w-0 max-w-full overflow-hidden">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-              👁️ Live Token Preview
-            </span>
-            <span className="text-[11px] text-slate-500">How it appears on AstroGate</span>
-          </div>
-
-          <div className="mt-2 flex flex-col gap-3 rounded-xl border border-slate-800 bg-slate-950 p-3 sm:flex-row sm:items-center">
-            <div className="h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-slate-800 bg-slate-900">
-              <TokenArt
-                id={name ? `preview-${name}` : 'preview-token'}
-                symbol={symbol || 'TKN'}
-                logoUrl={logoUrl || undefined}
-                className="h-full w-full"
-              />
-            </div>
-
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <h4 className="truncate font-bold text-slate-100 text-sm">
-                  {name.trim() || 'Untitled Token'}{' '}
-                  <span className="font-normal text-slate-500">(${symbol || 'TKN'})</span>
-                </h4>
-                <span className="rounded border border-emerald-500/20 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-400">
-                  100% Anti-Rug
-                </span>
-              </div>
-              <p className="mt-0.5 line-clamp-2 text-xs text-slate-400">
-                {description.trim() || 'No description provided yet.'}
-              </p>
-              <div className="mt-1.5 flex flex-wrap items-center gap-2 font-mono text-[11px] text-slate-500">
-                <span>Supply: 1,000,000,000</span>
-                <span>•</span>
-                <span>Creator Allocation: 0.5% (5M tokens at launch)</span>
-                {telegram ? (
-                  <>
-                    <span>•</span>
-                    <span className="text-sky-400">✈️ Telegram</span>
-                  </>
-                ) : null}
-                {website ? (
-                  <>
-                    <span>•</span>
-                    <span className="text-cyan-400">🌐 Web</span>
-                  </>
-                ) : null}
-                {twitter ? (
-                  <>
-                    <span>•</span>
-                    <span className="text-slate-300">𝕏 Twitter</span>
-                  </>
-                ) : null}
-              </div>
-            </div>
-          </div>
-        </div>
-
         {error ? (
           <div
             role="alert"
@@ -557,101 +487,44 @@ export function CreateTokenForm({
           </div>
         ) : null}
 
-        {/* Optimized Fair Seed Liquidity Selector */}
-        <div className="sm:col-span-2 rounded-xl border border-slate-800 bg-slate-900/60 p-3.5 space-y-2">
-          <div className="flex flex-wrap items-center justify-between gap-1 text-xs">
-            <span className="font-semibold text-slate-200 flex items-center gap-1.5">
-              <span>💧</span> Initial Seed Liquidity (XLM to activate pool)
+        {/* Minimalist Seed Liquidity Chips */}
+        <div className="sm:col-span-2 space-y-2 pt-2 border-t border-white/[0.06]">
+          <div className="flex items-center justify-between text-xs">
+            <span className="font-medium text-slate-300">
+              Initial Liquidity (XLM Seed)
             </span>
-            <span className="text-emerald-400 font-mono font-bold">
+            <span className="font-mono text-emerald-400 font-bold">
               {seedXlmAmount} XLM (~${(seedXlmAmount * xlmUsd).toFixed(2)} USD)
             </span>
           </div>
-          <p className="text-[11px] text-slate-400">
-            Initial XLM seeds the AMM pool alongside 99.5% of token supply. 100% of LP tokens are automatically burned.
-          </p>
-          <div className="grid gap-2 sm:grid-cols-2 pt-1">
-            {SEED_LIQUIDITY_PRESETS.map((preset) => (
+
+          <div className="grid grid-cols-4 gap-2">
+            {[5, 10, 20, 50].map((amount) => (
               <button
-                key={preset.xlm}
+                key={amount}
                 type="button"
                 disabled={busy}
-                onClick={() => setSeedXlmAmount(preset.xlm)}
-                className={`min-h-[44px] rounded-xl border p-2.5 text-left transition-all ${
-                  seedXlmAmount === preset.xlm
-                    ? 'border-emerald-500 bg-emerald-500/15 text-emerald-200 shadow-md shadow-emerald-500/10'
-                    : 'border-slate-800 bg-slate-950/70 text-slate-400 hover:border-slate-700 hover:text-slate-200'
+                onClick={() => setSeedXlmAmount(amount)}
+                className={`py-2 rounded-xl border text-xs font-mono font-bold transition-all ${
+                  seedXlmAmount === amount
+                    ? 'border-emerald-500 bg-emerald-500/20 text-emerald-300 shadow-md shadow-emerald-500/10'
+                    : 'border-slate-800 bg-slate-900/60 text-slate-400 hover:text-white hover:border-slate-700'
                 }`}
               >
-                <div className="flex items-center justify-between font-mono text-xs font-bold">
-                  <span>{preset.label}</span>
-                  {preset.isRecommended ? (
-                    <span className="rounded bg-emerald-500/20 px-1.5 py-0.5 text-[10px] text-emerald-300">
-                      Recommended
-                    </span>
-                  ) : (
-                    <span className="text-[10px] text-slate-500">
-                      ~${(preset.xlm * xlmUsd).toFixed(2)} USD
-                    </span>
-                  )}
-                </div>
-                <p className="mt-0.5 text-[10px] text-slate-400 leading-tight">
-                  {preset.desc}
-                </p>
+                {amount} XLM
               </button>
             ))}
           </div>
+          <p className="text-[11px] text-slate-500">
+            Deposited to Soroswap pool with 99.5% token supply. 100% LP burned to dead address on creation.
+          </p>
         </div>
 
-        {/* Transparent Cost & Anti-Dump Strategy Breakdown */}
-        <div className="sm:col-span-2 rounded-xl border border-slate-800 bg-slate-950/70 p-4 space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/80 pb-2">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
-              <span>🧾</span> Transparent Economics: Exact Launch Breakdown
-            </span>
-            <span className="font-mono text-xs font-black text-emerald-400">
-              Total Required: ~{totalRequiredXlm.toFixed(2)} XLM (~${(totalRequiredXlm * xlmUsd).toFixed(2)} USD)
-            </span>
-          </div>
-
-          <div className="grid gap-2 text-xs text-slate-300 sm:grid-cols-3">
-            <div className="rounded-lg bg-slate-900/60 p-2.5 border border-slate-800/60">
-              <div className="text-slate-400 font-medium">🏛️ Protocol Deploy Fee</div>
-              <div className="mt-1 font-mono font-bold text-slate-100">
-                0 XLM (Free)
-              </div>
-              <div className="mt-0.5 text-[10px] text-emerald-400">
-                100% free testnet deployment
-              </div>
-            </div>
-
-            <div className="rounded-lg bg-slate-900/60 p-2.5 border border-slate-800/60">
-              <div className="text-slate-400 font-medium">💧 Pool Seed Liquidity</div>
-              <div className="mt-1 font-mono font-bold text-slate-100">
-                {seedXlmAmount} XLM + {STANDARD_POOL_UNITS.toLocaleString()} Tokens
-              </div>
-              <div className="mt-0.5 text-[10px] text-emerald-400">
-                100% deposited to Soroswap & LP burned
-              </div>
-            </div>
-
-            <div className="rounded-lg bg-slate-900/60 p-2.5 border border-slate-800/60">
-              <div className="text-slate-400 font-medium">🛡️ Creator Allocation (0.5%)</div>
-              <div className="mt-1 font-mono font-bold text-amber-300">
-                {STANDARD_CREATOR_UNITS.toLocaleString()} $TOKEN
-              </div>
-              <div className="mt-0.5 text-[10px] text-slate-400">
-                Minted directly to creator wallet at launch (0.5% max)
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-2 flex flex-wrap items-center justify-between gap-3 sm:col-span-2 pt-2 border-t border-slate-800/80">
-          <div className="text-xs text-slate-400">
-            Minimum required wallet balance:{' '}
-            <strong className="text-emerald-300 font-mono">
-              ~{totalRequiredXlm.toFixed(2)} XLM
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-3 sm:col-span-2 pt-3 border-t border-white/[0.06]">
+          <div className="text-xs text-slate-400 font-mono">
+            Total Required:{' '}
+            <strong className="text-emerald-300">
+              ~{totalRequiredXlm.toFixed(1)} XLM
             </strong>
           </div>
 
@@ -659,9 +532,9 @@ export function CreateTokenForm({
             <button
               type="button"
               onClick={() => void connect()}
-              className="min-h-[44px] rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 px-6 py-2.5 text-sm font-black text-slate-950 transition-all shadow-md shadow-amber-500/20 active:scale-[0.99] cursor-pointer"
+              className="min-h-[44px] rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 px-6 py-2.5 text-sm font-bold text-slate-950 transition-all shadow-md shadow-amber-500/20 active:scale-[0.99] cursor-pointer"
             >
-              🔌 Connect Wallet to Launch Token
+              🔌 Connect Wallet
             </button>
           ) : (
             <button
@@ -670,8 +543,8 @@ export function CreateTokenForm({
               className="min-h-[44px] rounded-xl bg-emerald-500 px-6 py-2.5 text-sm font-black text-slate-950 transition hover:bg-emerald-400 disabled:opacity-50 shadow-md shadow-emerald-500/20 cursor-pointer active:scale-[0.99]"
             >
               {busy
-                ? 'Launching Token & Creating Pool…'
-                : `🚀 Launch Token & Pool (~${totalRequiredXlm.toFixed(2)} XLM)`}
+                ? 'Launching Token…'
+                : `🚀 Launch Token (~${totalRequiredXlm.toFixed(1)} XLM)`}
             </button>
           )}
         </div>
